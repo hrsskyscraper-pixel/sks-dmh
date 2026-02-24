@@ -129,7 +129,12 @@ CREATE POLICY "employees_update_admin" ON employees
   FOR UPDATE TO authenticated
   USING (get_current_role() = 'admin');
 
--- admin のみ挿入可（招待フロー）
+-- 初回ログイン時: 自分のレコードは自分で作成可
+CREATE POLICY "employees_insert_own" ON employees
+  FOR INSERT TO authenticated
+  WITH CHECK (auth_user_id = auth.uid());
+
+-- admin は他ユーザーの挿入も可
 CREATE POLICY "employees_insert_admin" ON employees
   FOR INSERT TO authenticated
   WITH CHECK (get_current_role() = 'admin');
