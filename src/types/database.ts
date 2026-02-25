@@ -198,30 +198,162 @@ export type Database = {
       }
       phase_milestones: {
         Row: {
-          phase: '4月' | '5月〜6月' | '7月〜8月'
+          phase: string
           employment_type: '社員' | 'メイト'
           end_hours: number
           updated_at: string
         }
         Insert: {
-          phase: '4月' | '5月〜6月' | '7月〜8月'
+          phase: string
           employment_type: '社員' | 'メイト'
           end_hours: number
           updated_at?: string
         }
         Update: {
-          phase?: '4月' | '5月〜6月' | '7月〜8月'
+          phase?: string
           employment_type?: '社員' | 'メイト'
           end_hours?: number
           updated_at?: string
         }
         Relationships: []
       }
+      skill_projects: {
+        Row: {
+          id: string
+          name: string
+          description: string | null
+          is_active: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          description?: string | null
+          is_active?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          description?: string | null
+          is_active?: boolean
+          created_at?: string
+        }
+        Relationships: []
+      }
+      project_phases: {
+        Row: {
+          id: string
+          project_id: string
+          name: string
+          order_index: number
+          end_hours: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          project_id: string
+          name: string
+          order_index: number
+          end_hours: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          project_id?: string
+          name?: string
+          order_index?: number
+          end_hours?: number
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'project_phases_project_id_fkey'
+            columns: ['project_id']
+            isOneToOne: false
+            referencedRelation: 'skill_projects'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      project_skills: {
+        Row: {
+          project_id: string
+          skill_id: string
+          project_phase_id: string | null
+        }
+        Insert: {
+          project_id: string
+          skill_id: string
+          project_phase_id?: string | null
+        }
+        Update: {
+          project_id?: string
+          skill_id?: string
+          project_phase_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'project_skills_project_id_fkey'
+            columns: ['project_id']
+            isOneToOne: false
+            referencedRelation: 'skill_projects'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'project_skills_skill_id_fkey'
+            columns: ['skill_id']
+            isOneToOne: false
+            referencedRelation: 'skills'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'project_skills_project_phase_id_fkey'
+            columns: ['project_phase_id']
+            isOneToOne: false
+            referencedRelation: 'project_phases'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      employee_projects: {
+        Row: {
+          employee_id: string
+          project_id: string
+          joined_at: string
+        }
+        Insert: {
+          employee_id: string
+          project_id: string
+          joined_at?: string
+        }
+        Update: {
+          employee_id?: string
+          project_id?: string
+          joined_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'employee_projects_employee_id_fkey'
+            columns: ['employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'employee_projects_project_id_fkey'
+            columns: ['project_id']
+            isOneToOne: false
+            referencedRelation: 'skill_projects'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       skills: {
         Row: {
           id: string
           name: string
-          phase: '4月' | '5月〜6月' | '7月〜8月'
+          phase: string | null
           category: '接客' | '調理' | '管理' | 'その他'
           order_index: number
           target_date_hint: string | null
@@ -230,7 +362,7 @@ export type Database = {
         Insert: {
           id?: string
           name: string
-          phase: '4月' | '5月〜6月' | '7月〜8月'
+          phase?: string | null
           category: '接客' | '調理' | '管理' | 'その他'
           order_index?: number
           target_date_hint?: string | null
@@ -239,7 +371,7 @@ export type Database = {
         Update: {
           id?: string
           name?: string
-          phase?: '4月' | '5月〜6月' | '7月〜8月'
+          phase?: string | null
           category?: '接客' | '調理' | '管理' | 'その他'
           order_index?: number
           target_date_hint?: string | null
@@ -374,8 +506,15 @@ export type WorkHour = Database['public']['Tables']['work_hours']['Row']
 export type Team = Database['public']['Tables']['teams']['Row']
 export type TeamMember = Database['public']['Tables']['team_members']['Row']
 export type TeamChangeRequest = Database['public']['Tables']['team_change_requests']['Row']
+export type SkillProject = Database['public']['Tables']['skill_projects']['Row']
+export type ProjectPhase = Database['public']['Tables']['project_phases']['Row']
+export type ProjectSkill = Database['public']['Tables']['project_skills']['Row']
+export type EmployeeProject = Database['public']['Tables']['employee_projects']['Row']
 
-export type Phase = '4月' | '5月〜6月' | '7月〜8月'
+// LegacyPhase: 旧来の固定フェーズ型（後方互換のため残す）
+export type LegacyPhase = '4月' | '5月〜6月' | '7月〜8月'
+// Phase は文字列に緩和
+export type Phase = string
 export type Category = '接客' | '調理' | '管理' | 'その他'
 export type Role = 'employee' | 'manager' | 'admin' | 'ops_manager'
 export type AchievementStatus = 'pending' | 'certified' | 'rejected'
@@ -384,13 +523,13 @@ export type TeamType = 'store' | 'project'
 
 export type Employee = Database['public']['Tables']['employees']['Row']
 
-// 標準進捗マイルストーン
+// 標準進捗マイルストーン（旧テーブル）
 export type PhaseMilestone = {
-  phase: Phase
+  phase: string
   employment_type: EmploymentType
   end_hours: number
   updated_at: string
 }
 
 // ダッシュボードで使うマイルストーンマップ（start/end を計算済み）
-export type MilestoneMap = Record<Phase, { start: number; end: number }>
+export type MilestoneMap = Record<string, { start: number; end: number }>
