@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, CheckSquare, Users, Upload, Users2, SlidersHorizontal, LogOut, Building2, FolderKanban } from 'lucide-react'
+import { LayoutDashboard, CheckSquare, Users, Upload, Users2, LogOut, Building2, FolderKanban } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import type { Role } from '@/types/database'
@@ -15,7 +15,6 @@ const navItems = [
   { href: '/team',             label: '認定',            icon: Users,              roles: ['manager', 'admin', 'ops_manager'] },
   { href: '/admin/csv-import', label: 'CSV取込',         icon: Upload,             roles: ['manager', 'admin', 'ops_manager'] },
   { href: '/admin/projects',   label: 'プロジェクト',     icon: FolderKanban,       roles: ['admin', 'ops_manager'] },
-  { href: '/admin/settings',   label: '設定',            icon: SlidersHorizontal,  roles: ['admin', 'ops_manager'] },
 ] as const
 
 interface NavProps {
