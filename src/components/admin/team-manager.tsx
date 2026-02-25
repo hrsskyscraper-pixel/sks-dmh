@@ -1,8 +1,11 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
-import { Plus, Trash2, UserPlus, UserMinus, ClipboardList, Check, X, ChevronDown, ChevronUp } from 'lucide-react'
+import { Plus, Trash2, UserPlus, UserMinus, ClipboardList, Check, X, ChevronDown, ChevronUp, Pencil } from 'lucide-react'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -16,7 +19,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { createClient } from '@/lib/supabase/client'
-import type { Employee, Team, TeamMember, TeamChangeRequest, Role } from '@/types/database'
+import type { Employee, Team, TeamMember, TeamManager, TeamChangeRequest, Role } from '@/types/database'
 
 interface Props {
   currentEmployee: Employee
@@ -26,7 +29,7 @@ interface Props {
   effectiveRole: Role
   teams: Team[]
   teamMembers: TeamMember[]
-  teamManagers: TeamMember[]
+  teamManagers: TeamManager[]
   employees: Employee[]
   changeRequests: TeamChangeRequest[]
 }
@@ -35,7 +38,7 @@ type RequestType = TeamChangeRequest['request_type']
 
 const TEAM_TYPE_LABELS: Record<Team['type'], string> = {
   store: '店舗',
-  project: 'プロジェクト',
+  project: 'チーム',
 }
 
 const TEAM_TYPE_COLORS: Record<Team['type'], string> = {
@@ -47,8 +50,8 @@ const REQUEST_TYPE_LABELS: Record<RequestType, string> = {
   create_team: 'チーム作成',
   add_member: 'メンバー追加',
   remove_member: 'メンバー削除',
-  add_manager: 'マネージャー追加',
-  remove_manager: 'マネージャー削除',
+  add_manager: 'リーダー追加',
+  remove_manager: 'リーダー削除',
 }
 
 const STATUS_COLORS: Record<TeamChangeRequest['status'], string> = {
@@ -77,6 +80,8 @@ export function TeamManager({
   employees,
   changeRequests: initialChangeRequests,
 }: Props) {
+  const searchParams = useSearchParams()
+  const initialTab = searchParams.get('tab') === 'requests' ? 'requests' : 'teams'
   const [teams, setTeams] = useState(initialTeams)
   const [teamMembers, setTeamMembers] = useState(initialTeamMembers)
   const [teamManagers, setTeamManagers] = useState(initialTeamManagers)
@@ -107,7 +112,8 @@ export function TeamManager({
     type: 'member' | 'manager'
     teamId: string
   } | null>(null)
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState('')
+  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<Set<string>>(new Set())
+  const [newManagerRole, setNewManagerRole] = useState<'primary' | 'secondary'>('secondary')
 
   // ===== Request Dialog (manager only) =====
   const [requestDialog, setRequestDialog] = useState<{
@@ -117,7 +123,7 @@ export function TeamManager({
     label: string
   } | null>(null)
   const [requestComment, setRequestComment] = useState('')
-  // create_team 申請時の担当マネージャー選択（デフォルト = effectiveEmployee）
+  // create_team 申請時の担当リーダー選択（デフォルト = effectiveEmployee）
   const [requestManagerId, setRequestManagerId] = useState(effectiveEmployee.id)
 
   // ===== Review Dialog (ops_manager / admin) =====
@@ -127,11 +133,38 @@ export function TeamManager({
   // ===== Expanded teams =====
   const [expandedTeams, setExpandedTeams] = useState<Set<string>>(new Set())
 
+  // ===== チーム名インライン編集 =====
+  const [inlineTeamName, setInlineTeamName] = useState<{ teamId: string; value: string } | null>(null)
+
+  function handleSaveTeamName() {
+    if (!inlineTeamName) return
+    const trimmed = inlineTeamName.value.trim()
+    const original = teams.find(t => t.id === inlineTeamName.teamId)?.name ?? ''
+    if (!trimmed) { toast.error('チーム名を入力してください'); setInlineTeamName(null); return }
+    if (trimmed === original) { setInlineTeamName(null); return }
+    startTransition(async () => {
+      const { data, error } = await supabase
+        .from('teams')
+        .update({ name: trimmed })
+        .eq('id', inlineTeamName.teamId)
+        .select()
+        .single()
+      if (error) { toast.error('更新に失敗しました'); return }
+      setTeams(prev => prev.map(t => t.id === data.id ? data : t))
+      setInlineTeamName(null)
+      toast.success('チーム名を更新しました')
+    })
+  }
+
   const pendingRequests = changeRequests.filter(r => r.status === 'pending')
-  // マネージャー向け: 未読の審査結果件数
+  // マネージャー向け: 未読の審査結果件数（view-as 対応で effectiveEmployee を使う）
   const unreadResults = changeRequests.filter(
-    r => r.requested_by === currentEmployee.id && r.status !== 'pending' && !r.applicant_read_at
+    r => r.requested_by === effectiveEmployee.id && r.status !== 'pending' && !r.applicant_read_at
   )
+  // 申請タブに表示する申請: admin/ops_manager は全件、manager は自分の申請のみ
+  const displayRequests = isDirectEdit
+    ? changeRequests
+    : changeRequests.filter(r => r.requested_by === effectiveEmployee.id)
 
   // 申請タブを開いたとき、自分の未読結果を既読にする
   const handleRequestsTabOpen = () => {
@@ -175,11 +208,11 @@ export function TeamManager({
 
       const { error: managerError } = await supabase
         .from('team_managers')
-        .insert({ team_id: team.id, employee_id: newTeamManagerId })
+        .insert({ team_id: team.id, employee_id: newTeamManagerId, role: 'primary' })
       if (managerError) { toast.error('マネージャー設定に失敗しました'); return }
 
       setTeams(prev => [...prev, team])
-      setTeamManagers(prev => [...prev, { team_id: team.id, employee_id: newTeamManagerId }])
+      setTeamManagers(prev => [...prev, { team_id: team.id, employee_id: newTeamManagerId, role: 'primary' as const }])
       setShowCreateTeam(false)
       setNewTeamName('')
       setNewTeamType('')
@@ -200,17 +233,17 @@ export function TeamManager({
     })
   }
 
-  const handleAddMember = (teamId: string, employeeId: string) => {
-    if (!isDirectEdit || !employeeId) return
+  const handleAddMember = (teamId: string, employeeIds: string[]) => {
+    if (!isDirectEdit || employeeIds.length === 0) return
     startTransition(async () => {
       const { error } = await supabase
         .from('team_members')
-        .insert({ team_id: teamId, employee_id: employeeId })
+        .insert(employeeIds.map(id => ({ team_id: teamId, employee_id: id })))
       if (error) { toast.error('追加に失敗しました'); return }
-      setTeamMembers(prev => [...prev, { team_id: teamId, employee_id: employeeId }])
+      setTeamMembers(prev => [...prev, ...employeeIds.map(id => ({ team_id: teamId, employee_id: id }))])
       setAddDialog(null)
-      setSelectedEmployeeId('')
-      toast.success('メンバーを追加しました')
+      setSelectedEmployeeIds(new Set())
+      toast.success(`${employeeIds.length}名をメンバーに追加しました`)
     })
   }
 
@@ -228,17 +261,32 @@ export function TeamManager({
     })
   }
 
-  const handleAddManager = (teamId: string, employeeId: string) => {
-    if (!isDirectEdit || !employeeId) return
+  const handleAddManager = (teamId: string, employeeIds: string[], role: 'primary' | 'secondary') => {
+    if (!isDirectEdit || employeeIds.length === 0) return
+    const existingPrimaryId = role === 'primary'
+      ? teamManagers.find(m => m.team_id === teamId && m.role === 'primary')?.employee_id ?? null
+      : null
     startTransition(async () => {
+      if (existingPrimaryId) {
+        const { error } = await supabase.from('team_managers')
+          .update({ role: 'secondary' })
+          .eq('team_id', teamId).eq('employee_id', existingPrimaryId)
+        if (error) { toast.error('追加に失敗しました'); return }
+      }
       const { error } = await supabase
         .from('team_managers')
-        .insert({ team_id: teamId, employee_id: employeeId })
+        .insert(employeeIds.map(id => ({ team_id: teamId, employee_id: id, role })))
       if (error) { toast.error('追加に失敗しました'); return }
-      setTeamManagers(prev => [...prev, { team_id: teamId, employee_id: employeeId }])
+      setTeamManagers(prev => {
+        const updated = existingPrimaryId
+          ? prev.map(m => m.team_id === teamId && m.employee_id === existingPrimaryId ? { ...m, role: 'secondary' as const } : m)
+          : prev
+        return [...updated, ...employeeIds.map(id => ({ team_id: teamId, employee_id: id, role }))]
+      })
       setAddDialog(null)
-      setSelectedEmployeeId('')
-      toast.success('マネージャーを追加しました')
+      setSelectedEmployeeIds(new Set())
+      setNewManagerRole('secondary')
+      toast.success(`${employeeIds.length}名をマネージャーに追加しました`)
     })
   }
 
@@ -257,7 +305,7 @@ export function TeamManager({
   }
 
   // -------------------------------------------------------
-  // Request actions (manager) — manager 自身が担当マネージャーとして申請
+  // Request actions (manager) — manager 自身が担当リーダーとして申請
   // -------------------------------------------------------
 
   const handleSubmitRequest = () => {
@@ -265,7 +313,7 @@ export function TeamManager({
     startTransition(async () => {
       const payload: Record<string, unknown> = { ...requestDialog.payload }
       if (requestDialog.requestType === 'create_team') {
-        // フォームで選択した担当マネージャーを使用（デフォルト = effectiveEmployee）
+        // フォームで選択した担当リーダーを使用（デフォルト = effectiveEmployee）
         payload.manager_id = requestManagerId
         payload.manager_name = employees.find(e => e.id === requestManagerId)?.name ?? requestManagerId
       }
@@ -308,14 +356,14 @@ export function TeamManager({
         if (error) { applyError = error }
         else {
           setTeams(prev => [...prev, newTeam])
-          // 申請者（manager）を担当マネージャーとして自動設定
+          // 申請者（manager）を担当リーダーとして自動設定
           const managerId = (payload.manager_id as string | undefined) ?? req.requested_by
           const { error: mgrError } = await supabase
             .from('team_managers')
-            .insert({ team_id: newTeam.id, employee_id: managerId })
+            .insert({ team_id: newTeam.id, employee_id: managerId, role: 'primary' })
           if (mgrError) { applyError = mgrError }
           else {
-            setTeamManagers(prev => [...prev, { team_id: newTeam.id, employee_id: managerId }])
+            setTeamManagers(prev => [...prev, { team_id: newTeam.id, employee_id: managerId, role: 'primary' as const }])
           }
         }
 
@@ -340,12 +388,13 @@ export function TeamManager({
         }
 
       } else if (req.request_type === 'add_manager' && req.team_id) {
+        const role = (payload.role as 'primary' | 'secondary' | undefined) ?? 'secondary'
         const { error } = await supabase
           .from('team_managers')
-          .insert({ team_id: req.team_id, employee_id: payload.employee_id as string })
+          .insert({ team_id: req.team_id, employee_id: payload.employee_id as string, role })
         if (error) { applyError = error }
         else {
-          setTeamManagers(prev => [...prev, { team_id: req.team_id!, employee_id: payload.employee_id as string }])
+          setTeamManagers(prev => [...prev, { team_id: req.team_id!, employee_id: payload.employee_id as string, role }])
         }
 
       } else if (req.request_type === 'remove_manager' && req.team_id) {
@@ -408,6 +457,7 @@ export function TeamManager({
   // -------------------------------------------------------
 
   const getEmployeeName = (id: string) => employees.find(e => e.id === id)?.name ?? id
+  const getEmployee = (id: string) => employees.find(e => e.id === id) ?? null
 
   const fmtDateTime = (iso: string) =>
     new Date(iso).toLocaleString('ja-JP', {
@@ -435,7 +485,7 @@ export function TeamManager({
         label = `「${teamName}」から${p.employee_name as string}を削除申請`
       } else if (req.request_type === 'add_manager') {
         payload = { team_name: teamName }
-        label = `「${teamName}」へのマネージャー追加を申請`
+        label = `「${teamName}」へのリーダー追加を申請`
       } else if (req.request_type === 'remove_manager') {
         payload = { employee_id: p.employee_id, employee_name: p.employee_name, team_name: teamName }
         label = `「${teamName}」から${p.employee_name as string}のマネージャー削除申請`
@@ -446,11 +496,45 @@ export function TeamManager({
     setRequestComment('')
   }
 
+  const getDisplayRole = (emp: Pick<Employee, 'role' | 'employment_type'>) => {
+    if (emp.role === 'admin') return '開発者'
+    if (emp.role === 'ops_manager') return '運用管理者'
+    if (emp.role === 'manager') return 'マネージャー'
+    return emp.employment_type ?? '社員'
+  }
+
+  const DISPLAY_ROLE_ORDER: Record<string, number> = {
+    '社員': 0, 'メイト': 1, 'マネージャー': 2, '運用管理者': 3, '開発者': 4,
+  }
+
+  const sortEmployees = <T extends Pick<Employee, 'role' | 'employment_type' | 'name'>>(list: T[]) =>
+    [...list].sort((a, b) => {
+      const oa = DISPLAY_ROLE_ORDER[getDisplayRole(a)] ?? 9
+      const ob = DISPLAY_ROLE_ORDER[getDisplayRole(b)] ?? 9
+      return oa !== ob ? oa - ob : a.name.localeCompare(b.name, 'ja')
+    })
+
+  const getEmployeeOptionLabel = (emp: Pick<Employee, 'id' | 'name' | 'role' | 'employment_type'>) => {
+    const storeNames = teamMembers
+      .filter(tm => tm.employee_id === emp.id)
+      .map(tm => teams.find(t => t.id === tm.team_id))
+      .filter((t): t is Team => t?.type === 'store')
+      .map(t => t.name)
+      .join('・')
+    return `${emp.name} / ${getDisplayRole(emp)} / ${storeNames || '—'}`
+  }
+
   const getTeamMemberIds = (teamId: string) =>
     teamMembers.filter(m => m.team_id === teamId).map(m => m.employee_id)
 
   const getTeamManagerIds = (teamId: string) =>
     teamManagers.filter(m => m.team_id === teamId).map(m => m.employee_id)
+
+  const getTeamPrimaryManagerId = (teamId: string) =>
+    teamManagers.find(m => m.team_id === teamId && m.role === 'primary')?.employee_id ?? null
+
+  const getTeamSecondaryManagerIds = (teamId: string) =>
+    teamManagers.filter(m => m.team_id === teamId && m.role === 'secondary').map(m => m.employee_id)
 
   const toggleExpand = (teamId: string) => {
     setExpandedTeams(prev => {
@@ -487,23 +571,50 @@ export function TeamManager({
         </Card>
       )}
 
-      {teams.map(team => {
+      {[...teams].sort((a, b) => {
+        const aIsMine = getTeamManagerIds(a.id).includes(effectiveEmployee.id) || getTeamMemberIds(a.id).includes(effectiveEmployee.id)
+        const bIsMine = getTeamManagerIds(b.id).includes(effectiveEmployee.id) || getTeamMemberIds(b.id).includes(effectiveEmployee.id)
+        return aIsMine === bIsMine ? 0 : aIsMine ? -1 : 1
+      }).map(team => {
         const memberIds = getTeamMemberIds(team.id)
         const managerIds = getTeamManagerIds(team.id)
         const isExpanded = expandedTeams.has(team.id)
         const isManagedByMe = managerIds.includes(effectiveEmployee.id)
+        const isMemberOfMe = !isManagedByMe && memberIds.includes(effectiveEmployee.id)
 
         return (
-          <Card key={team.id} className={isManagedByMe ? 'border-orange-300 bg-orange-50' : ''}>
+          <Card key={team.id} className={isManagedByMe ? 'border-orange-300 bg-orange-50' : isMemberOfMe ? 'border-green-200 bg-green-50' : ''}>
             <CardHeader className="pb-2 pt-3 px-4">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 flex-1 min-w-0">
                   <Badge className={`${TEAM_TYPE_COLORS[team.type]} text-xs border-0 flex-shrink-0`}>
                     {TEAM_TYPE_LABELS[team.type]}
                   </Badge>
-                  <CardTitle className="text-sm font-semibold text-gray-800 truncate">{team.name}</CardTitle>
+                  {isDirectEdit && inlineTeamName?.teamId === team.id ? (
+                    <input
+                      className="text-sm font-semibold text-gray-800 border-b-2 border-orange-400 outline-none bg-transparent min-w-0 flex-1"
+                      value={inlineTeamName.value}
+                      onChange={e => setInlineTeamName({ teamId: team.id, value: e.target.value })}
+                      onBlur={handleSaveTeamName}
+                      onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) handleSaveTeamName(); if (e.key === 'Escape') setInlineTeamName(null) }}
+                      autoFocus
+                      disabled={isPending}
+                    />
+                  ) : (
+                    <button
+                      className="text-sm font-semibold text-gray-800 truncate text-left flex items-center gap-1 group"
+                      onClick={() => isDirectEdit && setInlineTeamName({ teamId: team.id, value: team.name })}
+                      style={{ cursor: isDirectEdit ? 'pointer' : 'default' }}
+                    >
+                      {team.name}
+                      {isDirectEdit && <Pencil className="w-3 h-3 text-gray-300 group-hover:text-orange-400 flex-shrink-0 opacity-0 group-hover:opacity-100" />}
+                    </button>
+                  )}
                   {isManagedByMe && (
                     <Badge className="bg-orange-100 text-orange-700 text-[10px] border-0 flex-shrink-0">担当</Badge>
+                  )}
+                  {isMemberOfMe && (
+                    <Badge className="bg-green-100 text-green-700 text-[10px] border-0 flex-shrink-0">メンバー</Badge>
                   )}
                 </div>
                 <div className="flex items-center gap-1">
@@ -535,7 +646,7 @@ export function TeamManager({
                 </div>
               </div>
               <p className="text-xs text-muted-foreground">
-                メンバー {memberIds.length}名　担当マネージャー {managerIds.length}名
+                メンバー {memberIds.length}名　担当リーダー {managerIds.length}名
               </p>
             </CardHeader>
 
@@ -551,7 +662,7 @@ export function TeamManager({
                           variant="ghost"
                           size="sm"
                           className="h-6 text-xs text-blue-600 hover:text-blue-800 px-2"
-                          onClick={() => { setAddDialog({ type: 'member', teamId: team.id }); setSelectedEmployeeId('') }}
+                          onClick={() => { setAddDialog({ type: 'member', teamId: team.id }); setSelectedEmployeeIds(new Set()) }}
                           disabled={isPending}
                         >
                           <UserPlus className="w-3 h-3 mr-1" />追加
@@ -581,8 +692,14 @@ export function TeamManager({
                     {memberIds.length === 0 && (
                       <p className="text-xs text-muted-foreground">メンバーなし</p>
                     )}
-                    {memberIds.map(empId => (
-                      <div key={empId} className="flex items-center gap-1 bg-gray-100 rounded-full px-2 py-0.5">
+                    {memberIds.map(empId => {
+                      const emp = getEmployee(empId)
+                      return (
+                      <div key={empId} className="flex items-center gap-1 bg-gray-100 rounded-full pl-0.5 pr-2 py-0.5">
+                        <Avatar className="w-4 h-4 flex-shrink-0">
+                          <AvatarImage src={emp?.avatar_url ?? undefined} />
+                          <AvatarFallback className="text-[8px] bg-gray-300 text-gray-600">{emp?.name.charAt(0)}</AvatarFallback>
+                        </Avatar>
                         <span className="text-xs text-gray-700">{getEmployeeName(empId)}</span>
                         {isDirectEdit && (
                           <button
@@ -618,21 +735,22 @@ export function TeamManager({
                           </button>
                         )}
                       </div>
-                    ))}
+                      )}
+                    )}
                   </div>
                 </div>
 
-                {/* 担当マネージャー */}
+                {/* 担当リーダー */}
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <p className="text-xs font-medium text-gray-600">担当マネージャー</p>
+                    <p className="text-xs font-medium text-gray-600">担当リーダー</p>
                     {!isReadOnly && (
                       isDirectEdit ? (
                         <Button
                           variant="ghost"
                           size="sm"
                           className="h-6 text-xs text-blue-600 hover:text-blue-800 px-2"
-                          onClick={() => { setAddDialog({ type: 'manager', teamId: team.id }); setSelectedEmployeeId('') }}
+                          onClick={() => { setAddDialog({ type: 'manager', teamId: team.id }); setSelectedEmployeeIds(new Set()) }}
                           disabled={isPending}
                         >
                           <UserPlus className="w-3 h-3 mr-1" />追加
@@ -646,8 +764,8 @@ export function TeamManager({
                             setRequestDialog({
                               requestType: 'add_manager',
                               teamId: team.id,
-                              payload: { team_name: team.name },
-                              label: `「${team.name}」へのマネージャー追加を申請`,
+                              payload: { team_name: team.name, role: 'secondary' },
+                              label: `「${team.name}」へのリーダー追加を申請`,
                             })
                             setRequestComment('')
                           }}
@@ -662,44 +780,57 @@ export function TeamManager({
                     {managerIds.length === 0 && (
                       <p className="text-xs text-muted-foreground">担当なし</p>
                     )}
-                    {managerIds.map(empId => (
-                      <div key={empId} className="flex items-center gap-1 bg-blue-100 rounded-full px-2 py-0.5">
-                        <span className="text-xs text-blue-700">{getEmployeeName(empId)}</span>
-                        {isDirectEdit && (
-                          <button
-                            onClick={() => setConfirmDialog({
-                              title: '削除の確認',
-                              message: `「${team.name}」の担当マネージャーから${getEmployeeName(empId)}を外しますか？`,
-                              confirmLabel: '外す',
-                              confirmClassName: 'flex-1 bg-red-500 hover:bg-red-600 text-white',
-                              onConfirm: () => handleRemoveManager(team.id, empId),
-                            })}
-                            disabled={isPending}
-                            className="text-blue-400 hover:text-red-500 transition-colors"
-                          >
-                            <UserMinus className="w-3 h-3" />
-                          </button>
-                        )}
-                        {!isDirectEdit && !isReadOnly && (
-                          <button
-                            onClick={() => {
-                              setRequestDialog({
-                                requestType: 'remove_manager',
-                                teamId: team.id,
-                                payload: { employee_id: empId, employee_name: getEmployeeName(empId), team_name: team.name },
-                                label: `「${team.name}」から${getEmployeeName(empId)}のマネージャー削除申請`,
-                              })
-                              setRequestComment('')
-                            }}
-                            disabled={isPending}
-                            className="text-blue-400 hover:text-red-500 transition-colors"
-                            title="削除申請"
-                          >
-                            <UserMinus className="w-3 h-3" />
-                          </button>
-                        )}
-                      </div>
-                    ))}
+                    {teamManagers
+                      .filter(m => m.team_id === team.id)
+                      .sort((a, b) => a.role === 'primary' ? -1 : b.role === 'primary' ? 1 : 0)
+                      .map(manager => {
+                        const emp = getEmployee(manager.employee_id)
+                        const isPrimary = manager.role === 'primary'
+                        return (
+                        <div key={manager.employee_id} className={`flex items-center gap-1 ${isPrimary ? 'bg-amber-100' : 'bg-blue-100'} rounded-full pl-1 pr-2 py-0.5`}>
+                          <span className={`text-[9px] font-bold ${isPrimary ? 'text-amber-600' : 'text-blue-500'}`}>{isPrimary ? '主' : '副'}</span>
+                          <Avatar className="w-4 h-4 flex-shrink-0">
+                            <AvatarImage src={emp?.avatar_url ?? undefined} />
+                            <AvatarFallback className={`text-[8px] ${isPrimary ? 'bg-amber-300 text-amber-700' : 'bg-blue-300 text-blue-700'}`}>{emp?.name.charAt(0)}</AvatarFallback>
+                          </Avatar>
+                          <span className={`text-xs ${isPrimary ? 'text-amber-700' : 'text-blue-700'}`}>{getEmployeeName(manager.employee_id)}</span>
+                          {isDirectEdit && (
+                            <button
+                              onClick={() => setConfirmDialog({
+                                title: '削除の確認',
+                                message: `「${team.name}」の担当リーダーから${getEmployeeName(manager.employee_id)}を外しますか？`,
+                                confirmLabel: '外す',
+                                confirmClassName: 'flex-1 bg-red-500 hover:bg-red-600 text-white',
+                                onConfirm: () => handleRemoveManager(team.id, manager.employee_id),
+                              })}
+                              disabled={isPending}
+                              className={`${isPrimary ? 'text-amber-400' : 'text-blue-400'} hover:text-red-500 transition-colors`}
+                            >
+                              <UserMinus className="w-3 h-3" />
+                            </button>
+                          )}
+                          {!isDirectEdit && !isReadOnly && (
+                            <button
+                              onClick={() => {
+                                setRequestDialog({
+                                  requestType: 'remove_manager',
+                                  teamId: team.id,
+                                  payload: { employee_id: manager.employee_id, employee_name: getEmployeeName(manager.employee_id), team_name: team.name },
+                                  label: `「${team.name}」から${getEmployeeName(manager.employee_id)}のマネージャー削除申請`,
+                                })
+                                setRequestComment('')
+                              }}
+                              disabled={isPending}
+                              className={`${isPrimary ? 'text-amber-400' : 'text-blue-400'} hover:text-red-500 transition-colors`}
+                              title="削除申請"
+                            >
+                              <UserMinus className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                        )
+                      })
+                    }
                   </div>
                 </div>
               </CardContent>
@@ -708,28 +839,6 @@ export function TeamManager({
         )
       })}
 
-      {/* manager: チーム作成申請ボタン */}
-      {!isDirectEdit && !isReadOnly && (
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-full border-dashed h-9 text-xs text-gray-500"
-          onClick={() => {
-            setRequestDialog({
-              requestType: 'create_team',
-              teamId: null,
-              payload: {},
-              label: '新しいチームの作成を申請',
-            })
-            setRequestManagerId(effectiveEmployee.id)
-            setRequestComment('')
-          }}
-          disabled={isPending}
-        >
-          <ClipboardList className="w-3.5 h-3.5 mr-1" />
-          新しいチームの作成を申請
-        </Button>
-      )}
     </div>
   )
 
@@ -749,7 +858,7 @@ export function TeamManager({
   // -------------------------------------------------------
   return (
     <div className="p-4 space-y-4">
-      <Tabs defaultValue="teams" onValueChange={v => { if (v === 'requests') handleRequestsTabOpen() }}>
+      <Tabs defaultValue={initialTab} onValueChange={v => { if (v === 'requests') handleRequestsTabOpen() }}>
         <TabsList className="grid w-full grid-cols-2 h-9">
           <TabsTrigger value="teams" className="text-xs">チーム一覧</TabsTrigger>
           <TabsTrigger value="requests" className="text-xs">
@@ -769,6 +878,29 @@ export function TeamManager({
           </TabsTrigger>
         </TabsList>
 
+        {/* manager: チーム作成申請ボタン（タブ直下） */}
+        {!isDirectEdit && !isReadOnly && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full border-dashed h-9 text-xs text-gray-500 mt-3"
+            onClick={() => {
+              setRequestDialog({
+                requestType: 'create_team',
+                teamId: null,
+                payload: {},
+                label: '新しいチームの作成を申請',
+              })
+              setRequestManagerId(effectiveEmployee.id)
+              setRequestComment('')
+            }}
+            disabled={isPending}
+          >
+            <ClipboardList className="w-3.5 h-3.5 mr-1" />
+            新しいチームの作成を申請
+          </Button>
+        )}
+
         <TabsContent value="teams" className="mt-3">
           {renderTeamList()}
         </TabsContent>
@@ -781,7 +913,7 @@ export function TeamManager({
             </div>
           )}
 
-          {changeRequests.length === 0 && (
+          {displayRequests.length === 0 && (
             <Card>
               <CardContent className="py-10 text-center text-sm text-muted-foreground">
                 申請履歴がありません
@@ -789,8 +921,15 @@ export function TeamManager({
             </Card>
           )}
 
-          {changeRequests.map(req => {
-            const isUnread = req.requested_by === currentEmployee.id && req.status !== 'pending' && !req.applicant_read_at
+          {[...displayRequests].sort((a, b) => {
+            const priority = (r: typeof a) =>
+              r.status === 'pending' ? 0
+              : (r.requested_by === effectiveEmployee.id && !r.applicant_read_at ? 1 : 2)
+            const pd = priority(a) - priority(b)
+            if (pd !== 0) return pd
+            return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          }).map(req => {
+            const isUnread = req.requested_by === effectiveEmployee.id && req.status !== 'pending' && !req.applicant_read_at
             return (
             <Card key={req.id} className={
               req.status === 'pending' ? 'border-amber-200 bg-amber-50' :
@@ -823,7 +962,7 @@ export function TeamManager({
                       if (p.name) {
                         return (
                           <p className="text-xs text-gray-500">
-                            チーム名: {p.name as string}（{p.type === 'store' ? '店舗' : 'プロジェクト'}）
+                            チーム名: {p.name as string}（{p.type === 'store' ? '店舗' : 'チーム'}）
                             　担当: {p.manager_name as string}
                           </p>
                         )
@@ -900,14 +1039,17 @@ export function TeamManager({
                 type="text"
                 value={newTeamName}
                 onChange={e => setNewTeamName(e.target.value)}
-                placeholder="例: 渋谷店、新人研修プロジェクト"
+                placeholder="例: 新人早期育成チーム、渋谷店"
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-orange-300"
               />
             </div>
             <div>
-              <p className="text-xs font-medium text-gray-600 mb-1">種別 <span className="text-red-500">*</span></p>
+              <div className="flex items-baseline gap-2 mb-1">
+                <p className="text-xs font-medium text-gray-600">種別 <span className="text-red-500">*</span></p>
+                <p className="text-[10px] text-muted-foreground">店舗を横断するチームの場合、チームを選択してください。</p>
+              </div>
               <div className="flex gap-2">
-                {(['store', 'project'] as const).map(type => (
+                {(['project', 'store'] as const).map(type => (
                   <button
                     key={type}
                     onClick={() => setNewTeamType(type)}
@@ -926,7 +1068,7 @@ export function TeamManager({
             </div>
             <div>
               <p className="text-xs font-medium text-gray-600 mb-1">
-                担当マネージャー <span className="text-red-500">*</span>
+                担当リーダー <span className="text-red-500">*</span>
               </p>
               <select
                 value={newTeamManagerId}
@@ -954,49 +1096,109 @@ export function TeamManager({
       </Dialog>
 
       {/* ===== メンバー/マネージャー追加ダイアログ (direct edit) ===== */}
-      <Dialog open={addDialog !== null} onOpenChange={open => { if (!open) setAddDialog(null) }}>
+      <Dialog open={addDialog !== null} onOpenChange={open => { if (!open) { setAddDialog(null); setSelectedEmployeeIds(new Set()); setNewManagerRole('secondary') } }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-base">
-              {addDialog?.type === 'member' ? 'メンバーを追加' : 'マネージャーを追加'}
+              {addDialog?.type === 'member' ? 'メンバーを追加' : 'リーダーを追加'}
             </DialogTitle>
           </DialogHeader>
-          <div>
-            <p className="text-xs font-medium text-gray-600 mb-1">社員を選択</p>
-            <select
-              value={selectedEmployeeId}
-              onChange={e => setSelectedEmployeeId(e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-orange-300"
-            >
-              <option value="">選択してください</option>
-              {(addDialog?.type === 'manager' ? managerCandidates : employees)
-                .filter(emp => {
-                  if (!addDialog) return false
-                  const existingIds = addDialog.type === 'member'
-                    ? getTeamMemberIds(addDialog.teamId)
-                    : getTeamManagerIds(addDialog.teamId)
-                  return !existingIds.includes(emp.id)
-                })
-                .map(emp => (
-                  <option key={emp.id} value={emp.id}>{emp.name}</option>
-                ))
-              }
-            </select>
+          <div className="space-y-3">
+            {addDialog?.type === 'manager' && (
+              <div>
+                <p className="text-xs font-medium text-gray-600 mb-1.5">区分</p>
+                <div className="flex gap-4">
+                  {(['primary', 'secondary'] as const).map(role => (
+                    <label key={role} className="flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="manager-role"
+                        value={role}
+                        checked={newManagerRole === role}
+                        onChange={() => {
+                          setNewManagerRole(role)
+                          setSelectedEmployeeIds(new Set())
+                        }}
+                        className="accent-orange-500"
+                      />
+                      <span className="text-sm">{role === 'primary' ? '主担当（1名のみ）' : '副担当'}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <p className="text-xs font-medium text-gray-600">社員を選択</p>
+                {selectedEmployeeIds.size > 0 && (
+                  <span className="text-[10px] text-orange-600 font-semibold">{selectedEmployeeIds.size}名選択中</span>
+                )}
+              </div>
+              <div className="border border-gray-200 rounded-lg overflow-y-auto max-h-64 divide-y divide-gray-100">
+                {sortEmployees(addDialog?.type === 'manager' ? managerCandidates : employees)
+                  .map(emp => {
+                    const existingIds = addDialog
+                      ? (addDialog.type === 'member' ? getTeamMemberIds(addDialog.teamId) : getTeamManagerIds(addDialog.teamId))
+                      : []
+                    const isExisting = existingIds.includes(emp.id)
+                    const isCurrentPrimary = addDialog?.type === 'manager' && newManagerRole === 'primary'
+                      && emp.id === getTeamPrimaryManagerId(addDialog.teamId)
+                    const checked = isExisting || selectedEmployeeIds.has(emp.id)
+                    return (
+                      <label
+                        key={emp.id}
+                        className={`flex items-center gap-3 px-3 py-2.5 transition-colors ${
+                          isExisting ? 'bg-gray-50 cursor-default' : checked ? 'bg-orange-50 cursor-pointer' : 'hover:bg-gray-50 cursor-pointer'
+                        }`}
+                      >
+                        <Checkbox
+                          checked={checked}
+                          disabled={isExisting}
+                          onCheckedChange={v => {
+                            if (isExisting) return
+                            if (addDialog?.type === 'manager' && newManagerRole === 'primary') {
+                              setSelectedEmployeeIds(v ? new Set([emp.id]) : new Set())
+                            } else {
+                              setSelectedEmployeeIds(prev => {
+                                const next = new Set(prev)
+                                v ? next.add(emp.id) : next.delete(emp.id)
+                                return next
+                              })
+                            }
+                          }}
+                        />
+                        <Avatar className="w-6 h-6 flex-shrink-0">
+                          <AvatarImage src={emp.avatar_url ?? undefined} />
+                          <AvatarFallback className={`text-[10px] ${isExisting ? 'bg-gray-200 text-gray-400' : 'bg-orange-200 text-orange-700'}`}>{emp.name.charAt(0)}</AvatarFallback>
+                        </Avatar>
+                        <span className={`text-sm flex-1 ${isExisting ? 'text-gray-400' : 'text-gray-800'}`}>
+                          {getEmployeeOptionLabel(emp)}
+                        </span>
+                        {isCurrentPrimary && (
+                          <span className="text-[10px] text-amber-600 font-medium flex-shrink-0">現在の主担当</span>
+                        )}
+                      </label>
+                    )
+                  })
+                }
+              </div>
+            </div>
           </div>
           <DialogFooter>
             <Button
               className="w-full bg-blue-500 hover:bg-blue-600 text-white"
               onClick={() => {
                 if (!addDialog) return
+                const ids = Array.from(selectedEmployeeIds)
                 if (addDialog.type === 'member') {
-                  handleAddMember(addDialog.teamId, selectedEmployeeId)
+                  handleAddMember(addDialog.teamId, ids)
                 } else {
-                  handleAddManager(addDialog.teamId, selectedEmployeeId)
+                  handleAddManager(addDialog.teamId, ids, newManagerRole)
                 }
               }}
-              disabled={isPending || !selectedEmployeeId}
+              disabled={isPending || selectedEmployeeIds.size === 0}
             >
-              追加する
+              {selectedEmployeeIds.size > 0 ? `${selectedEmployeeIds.size}名を追加する` : '追加する'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1022,7 +1224,7 @@ export function TeamManager({
                     <p className="text-xs font-medium text-gray-600 mb-1">チーム名 <span className="text-red-500">*</span></p>
                     <input
                       type="text"
-                      placeholder="例: 渋谷店"
+                      placeholder="例: 新人早期育成チーム、渋谷店"
                       value={(requestDialog?.payload as Record<string, unknown>)?.name as string ?? ''}
                       className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-orange-300"
                       onChange={e => setRequestDialog(prev => prev ? {
@@ -1032,9 +1234,12 @@ export function TeamManager({
                     />
                   </div>
                   <div>
-                    <p className="text-xs font-medium text-gray-600 mb-1">種別</p>
+                    <div className="flex items-baseline gap-2 mb-1">
+                      <p className="text-xs font-medium text-gray-600">種別</p>
+                      <p className="text-[10px] text-muted-foreground">店舗を横断するチームの場合、チームを選択してください。</p>
+                    </div>
                     <div className="flex gap-2">
-                      {(['store', 'project'] as const).map(type => {
+                      {(['project', 'store'] as const).map(type => {
                         const p = requestDialog.payload as Record<string, unknown>
                         const selected = p.type === type
                         return (
@@ -1059,7 +1264,7 @@ export function TeamManager({
                     </div>
                   </div>
                   <div>
-                    <p className="text-xs font-medium text-gray-600 mb-1">担当マネージャー <span className="text-red-500">*</span></p>
+                    <p className="text-xs font-medium text-gray-600 mb-1">担当リーダー <span className="text-red-500">*</span></p>
                     <select
                       value={requestManagerId}
                       onChange={e => setRequestManagerId(e.target.value)}
@@ -1088,8 +1293,8 @@ export function TeamManager({
                     } : null)}
                   >
                     <option value="">選択してください</option>
-                    {(requestDialog.requestType === 'add_manager' ? managerCandidates : employees).map(emp => (
-                      <option key={emp.id} value={emp.id}>{emp.name}</option>
+                    {sortEmployees(requestDialog.requestType === 'add_manager' ? managerCandidates : employees).map(emp => (
+                      <option key={emp.id} value={emp.id}>{getEmployeeOptionLabel(emp)}</option>
                     ))}
                   </select>
                 </div>
@@ -1113,9 +1318,9 @@ export function TeamManager({
                 const p = requestDialog.payload as Record<string, unknown>
                 let summary = requestDialog.label
                 if (requestDialog.requestType === 'create_team') {
-                  const type = p.type === 'store' ? '店舗' : 'プロジェクト'
+                  const type = p.type === 'store' ? '店舗' : 'チーム'
                   const mgr = employees.find(e => e.id === requestManagerId)?.name ?? ''
-                  summary = `チーム名: ${p.name as string}\n種別: ${type}\n担当マネージャー: ${mgr}`
+                  summary = `チーム名: ${p.name as string}\n種別: ${type}\n担当リーダー: ${mgr}`
                 } else if (p.employee_id) {
                   summary = `${requestDialog.label}\n対象: ${getEmployeeName(p.employee_id as string)}`
                 }
@@ -1166,7 +1371,7 @@ export function TeamManager({
                   if (p.employee_id) return <p className="text-xs text-gray-500">対象: {getEmployeeName(p.employee_id as string)}</p>
                   if (p.name) return (
                     <p className="text-xs text-gray-500">
-                      チーム名: {p.name as string}（{p.type === 'store' ? '店舗' : 'プロジェクト'}）
+                      チーム名: {p.name as string}（{p.type === 'store' ? '店舗' : 'チーム'}）
                       　担当: {p.manager_name as string}
                     </p>
                   )

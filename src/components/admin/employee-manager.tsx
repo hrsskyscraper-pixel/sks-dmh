@@ -16,6 +16,7 @@ import { MoreVertical, Shield, User, Crown, Eye, Camera, Loader2 } from 'lucide-
 import { createClient } from '@/lib/supabase/client'
 import { setViewAs } from '@/app/(dashboard)/actions'
 import { Store, FolderKanban } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import type { Employee, Role, EmploymentType, Team, TeamMember } from '@/types/database'
 
 // UI上の表示役割
@@ -72,14 +73,14 @@ const CARD_BG_COLORS: Record<DisplayRole, string> = {
   'メイト':     'bg-pink-50 border-pink-200',
 }
 
-const ALL_DISPLAY_ROLES: DisplayRole[] = ['開発者', '運用管理者', 'マネージャー', '社員', 'メイト']
+const ALL_DISPLAY_ROLES: DisplayRole[] = ['社員', 'メイト', 'マネージャー', '運用管理者', '開発者']
 
 const DISPLAY_ROLE_ORDER: Record<DisplayRole, number> = {
-  '開発者':     0,
-  '運用管理者': 1,
+  '社員':       0,
+  'メイト':     1,
   'マネージャー': 2,
-  '社員':       3,
-  'メイト':     4,
+  '運用管理者': 3,
+  '開発者':     4,
 }
 
 export function EmployeeManager({ employees: initialEmployees, canEdit = true, employeeStats = {}, teams = [], teamMembers = [] }: Props) {
@@ -269,7 +270,7 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, e
                   {employee.hire_date && (
                     <div className="flex items-center gap-1.5 mt-0.5">
                       <p className="text-xs text-muted-foreground">
-                        {new Date(employee.hire_date).toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' })}
+                        {new Date(employee.hire_date).toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit' })}
                         {' '}入社
                       </p>
                       <Badge className="bg-orange-100 text-orange-700 text-xs border-0 flex-shrink-0">
@@ -325,21 +326,46 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, e
                 const stats = employeeStats[employee.id]
                 const actual = Math.min(100, stats.certifiedPct)
                 const standard = Math.min(100, stats.standardPct)
+                const gap = actual - standard
+                const gapStart = Math.min(actual, standard)
+                const gapWidth = Math.abs(gap)
                 return (
                   <div className="mt-2 pt-2 border-t border-black/5">
                     <div className="flex justify-between text-[10px] mb-1">
                       <span className="text-orange-500 font-semibold">実績 {actual}%</span>
-                      <span className="text-blue-500 font-semibold">標準 {standard}%</span>
+                      <span className={cn(
+                        'font-semibold',
+                        gap > 0 ? 'text-green-600' : gap < 0 ? 'text-yellow-600' : 'text-blue-500'
+                      )}>
+                        標準 {standard}%{gap !== 0 && standard > 0 && (
+                          <span className="ml-1">{gap > 0 ? `▲+${gap}` : `▼${gap}`}</span>
+                        )}
+                      </span>
                     </div>
                     <div className="relative h-2 bg-gray-200 rounded-full">
+                      {/* 実績バー */}
                       <div
-                        className="h-full bg-orange-400 rounded-full"
+                        className="absolute top-0 left-0 h-full bg-orange-400 rounded-full"
                         style={{ width: `${actual}%` }}
                       />
-                      <div
-                        className="absolute top-1/2 -translate-y-1/2 w-0.5 h-3.5 bg-blue-400 rounded-sm"
-                        style={{ left: `calc(${standard}% - 1px)` }}
-                      />
+                      {/* GAP ハイライト */}
+                      {gapWidth > 0 && standard > 0 && (
+                        <div
+                          className="absolute top-0 h-full rounded-sm"
+                          style={{
+                            left: `${gapStart}%`,
+                            width: `${gapWidth}%`,
+                            background: gap < 0 ? 'rgba(251,191,36,0.25)' : 'rgba(52,211,153,0.25)',
+                          }}
+                        />
+                      )}
+                      {/* 標準マーカー */}
+                      {standard > 0 && (
+                        <div
+                          className="absolute top-1/2 -translate-y-1/2 w-0.5 h-3.5 bg-blue-400 rounded-sm z-10"
+                          style={{ left: `calc(${standard}% - 1px)` }}
+                        />
+                      )}
                     </div>
                   </div>
                 )

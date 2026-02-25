@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, CheckSquare, Users, Upload, Users2, LogOut, Building2, FolderKanban } from 'lucide-react'
+import { LayoutDashboard, CheckSquare, BadgeCheck, Upload, Users2, LogOut, Building2, FolderKanban } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import type { Role } from '@/types/database'
@@ -10,9 +10,9 @@ import type { Role } from '@/types/database'
 const navItems = [
   { href: '/',                 label: 'ダッシュボード', icon: LayoutDashboard,    roles: ['employee', 'manager', 'admin', 'ops_manager'] },
   { href: '/skills',           label: 'スキル',         icon: CheckSquare,        roles: ['employee', 'manager', 'admin', 'ops_manager'] },
+  { href: '/team',             label: '認定',            icon: BadgeCheck,         roles: ['manager', 'admin', 'ops_manager'] },
   { href: '/admin/teams',      label: 'チーム',          icon: Building2,          roles: ['employee', 'manager', 'admin', 'ops_manager'] },
   { href: '/admin/employees',  label: 'メンバー',        icon: Users2,             roles: ['employee', 'manager', 'admin', 'ops_manager'] },
-  { href: '/team',             label: '認定',            icon: Users,              roles: ['manager', 'admin', 'ops_manager'] },
   { href: '/admin/csv-import', label: 'CSV取込',         icon: Upload,             roles: ['manager', 'admin', 'ops_manager'] },
   { href: '/admin/projects',   label: 'プロジェクト',     icon: FolderKanban,       roles: ['admin', 'ops_manager'] },
 ] as const

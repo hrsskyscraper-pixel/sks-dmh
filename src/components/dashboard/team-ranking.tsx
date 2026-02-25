@@ -11,6 +11,7 @@ export interface TeamMemberStat {
   avatar_url: string | null
   employment_type: string | null
   hire_date: string | null
+  store_name: string | null
   certifiedCount: number
   totalSkills: number
   standardPct: number
@@ -49,11 +50,8 @@ export function TeamRanking({ currentEmployeeId, stats }: Props) {
           <span>🏆</span>
           みんなの頑張り
         </CardTitle>
-        <p className="text-xs text-muted-foreground">
-          実績進捗 vs 標準進捗*
-        </p>
         <p className="text-[10px] text-muted-foreground/70">
-          *累計勤務時間に応じた標準的なスキル習得進捗率
+          青い縦線は累計勤務時間から算出した標準進捗率
         </p>
       </CardHeader>
       <CardContent className="px-4 pb-4 space-y-3">
@@ -109,6 +107,9 @@ export function TeamRanking({ currentEmployeeId, stats }: Props) {
                   ) : (
                     <Badge className="bg-green-100 text-green-700 text-[9px] border-0 px-1.5 h-4 flex-shrink-0">社員</Badge>
                   )}
+                  {member.store_name && (
+                    <Badge className="bg-blue-100 text-blue-700 text-[9px] border-0 px-1.5 h-4 flex-shrink-0">{member.store_name}</Badge>
+                  )}
                   {isMe && (
                     <Badge className="bg-orange-500 text-white text-[9px] border-0 px-1.5 h-4 flex-shrink-0">
                       あなた
@@ -126,41 +127,39 @@ export function TeamRanking({ currentEmployeeId, stats }: Props) {
                 )}
               </div>
 
-              {/* 2本バー */}
-              <div className="space-y-1.5">
-                {/* 実績バー */}
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-gray-500 w-7 flex-shrink-0 text-right">実績</span>
-                  <div className="flex-1 h-3 bg-gray-200 rounded-full overflow-hidden">
+              {/* 1本バー */}
+              <div className="flex items-center gap-2">
+                <div className="flex-1 relative h-2 bg-gray-200 rounded-full">
+                  {/* 実績バー */}
+                  <div
+                    className={cn('absolute top-0 left-0 h-full rounded-full', isMe ? 'bg-orange-400' : 'bg-blue-400')}
+                    style={{ width: `${actualPct}%` }}
+                  />
+                  {/* GAP ハイライト */}
+                  {Math.abs(diff) > 0 && stdPct > 0 && (
                     <div
-                      className={cn(
-                        'h-full rounded-full transition-all duration-500',
-                        isMe ? 'bg-orange-500' : 'bg-blue-400'
-                      )}
-                      style={{ width: `${actualPct}%` }}
+                      className="absolute top-0 h-full rounded-sm"
+                      style={{
+                        left: `${Math.min(actualPct, stdPct)}%`,
+                        width: `${Math.abs(diff)}%`,
+                        background: diff < 0 ? 'rgba(251,191,36,0.25)' : 'rgba(52,211,153,0.25)',
+                      }}
                     />
-                  </div>
-                  <span className={cn(
-                    'text-[11px] font-black w-8 text-right flex-shrink-0',
-                    isMe ? 'text-orange-600' : 'text-blue-600'
-                  )}>
-                    {actualPct}%
-                  </span>
-                </div>
-
-                {/* 標準バー */}
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-gray-400 w-7 flex-shrink-0 text-right">標準</span>
-                  <div className="flex-1 h-3 bg-gray-200 rounded-full overflow-hidden">
+                  )}
+                  {/* 標準マーカー */}
+                  {stdPct > 0 && (
                     <div
-                      className="h-full rounded-full bg-gray-400 transition-all duration-500"
-                      style={{ width: `${stdPct}%` }}
+                      className="absolute top-1/2 -translate-y-1/2 w-0.5 h-3.5 bg-blue-400 rounded-sm z-10"
+                      style={{ left: `calc(${stdPct}% - 1px)` }}
                     />
-                  </div>
-                  <span className="text-[11px] font-bold text-gray-500 w-8 text-right flex-shrink-0">
-                    {stdPct}%
-                  </span>
+                  )}
                 </div>
+                <span className={cn(
+                  'text-[11px] font-black w-8 text-right flex-shrink-0',
+                  isMe ? 'text-orange-600' : 'text-blue-600'
+                )}>
+                  {actualPct}%
+                </span>
               </div>
             </div>
           )

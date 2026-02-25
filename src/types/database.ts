@@ -106,14 +106,17 @@ export type Database = {
         Row: {
           team_id: string
           employee_id: string
+          role: 'primary' | 'secondary'
         }
         Insert: {
           team_id: string
           employee_id: string
+          role?: 'primary' | 'secondary'
         }
         Update: {
           team_id?: string
           employee_id?: string
+          role?: 'primary' | 'secondary'
         }
         Relationships: [
           {
@@ -500,6 +503,7 @@ export type Database = {
   }
 }
 
+export type TeamManager = Database['public']['Tables']['team_managers']['Row']
 export type Skill = Database['public']['Tables']['skills']['Row']
 export type Achievement = Database['public']['Tables']['achievements']['Row']
 export type WorkHour = Database['public']['Tables']['work_hours']['Row']

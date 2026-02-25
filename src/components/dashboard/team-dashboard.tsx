@@ -1,15 +1,16 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { CheckCircle2, Clock, XCircle } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Progress } from '@/components/ui/progress'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Textarea } from '@/components/ui/textarea'
+import { cn } from '@/lib/utils'
 import {
   Dialog,
   DialogContent,
@@ -25,15 +26,35 @@ interface AchievementWithRelations extends Achievement {
   employees: Employee | null
 }
 
+interface EmpStat {
+  standardPct: number
+  totalSkills: number
+  storeName: string | null
+}
+
 interface Props {
   currentEmployee: Employee
   employees: Employee[]
   skills: Skill[]
   achievements: AchievementWithRelations[]
   priorityMemberIds?: Set<string>
+  managedTeams?: { id: string; name: string }[]
+  managedTeamMembers?: { team_id: string; employee_id: string }[]
+  empStatsMap?: Record<string, EmpStat>
 }
 
-export function TeamDashboard({ currentEmployee, employees, skills, achievements: initialAchievements, priorityMemberIds }: Props) {
+function calcHireYear(hireDate: string | null): number {
+  if (!hireDate) return 1
+  const hire = new Date(hireDate)
+  const today = new Date()
+  const hireFY = hire.getMonth() >= 3 ? hire.getFullYear() : hire.getFullYear() - 1
+  const todayFY = today.getMonth() >= 3 ? today.getFullYear() : today.getFullYear() - 1
+  return Math.max(1, todayFY - hireFY + 1)
+}
+
+export function TeamDashboard({ currentEmployee, employees, skills, achievements: initialAchievements, priorityMemberIds, managedTeams = [], managedTeamMembers = [], empStatsMap = {} }: Props) {
+  const searchParams = useSearchParams()
+  const initialTab = searchParams.get('tab') === 'pending' ? 'pending' : 'overview'
   const [achievements, setAchievements] = useState(initialAchievements)
   const [isPending, startTransition] = useTransition()
   const [selectedAchievement, setSelectedAchievement] = useState<AchievementWithRelations | null>(null)
@@ -120,8 +141,12 @@ export function TeamDashboard({ currentEmployee, employees, skills, achievements
     const empAchievements = achievements.filter(a => a.employee_id === emp.id)
     const certified = empAchievements.filter(a => a.status === 'certified').length
     const pending = empAchievements.filter(a => a.status === 'pending').length
-    const pct = skills.length > 0 ? Math.round((certified / skills.length) * 100) : 0
-    return { employee: emp, certified, pending, pct }
+    const empStats = empStatsMap[emp.id]
+    const totalSkills = empStats?.totalSkills ?? skills.length
+    const pct = totalSkills > 0 ? Math.round((certified / totalSkills) * 100) : 0
+    const standardPct = empStats?.standardPct ?? 0
+    const storeName = empStats?.storeName ?? null
+    return { employee: emp, certified, pending, pct, standardPct, storeName, totalSkills }
   })
 
   // 担当チームのメンバーを優先して並べるソート
@@ -149,17 +174,17 @@ export function TeamDashboard({ currentEmployee, employees, skills, achievements
 
   return (
     <div className="p-4 space-y-4">
-      <Tabs defaultValue="pending">
+      <Tabs defaultValue={initialTab}>
         <TabsList className="grid w-full grid-cols-2 h-9">
+          <TabsTrigger value="overview" className="text-xs">チーム一覧</TabsTrigger>
           <TabsTrigger value="pending" className="text-xs">
-            認定待ち
+            申請
             {pendingAchievements.length > 0 && (
               <Badge className="ml-1 bg-red-500 text-white text-[10px] h-4 px-1 border-0">
                 {pendingAchievements.length}
               </Badge>
             )}
           </TabsTrigger>
-          <TabsTrigger value="overview" className="text-xs">チーム一覧</TabsTrigger>
         </TabsList>
 
         {/* 認定待ちタブ */}
@@ -198,21 +223,35 @@ export function TeamDashboard({ currentEmployee, employees, skills, achievements
         </TabsContent>
 
         {/* チーム一覧タブ */}
-        <TabsContent value="overview" className="mt-3 space-y-3">
-          {hasPriority && priorityStats.length > 0 && (
-            <>
-              <p className="text-xs font-semibold text-orange-700 px-1">担当チームのメンバー</p>
-              {priorityStats.map(({ employee, certified, pending, pct }) => (
-                <OverviewCard key={employee.id} employee={employee} certified={certified} pending={pending} pct={pct} />
-              ))}
-              {otherStats.length > 0 && (
-                <p className="text-xs font-semibold text-gray-500 px-1 mt-3">その他</p>
-              )}
-            </>
+        <TabsContent value="overview" className="mt-3 space-y-4">
+          {managedTeams.length === 0 ? (
+            <Card>
+              <CardContent className="py-10 text-center text-sm text-muted-foreground">
+                担当チームがありません
+              </CardContent>
+            </Card>
+          ) : (
+            managedTeams.map(team => {
+              const teamMemberIdSet = new Set(
+                managedTeamMembers.filter(m => m.team_id === team.id).map(m => m.employee_id)
+              )
+              const teamStats = employeeStats
+                .filter(s => teamMemberIdSet.has(s.employee.id))
+                .sort((a, b) => (a.pct - a.standardPct) - (b.pct - b.standardPct))
+              return (
+                <div key={team.id} className="space-y-2">
+                  <p className="text-xs font-semibold text-orange-700 px-1">{team.name}</p>
+                  {teamStats.length === 0 ? (
+                    <p className="text-xs text-muted-foreground px-1">メンバーなし</p>
+                  ) : (
+                    teamStats.map(({ employee, certified, pending, pct, standardPct, storeName, totalSkills }) => (
+                      <OverviewCard key={`${team.id}-${employee.id}`} employee={employee} certified={certified} pending={pending} pct={pct} standardPct={standardPct} storeName={storeName} totalSkills={totalSkills} />
+                    ))
+                  )}
+                </div>
+              )
+            })
           )}
-          {otherStats.map(({ employee, certified, pending, pct }) => (
-            <OverviewCard key={employee.id} employee={employee} certified={certified} pending={pending} pct={pct} />
-          ))}
         </TabsContent>
       </Tabs>
 
@@ -339,38 +378,109 @@ function OverviewCard({
   certified,
   pending,
   pct,
+  standardPct,
+  storeName,
+  totalSkills,
 }: {
   employee: Employee
   certified: number
   pending: number
   pct: number
+  standardPct: number
+  storeName: string | null
+  totalSkills: number
 }) {
+  const diff = pct - standardPct
+  const remaining = Math.max(0, totalSkills - certified - pending)
   return (
     <Card>
-      <CardContent className="py-3 px-4">
-        <div className="flex items-center gap-3 mb-2">
+      <CardContent className="py-3 px-3">
+        {/* ヘッダー: アバター + 名前 + バッジ */}
+        <div className="flex items-center gap-2 mb-1.5">
           <Avatar className="w-8 h-8 flex-shrink-0">
+            <AvatarImage src={employee.avatar_url ?? undefined} />
             <AvatarFallback className="text-xs bg-orange-200 text-orange-700">
               {employee.name.charAt(0)}
             </AvatarFallback>
           </Avatar>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-gray-800">{employee.name}</p>
-              <span className="text-base font-bold text-orange-500">{pct}%</span>
-            </div>
-            <p className="text-[10px] text-muted-foreground">
-              認定: {certified}件
-              {pending > 0 && (
-                <span className="ml-2 text-amber-500 inline-flex items-center gap-0.5">
-                  <Clock className="w-2.5 h-2.5" />
-                  申請中 {pending}
-                </span>
-              )}
-            </p>
+          <div className="flex-1 min-w-0 flex items-center gap-1 flex-wrap">
+            <p className="text-xs font-semibold text-gray-700">{employee.name}</p>
+            <Badge className="bg-orange-100 text-orange-700 text-[9px] border-0 px-1.5 h-4 flex-shrink-0">
+              {calcHireYear(employee.hire_date)}年目
+            </Badge>
+            {employee.employment_type === 'メイト' ? (
+              <Badge className="bg-pink-100 text-pink-700 text-[9px] border-0 px-1.5 h-4 flex-shrink-0">メイト</Badge>
+            ) : (
+              <Badge className="bg-green-100 text-green-700 text-[9px] border-0 px-1.5 h-4 flex-shrink-0">社員</Badge>
+            )}
+            {storeName && (
+              <Badge className="bg-blue-100 text-blue-700 text-[9px] border-0 px-1.5 h-4 flex-shrink-0">{storeName}</Badge>
+            )}
           </div>
+          {standardPct > 0 && (
+            <div className="flex-shrink-0 text-right">
+              <p className="text-[9px] text-gray-400 leading-none mb-0.5">オンタイムGAP</p>
+              <p className={cn(
+                'text-sm font-black leading-none',
+                diff > 0 ? 'text-green-600' : diff < 0 ? 'text-red-500' : 'text-gray-400'
+              )}>
+                {diff > 0 ? `▲+${diff}%` : diff < 0 ? `▼${diff}%` : '±0%'}
+              </p>
+            </div>
+          )}
         </div>
-        <Progress value={pct} className="h-1.5" />
+        {/* 認定/申請中/残り */}
+        <p className="text-[10px] text-muted-foreground mb-1.5">
+          認定: {certified}件
+          {pending > 0 && (
+            <span className="ml-2 text-amber-500 inline-flex items-center gap-0.5">
+              <Clock className="w-2.5 h-2.5" />
+              申請中 {pending}
+            </span>
+          )}
+          {remaining > 0 && (
+            <span className="ml-2 text-gray-400">未認定 残り{remaining}件</span>
+          )}
+        </p>
+        {/* GAP プログレスバー */}
+        <div className="flex items-center gap-2">
+          <div className="flex-1 relative h-2 bg-gray-200 rounded-full">
+            <div
+              className="absolute top-0 left-0 h-full bg-orange-400 rounded-full"
+              style={{ width: `${pct}%` }}
+            />
+            {Math.abs(diff) > 0 && standardPct > 0 && (
+              <div
+                className="absolute top-0 h-full rounded-sm"
+                style={{
+                  left: `${Math.min(pct, standardPct)}%`,
+                  width: `${Math.abs(diff)}%`,
+                  background: diff < 0 ? 'rgba(251,191,36,0.25)' : 'rgba(52,211,153,0.25)',
+                }}
+              />
+            )}
+            {standardPct > 0 && (
+              <div
+                className="absolute top-1/2 -translate-y-1/2 w-0.5 h-3.5 bg-blue-400 rounded-sm z-10"
+                style={{ left: `calc(${standardPct}% - 1px)` }}
+              />
+            )}
+          </div>
+          <span className="text-[11px] font-black w-8 text-right flex-shrink-0 text-orange-600">
+            {pct}%
+          </span>
+        </div>
+        {/* 数値サマリー */}
+        <div className="flex items-center gap-3 mt-1.5 text-[10px]">
+          <span className="text-blue-500">標準: {standardPct}%</span>
+          <span className="text-orange-500">現在: {pct}%</span>
+          <span className={cn(
+            'font-semibold',
+            diff < 0 ? 'text-red-500' : diff > 0 ? 'text-green-600' : 'text-gray-400'
+          )}>
+            GAP: {diff > 0 ? `+${diff}` : diff}%
+          </span>
+        </div>
       </CardContent>
     </Card>
   )

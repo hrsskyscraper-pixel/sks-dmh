@@ -124,3 +124,7 @@
     @apply bg-background text-foreground;
   }
 }
+
+@keyframes dash-march {
+  to { stroke-dashoffset: -14; }  /* dash(4)+gap(3)=7 × 2 でシームレスループ */
+}

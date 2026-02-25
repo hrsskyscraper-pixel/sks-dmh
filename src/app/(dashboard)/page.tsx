@@ -106,11 +106,36 @@ export default async function DashboardPage({
   let pendingAchievementsCount = 0
   let pendingTeamRequestsCount = 0
   if (['manager', 'admin', 'ops_manager'].includes(effectiveRole)) {
-    const { count } = await supabase
-      .from('achievements')
-      .select('*', { count: 'exact', head: true })
-      .eq('status', 'pending')
-    pendingAchievementsCount = count ?? 0
+    if (effectiveRole === 'manager') {
+      // 担当リーダーのチームのメンバーの申請のみをカウント
+      const { data: leaderTeamRows } = await supabase
+        .from('team_managers')
+        .select('team_id')
+        .eq('employee_id', currentEmployee.id)
+      const myTeamIds = (leaderTeamRows ?? []).map(r => r.team_id)
+      if (myTeamIds.length > 0) {
+        const { data: myMembers } = await supabase
+          .from('team_members')
+          .select('employee_id')
+          .in('team_id', myTeamIds)
+        const myMemberIds = (myMembers ?? []).map(r => r.employee_id)
+        if (myMemberIds.length > 0) {
+          const { count } = await supabase
+            .from('achievements')
+            .select('*', { count: 'exact', head: true })
+            .eq('status', 'pending')
+            .in('employee_id', myMemberIds)
+          pendingAchievementsCount = count ?? 0
+        }
+      }
+    } else {
+      // admin / ops_manager は全件表示
+      const { count } = await supabase
+        .from('achievements')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'pending')
+      pendingAchievementsCount = count ?? 0
+    }
   }
   if (['admin', 'ops_manager'].includes(effectiveRole)) {
     const { count } = await supabase
@@ -150,6 +175,15 @@ export default async function DashboardPage({
     .from('project_skills')
     .select('project_id, skill_id, project_phase_id')
 
+  // 店舗情報（ランキング表示用）
+  const { data: allTeams } = await supabase
+    .from('teams')
+    .select('id, name, type')
+
+  const { data: allTeamMembersForStore } = await supabase
+    .from('team_members')
+    .select('employee_id, team_id')
+
   const { data: workHoursSum } = await supabase
     .rpc('get_employee_cumulative_hours', {
       p_employee_id: employee.id,
@@ -170,6 +204,17 @@ export default async function DashboardPage({
   }
 
   const totalSkills = skills.length
+
+  // 店舗チームの逆引きマップ
+  const storeTeams = (allTeams ?? []).filter(t => t.type === 'store')
+  const storeTeamIds = new Set(storeTeams.map(t => t.id))
+  const storeTeamById = Object.fromEntries(storeTeams.map(t => [t.id, t.name]))
+  const storeByEmployee: Record<string, string> = {}
+  for (const m of allTeamMembersForStore ?? []) {
+    if (storeTeamIds.has(m.team_id)) {
+      storeByEmployee[m.employee_id] = storeTeamById[m.team_id]
+    }
+  }
 
   // 社員別累計時間
   const hoursByEmployee = (allWorkHours ?? []).reduce((acc, r) => {
@@ -192,11 +237,25 @@ export default async function DashboardPage({
       .map(ep => ep.project_id)
 
     const firstProjectId = empProjectIds[0] ?? null
+    if (!firstProjectId) {
+      return {
+        id: emp.id,
+        name: emp.name,
+        avatar_url: emp.avatar_url,
+        employment_type: emp.employment_type,
+        hire_date: emp.hire_date,
+        store_name: storeByEmployee[emp.id] ?? null,
+        certifiedCount: certifiedByEmployee[emp.id] ?? 0,
+        totalSkills: 0,
+        standardPct: 0,
+      }
+    }
+
     let empMilestones = milestones
     let empTotalSkills = totalSkills
     let empSkillsByPhase = skillsByPhase
 
-    if (firstProjectId && firstProjectId !== selectedProject?.id) {
+    if (firstProjectId !== selectedProject?.id) {
       const empPhases = (allProjectPhases ?? []).filter(p => p.project_id === firstProjectId)
       const empProjectSkills = (allProjectSkills ?? []).filter(ps => ps.project_id === firstProjectId)
       empMilestones = buildMilestoneMap(empPhases)
@@ -219,6 +278,7 @@ export default async function DashboardPage({
       avatar_url: emp.avatar_url,
       employment_type: emp.employment_type,
       hire_date: emp.hire_date,
+      store_name: storeByEmployee[emp.id] ?? null,
       certifiedCount: certifiedByEmployee[emp.id] ?? 0,
       totalSkills: empTotalSkills,
       standardPct: calcStandardPct(empHours, empMilestones, empSkillsByPhase, empTotalSkills),

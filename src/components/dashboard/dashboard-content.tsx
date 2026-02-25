@@ -72,7 +72,7 @@ function calcSkillTargetHours(skillId: string, allSkills: Skill[], skillPhaseMap
 function fmtHireDate(dateStr: string | null): string {
   if (!dateStr) return ''
   const d = new Date(dateStr)
-  return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`
+  return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
 function calcHireYear(hireDate: string | null): number {
@@ -345,7 +345,7 @@ export function DashboardContent({
             <p className="text-sm font-semibold text-gray-700">対応が必要です</p>
           </div>
           {pendingAchievementsCount > 0 && (
-            <Link href="/team">
+            <Link href="/team?tab=pending">
               <Card className="border-blue-200 bg-blue-50 hover:bg-blue-100 transition-colors cursor-pointer">
                 <CardContent className="py-3 px-4">
                   <div className="flex items-center gap-3">
@@ -363,7 +363,7 @@ export function DashboardContent({
             </Link>
           )}
           {pendingTeamRequestsCount > 0 && (
-            <Link href="/admin/teams">
+            <Link href="/admin/teams?tab=requests">
               <Card className="border-amber-200 bg-amber-50 hover:bg-amber-100 transition-colors cursor-pointer">
                 <CardContent className="py-3 px-4">
                   <div className="flex items-center gap-3">
