@@ -19,16 +19,16 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 to-red-50 flex items-center justify-center p-4">
       <Card className="w-full max-w-sm shadow-xl">
-        <CardHeader className="text-center space-y-2 pb-2">
+        <CardHeader className="text-center space-y-2 pb-0">
           <div className="mx-auto w-16 h-16 bg-gradient-to-br from-orange-400 to-red-500 rounded-2xl flex items-center justify-center mb-2">
             <span className="text-white text-2xl font-bold">S</span>
           </div>
           <CardTitle className="text-2xl font-bold">できました表</CardTitle>
-          <CardDescription className="text-sm">
-            スカイスクレイパー 新卒オンボーディング
+          <CardDescription className="text-sm leading-relaxed">
+            スカイスクレイパー<br />オンボーディング<br />エンジン
           </CardDescription>
         </CardHeader>
-        <CardContent className="pt-4">
+        <CardContent className="pt-0">
           <Button
             onClick={handleGoogleLogin}
             className="w-full bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 shadow-sm h-12 text-base font-medium"
@@ -55,7 +55,7 @@ export default function LoginPage() {
             Googleでログイン
           </Button>
           <p className="text-center text-xs text-muted-foreground mt-4">
-            会社のGoogleアカウントでログインしてください
+            Googleアカウントでログインしてください
           </p>
         </CardContent>
       </Card>

@@ -15,11 +15,11 @@ export default async function TeamPage() {
     .eq('auth_user_id', user.id)
     .single()
 
-  if (!currentEmployee || !['manager', 'admin'].includes(currentEmployee.role)) {
+  if (!currentEmployee || !['manager', 'admin', 'ops_manager'].includes(currentEmployee.role)) {
     redirect('/')
   }
 
-  // 全社員（自分以外）取得
+  // 全社員取得
   const { data: employees } = await supabase
     .from('employees')
     .select('*')
@@ -36,6 +36,23 @@ export default async function TeamPage() {
     .select('*, skills(*), employees!achievements_employee_id_fkey(*)')
     .order('created_at', { ascending: false })
 
+  // 担当チームのメンバー ID セットを構築
+  const { data: myManagedTeams } = await supabase
+    .from('team_managers')
+    .select('team_id')
+    .eq('employee_id', currentEmployee.id)
+
+  const managedTeamIds = (myManagedTeams ?? []).map(r => r.team_id)
+
+  let priorityMemberIds = new Set<string>()
+  if (managedTeamIds.length > 0) {
+    const { data: managedMembers } = await supabase
+      .from('team_members')
+      .select('employee_id')
+      .in('team_id', managedTeamIds)
+    priorityMemberIds = new Set((managedMembers ?? []).map(r => r.employee_id))
+  }
+
   return (
     <>
       <TopBar title="チームダッシュボード" />
@@ -44,6 +61,7 @@ export default async function TeamPage() {
         employees={employees ?? []}
         skills={skills ?? []}
         achievements={achievements ?? []}
+        priorityMemberIds={priorityMemberIds}
       />
     </>
   )
