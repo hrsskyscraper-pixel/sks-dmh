@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { Plus, Trash2, UserPlus, UserMinus, ClipboardList, Check, X, ChevronDown, ChevronUp, Pencil } from 'lucide-react'
@@ -91,6 +91,8 @@ export function TeamManager({
   // effectiveRole で権限を判定（view-as 中はそちらを優先）
   const isDirectEdit = canDirectEdit(effectiveRole)
   const isReadOnly = !['manager', 'admin', 'ops_manager'].includes(effectiveRole)
+  // view-as 中は申請操作を無効化（requested_by が admin になってしまうため）
+  const isViewAs = currentEmployee.id !== effectiveEmployee.id
 
   // ===== 汎用確認ダイアログ =====
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -165,26 +167,41 @@ export function TeamManager({
   const displayRequests = isDirectEdit
     ? changeRequests
     : changeRequests.filter(r => r.requested_by === effectiveEmployee.id)
+  // manager 自身の pending 申請件数（バッジ表示用）
+  const pendingMyCount = !isDirectEdit
+    ? displayRequests.filter(r => r.status === 'pending').length
+    : 0
 
-  // 申請タブを開いたとき、自分の未読結果を既読にする
+  // 申請タブを開いたとき、表示対象の未読結果を既読にする
   const handleRequestsTabOpen = () => {
     if (isDirectEdit) return // admin/ops_manager は申請者ではないのでスキップ
+    // effectiveEmployee.id で判定（view-as 対応）
     const unreadIds = changeRequests
-      .filter(r => r.requested_by === currentEmployee.id && r.status !== 'pending' && !r.applicant_read_at)
+      .filter(r => r.requested_by === effectiveEmployee.id && r.status !== 'pending' && !r.applicant_read_at)
       .map(r => r.id)
     if (unreadIds.length === 0) return
-    // 楽観的にローカル更新
+    // 楽観的にローカル更新（即座にバッジを消す）
     setChangeRequests(prev =>
       prev.map(r => unreadIds.includes(r.id) ? { ...r, applicant_read_at: new Date().toISOString() } : r)
     )
+    // SECURITY DEFINER 関数経由で DB 更新（RLS を安全に回避）
     supabase
-      .from('team_change_requests')
-      .update({ applicant_read_at: new Date().toISOString() })
-      .in('id', unreadIds)
+      .rpc('mark_team_requests_read', { p_request_ids: unreadIds })
       .then(({ error }) => {
         if (error) console.error('既読更新に失敗:', error)
       })
   }
+
+  // URL パラメータで申請タブが初期表示のとき、マウント時に一度だけ既読処理を実行
+  const markedReadOnMount = useRef(false)
+  useEffect(() => {
+    if (initialTab === 'requests' && !markedReadOnMount.current) {
+      markedReadOnMount.current = true
+      handleRequestsTabOpen()
+    }
+  // initialTab は固定値なので deps は空で問題なし
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // マネージャー候補（manager/admin/ops_manager）
   const managerCandidates = employees.filter(e =>
@@ -322,7 +339,7 @@ export function TeamManager({
       const { data, error } = await supabase
         .from('team_change_requests')
         .insert({
-          requested_by: currentEmployee.id,
+          requested_by: effectiveEmployee.id,
           request_type: requestDialog.requestType,
           team_id: requestDialog.teamId,
           payload: payload as import('@/types/database').Json,
@@ -875,6 +892,12 @@ export function TeamManager({
                 {unreadResults.length}
               </Badge>
             )}
+            {/* manager: 自分の審査待ち申請件数 */}
+            {!isDirectEdit && pendingMyCount > 0 && (
+              <Badge className="ml-1 bg-amber-400 text-white text-[10px] h-4 px-1 border-0">
+                審査中{pendingMyCount}
+              </Badge>
+            )}
           </TabsTrigger>
         </TabsList>
 
@@ -910,6 +933,11 @@ export function TeamManager({
           {isDirectEdit && pendingRequests.length > 0 && (
             <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-2 text-sm text-amber-800 font-medium">
               審査待ち {pendingRequests.length}件
+            </div>
+          )}
+          {!isDirectEdit && pendingMyCount > 0 && (
+            <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-2 text-sm text-amber-700">
+              回答待ちの申請が <span className="font-bold">{pendingMyCount}件</span> あります
             </div>
           )}
 

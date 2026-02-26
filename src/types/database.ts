@@ -493,6 +493,10 @@ export type Database = {
         Args: { p_employee_id: string; p_as_of_date: string }
         Returns: number
       }
+      mark_team_requests_read: {
+        Args: { p_request_ids: string[] }
+        Returns: void
+      }
     }
     Enums: {
       [_ in never]: never

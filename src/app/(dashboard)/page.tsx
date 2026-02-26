@@ -101,8 +101,8 @@ export default async function DashboardPage({
     return data ?? []
   })()
 
-  // 対応待ち件数
-  const effectiveRole = currentEmployee.role
+  // 対応待ち件数（view-as 中は表示対象の社員ロールで判定）
+  const effectiveRole = employee.role
   let pendingAchievementsCount = 0
   let pendingTeamRequestsCount = 0
   if (['manager', 'admin', 'ops_manager'].includes(effectiveRole)) {
@@ -111,7 +111,7 @@ export default async function DashboardPage({
       const { data: leaderTeamRows } = await supabase
         .from('team_managers')
         .select('team_id')
-        .eq('employee_id', currentEmployee.id)
+        .eq('employee_id', employee.id)
       const myTeamIds = (leaderTeamRows ?? []).map(r => r.team_id)
       if (myTeamIds.length > 0) {
         const { data: myMembers } = await supabase
@@ -222,13 +222,12 @@ export default async function DashboardPage({
     return acc
   }, {} as Record<string, number>)
 
-  // 社員別認定済スキル（プロジェクトフィルタ適用）
-  const certifiedByEmployee = (allCertified ?? []).reduce((acc, a) => {
-    if (projectSkillIds.has(a.skill_id)) {
-      acc[a.employee_id] = (acc[a.employee_id] ?? 0) + 1
-    }
-    return acc
-  }, {} as Record<string, number>)
+  // プロジェクト別スキルIDセット（teamStats で各社員自身のPJで認定数を計算するため）
+  const projectSkillIdMap: Record<string, Set<string>> = {}
+  for (const ps of allProjectSkills ?? []) {
+    if (!projectSkillIdMap[ps.project_id]) projectSkillIdMap[ps.project_id] = new Set()
+    projectSkillIdMap[ps.project_id].add(ps.skill_id)
+  }
 
   // 社員ごとの標準進捗（最初の参加PJで計算）
   const teamStats = (allEmployees ?? []).map(emp => {
@@ -237,6 +236,13 @@ export default async function DashboardPage({
       .map(ep => ep.project_id)
 
     const firstProjectId = empProjectIds[0] ?? null
+
+    // 各社員自身のプロジェクトスキルで認定数を集計（選択PJに依存しない）
+    const empSkillIdSet = firstProjectId ? (projectSkillIdMap[firstProjectId] ?? new Set<string>()) : new Set<string>()
+    const empCertifiedCount = (allCertified ?? [])
+      .filter(a => a.employee_id === emp.id && empSkillIdSet.has(a.skill_id))
+      .length
+
     if (!firstProjectId) {
       return {
         id: emp.id,
@@ -245,7 +251,7 @@ export default async function DashboardPage({
         employment_type: emp.employment_type,
         hire_date: emp.hire_date,
         store_name: storeByEmployee[emp.id] ?? null,
-        certifiedCount: certifiedByEmployee[emp.id] ?? 0,
+        certifiedCount: empCertifiedCount,
         totalSkills: 0,
         standardPct: 0,
       }
@@ -279,7 +285,7 @@ export default async function DashboardPage({
       employment_type: emp.employment_type,
       hire_date: emp.hire_date,
       store_name: storeByEmployee[emp.id] ?? null,
-      certifiedCount: certifiedByEmployee[emp.id] ?? 0,
+      certifiedCount: empCertifiedCount,
       totalSkills: empTotalSkills,
       standardPct: calcStandardPct(empHours, empMilestones, empSkillsByPhase, empTotalSkills),
     }

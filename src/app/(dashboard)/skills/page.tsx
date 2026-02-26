@@ -87,7 +87,7 @@ export default async function SkillsPage({
 
   const { data: achievements } = await supabase
     .from('achievements')
-    .select('*, certified_employee:employees!achievements_certified_by_fkey(name)')
+    .select('*, certified_employee:employees!achievements_certified_by_fkey(name), skills(*)')
     .eq('employee_id', employee.id)
 
   const [{ data: cumulativeHours }] = await Promise.all([
