@@ -62,6 +62,9 @@ export function TeamDashboard({ currentEmployee, employees, skills, achievements
   const supabase = createClient()
 
   const pendingAchievements = achievements.filter(a => a.status === 'pending')
+  const historyAchievements = achievements
+    .filter(a => (a.status === 'certified' || a.status === 'rejected') && a.certified_by === currentEmployee.id)
+    .sort((a, b) => new Date(b.certified_at ?? b.created_at).getTime() - new Date(a.certified_at ?? a.created_at).getTime())
   const hasPriority = priorityMemberIds && priorityMemberIds.size > 0
 
   const handleCertify = (achievement: AchievementWithRelations, comment: string) => {
@@ -175,7 +178,7 @@ export function TeamDashboard({ currentEmployee, employees, skills, achievements
   return (
     <div className="p-4 space-y-4">
       <Tabs defaultValue={initialTab}>
-        <TabsList className="grid w-full grid-cols-2 h-9">
+        <TabsList className="grid w-full grid-cols-3 h-9">
           <TabsTrigger value="overview" className="text-xs">チーム一覧</TabsTrigger>
           <TabsTrigger value="pending" className="text-xs">
             申請
@@ -185,6 +188,7 @@ export function TeamDashboard({ currentEmployee, employees, skills, achievements
               </Badge>
             )}
           </TabsTrigger>
+          <TabsTrigger value="history" className="text-xs">認定履歴</TabsTrigger>
         </TabsList>
 
         {/* 認定待ちタブ */}
@@ -218,6 +222,22 @@ export function TeamDashboard({ currentEmployee, employees, skills, achievements
           ) : (
             sortedPendingAchievements.map(achievement => (
               <AchievementCard key={achievement.id} achievement={achievement} onOpen={openDialog} isPending={isPending} />
+            ))
+          )}
+        </TabsContent>
+
+        {/* 認定履歴タブ */}
+        <TabsContent value="history" className="mt-3 space-y-2">
+          {historyAchievements.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <Clock className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-sm text-muted-foreground">認定・差し戻し履歴はありません</p>
+              </CardContent>
+            </Card>
+          ) : (
+            historyAchievements.map(achievement => (
+              <CertifyHistoryCard key={achievement.id} achievement={achievement} />
             ))
           )}
         </TabsContent>
@@ -274,6 +294,9 @@ export function TeamDashboard({ currentEmployee, employees, skills, achievements
                     {selectedAchievement.skills?.category}
                   </Badge>
                 </div>
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  申請日時: {formatAppliedAt(selectedAchievement.achieved_at)}
+                </p>
               </div>
               {selectedAchievement.apply_comment && (
                 <div>
@@ -321,6 +344,15 @@ export function TeamDashboard({ currentEmployee, employees, skills, achievements
   )
 }
 
+function formatAppliedAt(iso: string): string {
+  const d = new Date(iso)
+  const M = d.getMonth() + 1
+  const D = d.getDate()
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mm = String(d.getMinutes()).padStart(2, '0')
+  return `${M}月${D}日 ${hh}:${mm}`
+}
+
 function AchievementCard({
   achievement,
   onOpen,
@@ -351,6 +383,9 @@ function AchievementCard({
               <Badge className="text-[10px] bg-gray-100 text-gray-600 border-0">
                 {achievement.skills?.category}
               </Badge>
+              <span className="text-[10px] text-muted-foreground">
+                申請: {formatAppliedAt(achievement.achieved_at)}
+              </span>
             </div>
             {achievement.apply_comment && (
               <p className="text-xs text-gray-600 mt-1 bg-white rounded px-2 py-1 border border-amber-100">
@@ -367,6 +402,54 @@ function AchievementCard({
             <CheckCircle2 className="w-3 h-3 mr-1" />
             確認・認定
           </Button>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function CertifyHistoryCard({
+  achievement,
+}: {
+  achievement: AchievementWithRelations & { employees: Employee | null; skills: Skill | null }
+}) {
+  const isCertified = achievement.status === 'certified'
+  return (
+    <Card className={cn('border', isCertified ? 'border-green-200 bg-green-50' : 'border-red-100 bg-red-50')}>
+      <CardContent className="py-3 px-4">
+        <div className="flex items-start gap-3">
+          <div className={cn('mt-0.5 flex-shrink-0', isCertified ? 'text-green-500' : 'text-red-400')}>
+            {isCertified ? <CheckCircle2 className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <p className="text-xs text-muted-foreground">{achievement.employees?.name}</p>
+              <Badge className={cn('text-[10px] border-0 px-1.5', isCertified ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600')}>
+                {isCertified ? '認定' : '差し戻し'}
+              </Badge>
+            </div>
+            <p className="text-sm font-medium text-gray-800 leading-tight mt-0.5">
+              {achievement.skills?.name}
+            </p>
+            <div className="flex items-center gap-2 mt-0.5">
+              <Badge className="text-[10px] bg-blue-100 text-blue-700 border-0">
+                {achievement.skills?.phase}
+              </Badge>
+              <Badge className="text-[10px] bg-gray-100 text-gray-600 border-0">
+                {achievement.skills?.category}
+              </Badge>
+              {achievement.certified_at && (
+                <span className="text-[10px] text-muted-foreground">
+                  {formatAppliedAt(achievement.certified_at)}
+                </span>
+              )}
+            </div>
+            {achievement.certify_comment && (
+              <p className="text-xs text-gray-600 mt-1 bg-white rounded px-2 py-1 border border-gray-100">
+                💬 {achievement.certify_comment}
+              </p>
+            )}
+          </div>
         </div>
       </CardContent>
     </Card>

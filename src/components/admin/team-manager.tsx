@@ -171,6 +171,12 @@ export function TeamManager({
   const pendingMyCount = !isDirectEdit
     ? displayRequests.filter(r => r.status === 'pending').length
     : 0
+  // admin/ops_manager が自分で審査した履歴（approved/rejected）
+  const reviewedRequests = isDirectEdit
+    ? changeRequests
+        .filter(r => (r.status === 'approved' || r.status === 'rejected') && r.reviewed_by === currentEmployee.id)
+        .sort((a, b) => new Date(b.reviewed_at ?? b.created_at).getTime() - new Date(a.reviewed_at ?? a.created_at).getTime())
+    : []
 
   // 申請タブを開いたとき、表示対象の未読結果を既読にする
   const handleRequestsTabOpen = () => {
@@ -188,7 +194,7 @@ export function TeamManager({
     supabase
       .rpc('mark_team_requests_read', { p_request_ids: unreadIds })
       .then(({ error }) => {
-        if (error) console.error('既読更新に失敗:', error)
+        if (error) console.error('既読更新に失敗:', error.message, error.code, error.details)
       })
   }
 
@@ -876,7 +882,7 @@ export function TeamManager({
   return (
     <div className="p-4 space-y-4">
       <Tabs defaultValue={initialTab} onValueChange={v => { if (v === 'requests') handleRequestsTabOpen() }}>
-        <TabsList className="grid w-full grid-cols-2 h-9">
+        <TabsList className={`grid w-full h-9 ${isDirectEdit ? 'grid-cols-3' : 'grid-cols-2'}`}>
           <TabsTrigger value="teams" className="text-xs">チーム一覧</TabsTrigger>
           <TabsTrigger value="requests" className="text-xs">
             申請
@@ -899,6 +905,9 @@ export function TeamManager({
               </Badge>
             )}
           </TabsTrigger>
+          {isDirectEdit && (
+            <TabsTrigger value="review-history" className="text-xs">審査履歴</TabsTrigger>
+          )}
         </TabsList>
 
         {/* manager: チーム作成申請ボタン（タブ直下） */}
@@ -1052,6 +1061,76 @@ export function TeamManager({
             )
           })}
         </TabsContent>
+
+        {/* ===== 審査履歴タブ (admin/ops_manager のみ) ===== */}
+        {isDirectEdit && (
+          <TabsContent value="review-history" className="mt-3 space-y-3">
+            {reviewedRequests.length === 0 ? (
+              <Card>
+                <CardContent className="py-10 text-center text-sm text-muted-foreground">
+                  審査履歴がありません
+                </CardContent>
+              </Card>
+            ) : (
+              reviewedRequests.map(req => (
+                <Card key={req.id} className={req.status === 'approved' ? 'border-green-200 bg-green-50' : 'border-red-100 bg-red-50'}>
+                  <CardContent className="py-3 px-4">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <Badge className={`${STATUS_COLORS[req.status]} text-[10px] border-0`}>
+                        {STATUS_LABELS[req.status]}
+                      </Badge>
+                      <Badge className="bg-gray-100 text-gray-600 text-[10px] border-0">
+                        {REQUEST_TYPE_LABELS[req.request_type]}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-gray-700">
+                      申請者: {getEmployeeName(req.requested_by)}
+                    </p>
+                    {req.team_id && (
+                      <p className="text-xs text-gray-500">
+                        チーム: {teams.find(t => t.id === req.team_id)?.name ?? req.team_id}
+                      </p>
+                    )}
+                    {(() => {
+                      const p = req.payload as Record<string, unknown>
+                      if (p.employee_id) {
+                        return <p className="text-xs text-gray-500">対象: {getEmployeeName(p.employee_id as string)}</p>
+                      }
+                      if (p.name) {
+                        return (
+                          <p className="text-xs text-gray-500">
+                            チーム名: {p.name as string}（{p.type === 'store' ? '店舗' : 'チーム'}）
+                            　担当: {p.manager_name as string}
+                          </p>
+                        )
+                      }
+                      return null
+                    })()}
+                    {(() => {
+                      const p = req.payload as Record<string, unknown>
+                      return p.comment ? (
+                        <p className="text-xs text-gray-600 mt-1 bg-white rounded px-2 py-1 border border-gray-100">
+                          💬 {p.comment as string}
+                        </p>
+                      ) : null
+                    })()}
+                    {(req.review_comment || req.reviewed_by) && (
+                      <p className="text-xs text-gray-600 mt-1 bg-white rounded px-2 py-1 border border-gray-100">
+                        {req.review_comment ?? (req.status === 'approved' ? '承認しました' : '差し戻ししました')}
+                      </p>
+                    )}
+                    <div className="mt-1 space-y-0.5">
+                      <p className="text-[10px] text-gray-400">申請: {fmtDateTime(req.created_at)}</p>
+                      {req.reviewed_at && (
+                        <p className="text-[10px] text-gray-400">審査: {fmtDateTime(req.reviewed_at)}</p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </TabsContent>
+        )}
       </Tabs>
 
       {/* ===== チーム作成ダイアログ (direct edit) ===== */}

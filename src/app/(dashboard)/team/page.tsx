@@ -22,7 +22,6 @@ export default async function TeamPage() {
     redirect('/')
   }
 
-  // view-as 中は表示対象の社員 ID でチームを検索する
   const cookieStore = await cookies()
   const viewAsId = cookieStore.get(VIEW_AS_COOKIE)?.value ?? null
   let effectiveEmployeeId = currentEmployee.id
@@ -35,28 +34,32 @@ export default async function TeamPage() {
     if (viewAsEmp) effectiveEmployeeId = viewAsEmp.id
   }
 
-  // 全社員取得
-  const { data: employees } = await supabase
-    .from('employees')
-    .select('*')
-    .order('hire_date')
-
-  // 全スキル取得
-  const { data: skills } = await supabase
-    .from('skills')
-    .select('*')
-
-  // 全achievements取得
-  const { data: achievements } = await supabase
-    .from('achievements')
-    .select('*, skills(*), employees!achievements_employee_id_fkey(*)')
-    .order('created_at', { ascending: false })
-
-  // 担当リーダー（主・副問わず）として登録されているチームを取得
-  const { data: leaderTeamRows } = await supabase
-    .from('team_managers')
-    .select('team_id')
-    .eq('employee_id', effectiveEmployeeId)
+  // effectiveEmployeeId 確定後の全クエリを並列実行
+  const [
+    { data: employees },
+    { data: skills },
+    { data: achievements },
+    { data: leaderTeamRows },
+    { data: allWorkHours },
+    { data: allEmployeeProjects },
+    { data: allProjectPhases },
+    { data: allProjectSkills },
+    { data: allTeams },
+    { data: allTeamMembersForStore },
+  ] = await Promise.all([
+    supabase.from('employees').select('*').order('hire_date'),
+    supabase.from('skills').select('*'),
+    supabase.from('achievements')
+      .select('*, skills(*), employees!achievements_employee_id_fkey(*)')
+      .order('created_at', { ascending: false }),
+    supabase.from('team_managers').select('team_id').eq('employee_id', effectiveEmployeeId),
+    supabase.from('work_hours').select('employee_id, hours'),
+    supabase.from('employee_projects').select('employee_id, project_id'),
+    supabase.from('project_phases').select('*'),
+    supabase.from('project_skills').select('project_id, skill_id, project_phase_id'),
+    supabase.from('teams').select('id, name, type'),
+    supabase.from('team_members').select('employee_id, team_id'),
+  ])
 
   const myTeamIds = (leaderTeamRows ?? []).map(r => r.team_id)
 
@@ -73,23 +76,6 @@ export default async function TeamPage() {
     managedTeamMembers = membersData ?? []
     priorityMemberIds = new Set((membersData ?? []).map(r => r.employee_id))
   }
-
-  // メンバーカード強化用データ
-  const [
-    { data: allWorkHours },
-    { data: allEmployeeProjects },
-    { data: allProjectPhases },
-    { data: allProjectSkills },
-    { data: allTeams },
-    { data: allTeamMembersForStore },
-  ] = await Promise.all([
-    supabase.from('work_hours').select('employee_id, hours'),
-    supabase.from('employee_projects').select('employee_id, project_id'),
-    supabase.from('project_phases').select('*'),
-    supabase.from('project_skills').select('project_id, skill_id, project_phase_id'),
-    supabase.from('teams').select('id, name, type'),
-    supabase.from('team_members').select('employee_id, team_id'),
-  ])
 
   const hoursByEmployee = (allWorkHours ?? []).reduce((acc: Record<string, number>, r) => {
     acc[r.employee_id] = (acc[r.employee_id] ?? 0) + r.hours
