@@ -5,6 +5,7 @@ import { BottomNav } from '@/components/layout/nav'
 import { Toaster } from '@/components/ui/sonner'
 import { ViewAsBanner } from '@/components/layout/view-as-banner'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
+import { createAdminClient } from '@/lib/supabase/admin'
 import type { Database, Role } from '@/types/database'
 
 export default async function DashboardLayout({
@@ -17,28 +18,39 @@ export default async function DashboardLayout({
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: employee } = await supabase
+  let { data: employee } = await supabase
     .from('employees')
     .select('*')
     .eq('auth_user_id', user.id)
     .single()
 
-  // 初回ログイン時: employeesレコードがなければ自動作成（role=employee）
+  // 初回ログイン時: employeesレコードがなければ自動作成（role=testuser）
   if (!employee) {
     const insertData: Database['public']['Tables']['employees']['Insert'] = {
       auth_user_id: user.id,
       name: (user.user_metadata.full_name as string | undefined) ?? user.email ?? '未設定',
       email: user.email ?? '',
-      role: 'employee',
+      role: 'testuser',
     }
-    await supabase.from('employees').insert(insertData)
+    const adminDb = createAdminClient()
+    const { error } = await adminDb.from('employees').insert(insertData)
+    if (!error) {
+      const { data: created } = await supabase
+        .from('employees')
+        .select('*')
+        .eq('auth_user_id', user.id)
+        .single()
+      employee = created
+    }
   }
 
-  const role: Role = (employee?.role as Role | undefined) ?? 'employee'
+  if (!employee) redirect('/login')
+
+  const role: Role = employee.role as Role
 
   // viewAs Cookie の処理（manager/admin のみ有効）
   const cookieStore = await cookies()
-  const canViewAs = role === 'manager' || role === 'admin' || role === 'ops_manager'
+  const canViewAs = role === 'manager' || role === 'admin' || role === 'ops_manager' || role === 'testuser'
   const viewAsId = canViewAs ? (cookieStore.get(VIEW_AS_COOKIE)?.value ?? null) : null
 
   let viewAsEmployee = null

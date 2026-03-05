@@ -18,7 +18,7 @@ export default async function TeamPage() {
     .eq('auth_user_id', user.id)
     .single()
 
-  if (!currentEmployee || !['manager', 'admin', 'ops_manager'].includes(currentEmployee.role)) {
+  if (!currentEmployee || !['manager', 'admin', 'ops_manager', 'testuser'].includes(currentEmployee.role)) {
     redirect('/')
   }
 

@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { TopBar } from '@/components/layout/nav'
 import { DashboardContent } from '@/components/dashboard/dashboard-content'
+import { TestUserGuide } from '@/components/testuser/test-user-guide'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
 import { buildMilestoneMap, calcStandardPct } from '@/lib/milestone'
 
@@ -25,8 +26,23 @@ export default async function DashboardPage({
   if (!currentEmployee) redirect('/login')
 
   const cookieStore = await cookies()
-  const canViewAs = ['manager', 'admin', 'ops_manager'].includes(currentEmployee.role)
+  const canViewAs = ['manager', 'admin', 'ops_manager', 'testuser'].includes(currentEmployee.role)
   const viewAsId = canViewAs ? (cookieStore.get(VIEW_AS_COOKIE)?.value ?? null) : null
+
+  // testuser で view-as 未設定 → ガイド画面を表示
+  if (currentEmployee.role === 'testuser' && !viewAsId) {
+    const { data: testEmployees } = await supabase
+      .from('employees')
+      .select('id, name, role, employment_type')
+      .neq('role', 'testuser')
+      .order('name')
+    return (
+      <>
+        <TopBar title="できました表" />
+        <TestUserGuide employees={testEmployees ?? []} />
+      </>
+    )
+  }
 
   // targetEmployee と searchParams を並列取得
   const [targetEmployeeResult, params] = await Promise.all([

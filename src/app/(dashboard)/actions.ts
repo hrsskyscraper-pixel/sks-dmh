@@ -16,7 +16,7 @@ export async function setViewAs(employeeId: string) {
     .eq('auth_user_id', user.id)
     .single()
 
-  if (!currentEmployee || !['manager', 'admin', 'ops_manager'].includes(currentEmployee.role)) return
+  if (!currentEmployee || !['manager', 'admin', 'ops_manager', 'testuser'].includes(currentEmployee.role)) return
 
   const cookieStore = await cookies()
   cookieStore.set(VIEW_AS_COOKIE, employeeId, { path: '/' })

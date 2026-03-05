@@ -15,7 +15,7 @@ export default async function CsvImportPage() {
     .eq('auth_user_id', user.id)
     .single()
 
-  if (!employee || !['manager', 'admin', 'ops_manager'].includes(employee.role)) {
+  if (!employee || !['manager', 'admin', 'ops_manager', 'testuser'].includes(employee.role)) {
     redirect('/')
   }
 

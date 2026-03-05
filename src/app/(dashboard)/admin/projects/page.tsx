@@ -19,7 +19,7 @@ export default async function ProjectsPage() {
   if (!currentEmployee) redirect('/login')
 
   const effectiveRole: Role = currentEmployee.role
-  if (!['admin', 'ops_manager'].includes(effectiveRole)) redirect('/')
+  if (!['admin', 'ops_manager', 'testuser'].includes(effectiveRole)) redirect('/')
 
   const [
     { data: projects },

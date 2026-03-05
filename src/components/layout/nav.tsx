@@ -8,13 +8,13 @@ import { createClient } from '@/lib/supabase/client'
 import type { Role } from '@/types/database'
 
 const navItems = [
-  { href: '/',                 label: 'ダッシュボード', icon: LayoutDashboard,    roles: ['employee', 'manager', 'admin', 'ops_manager'] },
-  { href: '/skills',           label: 'スキル',         icon: CheckSquare,        roles: ['employee', 'manager', 'admin', 'ops_manager'] },
-  { href: '/team',             label: '認定',            icon: BadgeCheck,         roles: ['manager', 'admin', 'ops_manager'] },
-  { href: '/admin/teams',      label: 'チーム',          icon: Building2,          roles: ['employee', 'manager', 'admin', 'ops_manager'] },
-  { href: '/admin/employees',  label: 'メンバー',        icon: Users2,             roles: ['employee', 'manager', 'admin', 'ops_manager'] },
-  { href: '/admin/csv-import', label: 'CSV取込',         icon: Upload,             roles: ['manager', 'admin', 'ops_manager'] },
-  { href: '/admin/projects',   label: 'プロジェクト',     icon: FolderKanban,       roles: ['admin', 'ops_manager'] },
+  { href: '/',                 label: 'ダッシュボード', icon: LayoutDashboard,    roles: ['employee', 'manager', 'admin', 'ops_manager', 'testuser'] },
+  { href: '/skills',           label: 'スキル',         icon: CheckSquare,        roles: ['employee', 'manager', 'admin', 'ops_manager', 'testuser'] },
+  { href: '/team',             label: '認定',            icon: BadgeCheck,         roles: ['manager', 'admin', 'ops_manager', 'testuser'] },
+  { href: '/admin/teams',      label: 'チーム',          icon: Building2,          roles: ['employee', 'manager', 'admin', 'ops_manager', 'testuser'] },
+  { href: '/admin/employees',  label: 'メンバー',        icon: Users2,             roles: ['employee', 'manager', 'admin', 'ops_manager', 'testuser'] },
+  { href: '/admin/csv-import', label: 'CSV取込',         icon: Upload,             roles: ['manager', 'admin', 'ops_manager', 'testuser'] },
+  { href: '/admin/projects',   label: 'プロジェクト',     icon: FolderKanban,       roles: ['admin', 'ops_manager', 'testuser'] },
 ] as const
 
 interface NavProps {

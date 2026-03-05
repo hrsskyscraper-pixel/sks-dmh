@@ -26,7 +26,7 @@ export default async function SkillsPage({
   if (!currentEmployee) redirect('/login')
 
   const cookieStore = await cookies()
-  const canViewAs = ['manager', 'admin', 'ops_manager'].includes(currentEmployee.role)
+  const canViewAs = ['manager', 'admin', 'ops_manager', 'testuser'].includes(currentEmployee.role)
   const viewAsId = canViewAs ? (cookieStore.get(VIEW_AS_COOKIE)?.value ?? null) : null
 
   // targetEmployee と searchParams を並列取得
