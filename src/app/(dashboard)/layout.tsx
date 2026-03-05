@@ -26,16 +26,17 @@ export default async function DashboardLayout({
 
   // 初回ログイン時: employeesレコードがなければ自動作成（role=testuser）
   if (!employee) {
+    const adminDb = createAdminClient()
     const insertData: Database['public']['Tables']['employees']['Insert'] = {
       auth_user_id: user.id,
       name: (user.user_metadata.full_name as string | undefined) ?? user.email ?? '未設定',
       email: user.email ?? '',
       role: 'testuser',
     }
-    const adminDb = createAdminClient()
     const { error } = await adminDb.from('employees').insert(insertData)
     if (!error) {
-      const { data: created } = await supabase
+      // RLS を回避するため admin client で再取得
+      const { data: created } = await adminDb
         .from('employees')
         .select('*')
         .eq('auth_user_id', user.id)
@@ -44,7 +45,11 @@ export default async function DashboardLayout({
     }
   }
 
-  if (!employee) redirect('/login')
+  // それでも取得できなければサインアウトしてリダイレクト（ループ防止）
+  if (!employee) {
+    await supabase.auth.signOut()
+    redirect('/login?error=account_creation_failed')
+  }
 
   const role: Role = employee.role as Role
 
