@@ -31,7 +31,9 @@ export default async function DashboardPage({
 
   // testuser で view-as 未設定 → ガイド画面を表示
   if (currentEmployee.role === 'testuser' && !viewAsId) {
-    const { data: testEmployees } = await supabase
+    const { createAdminClient } = await import('@/lib/supabase/admin')
+    const adminDb = createAdminClient()
+    const { data: testEmployees } = await adminDb
       .from('employees')
       .select('id, name, role, employment_type')
       .neq('role', 'testuser')
