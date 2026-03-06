@@ -10,7 +10,7 @@ interface Props {
 
 export function ViewAsBanner({ employeeName }: Props) {
   return (
-    <div className="fixed top-0 left-0 right-0 z-50 bg-blue-600 text-white px-4 py-2 flex items-center justify-between text-sm">
+    <div className="sticky top-0 z-50 bg-blue-600 text-white px-4 py-2 flex items-center justify-between text-sm">
       <div className="flex items-center gap-2">
         <Eye className="w-4 h-4 flex-shrink-0" />
         <span><strong>{employeeName}</strong> の視点で表示中</span>

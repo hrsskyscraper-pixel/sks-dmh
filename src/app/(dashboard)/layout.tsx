@@ -89,7 +89,7 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className={`min-h-screen bg-gray-50 ${viewAsEmployee ? 'pt-10 [&_header.sticky]:top-10' : ''}`}>
+    <div className="min-h-screen bg-gray-50" style={viewAsEmployee ? { '--banner-h': '2.5rem' } as React.CSSProperties : undefined}>
       {viewAsEmployee && <ViewAsBanner employeeName={viewAsEmployee.name} />}
       <main className="pb-20 max-w-2xl mx-auto">
         {children}

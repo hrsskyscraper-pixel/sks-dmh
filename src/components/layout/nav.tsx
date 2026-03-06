@@ -79,7 +79,7 @@ export function BottomNav({ role, unreadRequestCount = 0 }: NavProps) {
 
 export function TopBar({ title, right }: { title: string; right?: React.ReactNode }) {
   return (
-    <header className="sticky top-0 bg-white/80 backdrop-blur-sm border-b border-gray-100 z-40">
+    <header className="sticky bg-white/80 backdrop-blur-sm border-b border-gray-100 z-40" style={{ top: 'var(--banner-h, 0px)' }}>
       <div className="flex items-center justify-between h-14 px-4 max-w-2xl mx-auto">
         <h1 className="text-base font-bold text-gray-900">{title}</h1>
         {right}
