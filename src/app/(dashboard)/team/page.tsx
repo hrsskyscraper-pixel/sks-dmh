@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { TopBar } from '@/components/layout/nav'
 import { TeamDashboard } from '@/components/dashboard/team-dashboard'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
@@ -22,11 +23,13 @@ export default async function TeamPage() {
     redirect('/')
   }
 
+  const db = currentEmployee.role === 'testuser' ? createAdminClient() : supabase
+
   const cookieStore = await cookies()
   const viewAsId = cookieStore.get(VIEW_AS_COOKIE)?.value ?? null
   let effectiveEmployeeId = currentEmployee.id
   if (viewAsId) {
-    const { data: viewAsEmp } = await supabase
+    const { data: viewAsEmp } = await db
       .from('employees')
       .select('id')
       .eq('id', viewAsId)
@@ -47,18 +50,18 @@ export default async function TeamPage() {
     { data: allTeams },
     { data: allTeamMembersForStore },
   ] = await Promise.all([
-    supabase.from('employees').select('*').order('hire_date'),
-    supabase.from('skills').select('*'),
-    supabase.from('achievements')
+    db.from('employees').select('*').order('hire_date'),
+    db.from('skills').select('*'),
+    db.from('achievements')
       .select('*, skills(*), employees!achievements_employee_id_fkey(*)')
       .order('created_at', { ascending: false }),
-    supabase.from('team_managers').select('team_id').eq('employee_id', effectiveEmployeeId),
-    supabase.from('work_hours').select('employee_id, hours'),
-    supabase.from('employee_projects').select('employee_id, project_id'),
-    supabase.from('project_phases').select('*'),
-    supabase.from('project_skills').select('project_id, skill_id, project_phase_id'),
-    supabase.from('teams').select('id, name, type'),
-    supabase.from('team_members').select('employee_id, team_id'),
+    db.from('team_managers').select('team_id').eq('employee_id', effectiveEmployeeId),
+    db.from('work_hours').select('employee_id, hours'),
+    db.from('employee_projects').select('employee_id, project_id'),
+    db.from('project_phases').select('*'),
+    db.from('project_skills').select('project_id, skill_id, project_phase_id'),
+    db.from('teams').select('id, name, type'),
+    db.from('team_members').select('employee_id, team_id'),
   ])
 
   const myTeamIds = (leaderTeamRows ?? []).map(r => r.team_id)
@@ -69,8 +72,8 @@ export default async function TeamPage() {
 
   if (myTeamIds.length > 0) {
     const [{ data: teamsData }, { data: membersData }] = await Promise.all([
-      supabase.from('teams').select('id, name').in('id', myTeamIds).order('name'),
-      supabase.from('team_members').select('team_id, employee_id').in('team_id', myTeamIds),
+      db.from('teams').select('id, name').in('id', myTeamIds).order('name'),
+      db.from('team_members').select('team_id, employee_id').in('team_id', myTeamIds),
     ])
     managedTeams = teamsData ?? []
     managedTeamMembers = membersData ?? []

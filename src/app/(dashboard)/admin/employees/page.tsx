@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { TopBar } from '@/components/layout/nav'
 import { EmployeeManager } from '@/components/admin/employee-manager'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
@@ -21,12 +22,14 @@ export default async function EmployeesPage() {
 
   if (!currentEmployee) redirect('/login')
 
+  const db = currentEmployee.role === 'testuser' ? createAdminClient() : supabase
+
   const cookieStore = await cookies()
   const viewAsId = cookieStore.get(VIEW_AS_COOKIE)?.value ?? null
   let effectiveRole: Role = currentEmployee.role
 
   if (viewAsId) {
-    const { data: viewAsEmp } = await supabase
+    const { data: viewAsEmp } = await db
       .from('employees')
       .select('role')
       .eq('id', viewAsId)
@@ -46,14 +49,14 @@ export default async function EmployeesPage() {
     { data: teams },
     { data: teamMembers },
   ] = await Promise.all([
-    supabase.from('employees').select('*').order('created_at'),
-    supabase.from('achievements').select('employee_id, skill_id').eq('status', 'certified'),
-    supabase.from('work_hours').select('employee_id, hours'),
-    supabase.from('employee_projects').select('employee_id, project_id'),
-    supabase.from('project_phases').select('*'),
-    supabase.from('project_skills').select('project_id, skill_id, project_phase_id'),
-    supabase.from('teams').select('*').order('type').order('name'),
-    supabase.from('team_members').select('team_id, employee_id'),
+    db.from('employees').select('*').order('created_at'),
+    db.from('achievements').select('employee_id, skill_id').eq('status', 'certified'),
+    db.from('work_hours').select('employee_id, hours'),
+    db.from('employee_projects').select('employee_id, project_id'),
+    db.from('project_phases').select('*'),
+    db.from('project_skills').select('project_id, skill_id, project_phase_id'),
+    db.from('teams').select('*').order('type').order('name'),
+    db.from('team_members').select('team_id, employee_id'),
   ])
 
   const certifiedByEmployee = (allCertified ?? []).reduce((acc, a) => {

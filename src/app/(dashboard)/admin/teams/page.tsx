@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { TopBar } from '@/components/layout/nav'
 import { TeamManager } from '@/components/admin/team-manager'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
@@ -20,6 +21,8 @@ export default async function AdminTeamsPage() {
 
   if (!currentEmployee) redirect('/login')
 
+  const db = currentEmployee.role === 'testuser' ? createAdminClient() : supabase
+
   // view-as 中は表示ロールに合わせて権限を落とす
   const cookieStore = await cookies()
   const viewAsId = cookieStore.get(VIEW_AS_COOKIE)?.value ?? null
@@ -27,7 +30,7 @@ export default async function AdminTeamsPage() {
   let effectiveEmployee: Employee = currentEmployee
 
   if (viewAsId) {
-    const { data: viewAsEmp } = await supabase
+    const { data: viewAsEmp } = await db
       .from('employees')
       .select('*')
       .eq('id', viewAsId)
@@ -45,12 +48,11 @@ export default async function AdminTeamsPage() {
     { data: employees },
     { data: changeRequests },
   ] = await Promise.all([
-    supabase.from('teams').select('*').order('name'),
-    supabase.from('team_members').select('*'),
-    supabase.from('team_managers').select('*'),
-    supabase.from('employees').select('*').order('name'),
-    supabase
-      .from('team_change_requests')
+    db.from('teams').select('*').order('name'),
+    db.from('team_members').select('*'),
+    db.from('team_managers').select('*'),
+    db.from('employees').select('*').order('name'),
+    db.from('team_change_requests')
       .select('*')
       .order('created_at', { ascending: false }),
   ])

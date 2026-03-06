@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { TopBar } from '@/components/layout/nav'
 import { DashboardContent } from '@/components/dashboard/dashboard-content'
 import { TestUserGuide } from '@/components/testuser/test-user-guide'
@@ -31,7 +32,6 @@ export default async function DashboardPage({
 
   // testuser で view-as 未設定 → ガイド画面を表示
   if (currentEmployee.role === 'testuser' && !viewAsId) {
-    const { createAdminClient } = await import('@/lib/supabase/admin')
     const adminDb = createAdminClient()
     const { data: testEmployees } = await adminDb
       .from('employees')
@@ -46,17 +46,20 @@ export default async function DashboardPage({
     )
   }
 
+  // testuser はRLSを回避するため admin client でデータ取得
+  const db = currentEmployee.role === 'testuser' ? createAdminClient() : supabase
+
   // targetEmployee と searchParams を並列取得
   const [targetEmployeeResult, params] = await Promise.all([
     viewAsId
-      ? supabase.from('employees').select('*').eq('id', viewAsId).single()
+      ? db.from('employees').select('*').eq('id', viewAsId).single()
       : Promise.resolve({ data: null }),
     searchParams ?? Promise.resolve(undefined),
   ])
   const employee = (targetEmployeeResult as { data: typeof currentEmployee | null }).data ?? currentEmployee
 
   // 参加プロジェクト一覧
-  const { data: employeeProjectRows } = await supabase
+  const { data: employeeProjectRows } = await db
     .from('employee_projects')
     .select('project_id, skill_projects(id, name, is_active)')
     .eq('employee_id', employee.id)
@@ -79,24 +82,24 @@ export default async function DashboardPage({
     }
     const achievementsCountP = effectiveRole === 'manager'
       ? (async () => {
-          const { data: leaderTeamRows } = await supabase
+          const { data: leaderTeamRows } = await db
             .from('team_managers').select('team_id').eq('employee_id', employee.id)
           const myTeamIds = (leaderTeamRows ?? []).map(r => r.team_id)
           if (!myTeamIds.length) return 0
-          const { data: myMembers } = await supabase
+          const { data: myMembers } = await db
             .from('team_members').select('employee_id').in('team_id', myTeamIds)
           const myMemberIds = (myMembers ?? []).map(r => r.employee_id)
           if (!myMemberIds.length) return 0
-          const { count } = await supabase
+          const { count } = await db
             .from('achievements').select('*', { count: 'exact', head: true })
             .eq('status', 'pending').in('employee_id', myMemberIds)
           return count ?? 0
         })()
-      : supabase.from('achievements').select('*', { count: 'exact', head: true })
+      : db.from('achievements').select('*', { count: 'exact', head: true })
           .eq('status', 'pending').then(r => r.count ?? 0)
 
     const teamRequestsCountP = ['admin', 'ops_manager'].includes(effectiveRole)
-      ? supabase.from('team_change_requests').select('*', { count: 'exact', head: true })
+      ? db.from('team_change_requests').select('*', { count: 'exact', head: true })
           .eq('status', 'pending').then(r => r.count ?? 0)
       : Promise.resolve(0)
 
@@ -125,22 +128,22 @@ export default async function DashboardPage({
     { pendingAchievementsCount, pendingTeamRequestsCount },
   ] = await Promise.all([
     selectedProject
-      ? supabase.from('project_phases').select('*').eq('project_id', selectedProject.id).order('order_index')
+      ? db.from('project_phases').select('*').eq('project_id', selectedProject.id).order('order_index')
       : Promise.resolve({ data: [] }),
     selectedProject
-      ? supabase.from('project_skills').select('skill_id, project_phase_id').eq('project_id', selectedProject.id)
+      ? db.from('project_skills').select('skill_id, project_phase_id').eq('project_id', selectedProject.id)
       : Promise.resolve({ data: [] }),
-    supabase.from('skills').select('*').order('order_index'),
-    supabase.from('achievements').select('*, skills(*)').eq('employee_id', employee.id),
-    supabase.from('employees').select('id, name, avatar_url, employment_type, hire_date').eq('role', 'employee').order('name'),
-    supabase.from('achievements').select('employee_id, skill_id').eq('status', 'certified'),
-    supabase.from('work_hours').select('employee_id, hours'),
-    supabase.from('employee_projects').select('employee_id, project_id'),
-    supabase.from('project_phases').select('*'),
-    supabase.from('project_skills').select('project_id, skill_id, project_phase_id'),
-    supabase.from('teams').select('id, name, type'),
-    supabase.from('team_members').select('employee_id, team_id'),
-    supabase.rpc('get_employee_cumulative_hours', {
+    db.from('skills').select('*').order('order_index'),
+    db.from('achievements').select('*, skills(*)').eq('employee_id', employee.id),
+    db.from('employees').select('id, name, avatar_url, employment_type, hire_date').eq('role', 'employee').order('name'),
+    db.from('achievements').select('employee_id, skill_id').eq('status', 'certified'),
+    db.from('work_hours').select('employee_id, hours'),
+    db.from('employee_projects').select('employee_id, project_id'),
+    db.from('project_phases').select('*'),
+    db.from('project_skills').select('project_id, skill_id, project_phase_id'),
+    db.from('teams').select('id, name, type'),
+    db.from('team_members').select('employee_id, team_id'),
+    db.rpc('get_employee_cumulative_hours', {
       p_employee_id: employee.id,
       p_as_of_date: new Date().toISOString().split('T')[0],
     }),

@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { TopBar } from '@/components/layout/nav'
 import { SkillList } from '@/components/skills/skill-list'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
@@ -29,17 +30,19 @@ export default async function SkillsPage({
   const canViewAs = ['manager', 'admin', 'ops_manager', 'testuser'].includes(currentEmployee.role)
   const viewAsId = canViewAs ? (cookieStore.get(VIEW_AS_COOKIE)?.value ?? null) : null
 
+  const db = currentEmployee.role === 'testuser' ? createAdminClient() : supabase
+
   // targetEmployee と searchParams を並列取得
   const [targetEmployeeResult, params] = await Promise.all([
     viewAsId
-      ? supabase.from('employees').select('*').eq('id', viewAsId).single()
+      ? db.from('employees').select('*').eq('id', viewAsId).single()
       : Promise.resolve({ data: null }),
     searchParams ?? Promise.resolve(undefined),
   ])
   const employee = (targetEmployeeResult as { data: typeof currentEmployee | null }).data ?? currentEmployee
 
   // 参加プロジェクト一覧
-  const { data: employeeProjectRows } = await supabase
+  const { data: employeeProjectRows } = await db
     .from('employee_projects')
     .select('project_id, skill_projects(id, name, is_active)')
     .eq('employee_id', employee.id)
@@ -62,16 +65,16 @@ export default async function SkillsPage({
     { data: cumulativeHours },
   ] = await Promise.all([
     selectedProject
-      ? supabase.from('project_phases').select('*').eq('project_id', selectedProject.id).order('order_index')
+      ? db.from('project_phases').select('*').eq('project_id', selectedProject.id).order('order_index')
       : Promise.resolve({ data: null as ProjectPhase[] | null }),
     selectedProject
-      ? supabase.from('project_skills').select('skill_id, project_phase_id').eq('project_id', selectedProject.id)
+      ? db.from('project_skills').select('skill_id, project_phase_id').eq('project_id', selectedProject.id)
       : Promise.resolve({ data: null as { skill_id: string; project_phase_id: string | null }[] | null }),
-    supabase.from('skills').select('*').order('order_index'),
-    supabase.from('achievements')
+    db.from('skills').select('*').order('order_index'),
+    db.from('achievements')
       .select('*, certified_employee:employees!achievements_certified_by_fkey(name), skills(*)')
       .eq('employee_id', employee.id),
-    supabase.rpc('get_employee_cumulative_hours', {
+    db.rpc('get_employee_cumulative_hours', {
       p_employee_id: employee.id,
       p_as_of_date: new Date().toISOString().split('T')[0],
     }),

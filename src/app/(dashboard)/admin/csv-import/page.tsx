@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { TopBar } from '@/components/layout/nav'
 import { CsvImport } from '@/components/admin/csv-import'
 
@@ -19,7 +20,8 @@ export default async function CsvImportPage() {
     redirect('/')
   }
 
-  const { data: employees } = await supabase
+  const db = employee.role === 'testuser' ? createAdminClient() : supabase
+  const { data: employees } = await db
     .from('employees')
     .select('id, name, email')
     .order('name')
