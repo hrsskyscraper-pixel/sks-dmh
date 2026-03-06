@@ -32,6 +32,7 @@ export default async function DashboardLayout({
       name: (user.user_metadata.full_name as string | undefined) ?? user.email ?? '未設定',
       email: user.email ?? '',
       role: 'testuser',
+      employment_type: '社員',
     }
     const { error: insertError } = await adminDb.from('employees').insert(insertData)
     if (!insertError) {
