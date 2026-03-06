@@ -33,8 +33,8 @@ export default async function DashboardLayout({
       email: user.email ?? '',
       role: 'testuser',
     }
-    const { error } = await adminDb.from('employees').insert(insertData)
-    if (!error) {
+    const { error: insertError } = await adminDb.from('employees').insert(insertData)
+    if (!insertError) {
       // RLS を回避するため admin client で再取得
       const { data: created } = await adminDb
         .from('employees')
@@ -42,13 +42,16 @@ export default async function DashboardLayout({
         .eq('auth_user_id', user.id)
         .single()
       employee = created
+    } else {
+      await supabase.auth.signOut()
+      redirect(`/login?error=${encodeURIComponent(insertError.message)}`)
     }
   }
 
   // それでも取得できなければサインアウトしてリダイレクト（ループ防止）
   if (!employee) {
     await supabase.auth.signOut()
-    redirect('/login?error=account_creation_failed')
+    redirect('/login?error=employee_fetch_failed')
   }
 
   const role: Role = employee.role as Role
