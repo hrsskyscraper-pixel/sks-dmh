@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { LayoutDashboard, CheckSquare, BadgeCheck, Upload, Users2, LogOut, Building2, FolderKanban } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
+import { VIEW_AS_COOKIE } from '@/lib/view-as'
 import type { Role } from '@/types/database'
 
 const navItems = [
@@ -28,6 +29,8 @@ export function BottomNav({ role, unreadRequestCount = 0 }: NavProps) {
   const visibleItems = navItems.filter(item => (item.roles as readonly string[]).includes(role))
 
   const handleLogout = async () => {
+    // view-as cookie をクリア
+    document.cookie = `${VIEW_AS_COOKIE}=; path=/; max-age=0`
     const supabase = createClient()
     await supabase.auth.signOut()
     router.push('/login')

@@ -64,7 +64,8 @@ export default async function DashboardLayout({
 
   let viewAsEmployee = null
   if (viewAsId) {
-    const { data } = await supabase
+    const db = role === 'testuser' ? createAdminClient() : supabase
+    const { data } = await db
       .from('employees')
       .select('name, role')
       .eq('id', viewAsId)
@@ -72,8 +73,8 @@ export default async function DashboardLayout({
     viewAsEmployee = data
   }
 
-  // BottomNav は viewAs 社員のロールで表示を切り替える
-  const effectiveRole: Role = (viewAsEmployee?.role as Role | undefined) ?? role
+  // BottomNav は viewAs 社員のロールで表示を切り替える（testuser は常に全メニュー表示）
+  const effectiveRole: Role = role === 'testuser' ? 'testuser' : ((viewAsEmployee?.role as Role | undefined) ?? role)
 
   // マネージャーのみ: 未読の申請結果（approved/rejected）件数を取得
   let unreadRequestCount = 0
