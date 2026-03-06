@@ -17,13 +17,18 @@ export function TestUserGuide({ employees }: { employees: TestEmployee[] }) {
     employee: '社員',
     manager: 'マネージャー',
     admin: '開発者',
-    ops_manager: '運用管理者',
+    ops_manager: '社内管理者',
   }
 
-  const roleOrder = ['admin', 'ops_manager', 'manager', 'employee']
-  const sorted = [...employees].sort(
-    (a, b) => roleOrder.indexOf(a.role) - roleOrder.indexOf(b.role)
-  )
+  const getSortKey = (emp: TestEmployee) => {
+    if (emp.role === 'employee' && emp.employment_type !== 'メイト') return 0 // 社員
+    if (emp.role === 'employee' && emp.employment_type === 'メイト') return 1 // メイト
+    if (emp.role === 'manager') return 2
+    if (emp.role === 'ops_manager') return 3
+    if (emp.role === 'admin') return 4
+    return 5
+  }
+  const sorted = [...employees].sort((a, b) => getSortKey(a) - getSortKey(b))
 
   return (
     <div className="p-4 space-y-4">
