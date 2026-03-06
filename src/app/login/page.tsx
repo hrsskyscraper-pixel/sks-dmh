@@ -1,11 +1,15 @@
 'use client'
 
+import { useSearchParams } from 'next/navigation'
+import { Suspense } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
-export default function LoginPage() {
+function LoginContent() {
   const supabase = createClient()
+  const searchParams = useSearchParams()
+  const error = searchParams.get('error')
 
   const handleGoogleLogin = async () => {
     await supabase.auth.signInWithOAuth({
@@ -54,11 +58,24 @@ export default function LoginPage() {
             </svg>
             Googleでログイン
           </Button>
+          {error && (
+            <p className="text-center text-xs text-red-500 mt-4 break-all">
+              エラー: {decodeURIComponent(error)}
+            </p>
+          )}
           <p className="text-center text-xs text-muted-foreground mt-4">
             Googleアカウントでログインしてください
           </p>
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginContent />
+    </Suspense>
   )
 }
