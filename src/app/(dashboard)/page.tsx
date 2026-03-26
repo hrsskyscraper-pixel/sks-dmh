@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
@@ -5,8 +6,32 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { TopBar } from '@/components/layout/nav'
 import { DashboardContent } from '@/components/dashboard/dashboard-content'
 import { TestUserGuide } from '@/components/testuser/test-user-guide'
+import { TeamRankingServer } from '@/components/dashboard/team-ranking-server'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
-import { buildMilestoneMap, calcStandardPct } from '@/lib/milestone'
+import { buildMilestoneMap } from '@/lib/milestone'
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
+
+function TeamRankingSkeleton() {
+  return (
+    <Card className="mx-4 mb-4">
+      <CardHeader className="pb-3 pt-4 px-4">
+        <div className="h-4 w-32 bg-gray-200 rounded animate-pulse" />
+      </CardHeader>
+      <CardContent className="px-4 pb-4 space-y-3">
+        {[...Array(5)].map((_, i) => (
+          <div key={i} className="rounded-xl px-3 py-3 bg-gray-50 border border-gray-100">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-6 h-4 bg-gray-200 rounded animate-pulse" />
+              <div className="w-7 h-7 bg-gray-200 rounded-full animate-pulse" />
+              <div className="h-3 w-20 bg-gray-200 rounded animate-pulse" />
+            </div>
+            <div className="h-2 bg-gray-200 rounded-full animate-pulse" />
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  )
+}
 
 export default async function DashboardPage({
   searchParams,
@@ -110,20 +135,12 @@ export default async function DashboardPage({
     return { pendingAchievementsCount, pendingTeamRequestsCount }
   })()
 
-  // selectedProject 確定後の全クエリを並列実行
+  // 個人データのみ並列取得（teamStats関連は Suspense で分離）
   const [
     projectPhasesResult,
     projectSkillsResult,
     { data: allSkills },
     { data: achievements },
-    { data: allEmployees },
-    { data: allCertified },
-    { data: allWorkHours },
-    { data: allEmployeeProjects },
-    { data: allProjectPhases },
-    { data: allProjectSkills },
-    { data: allTeams },
-    { data: allTeamMembersForStore },
     workHoursSumResult,
     { pendingAchievementsCount, pendingTeamRequestsCount },
   ] = await Promise.all([
@@ -135,14 +152,6 @@ export default async function DashboardPage({
       : Promise.resolve({ data: [] }),
     db.from('skills').select('id, name, phase, category, order_index, target_date_hint, created_at').order('order_index'),
     db.from('achievements').select('id, skill_id, employee_id, status, achieved_at, certified_by, certified_at, cumulative_hours_at_achievement, notes, apply_comment, certify_comment, is_read, created_at, skills(id, name, phase, category, order_index, target_date_hint, created_at)').eq('employee_id', employee.id),
-    db.from('employees').select('id, name, avatar_url, employment_type, hire_date').eq('role', 'employee').order('name'),
-    db.from('achievements').select('employee_id, skill_id').eq('status', 'certified'),
-    db.from('work_hours').select('employee_id, hours'),
-    db.from('employee_projects').select('employee_id, project_id'),
-    db.from('project_phases').select('id, project_id, name, order_index, end_hours, created_at'),
-    db.from('project_skills').select('project_id, skill_id, project_phase_id'),
-    db.from('teams').select('id, name, type'),
-    db.from('team_members').select('employee_id, team_id'),
     db.rpc('get_employee_cumulative_hours', {
       p_employee_id: employee.id,
       p_as_of_date: new Date().toISOString().split('T')[0],
@@ -150,8 +159,8 @@ export default async function DashboardPage({
     pendingCountsTask,
   ])
 
-  const projectPhaseRows = (projectPhasesResult as { data: typeof allProjectPhases }).data ?? []
-  const projectSkillRows = (projectSkillsResult as { data: typeof allProjectSkills }).data ?? []
+  const projectPhaseRows = (projectPhasesResult as { data: { id: string; project_id: string; name: string; order_index: number; end_hours: number; created_at: string }[] }).data ?? []
+  const projectSkillRows = (projectSkillsResult as { data: { skill_id: string; project_phase_id: string | null }[] }).data ?? []
   const workHoursSum = (workHoursSumResult as { data: number | null }).data ?? 0
 
   // unreadNotifications は achievements から生成（別クエリ不要）
@@ -170,110 +179,6 @@ export default async function DashboardPage({
 
   const projectPhases = projectPhaseRows ?? []
   const milestones = buildMilestoneMap(projectPhases)
-
-  const skillsByPhase: Record<string, number> = {}
-  for (const s of skills) {
-    const phaseId = skillPhaseMap[s.id]
-    const phase = projectPhases.find(p => p.id === phaseId)
-    if (phase) {
-      skillsByPhase[phase.name] = (skillsByPhase[phase.name] ?? 0) + 1
-    }
-  }
-
-  const totalSkills = skills.length
-
-  const storeTeams = (allTeams ?? []).filter(t => t.type === 'store')
-  const storeTeamIds = new Set(storeTeams.map(t => t.id))
-  const storeTeamById = Object.fromEntries(storeTeams.map(t => [t.id, t.name]))
-  const storeByEmployee: Record<string, string> = {}
-  for (const m of allTeamMembersForStore ?? []) {
-    if (storeTeamIds.has(m.team_id)) {
-      storeByEmployee[m.employee_id] = storeTeamById[m.team_id]
-    }
-  }
-
-  const hoursByEmployee = (allWorkHours ?? []).reduce((acc, r) => {
-    acc[r.employee_id] = (acc[r.employee_id] ?? 0) + r.hours
-    return acc
-  }, {} as Record<string, number>)
-
-  const projectSkillIdMap: Record<string, Set<string>> = {}
-  for (const ps of allProjectSkills ?? []) {
-    if (!projectSkillIdMap[ps.project_id]) projectSkillIdMap[ps.project_id] = new Set()
-    projectSkillIdMap[ps.project_id].add(ps.skill_id)
-  }
-
-  // employee→project マッピングを事前構築（O(n)）
-  const empFirstProject: Record<string, string> = {}
-  for (const ep of allEmployeeProjects ?? []) {
-    if (!empFirstProject[ep.employee_id]) empFirstProject[ep.employee_id] = ep.project_id
-  }
-
-  // certified を employee+skill でインデックス化（O(n)）
-  const certifiedSet = new Set(
-    (allCertified ?? []).map(a => `${a.employee_id}:${a.skill_id}`)
-  )
-
-  // project別のフェーズ・スキルを事前構築（O(n)）
-  const allProjectPhasesArr = allProjectPhases ?? []
-  const phasesByProject: Record<string, typeof allProjectPhasesArr> = {}
-  for (const p of allProjectPhasesArr) {
-    if (!phasesByProject[p.project_id]) phasesByProject[p.project_id] = []
-    phasesByProject[p.project_id].push(p)
-  }
-  const allProjectSkillsArr = allProjectSkills ?? []
-  const skillsByProject: Record<string, typeof allProjectSkillsArr> = {}
-  for (const ps of allProjectSkillsArr) {
-    if (!skillsByProject[ps.project_id]) skillsByProject[ps.project_id] = []
-    skillsByProject[ps.project_id].push(ps)
-  }
-
-  // project別のmilestone/skillsByPhaseをキャッシュ
-  const projectCache: Record<string, { milestones: ReturnType<typeof buildMilestoneMap>; totalSkills: number; skillsByPhase: Record<string, number> }> = {}
-  function getProjectStats(projectId: string) {
-    if (projectCache[projectId]) return projectCache[projectId]
-    const empPhases = phasesByProject[projectId] ?? []
-    const empProjectSkills = skillsByProject[projectId] ?? []
-    const phaseById = Object.fromEntries(empPhases.map(p => [p.id, p]))
-    const sbp: Record<string, number> = {}
-    for (const ps of empProjectSkills) {
-      const phase = phaseById[ps.project_phase_id ?? '']
-      if (phase) sbp[phase.name] = (sbp[phase.name] ?? 0) + 1
-    }
-    const result = { milestones: buildMilestoneMap(empPhases), totalSkills: empProjectSkills.length, skillsByPhase: sbp }
-    projectCache[projectId] = result
-    return result
-  }
-
-  const teamStats = (allEmployees ?? []).map(emp => {
-    const firstProjectId = empFirstProject[emp.id] ?? null
-    const empSkillIdSet = firstProjectId ? (projectSkillIdMap[firstProjectId] ?? new Set<string>()) : new Set<string>()
-    let empCertifiedCount = 0
-    for (const skillId of empSkillIdSet) {
-      if (certifiedSet.has(`${emp.id}:${skillId}`)) empCertifiedCount++
-    }
-
-    if (!firstProjectId) {
-      return {
-        id: emp.id, name: emp.name, avatar_url: emp.avatar_url,
-        employment_type: emp.employment_type, hire_date: emp.hire_date,
-        store_name: storeByEmployee[emp.id] ?? null,
-        certifiedCount: empCertifiedCount, totalSkills: 0, standardPct: 0,
-      }
-    }
-
-    const stats = firstProjectId === selectedProject?.id
-      ? { milestones, totalSkills, skillsByPhase }
-      : getProjectStats(firstProjectId)
-
-    return {
-      id: emp.id, name: emp.name, avatar_url: emp.avatar_url,
-      employment_type: emp.employment_type, hire_date: emp.hire_date,
-      store_name: storeByEmployee[emp.id] ?? null,
-      certifiedCount: empCertifiedCount, totalSkills: stats.totalSkills,
-      standardPct: calcStandardPct(hoursByEmployee[emp.id] ?? 0, stats.milestones, stats.skillsByPhase, stats.totalSkills),
-    }
-  })
 
   const lastPhase = projectPhases[projectPhases.length - 1]
   const standardEndHours = lastPhase?.end_hours ?? 0
@@ -313,11 +218,17 @@ export default async function DashboardPage({
         skillPhaseMap={skillPhaseMap}
         currentProject={selectedProject}
         employeeProjects={employeeProjects as { id: string; name: string; is_active: boolean }[]}
-        teamStats={teamStats}
         unreadNotifications={unreadNotifications}
         pendingAchievementsCount={pendingAchievementsCount}
         pendingTeamRequestsCount={pendingTeamRequestsCount}
       />
+      <Suspense fallback={<TeamRankingSkeleton />}>
+        <TeamRankingServer
+          employeeId={employee.id}
+          employeeRole={currentEmployee.role}
+          selectedProjectId={selectedProject?.id ?? null}
+        />
+      </Suspense>
     </>
   )
 }

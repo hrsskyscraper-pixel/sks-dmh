@@ -15,7 +15,6 @@ import { cn } from '@/lib/utils'
 import { AlertTriangle, ChevronDown, ChevronUp, Camera, Loader2, CheckCircle2, XCircle, Bell, ClipboardList, Users } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { TeamRanking } from '@/components/dashboard/team-ranking'
 import { Textarea } from '@/components/ui/textarea'
 import {
   Dialog,
@@ -26,7 +25,6 @@ import {
 } from '@/components/ui/dialog'
 import { calcPhasePct } from '@/lib/milestone'
 import type { Employee, Skill, Achievement, MilestoneMap, ProjectPhase } from '@/types/database'
-import type { TeamMemberStat } from '@/components/dashboard/team-ranking'
 
 type AchievementWithSkill = Achievement & { skills: Skill | null }
 
@@ -40,7 +38,6 @@ interface Props {
   skillPhaseMap: Record<string, string | null>
   currentProject: { id: string; name: string; is_active: boolean } | null
   employeeProjects: { id: string; name: string; is_active: boolean }[]
-  teamStats: TeamMemberStat[]
   unreadNotifications: AchievementWithSkill[]
   pendingAchievementsCount?: number
   pendingTeamRequestsCount?: number
@@ -88,7 +85,7 @@ function calcHireYear(hireDate: string | null): number {
 export function DashboardContent({
   employee, skills, achievements: initialAchievements, cumulativeHours, milestones,
   projectPhases, skillPhaseMap, currentProject, employeeProjects,
-  teamStats, unreadNotifications: initialNotifications,
+  unreadNotifications: initialNotifications,
   pendingAchievementsCount = 0, pendingTeamRequestsCount = 0
 }: Props) {
   const [achievementList, setAchievementList] = useState(initialAchievements)
@@ -465,9 +462,6 @@ export function DashboardContent({
           </Link>
         ))}
       </div>
-
-      {/* チームランキング */}
-      <TeamRanking currentEmployeeId={employee.id} stats={teamStats} />
 
       {/* 申請ダイアログ */}
       <Dialog open={applyDialogSkill !== null} onOpenChange={open => { if (!open) { setApplyDialogSkill(null); setApplyComment('') } }}>
