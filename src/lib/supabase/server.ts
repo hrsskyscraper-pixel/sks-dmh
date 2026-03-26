@@ -1,8 +1,9 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { cache } from 'react'
 import type { Database } from '@/types/database'
 
-export async function createClient() {
+async function _createClient() {
   const cookieStore = await cookies()
 
   return createServerClient<Database>(
@@ -26,3 +27,6 @@ export async function createClient() {
     }
   )
 }
+
+// リクエスト内で同じクライアントを再利用（layout + page の二重作成を防止）
+export const createClient = cache(_createClient)
