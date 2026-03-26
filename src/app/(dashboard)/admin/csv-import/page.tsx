@@ -1,25 +1,17 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
 import { TopBar } from '@/components/layout/nav'
 import { CsvImport } from '@/components/admin/csv-import'
 
 export default async function CsvImportPage() {
-  const supabase = await createClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-
-  const { data: employee } = await supabase
-    .from('employees')
-    .select('id, role, auth_user_id')
-    .eq('auth_user_id', user.id)
-    .single()
-
+  const employee = await getCurrentEmployee()
   if (!employee || !['manager', 'admin', 'ops_manager', 'testuser'].includes(employee.role)) {
     redirect('/')
   }
 
+  const supabase = await createClient()
   const db = employee.role === 'testuser' ? createAdminClient() : supabase
   const { data: employees } = await db
     .from('employees')

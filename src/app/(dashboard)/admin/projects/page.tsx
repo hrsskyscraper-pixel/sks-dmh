@@ -1,23 +1,16 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
 import { TopBar } from '@/components/layout/nav'
 import { ProjectManager } from '@/components/admin/project-manager'
 import type { Role } from '@/types/database'
 
 export default async function ProjectsPage() {
-  const supabase = await createClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-
-  const { data: currentEmployee } = await supabase
-    .from('employees')
-    .select('id, role, auth_user_id')
-    .eq('auth_user_id', user.id)
-    .single()
-
+  const currentEmployee = await getCurrentEmployee()
   if (!currentEmployee) redirect('/login')
+
+  const supabase = await createClient()
 
   const effectiveRole: Role = currentEmployee.role
   if (!['admin', 'ops_manager', 'testuser'].includes(effectiveRole)) redirect('/')

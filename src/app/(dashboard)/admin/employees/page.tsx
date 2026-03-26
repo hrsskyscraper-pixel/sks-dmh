@@ -2,6 +2,7 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
 import { TopBar } from '@/components/layout/nav'
 import { EmployeeManager } from '@/components/admin/employee-manager'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
@@ -9,19 +10,10 @@ import { buildMilestoneMap, calcStandardPct } from '@/lib/milestone'
 import type { Role, Team, TeamMember } from '@/types/database'
 
 export default async function EmployeesPage() {
-  const supabase = await createClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-
-  const { data: currentEmployee } = await supabase
-    .from('employees')
-    .select('id, role, auth_user_id')
-    .eq('auth_user_id', user.id)
-    .single()
-
+  const currentEmployee = await getCurrentEmployee()
   if (!currentEmployee) redirect('/login')
 
+  const supabase = await createClient()
   const db = currentEmployee.role === 'testuser' ? createAdminClient() : supabase
 
   const cookieStore = await cookies()

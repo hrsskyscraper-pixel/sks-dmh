@@ -1,21 +1,11 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
 import { TopBar } from '@/components/layout/nav'
 import Link from 'next/link'
 import { FolderKanban } from 'lucide-react'
 
 export default async function SettingsPage() {
-  const supabase = await createClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-
-  const { data: currentEmployee } = await supabase
-    .from('employees')
-    .select('role')
-    .eq('auth_user_id', user.id)
-    .single()
-
+  const currentEmployee = await getCurrentEmployee()
   if (!currentEmployee || !['admin', 'ops_manager'].includes(currentEmployee.role)) {
     redirect('/')
   }

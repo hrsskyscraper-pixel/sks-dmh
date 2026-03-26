@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
 import { TopBar } from '@/components/layout/nav'
 import { DashboardContent } from '@/components/dashboard/dashboard-content'
 import { TestUserGuide } from '@/components/testuser/test-user-guide'
@@ -38,18 +39,10 @@ export default async function DashboardPage({
 }: {
   searchParams?: Promise<{ project_id?: string }>
 }) {
-  const supabase = await createClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-
-  const { data: currentEmployee } = await supabase
-    .from('employees')
-    .select('id, name, email, role, employment_type, hire_date, avatar_url, auth_user_id, created_at, updated_at')
-    .eq('auth_user_id', user.id)
-    .single()
-
+  const currentEmployee = await getCurrentEmployee()
   if (!currentEmployee) redirect('/login')
+
+  const supabase = await createClient()
 
   const cookieStore = await cookies()
   const canViewAs = ['manager', 'admin', 'ops_manager', 'testuser'].includes(currentEmployee.role)

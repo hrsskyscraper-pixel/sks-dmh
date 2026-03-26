@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { getAuthUser, getCurrentEmployee } from '@/lib/supabase/auth-cache'
 import { BottomNav } from '@/components/layout/nav'
 import { Toaster } from '@/components/ui/sonner'
 import { ViewAsBanner } from '@/components/layout/view-as-banner'
@@ -13,16 +14,12 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
-  const supabase = await createClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getAuthUser()
   if (!user) redirect('/login')
 
-  let { data: employee } = await supabase
-    .from('employees')
-    .select('id, name, email, role, employment_type, auth_user_id')
-    .eq('auth_user_id', user.id)
-    .single()
+  const supabase = await createClient()
+
+  let employee = await getCurrentEmployee()
 
   // 初回ログイン時: employeesレコードがなければ自動作成（role=testuser）
   if (!employee) {
@@ -39,7 +36,7 @@ export default async function DashboardLayout({
       // RLS を回避するため admin client で再取得
       const { data: created } = await adminDb
         .from('employees')
-        .select('id, name, email, role, employment_type, auth_user_id')
+        .select('id, name, email, role, employment_type, hire_date, avatar_url, auth_user_id, created_at, updated_at')
         .eq('auth_user_id', user.id)
         .single()
       employee = created

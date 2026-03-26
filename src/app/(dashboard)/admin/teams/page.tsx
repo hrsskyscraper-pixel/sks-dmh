@@ -2,25 +2,17 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
 import { TopBar } from '@/components/layout/nav'
 import { TeamManager } from '@/components/admin/team-manager'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
 import type { Employee, Role } from '@/types/database'
 
 export default async function AdminTeamsPage() {
-  const supabase = await createClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-
-  const { data: currentEmployee } = await supabase
-    .from('employees')
-    .select('id, auth_user_id, name, email, role, employment_type, hire_date, avatar_url, created_at, updated_at')
-    .eq('auth_user_id', user.id)
-    .single()
-
+  const currentEmployee = await getCurrentEmployee()
   if (!currentEmployee) redirect('/login')
 
+  const supabase = await createClient()
   const db = currentEmployee.role === 'testuser' ? createAdminClient() : supabase
 
   // view-as 中は表示ロールに合わせて権限を落とす
