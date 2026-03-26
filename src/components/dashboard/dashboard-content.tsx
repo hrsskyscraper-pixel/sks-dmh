@@ -178,13 +178,16 @@ export function DashboardContent({
   })
 
   const totalCertified = certifiedIds.size
+  const totalPending = pendingIds.size
   const totalSkills = skills.length
   const totalPct = totalSkills > 0 ? Math.round((totalCertified / totalSkills) * 100) : 0
+  const totalPendingPct = totalSkills > 0 ? Math.round((totalPending / totalSkills) * 100) : 0
+  const totalUnapplied = totalSkills - totalCertified - totalPending
 
   const totalExpected = phaseStats.reduce((sum, { standardPct, total }) => sum + Math.round(standardPct * total / 100), 0)
   const gapSkills = totalCertified - totalExpected
 
-  // 遅延スキル
+  // 遅延スキル（未認定 AND 未申請、目標時間を過ぎている）
   const overdueSkills = skills
     .filter(skill => {
       const targetHours = calcSkillTargetHours(skill.id, skills, skillPhaseMap, projectPhases, milestones)
@@ -195,10 +198,39 @@ export function DashboardContent({
       calcSkillTargetHours(b.id, skills, skillPhaseMap, projectPhases, milestones)
     )
 
+  // 申請中だが遅延しているスキル
+  const overduePendingSkills = skills
+    .filter(skill => {
+      const targetHours = calcSkillTargetHours(skill.id, skills, skillPhaseMap, projectPhases, milestones)
+      return targetHours > 0 && targetHours <= cumulativeHours && !certifiedIds.has(skill.id) && pendingIds.has(skill.id)
+    })
+    .sort((a, b) =>
+      calcSkillTargetHours(a.id, skills, skillPhaseMap, projectPhases, milestones) -
+      calcSkillTargetHours(b.id, skills, skillPhaseMap, projectPhases, milestones)
+    )
+
+  // 次に取り組むべきスキル（目標時間がまだ先だが、次に来るもの）
+  const upcomingSkills = skills
+    .filter(skill => {
+      const targetHours = calcSkillTargetHours(skill.id, skills, skillPhaseMap, projectPhases, milestones)
+      return targetHours > cumulativeHours && !certifiedIds.has(skill.id) && !pendingIds.has(skill.id)
+    })
+    .sort((a, b) =>
+      calcSkillTargetHours(a.id, skills, skillPhaseMap, projectPhases, milestones) -
+      calcSkillTargetHours(b.id, skills, skillPhaseMap, projectPhases, milestones)
+    )
+
+  // 表示用: 遅延 + 申請中遅延 + 次のスキル を統合
+  const allActionSkills = [
+    ...overdueSkills.map(s => ({ ...s, _status: 'overdue' as const })),
+    ...overduePendingSkills.map(s => ({ ...s, _status: 'pending' as const })),
+  ]
+  const hasOverdue = overdueSkills.length > 0 || overduePendingSkills.length > 0
+
   const firstName = employee.name.split(/\s/)[0]
   const fullName = employee.name
-  const OVERDUE_LIMIT = 5
-  const displayedOverdue = showAllOverdue ? overdueSkills : overdueSkills.slice(0, OVERDUE_LIMIT)
+  const ACTION_LIMIT = 5
+  const displayedAction = showAllOverdue ? allActionSkills : allActionSkills.slice(0, ACTION_LIMIT)
 
   return (
     <div className="p-4 space-y-4">
@@ -277,7 +309,12 @@ export function DashboardContent({
           <div className="mt-3 space-y-1.5">
             <div className="flex items-center gap-2">
               <span className="text-[10px] text-orange-100 w-7 text-right flex-shrink-0">実績</span>
-              <Progress value={totalPct} className="flex-1 h-2.5 bg-white/30 [&>div]:bg-white" />
+              <div className="flex-1 h-2.5 bg-white/30 rounded-full overflow-hidden flex">
+                <div className="h-full bg-white transition-all" style={{ width: `${totalPct}%` }} />
+                {totalPendingPct > 0 && (
+                  <div className="h-full bg-yellow-300/70 transition-all" style={{ width: `${totalPendingPct}%` }} />
+                )}
+              </div>
               <span className="text-xs font-bold w-8 text-right flex-shrink-0">{totalPct}%</span>
             </div>
             {totalExpected > 0 && (
@@ -381,25 +418,72 @@ export function DashboardContent({
         </div>
       )}
 
-      {/* 遅延スキル */}
-      {overdueSkills.length > 0 && (
+      {/* 遅延スキル + 次に取り組むべきスキル */}
+      {allActionSkills.length > 0 && (
         <Card className="border-amber-300 bg-amber-50">
           <CardHeader className="pb-2 pt-4 px-4">
             <CardTitle className="text-sm font-semibold text-amber-800 flex items-center gap-1.5">
               <AlertTriangle className="w-4 h-4" />
-              今取り組むべきスキル（{overdueSkills.length}件）
+              今取り組むべきスキル（{allActionSkills.length}件）
             </CardTitle>
-            <p className="text-xs text-amber-700 mt-0.5">現在 {cumulativeHours}h 時点で標準的に習得が求められているスキルです</p>
+            <p className="text-xs text-amber-700 mt-0.5">
+              現在 {cumulativeHours}h 時点で標準的に習得が求められているスキルです
+              {overduePendingSkills.length > 0 && `（うち申請中 ${overduePendingSkills.length}件）`}
+            </p>
           </CardHeader>
           <CardContent className="px-4 pb-4 space-y-2">
-            {displayedOverdue.map(skill => (
-              <div key={skill.id} className="flex items-center justify-between gap-2 bg-white rounded-lg px-3 py-2 border border-amber-200">
+            {displayedAction.map(skill => (
+              <div key={skill.id} className={cn(
+                'flex items-center justify-between gap-2 rounded-lg px-3 py-2',
+                skill._status === 'pending' ? 'bg-yellow-50 border border-yellow-200' : 'bg-white border border-amber-200'
+              )}>
+                <p className="text-sm text-gray-800 flex-1 min-w-0 truncate">{skill.name}</p>
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <Badge className={cn('text-[10px] border-0', CATEGORY_COLORS[skill.category])}>{skill.category}</Badge>
+                  {skill._status === 'pending' ? (
+                    <Badge className="text-[10px] border-0 bg-yellow-200 text-yellow-800">申請中</Badge>
+                  ) : (
+                    <Button
+                      size="sm" variant="outline"
+                      className="group h-7 text-xs px-2 border-orange-200 text-orange-600 hover:bg-orange-100 hover:border-orange-400 hover:text-orange-700 flex-shrink-0"
+                      onClick={() => { setApplyDialogSkill(skill); setApplyComment('') }}
+                      disabled={isPending}
+                    >
+                      <span className="group-hover:hidden">申請する</span>
+                      <span className="hidden group-hover:inline font-semibold">できました！</span>
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
+            {allActionSkills.length > ACTION_LIMIT && (
+              <Button variant="ghost" size="sm" className="w-full text-xs text-amber-700 hover:bg-amber-100 h-8" onClick={() => setShowAllOverdue(prev => !prev)}>
+                {showAllOverdue ? <><ChevronUp className="w-3.5 h-3.5 mr-1" />閉じる</> : <><ChevronDown className="w-3.5 h-3.5 mr-1" />他 {allActionSkills.length - ACTION_LIMIT}件を表示</>}
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 次に取り組むスキル（遅れがない場合） */}
+      {!hasOverdue && upcomingSkills.length > 0 && (
+        <Card className="border-blue-200 bg-blue-50">
+          <CardHeader className="pb-2 pt-4 px-4">
+            <CardTitle className="text-sm font-semibold text-blue-800 flex items-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4" />
+              次のステップ（{Math.min(upcomingSkills.length, 5)}件）
+            </CardTitle>
+            <p className="text-xs text-blue-600 mt-0.5">順調です！次に習得を目指すスキルです</p>
+          </CardHeader>
+          <CardContent className="px-4 pb-4 space-y-2">
+            {upcomingSkills.slice(0, 5).map(skill => (
+              <div key={skill.id} className="flex items-center justify-between gap-2 bg-white rounded-lg px-3 py-2 border border-blue-200">
                 <p className="text-sm text-gray-800 flex-1 min-w-0 truncate">{skill.name}</p>
                 <div className="flex items-center gap-1.5 flex-shrink-0">
                   <Badge className={cn('text-[10px] border-0', CATEGORY_COLORS[skill.category])}>{skill.category}</Badge>
                   <Button
                     size="sm" variant="outline"
-                    className="group h-7 text-xs px-2 border-orange-200 text-orange-600 hover:bg-orange-100 hover:border-orange-400 hover:text-orange-700 flex-shrink-0"
+                    className="group h-7 text-xs px-2 border-blue-200 text-blue-600 hover:bg-blue-100 hover:border-blue-400 hover:text-blue-700 flex-shrink-0"
                     onClick={() => { setApplyDialogSkill(skill); setApplyComment('') }}
                     disabled={isPending}
                   >
@@ -409,11 +493,6 @@ export function DashboardContent({
                 </div>
               </div>
             ))}
-            {overdueSkills.length > OVERDUE_LIMIT && (
-              <Button variant="ghost" size="sm" className="w-full text-xs text-amber-700 hover:bg-amber-100 h-8" onClick={() => setShowAllOverdue(prev => !prev)}>
-                {showAllOverdue ? <><ChevronUp className="w-3.5 h-3.5 mr-1" />閉じる</> : <><ChevronDown className="w-3.5 h-3.5 mr-1" />他 {overdueSkills.length - OVERDUE_LIMIT}件を表示</>}
-              </Button>
-            )}
           </CardContent>
         </Card>
       )}
