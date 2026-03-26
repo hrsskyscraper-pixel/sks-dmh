@@ -463,8 +463,8 @@ export function DashboardContent({
         </Card>
       )}
 
-      {/* 次に取り組むスキル（遅れがない場合のみ） */}
-      {!hasOverdue && upcomingSkills.length > 0 && (
+      {/* 次に取り組むスキル（自分で申請できる遅延スキルがない場合に表示） */}
+      {overdueSkills.length === 0 && upcomingSkills.length > 0 && (
         <Card className="border-blue-200 bg-blue-50">
           <CardHeader className="pb-2 pt-4 px-4">
             <CardTitle className="text-sm font-semibold text-blue-800 flex items-center gap-1.5">
