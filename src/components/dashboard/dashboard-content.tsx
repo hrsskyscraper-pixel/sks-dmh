@@ -209,12 +209,10 @@ export function DashboardContent({
       calcSkillTargetHours(b.id, skills, skillPhaseMap, projectPhases, milestones)
     )
 
-  // 次に取り組むべきスキル（目標時間がまだ先だが、次に来るもの）
+  // 次に取り組むべきスキル（未認定 AND 未申請、目標時間順）
   const upcomingSkills = skills
-    .filter(skill => {
-      const targetHours = calcSkillTargetHours(skill.id, skills, skillPhaseMap, projectPhases, milestones)
-      return targetHours > cumulativeHours && !certifiedIds.has(skill.id) && !pendingIds.has(skill.id)
-    })
+    .filter(skill => !certifiedIds.has(skill.id) && !pendingIds.has(skill.id))
+    .filter(skill => !overdueSkills.includes(skill))
     .sort((a, b) =>
       calcSkillTargetHours(a.id, skills, skillPhaseMap, projectPhases, milestones) -
       calcSkillTargetHours(b.id, skills, skillPhaseMap, projectPhases, milestones)
@@ -465,7 +463,7 @@ export function DashboardContent({
         </Card>
       )}
 
-      {/* 次に取り組むスキル（遅れがない場合） */}
+      {/* 次に取り組むスキル（遅れがない場合のみ） */}
       {!hasOverdue && upcomingSkills.length > 0 && (
         <Card className="border-blue-200 bg-blue-50">
           <CardHeader className="pb-2 pt-4 px-4">
