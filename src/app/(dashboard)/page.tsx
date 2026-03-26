@@ -20,7 +20,7 @@ export default async function DashboardPage({
 
   const { data: currentEmployee } = await supabase
     .from('employees')
-    .select('*')
+    .select('id, name, email, role, employment_type, hire_date, avatar_url, auth_user_id, created_at, updated_at')
     .eq('auth_user_id', user.id)
     .single()
 
@@ -52,7 +52,7 @@ export default async function DashboardPage({
   // targetEmployee と searchParams を並列取得
   const [targetEmployeeResult, params] = await Promise.all([
     viewAsId
-      ? db.from('employees').select('*').eq('id', viewAsId).single()
+      ? db.from('employees').select('id, name, email, role, employment_type, hire_date, avatar_url, auth_user_id, created_at, updated_at').eq('id', viewAsId).single()
       : Promise.resolve({ data: null }),
     searchParams ?? Promise.resolve(undefined),
   ])
@@ -128,18 +128,18 @@ export default async function DashboardPage({
     { pendingAchievementsCount, pendingTeamRequestsCount },
   ] = await Promise.all([
     selectedProject
-      ? db.from('project_phases').select('*').eq('project_id', selectedProject.id).order('order_index')
+      ? db.from('project_phases').select('id, project_id, name, order_index, end_hours, created_at').eq('project_id', selectedProject.id).order('order_index')
       : Promise.resolve({ data: [] }),
     selectedProject
       ? db.from('project_skills').select('skill_id, project_phase_id').eq('project_id', selectedProject.id)
       : Promise.resolve({ data: [] }),
-    db.from('skills').select('*').order('order_index'),
-    db.from('achievements').select('*, skills(*)').eq('employee_id', employee.id),
+    db.from('skills').select('id, name, phase, category, order_index, target_date_hint, created_at').order('order_index'),
+    db.from('achievements').select('id, skill_id, employee_id, status, achieved_at, certified_by, certified_at, cumulative_hours_at_achievement, notes, apply_comment, certify_comment, is_read, created_at, skills(id, name, phase, category, order_index, target_date_hint, created_at)').eq('employee_id', employee.id),
     db.from('employees').select('id, name, avatar_url, employment_type, hire_date').eq('role', 'employee').order('name'),
     db.from('achievements').select('employee_id, skill_id').eq('status', 'certified'),
     db.from('work_hours').select('employee_id, hours'),
     db.from('employee_projects').select('employee_id, project_id'),
-    db.from('project_phases').select('*'),
+    db.from('project_phases').select('id, project_id, name, order_index, end_hours, created_at'),
     db.from('project_skills').select('project_id, skill_id, project_phase_id'),
     db.from('teams').select('id, name, type'),
     db.from('team_members').select('employee_id, team_id'),
@@ -203,60 +203,75 @@ export default async function DashboardPage({
     projectSkillIdMap[ps.project_id].add(ps.skill_id)
   }
 
-  const teamStats = (allEmployees ?? []).map(emp => {
-    const empProjectIds = (allEmployeeProjects ?? [])
-      .filter(ep => ep.employee_id === emp.id)
-      .map(ep => ep.project_id)
+  // employee→project マッピングを事前構築（O(n)）
+  const empFirstProject: Record<string, string> = {}
+  for (const ep of allEmployeeProjects ?? []) {
+    if (!empFirstProject[ep.employee_id]) empFirstProject[ep.employee_id] = ep.project_id
+  }
 
-    const firstProjectId = empProjectIds[0] ?? null
+  // certified を employee+skill でインデックス化（O(n)）
+  const certifiedSet = new Set(
+    (allCertified ?? []).map(a => `${a.employee_id}:${a.skill_id}`)
+  )
+
+  // project別のフェーズ・スキルを事前構築（O(n)）
+  const allProjectPhasesArr = allProjectPhases ?? []
+  const phasesByProject: Record<string, typeof allProjectPhasesArr> = {}
+  for (const p of allProjectPhasesArr) {
+    if (!phasesByProject[p.project_id]) phasesByProject[p.project_id] = []
+    phasesByProject[p.project_id].push(p)
+  }
+  const allProjectSkillsArr = allProjectSkills ?? []
+  const skillsByProject: Record<string, typeof allProjectSkillsArr> = {}
+  for (const ps of allProjectSkillsArr) {
+    if (!skillsByProject[ps.project_id]) skillsByProject[ps.project_id] = []
+    skillsByProject[ps.project_id].push(ps)
+  }
+
+  // project別のmilestone/skillsByPhaseをキャッシュ
+  const projectCache: Record<string, { milestones: ReturnType<typeof buildMilestoneMap>; totalSkills: number; skillsByPhase: Record<string, number> }> = {}
+  function getProjectStats(projectId: string) {
+    if (projectCache[projectId]) return projectCache[projectId]
+    const empPhases = phasesByProject[projectId] ?? []
+    const empProjectSkills = skillsByProject[projectId] ?? []
+    const phaseById = Object.fromEntries(empPhases.map(p => [p.id, p]))
+    const sbp: Record<string, number> = {}
+    for (const ps of empProjectSkills) {
+      const phase = phaseById[ps.project_phase_id ?? '']
+      if (phase) sbp[phase.name] = (sbp[phase.name] ?? 0) + 1
+    }
+    const result = { milestones: buildMilestoneMap(empPhases), totalSkills: empProjectSkills.length, skillsByPhase: sbp }
+    projectCache[projectId] = result
+    return result
+  }
+
+  const teamStats = (allEmployees ?? []).map(emp => {
+    const firstProjectId = empFirstProject[emp.id] ?? null
     const empSkillIdSet = firstProjectId ? (projectSkillIdMap[firstProjectId] ?? new Set<string>()) : new Set<string>()
-    const empCertifiedCount = (allCertified ?? [])
-      .filter(a => a.employee_id === emp.id && empSkillIdSet.has(a.skill_id))
-      .length
+    let empCertifiedCount = 0
+    for (const skillId of empSkillIdSet) {
+      if (certifiedSet.has(`${emp.id}:${skillId}`)) empCertifiedCount++
+    }
 
     if (!firstProjectId) {
       return {
-        id: emp.id,
-        name: emp.name,
-        avatar_url: emp.avatar_url,
-        employment_type: emp.employment_type,
-        hire_date: emp.hire_date,
+        id: emp.id, name: emp.name, avatar_url: emp.avatar_url,
+        employment_type: emp.employment_type, hire_date: emp.hire_date,
         store_name: storeByEmployee[emp.id] ?? null,
-        certifiedCount: empCertifiedCount,
-        totalSkills: 0,
-        standardPct: 0,
+        certifiedCount: empCertifiedCount, totalSkills: 0, standardPct: 0,
       }
     }
 
-    let empMilestones = milestones
-    let empTotalSkills = totalSkills
-    let empSkillsByPhase = skillsByPhase
+    const stats = firstProjectId === selectedProject?.id
+      ? { milestones, totalSkills, skillsByPhase }
+      : getProjectStats(firstProjectId)
 
-    if (firstProjectId !== selectedProject?.id) {
-      const empPhases = (allProjectPhases ?? []).filter(p => p.project_id === firstProjectId)
-      const empProjectSkills = (allProjectSkills ?? []).filter(ps => ps.project_id === firstProjectId)
-      empMilestones = buildMilestoneMap(empPhases)
-      empTotalSkills = empProjectSkills.length
-      empSkillsByPhase = {}
-      for (const ps of empProjectSkills) {
-        const phase = empPhases.find(p => p.id === ps.project_phase_id)
-        if (phase) {
-          empSkillsByPhase[phase.name] = (empSkillsByPhase[phase.name] ?? 0) + 1
-        }
-      }
-    }
-
-    const empHours = hoursByEmployee[emp.id] ?? 0
     return {
-      id: emp.id,
-      name: emp.name,
-      avatar_url: emp.avatar_url,
-      employment_type: emp.employment_type,
-      hire_date: emp.hire_date,
+      id: emp.id, name: emp.name, avatar_url: emp.avatar_url,
+      employment_type: emp.employment_type, hire_date: emp.hire_date,
       store_name: storeByEmployee[emp.id] ?? null,
-      certifiedCount: empCertifiedCount,
-      totalSkills: empTotalSkills,
-      standardPct: calcStandardPct(empHours, empMilestones, empSkillsByPhase, empTotalSkills),
+      certifiedCount: empCertifiedCount, totalSkills: stats.totalSkills,
+      standardPct: calcStandardPct(hoursByEmployee[emp.id] ?? 0, stats.milestones, stats.skillsByPhase, stats.totalSkills),
     }
   })
 

@@ -13,7 +13,7 @@ export default async function ProjectsPage() {
 
   const { data: currentEmployee } = await supabase
     .from('employees')
-    .select('*')
+    .select('id, role, auth_user_id')
     .eq('auth_user_id', user.id)
     .single()
 
@@ -32,11 +32,11 @@ export default async function ProjectsPage() {
     { data: allSkills },
     { data: employees },
   ] = await Promise.all([
-    db.from('skill_projects').select('*').order('created_at'),
-    db.from('project_phases').select('*').order('project_id').order('order_index'),
-    db.from('project_skills').select('*'),
-    db.from('employee_projects').select('*'),
-    db.from('skills').select('*').order('order_index'),
+    db.from('skill_projects').select('id, name, description, is_active, created_at').order('created_at'),
+    db.from('project_phases').select('id, project_id, name, order_index, end_hours, created_at').order('project_id').order('order_index'),
+    db.from('project_skills').select('project_id, skill_id, project_phase_id'),
+    db.from('employee_projects').select('project_id, employee_id, joined_at'),
+    db.from('skills').select('id, name, phase, category, order_index, target_date_hint, created_at').order('order_index'),
     db.from('employees').select('id, name, employment_type, hire_date').order('name'),
   ])
 

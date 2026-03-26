@@ -12,7 +12,7 @@ export default async function CsvImportPage() {
 
   const { data: employee } = await supabase
     .from('employees')
-    .select('*')
+    .select('id, role, auth_user_id')
     .eq('auth_user_id', user.id)
     .single()
 

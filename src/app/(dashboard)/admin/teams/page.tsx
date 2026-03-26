@@ -15,7 +15,7 @@ export default async function AdminTeamsPage() {
 
   const { data: currentEmployee } = await supabase
     .from('employees')
-    .select('*')
+    .select('id, auth_user_id, name, email, role, employment_type, hire_date, avatar_url, created_at, updated_at')
     .eq('auth_user_id', user.id)
     .single()
 
@@ -32,7 +32,7 @@ export default async function AdminTeamsPage() {
   if (viewAsId) {
     const { data: viewAsEmp } = await db
       .from('employees')
-      .select('*')
+      .select('id, auth_user_id, name, email, role, employment_type, hire_date, avatar_url, created_at, updated_at')
       .eq('id', viewAsId)
       .single()
     if (viewAsEmp) {
@@ -48,12 +48,12 @@ export default async function AdminTeamsPage() {
     { data: employees },
     { data: changeRequests },
   ] = await Promise.all([
-    db.from('teams').select('*').order('name'),
-    db.from('team_members').select('*'),
-    db.from('team_managers').select('*'),
-    db.from('employees').select('*').order('name'),
+    db.from('teams').select('id, name, type, created_at, updated_at').order('name'),
+    db.from('team_members').select('team_id, employee_id'),
+    db.from('team_managers').select('team_id, employee_id, role'),
+    db.from('employees').select('id, auth_user_id, name, email, role, employment_type, hire_date, avatar_url, created_at, updated_at').order('name'),
     db.from('team_change_requests')
-      .select('*')
+      .select('id, status, request_type, team_id, payload, requested_by, reviewed_by, reviewed_at, review_comment, applicant_read_at, created_at')
       .order('created_at', { ascending: false }),
   ])
 

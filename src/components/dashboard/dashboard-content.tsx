@@ -8,8 +8,9 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { RadarChart } from '@/components/charts/radar-chart'
-import { PhaseProgressChart } from '@/components/charts/phase-progress-chart'
+import dynamic from 'next/dynamic'
+const RadarChart = dynamic(() => import('@/components/charts/radar-chart').then(m => m.RadarChart), { ssr: false })
+const PhaseProgressChart = dynamic(() => import('@/components/charts/phase-progress-chart').then(m => m.PhaseProgressChart), { ssr: false })
 import { cn } from '@/lib/utils'
 import { AlertTriangle, ChevronDown, ChevronUp, Camera, Loader2, CheckCircle2, XCircle, Bell, ClipboardList, Users } from 'lucide-react'
 import Link from 'next/link'

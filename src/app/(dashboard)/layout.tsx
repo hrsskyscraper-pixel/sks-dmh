@@ -20,7 +20,7 @@ export default async function DashboardLayout({
 
   let { data: employee } = await supabase
     .from('employees')
-    .select('*')
+    .select('id, name, email, role, employment_type, auth_user_id')
     .eq('auth_user_id', user.id)
     .single()
 
@@ -39,7 +39,7 @@ export default async function DashboardLayout({
       // RLS を回避するため admin client で再取得
       const { data: created } = await adminDb
         .from('employees')
-        .select('*')
+        .select('id, name, email, role, employment_type, auth_user_id')
         .eq('auth_user_id', user.id)
         .single()
       employee = created
@@ -62,31 +62,22 @@ export default async function DashboardLayout({
   const canViewAs = role === 'manager' || role === 'admin' || role === 'ops_manager' || role === 'testuser'
   const viewAsId = canViewAs ? (cookieStore.get(VIEW_AS_COOKIE)?.value ?? null) : null
 
-  let viewAsEmployee = null
-  if (viewAsId) {
-    const db = role === 'testuser' ? createAdminClient() : supabase
-    const { data } = await db
-      .from('employees')
-      .select('name, role')
-      .eq('id', viewAsId)
-      .single()
-    viewAsEmployee = data
-  }
+  // viewAs社員取得と未読件数を並列実行
+  const db = role === 'testuser' ? createAdminClient() : supabase
+  const [viewAsResult, unreadResult] = await Promise.all([
+    viewAsId
+      ? db.from('employees').select('name, role').eq('id', viewAsId).single()
+      : Promise.resolve({ data: null }),
+    role === 'manager' && employee
+      ? supabase.from('team_change_requests').select('*', { count: 'exact', head: true })
+          .eq('requested_by', employee.id).in('status', ['approved', 'rejected']).is('applicant_read_at', null)
+      : Promise.resolve({ count: 0 }),
+  ])
+  const viewAsEmployee = viewAsResult.data
+  const unreadRequestCount = (unreadResult as { count: number | null }).count ?? 0
 
   // BottomNav は viewAs 社員のロールで表示を切り替える
   const effectiveRole: Role = (viewAsEmployee?.role as Role | undefined) ?? role
-
-  // マネージャーのみ: 未読の申請結果（approved/rejected）件数を取得
-  let unreadRequestCount = 0
-  if (role === 'manager' && employee) {
-    const { count } = await supabase
-      .from('team_change_requests')
-      .select('*', { count: 'exact', head: true })
-      .eq('requested_by', employee.id)
-      .in('status', ['approved', 'rejected'])
-      .is('applicant_read_at', null)
-    unreadRequestCount = count ?? 0
-  }
 
   return (
     <div className="min-h-screen bg-gray-50" style={viewAsEmployee ? { '--banner-h': '2.5rem' } as React.CSSProperties : undefined}>

@@ -20,7 +20,7 @@ export default async function SkillsPage({
 
   const { data: currentEmployee } = await supabase
     .from('employees')
-    .select('*')
+    .select('id, name, role, employment_type, hire_date, avatar_url, auth_user_id')
     .eq('auth_user_id', user.id)
     .single()
 
@@ -35,7 +35,7 @@ export default async function SkillsPage({
   // targetEmployee と searchParams を並列取得
   const [targetEmployeeResult, params] = await Promise.all([
     viewAsId
-      ? db.from('employees').select('*').eq('id', viewAsId).single()
+      ? db.from('employees').select('id, name, role, employment_type, hire_date, avatar_url, auth_user_id').eq('id', viewAsId).single()
       : Promise.resolve({ data: null }),
     searchParams ?? Promise.resolve(undefined),
   ])
@@ -65,12 +65,12 @@ export default async function SkillsPage({
     { data: cumulativeHours },
   ] = await Promise.all([
     selectedProject
-      ? db.from('project_phases').select('*').eq('project_id', selectedProject.id).order('order_index')
+      ? db.from('project_phases').select('id, project_id, name, order_index, end_hours, created_at').eq('project_id', selectedProject.id).order('order_index')
       : Promise.resolve({ data: null as ProjectPhase[] | null }),
     selectedProject
       ? db.from('project_skills').select('skill_id, project_phase_id').eq('project_id', selectedProject.id)
       : Promise.resolve({ data: null as { skill_id: string; project_phase_id: string | null }[] | null }),
-    db.from('skills').select('*').order('order_index'),
+    db.from('skills').select('id, name, phase, category, order_index, target_date_hint, created_at').order('order_index'),
     db.from('achievements')
       .select('*, certified_employee:employees!achievements_certified_by_fkey(name), skills(*)')
       .eq('employee_id', employee.id),

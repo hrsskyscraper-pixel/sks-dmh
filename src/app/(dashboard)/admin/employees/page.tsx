@@ -16,7 +16,7 @@ export default async function EmployeesPage() {
 
   const { data: currentEmployee } = await supabase
     .from('employees')
-    .select('*')
+    .select('id, role, auth_user_id')
     .eq('auth_user_id', user.id)
     .single()
 
@@ -49,13 +49,13 @@ export default async function EmployeesPage() {
     { data: teams },
     { data: teamMembers },
   ] = await Promise.all([
-    db.from('employees').select('*').order('created_at'),
+    db.from('employees').select('id, auth_user_id, name, email, role, employment_type, hire_date, avatar_url, created_at, updated_at').order('created_at'),
     db.from('achievements').select('employee_id, skill_id').eq('status', 'certified'),
     db.from('work_hours').select('employee_id, hours'),
     db.from('employee_projects').select('employee_id, project_id'),
-    db.from('project_phases').select('*'),
+    db.from('project_phases').select('id, project_id, name, order_index, end_hours'),
     db.from('project_skills').select('project_id, skill_id, project_phase_id'),
-    db.from('teams').select('*').order('type').order('name'),
+    db.from('teams').select('id, name, type').order('type').order('name'),
     db.from('team_members').select('team_id, employee_id'),
   ])
 
@@ -69,34 +69,57 @@ export default async function EmployeesPage() {
     return acc
   }, {} as Record<string, number>)
 
+  // employee→project マッピングを事前構築
+  const empFirstProject: Record<string, string> = {}
+  for (const ep of allEmployeeProjects ?? []) {
+    if (!empFirstProject[ep.employee_id]) empFirstProject[ep.employee_id] = ep.project_id
+  }
+
+  // project別のフェーズ・スキルを事前構築
+  const allProjectPhasesArr = allProjectPhases ?? []
+  const phasesByProject: Record<string, typeof allProjectPhasesArr> = {}
+  for (const p of allProjectPhasesArr) {
+    if (!phasesByProject[p.project_id]) phasesByProject[p.project_id] = []
+    phasesByProject[p.project_id].push(p)
+  }
+  const allProjectSkillsArr = allProjectSkills ?? []
+  const skillsByProject: Record<string, typeof allProjectSkillsArr> = {}
+  for (const ps of allProjectSkillsArr) {
+    if (!skillsByProject[ps.project_id]) skillsByProject[ps.project_id] = []
+    skillsByProject[ps.project_id].push(ps)
+  }
+
+  // project別のmilestoneをキャッシュ
+  const projectCache: Record<string, { milestones: ReturnType<typeof buildMilestoneMap>; totalSkills: number; skillsByPhase: Record<string, number> }> = {}
+  function getProjectStats(projectId: string) {
+    if (projectCache[projectId]) return projectCache[projectId]
+    const phases = phasesByProject[projectId] ?? []
+    const pSkills = skillsByProject[projectId] ?? []
+    const phaseById = Object.fromEntries(phases.map(p => [p.id, p]))
+    const sbp: Record<string, number> = {}
+    for (const ps of pSkills) {
+      const phase = phaseById[ps.project_phase_id ?? '']
+      if (phase) sbp[phase.name] = (sbp[phase.name] ?? 0) + 1
+    }
+    const result = { milestones: buildMilestoneMap(phases), totalSkills: pSkills.length, skillsByPhase: sbp }
+    projectCache[projectId] = result
+    return result
+  }
+
   // 社員ごとの最初の参加PJで標準進捗を計算
   const employeeStats: Record<string, { certifiedPct: number; standardPct: number }> = {}
 
   for (const emp of employees ?? []) {
     if (emp.role !== 'employee') continue
 
-    const empProjectId = (allEmployeeProjects ?? [])
-      .find(ep => ep.employee_id === emp.id)?.project_id ?? null
-
+    const empProjectId = empFirstProject[emp.id] ?? null
     let totalSkills = 0
     let standardPct = 0
 
     if (empProjectId) {
-      const empPhases = (allProjectPhases ?? []).filter(p => p.project_id === empProjectId)
-      const empProjectSkills = (allProjectSkills ?? []).filter(ps => ps.project_id === empProjectId)
-      totalSkills = empProjectSkills.length
-
-      const empMilestones = buildMilestoneMap(empPhases)
-      const empSkillsByPhase: Record<string, number> = {}
-      for (const ps of empProjectSkills) {
-        const phase = empPhases.find(p => p.id === ps.project_phase_id)
-        if (phase) {
-          empSkillsByPhase[phase.name] = (empSkillsByPhase[phase.name] ?? 0) + 1
-        }
-      }
-
-      const empHours = hoursByEmployee[emp.id] ?? 0
-      standardPct = calcStandardPct(empHours, empMilestones, empSkillsByPhase, totalSkills)
+      const stats = getProjectStats(empProjectId)
+      totalSkills = stats.totalSkills
+      standardPct = calcStandardPct(hoursByEmployee[emp.id] ?? 0, stats.milestones, stats.skillsByPhase, totalSkills)
     }
 
     const certifiedCount = certifiedByEmployee[emp.id] ?? 0
