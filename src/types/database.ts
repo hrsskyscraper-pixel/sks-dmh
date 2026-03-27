@@ -19,6 +19,7 @@ export type Database = {
           role: 'employee' | 'manager' | 'admin' | 'ops_manager' | 'testuser'
           employment_type: '社員' | 'メイト'
           avatar_url: string | null
+          instagram_url: string | null
           created_at: string
           updated_at: string
         }
@@ -31,6 +32,7 @@ export type Database = {
           role?: 'employee' | 'manager' | 'admin' | 'ops_manager' | 'testuser'
           employment_type?: '社員' | 'メイト'
           avatar_url?: string | null
+          instagram_url?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -43,6 +45,7 @@ export type Database = {
           role?: 'employee' | 'manager' | 'admin' | 'ops_manager' | 'testuser'
           employment_type?: '社員' | 'メイト'
           avatar_url?: string | null
+          instagram_url?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -484,6 +487,41 @@ export type Database = {
           },
         ]
       }
+      goals: {
+        Row: {
+          id: string
+          employee_id: string
+          content: string
+          set_at: string
+          deadline: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          employee_id: string
+          content: string
+          set_at?: string
+          deadline?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          employee_id?: string
+          content?: string
+          set_at?: string
+          deadline?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'goals_employee_id_fkey'
+            columns: ['employee_id']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -518,6 +556,7 @@ export type SkillProject = Database['public']['Tables']['skill_projects']['Row']
 export type ProjectPhase = Database['public']['Tables']['project_phases']['Row']
 export type ProjectSkill = Database['public']['Tables']['project_skills']['Row']
 export type EmployeeProject = Database['public']['Tables']['employee_projects']['Row']
+export type Goal = Database['public']['Tables']['goals']['Row']
 
 // LegacyPhase: 旧来の固定フェーズ型（後方互換のため残す）
 export type LegacyPhase = '4月' | '5月〜6月' | '7月〜8月'

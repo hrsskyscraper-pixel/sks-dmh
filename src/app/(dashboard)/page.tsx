@@ -70,7 +70,7 @@ export default async function DashboardPage({
   // targetEmployee と searchParams を並列取得
   const [targetEmployeeResult, params] = await Promise.all([
     viewAsId
-      ? db.from('employees').select('id, name, email, role, employment_type, hire_date, avatar_url, auth_user_id, created_at, updated_at').eq('id', viewAsId).single()
+      ? db.from('employees').select('id, name, email, role, employment_type, hire_date, avatar_url, instagram_url, auth_user_id, created_at, updated_at').eq('id', viewAsId).single()
       : Promise.resolve({ data: null }),
     searchParams ?? Promise.resolve(undefined),
   ])
@@ -135,6 +135,7 @@ export default async function DashboardPage({
     { data: allSkills },
     { data: achievements },
     workHoursSumResult,
+    { data: goalRows },
     { pendingAchievementsCount, pendingTeamRequestsCount },
   ] = await Promise.all([
     selectedProject
@@ -149,6 +150,7 @@ export default async function DashboardPage({
       p_employee_id: employee.id,
       p_as_of_date: new Date().toISOString().split('T')[0],
     }),
+    db.from('goals').select('id, content, set_at, deadline').eq('employee_id', employee.id).order('created_at', { ascending: false }).limit(1),
     pendingCountsTask,
   ])
 
@@ -214,6 +216,8 @@ export default async function DashboardPage({
         unreadNotifications={unreadNotifications}
         pendingAchievementsCount={pendingAchievementsCount}
         pendingTeamRequestsCount={pendingTeamRequestsCount}
+        currentGoal={(goalRows ?? [])[0] ?? null}
+        isOwnDashboard={!viewAsId}
       />
       <Suspense fallback={<TeamRankingSkeleton />}>
         <TeamRankingServer

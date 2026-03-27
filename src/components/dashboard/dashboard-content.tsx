@@ -12,7 +12,7 @@ import dynamic from 'next/dynamic'
 const RadarChart = dynamic(() => import('@/components/charts/radar-chart').then(m => m.RadarChart), { ssr: false })
 const PhaseProgressChart = dynamic(() => import('@/components/charts/phase-progress-chart').then(m => m.PhaseProgressChart), { ssr: false })
 import { cn } from '@/lib/utils'
-import { AlertTriangle, ChevronDown, ChevronUp, Camera, Loader2, CheckCircle2, XCircle, Bell, ClipboardList, Users } from 'lucide-react'
+import { AlertTriangle, ChevronDown, ChevronUp, Camera, Loader2, CheckCircle2, XCircle, Bell, ClipboardList, Users, Instagram, Target, CalendarDays, Pencil } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Textarea } from '@/components/ui/textarea'
@@ -24,7 +24,8 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { calcPhasePct } from '@/lib/milestone'
-import type { Employee, Skill, Achievement, MilestoneMap, ProjectPhase } from '@/types/database'
+import { Input } from '@/components/ui/input'
+import type { Employee, Skill, Achievement, MilestoneMap, ProjectPhase, Goal } from '@/types/database'
 
 type AchievementWithSkill = Achievement & { skills: Skill | null }
 
@@ -41,6 +42,8 @@ interface Props {
   unreadNotifications: AchievementWithSkill[]
   pendingAchievementsCount?: number
   pendingTeamRequestsCount?: number
+  currentGoal: Pick<Goal, 'id' | 'content' | 'set_at' | 'deadline'> | null
+  isOwnDashboard: boolean
 }
 
 const PHASE_COLORS = ['bg-orange-500', 'bg-amber-500', 'bg-red-500', 'bg-blue-500', 'bg-green-500', 'bg-purple-500']
@@ -86,7 +89,8 @@ export function DashboardContent({
   employee, skills, achievements: initialAchievements, cumulativeHours, milestones,
   projectPhases, skillPhaseMap, currentProject, employeeProjects,
   unreadNotifications: initialNotifications,
-  pendingAchievementsCount = 0, pendingTeamRequestsCount = 0
+  pendingAchievementsCount = 0, pendingTeamRequestsCount = 0,
+  currentGoal: initialGoal, isOwnDashboard
 }: Props) {
   const [achievementList, setAchievementList] = useState(initialAchievements)
   const [notifications, setNotifications] = useState(initialNotifications)
@@ -96,6 +100,15 @@ export function DashboardContent({
   const [avatarUrl, setAvatarUrl] = useState(employee.avatar_url)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [showAllOverdue, setShowAllOverdue] = useState(false)
+  // goal
+  const [goal, setGoal] = useState(initialGoal)
+  const [goalDialogOpen, setGoalDialogOpen] = useState(false)
+  const [goalContent, setGoalContent] = useState(initialGoal?.content ?? '')
+  const [goalDeadline, setGoalDeadline] = useState(initialGoal?.deadline ?? '')
+  // instagram
+  const [instagramDialogOpen, setInstagramDialogOpen] = useState(false)
+  const [instagramInput, setInstagramInput] = useState(employee.instagram_url ?? '')
+  const [instagramUrl, setInstagramUrl] = useState(employee.instagram_url)
   const supabase = createClient()
   const router = useRouter()
 
@@ -140,6 +153,34 @@ export function DashboardContent({
     } finally {
       setUploadingAvatar(false)
     }
+  }
+
+  const handleSaveGoal = () => {
+    startTransition(async () => {
+      const { data, error } = await supabase
+        .from('goals')
+        .insert({ employee_id: employee.id, content: goalContent.trim(), deadline: goalDeadline || null })
+        .select('id, content, set_at, deadline')
+        .single()
+      if (error) { toast.error('目標の保存に失敗しました'); return }
+      setGoal(data)
+      setGoalDialogOpen(false)
+      toast.success('目標を設定しました')
+    })
+  }
+
+  const handleSaveInstagram = () => {
+    startTransition(async () => {
+      const url = instagramInput.trim() || null
+      const { error } = await supabase
+        .from('employees')
+        .update({ instagram_url: url })
+        .eq('id', employee.id)
+      if (error) { toast.error('保存に失敗しました'); return }
+      setInstagramUrl(url)
+      setInstagramDialogOpen(false)
+      toast.success('Instagramを設定しました')
+    })
   }
 
   // フェーズ別進捗
@@ -250,7 +291,19 @@ export function DashboardContent({
             />
             <div className="flex-1 min-w-0">
               <p className="text-orange-100 text-sm">Enjoy your growth!</p>
-              <h2 className="text-2xl font-bold mb-1.5">{fullName} さん</h2>
+              <div className="flex items-center gap-2 mb-1.5">
+                <h2 className="text-2xl font-bold">{fullName} さん</h2>
+                {instagramUrl && (
+                  <a href={instagramUrl.startsWith('http') ? instagramUrl : `https://instagram.com/${instagramUrl.replace(/^@/, '')}`} target="_blank" rel="noopener noreferrer" className="opacity-70 hover:opacity-100 transition-opacity">
+                    <Instagram className="w-5 h-5 text-white" />
+                  </a>
+                )}
+                {isOwnDashboard && !instagramUrl && (
+                  <button onClick={() => { setInstagramInput(''); setInstagramDialogOpen(true) }} className="opacity-40 hover:opacity-70 transition-opacity" title="Instagramを設定">
+                    <Instagram className="w-5 h-5 text-white" />
+                  </button>
+                )}
+              </div>
               <div className="flex flex-wrap gap-1">
                 {employee.hire_date && (
                   <span className="text-[10px] bg-white/15 text-orange-50 rounded-full px-2 py-0.5">{fmtHireDate(employee.hire_date)} 入社</span>
@@ -336,6 +389,40 @@ export function DashboardContent({
               {gapSkills < 0 && <p className="text-sm font-medium mt-0.5">一つ一つ、進めていきましょう！</p>}
             </div>
           )}
+          {/* 目標 */}
+          {goal ? (
+            <div className="mt-3 bg-white/15 rounded-lg px-3 py-2">
+              <div className="flex items-start gap-2">
+                <Target className="w-3.5 h-3.5 text-orange-100 mt-0.5 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-white font-medium">{goal.content}</p>
+                  <div className="flex items-center gap-3 mt-1">
+                    {goal.deadline && (
+                      <span className="text-[10px] text-orange-100 flex items-center gap-0.5">
+                        <CalendarDays className="w-3 h-3" />
+                        {goal.deadline} まで
+                      </span>
+                    )}
+                    <span className="text-[10px] text-orange-200/70">
+                      {new Date(goal.set_at).toLocaleDateString('ja-JP')} 設定
+                    </span>
+                  </div>
+                </div>
+                {isOwnDashboard && (
+                  <button onClick={() => { setGoalContent(goal.content); setGoalDeadline(goal.deadline ?? ''); setGoalDialogOpen(true) }} className="opacity-50 hover:opacity-100 transition-opacity flex-shrink-0">
+                    <Pencil className="w-3.5 h-3.5 text-white" />
+                  </button>
+                )}
+              </div>
+            </div>
+          ) : isOwnDashboard ? (
+            <button onClick={() => { setGoalContent(''); setGoalDeadline(''); setGoalDialogOpen(true) }} className="mt-3 w-full bg-white/10 hover:bg-white/20 transition-colors rounded-lg px-3 py-2 text-left">
+              <div className="flex items-center gap-2">
+                <Target className="w-3.5 h-3.5 text-orange-200" />
+                <p className="text-sm text-orange-100">目標を設定する</p>
+              </div>
+            </button>
+          ) : null}
         </CardContent>
       </Card>
 
@@ -561,6 +648,44 @@ export function DashboardContent({
           <DialogFooter>
             <Button className="w-full bg-orange-500 hover:bg-orange-600 text-white" onClick={() => applyDialogSkill && handleRequest(applyDialogSkill, applyComment)} disabled={isPending}>
               できました！申請する
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 目標設定ダイアログ */}
+      <Dialog open={goalDialogOpen} onOpenChange={setGoalDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle className="text-base">目標を設定する</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <p className="text-xs font-medium text-gray-600 mb-1">目標</p>
+              <Textarea placeholder="例: 調理スキルを全て取得する！" value={goalContent} onChange={e => setGoalContent(e.target.value)} className="text-sm min-h-[80px] resize-none" />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-gray-600 mb-1">期限（任意）</p>
+              <Input type="date" value={goalDeadline} onChange={e => setGoalDeadline(e.target.value)} className="text-sm" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button className="w-full bg-orange-500 hover:bg-orange-600 text-white" onClick={handleSaveGoal} disabled={isPending || !goalContent.trim()}>
+              設定する
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Instagram設定ダイアログ */}
+      <Dialog open={instagramDialogOpen} onOpenChange={setInstagramDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle className="text-base">Instagramを設定する</DialogTitle></DialogHeader>
+          <div>
+            <p className="text-xs font-medium text-gray-600 mb-1">InstagramのユーザーネームまたはURL</p>
+            <Input placeholder="@username または https://instagram.com/..." value={instagramInput} onChange={e => setInstagramInput(e.target.value)} className="text-sm" />
+          </div>
+          <DialogFooter>
+            <Button className="w-full bg-orange-500 hover:bg-orange-600 text-white" onClick={handleSaveInstagram} disabled={isPending}>
+              保存する
             </Button>
           </DialogFooter>
         </DialogContent>
