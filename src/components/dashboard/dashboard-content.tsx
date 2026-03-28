@@ -48,13 +48,21 @@ interface Props {
 
 const PHASE_COLORS = ['bg-orange-500', 'bg-amber-500', 'bg-red-500', 'bg-blue-500', 'bg-green-500', 'bg-purple-500']
 
-const CATEGORIES = ['接客', '調理', '管理'] as const
+const CATEGORY_COLOR_PALETTE = [
+  'bg-blue-100 text-blue-700',
+  'bg-green-100 text-green-700',
+  'bg-purple-100 text-purple-700',
+  'bg-amber-100 text-amber-700',
+  'bg-red-100 text-red-700',
+  'bg-teal-100 text-teal-700',
+  'bg-pink-100 text-pink-700',
+  'bg-indigo-100 text-indigo-700',
+]
 
-const CATEGORY_COLORS: Record<string, string> = {
-  '接客': 'bg-blue-100 text-blue-700',
-  '調理': 'bg-green-100 text-green-700',
-  '管理': 'bg-purple-100 text-purple-700',
-  'その他': 'bg-gray-100 text-gray-700',
+function getCategoryColor(category: string, allCategories: string[]): string {
+  const idx = allCategories.indexOf(category)
+  if (idx >= 0) return CATEGORY_COLOR_PALETTE[idx % CATEGORY_COLOR_PALETTE.length]
+  return 'bg-gray-100 text-gray-700'
 }
 
 function calcSkillTargetHours(skillId: string, allSkills: Skill[], skillPhaseMap: Record<string, string | null>, projectPhases: ProjectPhase[], milestones: MilestoneMap): number {
@@ -206,8 +214,11 @@ export function DashboardContent({
     }
   })
 
+  // カテゴリ一覧をスキルデータから動的取得
+  const categories = [...new Set(skills.map(s => s.category))].sort()
+
   // カテゴリ別進捗（レーダーチャート用）
-  const radarData = CATEGORIES.map(category => {
+  const radarData = categories.map(category => {
     const catSkills = skills.filter(s => s.category === category)
     const certified = catSkills.filter(s => certifiedIds.has(s.id)).length
     return {
@@ -524,7 +535,7 @@ export function DashboardContent({
               )}>
                 <p className="text-sm text-gray-800 flex-1 min-w-0 truncate">{skill.name}</p>
                 <div className="flex items-center gap-1.5 flex-shrink-0">
-                  <Badge className={cn('text-[10px] border-0', CATEGORY_COLORS[skill.category])}>{skill.category}</Badge>
+                  <Badge className={cn('text-[10px] border-0', getCategoryColor(skill.category, categories))}>{skill.category}</Badge>
                   {skill._status === 'pending' ? (
                     <Badge className="text-[10px] border-0 bg-yellow-200 text-yellow-800">申請中</Badge>
                   ) : (
@@ -565,7 +576,7 @@ export function DashboardContent({
               <div key={skill.id} className="flex items-center justify-between gap-2 bg-white rounded-lg px-3 py-2 border border-blue-200">
                 <p className="text-sm text-gray-800 flex-1 min-w-0 truncate">{skill.name}</p>
                 <div className="flex items-center gap-1.5 flex-shrink-0">
-                  <Badge className={cn('text-[10px] border-0', CATEGORY_COLORS[skill.category])}>{skill.category}</Badge>
+                  <Badge className={cn('text-[10px] border-0', getCategoryColor(skill.category, categories))}>{skill.category}</Badge>
                   <Button
                     size="sm" variant="outline"
                     className="group h-7 text-xs px-2 border-blue-200 text-blue-600 hover:bg-blue-100 hover:border-blue-400 hover:text-blue-700 flex-shrink-0"
@@ -636,7 +647,7 @@ export function DashboardContent({
               <div className="bg-gray-50 rounded-lg p-3">
                 <p className="text-sm font-semibold text-gray-800">{applyDialogSkill.name}</p>
                 <div className="flex items-center gap-2 mt-1">
-                  <Badge className={cn('text-[10px] border-0', CATEGORY_COLORS[applyDialogSkill.category])}>{applyDialogSkill.category}</Badge>
+                  <Badge className={cn('text-[10px] border-0', getCategoryColor(applyDialogSkill.category, categories))}>{applyDialogSkill.category}</Badge>
                 </div>
               </div>
               <div>

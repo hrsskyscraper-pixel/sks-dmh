@@ -48,27 +48,46 @@ function fmtDate(dateStr: string | null | undefined): string {
   return `${y}/${m}/${day}`
 }
 
-const CATEGORIES: Category[] = ['接客', '調理', '管理', 'その他']
+const CATEGORY_COLOR_PALETTE = [
+  'bg-blue-100 text-blue-700',
+  'bg-green-100 text-green-700',
+  'bg-purple-100 text-purple-700',
+  'bg-amber-100 text-amber-700',
+  'bg-red-100 text-red-700',
+  'bg-teal-100 text-teal-700',
+  'bg-pink-100 text-pink-700',
+  'bg-indigo-100 text-indigo-700',
+]
 
-const CATEGORY_COLORS: Record<Category, string> = {
-  '接客': 'bg-blue-100 text-blue-700',
-  '調理': 'bg-green-100 text-green-700',
-  '管理': 'bg-purple-100 text-purple-700',
-  'その他': 'bg-gray-100 text-gray-700',
+const CATEGORY_PROGRESS_PALETTE = [
+  '[&>div]:bg-blue-500',
+  '[&>div]:bg-green-500',
+  '[&>div]:bg-purple-500',
+  '[&>div]:bg-amber-500',
+  '[&>div]:bg-red-500',
+  '[&>div]:bg-teal-500',
+  '[&>div]:bg-pink-500',
+  '[&>div]:bg-indigo-500',
+]
+
+function getCategoryColor(category: string, allCategories: string[]): string {
+  const idx = allCategories.indexOf(category)
+  if (idx >= 0) return CATEGORY_COLOR_PALETTE[idx % CATEGORY_COLOR_PALETTE.length]
+  return 'bg-gray-100 text-gray-700'
 }
 
-const CATEGORY_PROGRESS_COLORS: Record<Category, string> = {
-  '接客': '[&>div]:bg-blue-500',
-  '調理': '[&>div]:bg-green-500',
-  '管理': '[&>div]:bg-purple-500',
-  'その他': '[&>div]:bg-gray-500',
+function getCategoryProgressColor(category: string, allCategories: string[]): string {
+  const idx = allCategories.indexOf(category)
+  if (idx >= 0) return CATEGORY_PROGRESS_PALETTE[idx % CATEGORY_PROGRESS_PALETTE.length]
+  return '[&>div]:bg-gray-500'
 }
 
 export function SkillList({ employeeId, skills, achievements: initialAchievements, readOnly = false, phases, skillPhaseMap, cumulativeHours, milestones }: Props) {
   const searchParams = useSearchParams()
   const initialPhaseId = phases.find(p => p.name === searchParams.get('phase'))?.id ?? phases[0]?.id ?? ''
   const [achievements, setAchievements] = useState(initialAchievements)
-  const allKeys = phases.flatMap(p => CATEGORIES.map(c => `${p.id}-${c}`))
+  const categories = [...new Set(skills.map(s => s.category))].sort()
+  const allKeys = phases.flatMap(p => categories.map(c => `${p.id}-${c}`))
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(allKeys))
   const [expandedStatusGroups, setExpandedStatusGroups] = useState<Set<string>>(new Set())
   const [isPending, startTransition] = useTransition()
@@ -266,7 +285,7 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
           ) : historyItems.map(ach => {
             const skillName = ach.skills?.name ?? skills.find(s => s.id === ach.skill_id)?.name ?? '不明'
             const skillCategory = (ach.skills?.category ?? skills.find(s => s.id === ach.skill_id)?.category ?? '') as Category | ''
-            const catColor = skillCategory && skillCategory in CATEGORY_COLORS ? CATEGORY_COLORS[skillCategory as Category] : 'bg-gray-100 text-gray-700'
+            const catColor = getCategoryColor(skillCategory ?? '', categories)
             return (
               <div key={ach.id} className={cn(
                 'flex items-start gap-3 py-2.5 px-3 rounded-lg border',
@@ -382,7 +401,7 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
               </div>
 
               {/* カテゴリ別スキルリスト */}
-              {CATEGORIES.map(category => {
+              {categories.map(category => {
                 const catSkills = phaseSkills.filter(s => s.category === category)
                 if (catSkills.length === 0) return null
 
@@ -410,7 +429,7 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
                     >
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1.5">
-                          <Badge className={cn('text-xs border-0', CATEGORY_COLORS[category])}>{category}</Badge>
+                          <Badge className={cn('text-xs border-0', getCategoryColor(category, categories))}>{category}</Badge>
                           <span className="text-xs text-gray-500">{catCertified}/{catSkills.length}</span>
                           {catCertified === catSkills.length ? (
                             <Badge className="bg-yellow-100 text-yellow-700 border-0 text-xs flex items-center gap-0.5">
@@ -422,7 +441,7 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
                         </div>
                         <Progress
                           value={catSkills.length > 0 ? Math.round(catCertified / catSkills.length * 100) : 0}
-                          className={cn('h-1.5', CATEGORY_PROGRESS_COLORS[category])}
+                          className={cn('h-1.5', getCategoryProgressColor(category, categories))}
                         />
                       </div>
                       <div className="ml-2 flex-shrink-0">
@@ -504,7 +523,7 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
               <div className="bg-gray-50 rounded-lg p-3">
                 <p className="text-sm font-semibold text-gray-800">{applyDialogSkill.name}</p>
                 <div className="flex items-center gap-2 mt-1">
-                  <Badge className={cn('text-[10px] border-0', CATEGORY_COLORS[applyDialogSkill.category as Category])}>{applyDialogSkill.category}</Badge>
+                  <Badge className={cn('text-[10px] border-0', getCategoryColor(applyDialogSkill.category, categories))}>{applyDialogSkill.category}</Badge>
                 </div>
               </div>
               <div>

@@ -37,7 +37,7 @@ interface Props {
   employees: Pick<Employee, 'id' | 'name' | 'employment_type' | 'hire_date'>[]
 }
 
-const CATEGORIES = ['接客', '調理', '管理', 'その他'] as const
+// カテゴリはスキルデータから動的に取得（コンポーネント内で計算）
 
 export function ProjectManager({
   projects: initialProjects,
@@ -49,6 +49,10 @@ export function ProjectManager({
 }: Props) {
   const supabase = createClient()
   const [isPending, startTransition] = useTransition()
+  const [skillsState, setSkillsState] = useState(allSkills)
+  const categories = [...new Set(skillsState.map(s => s.category))].sort()
+  const [newCategoryInput, setNewCategoryInput] = useState('')
+  const [showNewCategoryInput, setShowNewCategoryInput] = useState(false)
 
   // ---- state ----
   const [projects, setProjects] = useState(initialProjects)
@@ -245,6 +249,18 @@ export function ProjectManager({
     })
   }
 
+  function handleChangeSkillCategory(skillId: string, newCategory: string) {
+    startTransition(async () => {
+      const { error } = await supabase
+        .from('skills')
+        .update({ category: newCategory })
+        .eq('id', skillId)
+      if (error) { toast.error('カテゴリの変更に失敗しました'); return }
+      setSkillsState(prev => prev.map(s => s.id === skillId ? { ...s, category: newCategory } : s))
+      toast.success('カテゴリを変更しました')
+    })
+  }
+
   // ===== メンバー操作 =====
 
   function handleToggleMember(employeeId: string, isMember: boolean) {
@@ -384,8 +400,8 @@ export function ProjectManager({
               {selectedPhases.length === 0 && (
                 <p className="text-xs text-muted-foreground text-center py-2">先にフェーズを作成してください</p>
               )}
-              {CATEGORIES.map(category => {
-                const catSkills = allSkills.filter(s => s.category === category)
+              {categories.map(category => {
+                const catSkills = skillsState.filter(s => s.category === category)
                 if (catSkills.length === 0) return null
                 return (
                   <div key={category}>
@@ -408,9 +424,27 @@ export function ProjectManager({
                               onCheckedChange={checked => handleToggleSkill(skill.id, !!checked)}
                               disabled={isPending}
                             />
-                            <label htmlFor={`skill-${skill.id}`} className="flex-1 text-sm text-gray-800 cursor-pointer">
+                            <label htmlFor={`skill-${skill.id}`} className="flex-1 text-sm text-gray-800 cursor-pointer min-w-0 truncate">
                               {skill.name}
                             </label>
+                            <Select
+                              value={skill.category}
+                              onValueChange={v => {
+                                if (v === '__new__') { setShowNewCategoryInput(true); return }
+                                handleChangeSkillCategory(skill.id, v)
+                              }}
+                              disabled={isPending}
+                            >
+                              <SelectTrigger className="h-7 text-xs w-24 flex-shrink-0">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {categories.map(c => (
+                                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                                ))}
+                                <SelectItem value="__new__">+ 新規追加</SelectItem>
+                              </SelectContent>
+                            </Select>
                             {isChecked && selectedPhases.length > 0 && (
                               <Select
                                 value={currentPhaseId ?? 'none'}
@@ -595,6 +629,40 @@ export function ProjectManager({
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditPhaseDialog(null)}>キャンセル</Button>
             <Button onClick={handleSavePhase} disabled={isPending}>更新</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* 新カテゴリ追加ダイアログ */}
+      <Dialog open={showNewCategoryInput} onOpenChange={setShowNewCategoryInput}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle className="text-base">新しいカテゴリを追加</DialogTitle></DialogHeader>
+          <div>
+            <p className="text-xs font-medium text-gray-600 mb-1">カテゴリ名</p>
+            <Input
+              placeholder="例: トラブル対応"
+              value={newCategoryInput}
+              onChange={e => setNewCategoryInput(e.target.value)}
+              className="text-sm"
+            />
+            <p className="text-xs text-muted-foreground mt-2">
+              追加後、各スキルのカテゴリを新しいカテゴリに変更できます。
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowNewCategoryInput(false); setNewCategoryInput('') }}>キャンセル</Button>
+            <Button
+              disabled={!newCategoryInput.trim() || categories.includes(newCategoryInput.trim())}
+              onClick={() => {
+                const name = newCategoryInput.trim()
+                // ダミーのスキルを追加してカテゴリを表示可能にする（実際にはスキルのカテゴリを変更する）
+                setSkillsState(prev => [...prev, { ...prev[0], id: `__placeholder_${name}`, name: `（${name}にスキルを移動してください）`, category: name }])
+                setShowNewCategoryInput(false)
+                setNewCategoryInput('')
+                toast.success(`カテゴリ「${name}」を追加しました。スキルのカテゴリを変更してください。`)
+              }}
+            >
+              追加
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

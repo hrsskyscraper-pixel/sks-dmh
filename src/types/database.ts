@@ -360,7 +360,7 @@ export type Database = {
           id: string
           name: string
           phase: string | null
-          category: '接客' | '調理' | '管理' | 'その他'
+          category: string
           order_index: number
           target_date_hint: string | null
           created_at: string
@@ -369,7 +369,7 @@ export type Database = {
           id?: string
           name: string
           phase?: string | null
-          category: '接客' | '調理' | '管理' | 'その他'
+          category: string
           order_index?: number
           target_date_hint?: string | null
           created_at?: string
@@ -378,7 +378,7 @@ export type Database = {
           id?: string
           name?: string
           phase?: string | null
-          category?: '接客' | '調理' | '管理' | 'その他'
+          category?: string
           order_index?: number
           target_date_hint?: string | null
           created_at?: string
@@ -562,7 +562,7 @@ export type Goal = Database['public']['Tables']['goals']['Row']
 export type LegacyPhase = '4月' | '5月〜6月' | '7月〜8月'
 // Phase は文字列に緩和
 export type Phase = string
-export type Category = '接客' | '調理' | '管理' | 'その他'
+export type Category = string
 export type Role = 'employee' | 'manager' | 'admin' | 'ops_manager' | 'testuser'
 export type AchievementStatus = 'pending' | 'certified' | 'rejected'
 export type EmploymentType = '社員' | 'メイト'
