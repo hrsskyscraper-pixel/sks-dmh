@@ -24,6 +24,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { calcPhasePct } from '@/lib/milestone'
+import { sortCategories } from '@/lib/category-order'
 import { Input } from '@/components/ui/input'
 import type { Employee, Skill, Achievement, MilestoneMap, ProjectPhase, Goal } from '@/types/database'
 
@@ -215,7 +216,7 @@ export function DashboardContent({
   })
 
   // カテゴリ一覧をスキルデータから動的取得
-  const categories = [...new Set(skills.map(s => s.category))].sort()
+  const categories = sortCategories([...new Set(skills.map(s => s.category))])
 
   // カテゴリ別進捗（レーダーチャート用）
   const radarData = categories.map(category => {

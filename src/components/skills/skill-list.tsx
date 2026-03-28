@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/dialog'
 import { createClient } from '@/lib/supabase/client'
 import { calcPhasePct } from '@/lib/milestone'
+import { sortCategories } from '@/lib/category-order'
 import { cn } from '@/lib/utils'
 import type { Skill, Achievement, Category, MilestoneMap, ProjectPhase } from '@/types/database'
 
@@ -86,7 +87,7 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
   const searchParams = useSearchParams()
   const initialPhaseId = phases.find(p => p.name === searchParams.get('phase'))?.id ?? phases[0]?.id ?? ''
   const [achievements, setAchievements] = useState(initialAchievements)
-  const categories = [...new Set(skills.map(s => s.category))].sort()
+  const categories = sortCategories([...new Set(skills.map(s => s.category))])
   const allKeys = phases.flatMap(p => categories.map(c => `${p.id}-${c}`))
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(allKeys))
   const [expandedStatusGroups, setExpandedStatusGroups] = useState<Set<string>>(new Set())

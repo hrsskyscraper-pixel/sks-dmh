@@ -26,6 +26,7 @@ import {
 import { Plus, Pencil, Archive, ArchiveRestore, Trash2, GripVertical, UserMinus, UserPlus } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { updateSkillCategory } from '@/app/(dashboard)/actions'
+import { sortCategories } from '@/lib/category-order'
 import { cn } from '@/lib/utils'
 import type { SkillProject, ProjectPhase, ProjectSkill, EmployeeProject, Skill, Employee } from '@/types/database'
 
@@ -51,7 +52,7 @@ export function ProjectManager({
   const supabase = createClient()
   const [isPending, startTransition] = useTransition()
   const [skillsState, setSkillsState] = useState(allSkills)
-  const categories = [...new Set(skillsState.map(s => s.category))].sort()
+  const categories = sortCategories([...new Set(skillsState.map(s => s.category))])
   const [newCategoryInput, setNewCategoryInput] = useState('')
   const [showNewCategoryInput, setShowNewCategoryInput] = useState(false)
 
