@@ -30,6 +30,7 @@ export default async function DashboardLayout({
       email: user.email ?? '',
       role: 'testuser',
       employment_type: '社員',
+      avatar_url: (user.user_metadata.avatar_url as string | undefined) ?? null,
     }
     const { error: insertError } = await adminDb.from('employees').insert(insertData)
     if (!insertError) {
@@ -44,6 +45,14 @@ export default async function DashboardLayout({
       await supabase.auth.signOut()
       redirect(`/login?error=${encodeURIComponent(insertError.message)}`)
     }
+  }
+
+  // 既存ユーザーでavatar_url未設定の場合、Googleの写真を自動設定
+  if (employee && !employee.avatar_url && user.user_metadata.avatar_url) {
+    const adminDb = createAdminClient()
+    const googleAvatar = user.user_metadata.avatar_url as string
+    await adminDb.from('employees').update({ avatar_url: googleAvatar }).eq('id', employee.id)
+    employee = { ...employee, avatar_url: googleAvatar }
   }
 
   // それでも取得できなければサインアウトしてリダイレクト（ループ防止）
