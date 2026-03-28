@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/select'
 import { Plus, Pencil, Archive, ArchiveRestore, Trash2, GripVertical, UserMinus, UserPlus } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { updateSkillCategory } from '@/app/(dashboard)/actions'
 import { cn } from '@/lib/utils'
 import type { SkillProject, ProjectPhase, ProjectSkill, EmployeeProject, Skill, Employee } from '@/types/database'
 
@@ -251,11 +252,8 @@ export function ProjectManager({
 
   function handleChangeSkillCategory(skillId: string, newCategory: string) {
     startTransition(async () => {
-      const { error } = await supabase
-        .from('skills')
-        .update({ category: newCategory })
-        .eq('id', skillId)
-      if (error) { toast.error('カテゴリの変更に失敗しました'); return }
+      const result = await updateSkillCategory(skillId, newCategory)
+      if (result.error) { toast.error(`カテゴリの変更に失敗しました: ${result.error}`); return }
       setSkillsState(prev => prev.map(s => s.id === skillId ? { ...s, category: newCategory } : s))
       toast.success('カテゴリを変更しました')
     })
