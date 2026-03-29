@@ -632,7 +632,7 @@ export function ProjectManager({
                                 disabled={isPending}
                               />
                               <span className={cn('text-[10px] h-6 w-20 flex items-center justify-center border rounded-md cursor-pointer', skill.target_date_hint ? 'text-gray-700 bg-white border-gray-200' : 'text-gray-400 bg-gray-50 border-gray-200')}>
-                                {skill.target_date_hint ? `${skill.target_date_hint.slice(2, 7).replace('-', '/')}` : '予定日'}
+                                {skill.target_date_hint ? `${parseInt(skill.target_date_hint.slice(5, 7))}/${parseInt(skill.target_date_hint.slice(8, 10))}` : '予定日'}
                               </span>
                             </div>
                             <Button
