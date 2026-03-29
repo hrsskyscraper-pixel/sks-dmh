@@ -1,10 +1,13 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
+import { markNotificationsRead } from '@/app/(dashboard)/actions'
 import Link from 'next/link'
 
 interface EmployeeInfo { id: string; name: string; avatar_url: string | null }
@@ -18,6 +21,7 @@ interface Props {
   pendingForMe: { id: string; employee_id: string; skill_id: string; status: string; achieved_at: string; skills: { name: string } | null }[]
   currentRole: string
   notificationsReadAt: string | null
+  canMarkAllRead?: boolean
 }
 
 function timeAgo(dateStr: string): string {
@@ -44,7 +48,9 @@ type NotificationItem = {
   isNew: boolean
 }
 
-export function NotificationList({ reactions, comments, achievementMap, employeeMap, pendingForMe, currentRole, notificationsReadAt }: Props) {
+export function NotificationList({ reactions, comments, achievementMap, employeeMap, pendingForMe, currentRole, notificationsReadAt, canMarkAllRead = false }: Props) {
+  const [isPending, startTransition] = useTransition()
+  const router = useRouter()
   const readAt = notificationsReadAt ? new Date(notificationsReadAt).getTime() : 0
 
   // 同じスキル×同じ人のリアクション・コメントをグルーピング
@@ -145,8 +151,30 @@ export function NotificationList({ reactions, comments, achievementMap, employee
     )
   }
 
+  const unreadCount = items.filter(i => i.isNew && !readIds.has(i.id)).length
+
+  const handleMarkAllRead = () => {
+    startTransition(async () => {
+      await markNotificationsRead()
+      // 全アイテムをlocalStorageにも既読登録
+      const allIds = items.map(i => i.id)
+      const next = new Set([...readIds, ...allIds])
+      const arr = [...next].slice(-200)
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(arr))
+      setReadIds(new Set(arr))
+      router.refresh()
+    })
+  }
+
   return (
     <div className="p-4 space-y-2">
+      {canMarkAllRead && unreadCount > 0 && (
+        <div className="flex justify-end">
+          <Button variant="ghost" size="sm" className="text-xs text-gray-500 h-7" onClick={handleMarkAllRead} disabled={isPending}>
+            全て既読にする
+          </Button>
+        </div>
+      )}
       {items.map(item => {
         const emp = employeeMap[item.employeeId]
         const href = item.type === 'pending'

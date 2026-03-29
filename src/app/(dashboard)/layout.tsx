@@ -69,36 +69,37 @@ export default async function DashboardLayout({
   const canViewAs = role === 'manager' || role === 'admin' || role === 'ops_manager' || role === 'testuser'
   const viewAsId = canViewAs ? (cookieStore.get(VIEW_AS_COOKIE)?.value ?? null) : null
 
-  // viewAs社員取得、未読件数、通知未読数を並列実行
+  // viewAs社員取得
   const db = role === 'testuser' ? createAdminClient() : supabase
-  const readAt = employee.notifications_read_at ?? '1970-01-01T00:00:00Z'
+  const { data: viewAsEmployee } = viewAsId
+    ? await db.from('employees').select('name, role, notifications_read_at').eq('id', viewAsId).single()
+    : { data: null }
 
-  // 自分のachievement IDを先に取得
-  const { data: myAchievements } = await db
+  // 通知数は view-as 対象社員（なければ自分）で計算
+  const notifTargetId = viewAsId ?? employee.id
+  const notifReadAt = (viewAsId ? viewAsEmployee?.notifications_read_at : employee.notifications_read_at) ?? '1970-01-01T00:00:00Z'
+
+  const { data: targetAchievements } = await db
     .from('achievements')
     .select('id')
-    .eq('employee_id', employee.id)
+    .eq('employee_id', notifTargetId)
     .eq('status', 'certified')
-  const myAchIds = (myAchievements ?? []).map(a => a.id)
+  const targetAchIds = (targetAchievements ?? []).map(a => a.id)
 
-  const [viewAsResult, unreadResult, reactionsCount, commentsCount] = await Promise.all([
-    viewAsId
-      ? db.from('employees').select('name, role').eq('id', viewAsId).single()
-      : Promise.resolve({ data: null }),
+  const [unreadResult, reactionsCount, commentsCount] = await Promise.all([
     role === 'manager' && employee
       ? supabase.from('team_change_requests').select('*', { count: 'exact', head: true })
           .eq('requested_by', employee.id).in('status', ['approved', 'rejected']).is('applicant_read_at', null)
       : Promise.resolve({ count: 0 }),
-    myAchIds.length > 0
+    targetAchIds.length > 0
       ? db.from('achievement_reactions').select('*', { count: 'exact', head: true })
-          .in('achievement_id', myAchIds).neq('employee_id', employee.id).gt('created_at', readAt)
+          .in('achievement_id', targetAchIds).neq('employee_id', notifTargetId).gt('created_at', notifReadAt)
       : Promise.resolve({ count: 0 }),
-    myAchIds.length > 0
+    targetAchIds.length > 0
       ? db.from('achievement_comments').select('*', { count: 'exact', head: true })
-          .in('achievement_id', myAchIds).neq('employee_id', employee.id).gt('created_at', readAt)
+          .in('achievement_id', targetAchIds).neq('employee_id', notifTargetId).gt('created_at', notifReadAt)
       : Promise.resolve({ count: 0 }),
   ])
-  const viewAsEmployee = viewAsResult.data
   const unreadRequestCount = (unreadResult as { count: number | null }).count ?? 0
   const unreadNotifCount = ((reactionsCount as { count: number | null }).count ?? 0)
     + ((commentsCount as { count: number | null }).count ?? 0)

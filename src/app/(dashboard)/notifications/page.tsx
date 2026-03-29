@@ -95,14 +95,6 @@ export default async function NotificationsPage() {
     (myAchievements ?? []).map(a => [a.id, a])
   )
 
-  // 通知既読マーク更新（自分自身のダッシュボードの場合のみ）
-  if (!viewAsId) {
-    const adminDb = createAdminClient()
-    await adminDb.from('employees')
-      .update({ notifications_read_at: new Date().toISOString() })
-      .eq('id', currentEmployee.id)
-  }
-
   return (
     <>
       <TopBar title="お知らせ" />
@@ -114,6 +106,7 @@ export default async function NotificationsPage() {
         pendingForMe={pendingForMe ?? []}
         currentRole={targetRole}
         notificationsReadAt={targetEmployee.notifications_read_at}
+        canMarkAllRead={!viewAsId}
       />
     </>
   )
