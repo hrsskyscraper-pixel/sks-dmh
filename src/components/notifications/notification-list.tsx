@@ -135,12 +135,13 @@ export function NotificationList({ reactions, comments, achievementMap, employee
     setReadIds(prev => {
       const next = new Set(prev)
       next.add(id)
-      // 最新200件だけ保持
       const arr = [...next]
       const trimmed = arr.length > 200 ? arr.slice(arr.length - 200) : arr
       localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed))
       return new Set(trimmed)
     })
+    // サーバー側も既読更新（ベルバッジに反映させるため）
+    markNotificationsRead()
   }, [])
 
   if (items.length === 0) {
