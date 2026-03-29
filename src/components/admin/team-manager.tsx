@@ -90,7 +90,7 @@ export function TeamManager({
   const supabase = createClient()
   // effectiveRole で権限を判定（view-as 中はそちらを優先）
   const isDirectEdit = canDirectEdit(effectiveRole)
-  const isReadOnly = !['manager', 'admin', 'ops_manager'].includes(effectiveRole)
+  const isReadOnly = !['store_manager', 'manager', 'admin', 'ops_manager'].includes(effectiveRole)
   // view-as 中は申請操作を無効化（requested_by が admin になってしまうため）
   const isViewAs = currentEmployee.id !== effectiveEmployee.id
 
@@ -159,7 +159,7 @@ export function TeamManager({
   }
 
   const pendingRequests = changeRequests.filter(r => r.status === 'pending')
-  // マネージャー向け: 未読の審査結果件数（view-as 対応で effectiveEmployee を使う）
+  // マネジャー向け: 未読の審査結果件数（view-as 対応で effectiveEmployee を使う）
   const unreadResults = changeRequests.filter(
     r => r.requested_by === effectiveEmployee.id && r.status !== 'pending' && !r.applicant_read_at
   )
@@ -209,9 +209,9 @@ export function TeamManager({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // マネージャー候補（manager/admin/ops_manager）
+  // マネジャー候補（manager/admin/ops_manager）
   const managerCandidates = employees.filter(e =>
-    ['manager', 'admin', 'ops_manager'].includes(e.role)
+    ['store_manager', 'manager', 'admin', 'ops_manager'].includes(e.role)
   )
 
   // -------------------------------------------------------
@@ -232,7 +232,7 @@ export function TeamManager({
       const { error: managerError } = await supabase
         .from('team_managers')
         .insert({ team_id: team.id, employee_id: newTeamManagerId, role: 'primary' })
-      if (managerError) { toast.error('マネージャー設定に失敗しました'); return }
+      if (managerError) { toast.error('マネジャー設定に失敗しました'); return }
 
       setTeams(prev => [...prev, team])
       setTeamManagers(prev => [...prev, { team_id: team.id, employee_id: newTeamManagerId, role: 'primary' as const }])
@@ -309,7 +309,7 @@ export function TeamManager({
       setAddDialog(null)
       setSelectedEmployeeIds(new Set())
       setNewManagerRole('secondary')
-      toast.success(`${employeeIds.length}名をマネージャーに追加しました`)
+      toast.success(`${employeeIds.length}名をマネジャーに追加しました`)
     })
   }
 
@@ -323,7 +323,7 @@ export function TeamManager({
         .eq('employee_id', employeeId)
       if (error) { toast.error('削除に失敗しました'); return }
       setTeamManagers(prev => prev.filter(m => !(m.team_id === teamId && m.employee_id === employeeId)))
-      toast.success('マネージャーを削除しました')
+      toast.success('マネジャーを削除しました')
     })
   }
 
@@ -511,7 +511,7 @@ export function TeamManager({
         label = `「${teamName}」へのリーダー追加を申請`
       } else if (req.request_type === 'remove_manager') {
         payload = { employee_id: p.employee_id, employee_name: p.employee_name, team_name: teamName }
-        label = `「${teamName}」から${p.employee_name as string}のマネージャー削除申請`
+        label = `「${teamName}」から${p.employee_name as string}のマネジャー削除申請`
       }
     }
 
@@ -522,12 +522,13 @@ export function TeamManager({
   const getDisplayRole = (emp: Pick<Employee, 'role' | 'employment_type'>) => {
     if (emp.role === 'admin') return '開発者'
     if (emp.role === 'ops_manager') return '運用管理者'
-    if (emp.role === 'manager') return 'マネージャー'
+    if (emp.role === 'manager') return 'マネジャー'
+    if (emp.role === 'store_manager') return '店長'
     return emp.employment_type ?? '社員'
   }
 
   const DISPLAY_ROLE_ORDER: Record<string, number> = {
-    '社員': 0, 'メイト': 1, 'マネージャー': 2, '運用管理者': 3, '開発者': 4,
+    '社員': 0, 'メイト': 1, '店長': 1.5, 'マネジャー': 2, '運用管理者': 3, '開発者': 4,
   }
 
   const sortEmployees = <T extends Pick<Employee, 'role' | 'employment_type' | 'name'>>(list: T[]) =>
@@ -656,7 +657,7 @@ export function TeamManager({
                       className="h-7 w-7 p-0 text-red-400 hover:text-red-600 hover:bg-red-50"
                       onClick={() => setConfirmDialog({
                         title: '削除の確認',
-                        message: `チーム「${team.name}」を削除しますか？\nメンバー・マネージャーの紐付けもすべて削除されます。`,
+                        message: `チーム「${team.name}」を削除しますか？\nメンバー・マネジャーの紐付けもすべて削除されます。`,
                         confirmLabel: '削除する',
                         confirmClassName: 'flex-1 bg-red-500 hover:bg-red-600 text-white',
                         onConfirm: () => handleDeleteTeam(team.id),
@@ -839,7 +840,7 @@ export function TeamManager({
                                   requestType: 'remove_manager',
                                   teamId: team.id,
                                   payload: { employee_id: manager.employee_id, employee_name: getEmployeeName(manager.employee_id), team_name: team.name },
-                                  label: `「${team.name}」から${getEmployeeName(manager.employee_id)}のマネージャー削除申請`,
+                                  label: `「${team.name}」から${getEmployeeName(manager.employee_id)}のマネジャー削除申請`,
                                 })
                                 setRequestComment('')
                               }}
@@ -1202,7 +1203,7 @@ export function TeamManager({
         </DialogContent>
       </Dialog>
 
-      {/* ===== メンバー/マネージャー追加ダイアログ (direct edit) ===== */}
+      {/* ===== メンバー/マネジャー追加ダイアログ (direct edit) ===== */}
       <Dialog open={addDialog !== null} onOpenChange={open => { if (!open) { setAddDialog(null); setSelectedEmployeeIds(new Set()); setNewManagerRole('secondary') } }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
@@ -1383,7 +1384,7 @@ export function TeamManager({
                     </select>
                     {requestManagerId !== effectiveEmployee.id && (
                       <p className="text-xs text-orange-600 mt-1">
-                        ※ 申請者以外をマネージャーに設定しています。コメントで理由を説明してください。
+                        ※ 申請者以外をマネジャーに設定しています。コメントで理由を説明してください。
                       </p>
                     )}
                   </div>

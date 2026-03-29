@@ -16,7 +16,7 @@ export type Database = {
           name: string
           email: string
           hire_date: string | null
-          role: 'employee' | 'manager' | 'admin' | 'ops_manager' | 'testuser'
+          role: 'employee' | 'store_manager' | 'manager' | 'admin' | 'ops_manager' | 'testuser'
           employment_type: '社員' | 'メイト'
           avatar_url: string | null
           instagram_url: string | null
@@ -30,7 +30,7 @@ export type Database = {
           name: string
           email: string
           hire_date?: string | null
-          role?: 'employee' | 'manager' | 'admin' | 'ops_manager' | 'testuser'
+          role?: 'employee' | 'store_manager' | 'manager' | 'admin' | 'ops_manager' | 'testuser'
           employment_type?: '社員' | 'メイト'
           avatar_url?: string | null
           instagram_url?: string | null
@@ -44,7 +44,7 @@ export type Database = {
           name?: string
           email?: string
           hire_date?: string | null
-          role?: 'employee' | 'manager' | 'admin' | 'ops_manager' | 'testuser'
+          role?: 'employee' | 'store_manager' | 'manager' | 'admin' | 'ops_manager' | 'testuser'
           employment_type?: '社員' | 'メイト'
           avatar_url?: string | null
           instagram_url?: string | null
@@ -656,7 +656,7 @@ export type LegacyPhase = '4月' | '5月〜6月' | '7月〜8月'
 // Phase は文字列に緩和
 export type Phase = string
 export type Category = string
-export type Role = 'employee' | 'manager' | 'admin' | 'ops_manager' | 'testuser'
+export type Role = 'employee' | 'store_manager' | 'manager' | 'admin' | 'ops_manager' | 'testuser'
 export type AchievementStatus = 'pending' | 'certified' | 'rejected'
 export type EmploymentType = '社員' | 'メイト'
 export type TeamType = 'store' | 'project'

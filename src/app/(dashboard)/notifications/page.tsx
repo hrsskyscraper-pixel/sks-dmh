@@ -16,7 +16,7 @@ export default async function NotificationsPage() {
 
   // view-as対応: 対象社員を特定
   const cookieStore = await cookies()
-  const canViewAs = ['manager', 'admin', 'ops_manager', 'testuser'].includes(currentEmployee.role)
+  const canViewAs = ['store_manager', 'manager', 'admin', 'ops_manager', 'testuser'].includes(currentEmployee.role)
   const viewAsId = canViewAs ? (cookieStore.get(VIEW_AS_COOKIE)?.value ?? null) : null
 
   let targetEmployee = currentEmployee
@@ -64,7 +64,7 @@ export default async function NotificationsPage() {
       : Promise.resolve({ data: [] as { id: string; achievement_id: string; employee_id: string; content: string; created_at: string }[] }),
     db.from('employees').select('id, name, avatar_url').order('name'),
     // マネージャー向け: 自分のチームの承認待ち申請のみ
-    ['manager'].includes(targetRole)
+    ['store_manager', 'manager'].includes(targetRole)
       ? (async () => {
           const { data: teamRows } = await db.from('team_managers').select('team_id').eq('employee_id', targetId)
           const teamIds = (teamRows ?? []).map(r => r.team_id)
@@ -79,7 +79,7 @@ export default async function NotificationsPage() {
             .order('achieved_at', { ascending: false })
             .limit(20)
         })()
-      : ['admin', 'ops_manager'].includes(targetRole)
+      : ['store_manager', 'admin', 'ops_manager'].includes(targetRole)
         ? db.from('achievements')
             .select('id, employee_id, skill_id, status, achieved_at, skills(name)')
             .eq('status', 'pending')

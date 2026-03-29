@@ -21,12 +21,13 @@ import { cn } from '@/lib/utils'
 import type { Employee, Role, EmploymentType, Team, TeamMember } from '@/types/database'
 
 // UI上の表示役割
-type DisplayRole = '開発者' | '運用管理者' | 'マネージャー' | '社員' | 'メイト'
+type DisplayRole = '開発者' | '運用管理者' | 'マネジャー' | '店長' | '社員' | 'メイト'
 
 function getDisplayRole(employee: Employee): DisplayRole {
   if (employee.role === 'admin') return '開発者'
   if (employee.role === 'ops_manager') return '運用管理者'
-  if (employee.role === 'manager') return 'マネージャー'
+  if (employee.role === 'manager') return 'マネジャー'
+  if (employee.role === 'store_manager') return '店長'
   if (employee.employment_type === 'メイト') return 'メイト'
   return '社員'
 }
@@ -53,7 +54,8 @@ interface Props {
 const DISPLAY_ROLE_COLORS: Record<DisplayRole, string> = {
   '開発者':     'bg-purple-100 text-purple-700',
   '運用管理者': 'bg-indigo-100 text-indigo-700',
-  'マネージャー': 'bg-blue-100 text-blue-700',
+  'マネジャー': 'bg-blue-100 text-blue-700',
+  '店長':       'bg-teal-100 text-teal-700',
   '社員':       'bg-gray-100 text-gray-700',
   'メイト':     'bg-violet-100 text-violet-700',
 }
@@ -61,7 +63,8 @@ const DISPLAY_ROLE_COLORS: Record<DisplayRole, string> = {
 const DISPLAY_ROLE_ICONS: Record<DisplayRole, React.ReactNode> = {
   '開発者':     <Crown className="w-3 h-3" />,
   '運用管理者': <Shield className="w-3 h-3" />,
-  'マネージャー': <Shield className="w-3 h-3" />,
+  'マネジャー': <Shield className="w-3 h-3" />,
+  '店長':       <Shield className="w-3 h-3" />,
   '社員':       <User className="w-3 h-3" />,
   'メイト':     <User className="w-3 h-3" />,
 }
@@ -69,17 +72,19 @@ const DISPLAY_ROLE_ICONS: Record<DisplayRole, React.ReactNode> = {
 const CARD_BG_COLORS: Record<DisplayRole, string> = {
   '開発者':     'bg-gray-200 border-gray-300',
   '運用管理者': 'bg-indigo-50 border-indigo-200',
-  'マネージャー': 'bg-blue-50 border-blue-200',
+  'マネジャー': 'bg-blue-50 border-blue-200',
+  '店長':       'bg-teal-50 border-teal-200',
   '社員':       'bg-green-50 border-green-200',
   'メイト':     'bg-pink-50 border-pink-200',
 }
 
-const ALL_DISPLAY_ROLES: DisplayRole[] = ['社員', 'メイト', 'マネージャー', '運用管理者', '開発者']
+const ALL_DISPLAY_ROLES: DisplayRole[] = ['社員', 'メイト', '店長', 'マネジャー', '運用管理者', '開発者']
 
 const DISPLAY_ROLE_ORDER: Record<DisplayRole, number> = {
   '社員':       0,
   'メイト':     1,
-  'マネージャー': 2,
+  '店長':       1.5,
+  'マネジャー': 2,
   '運用管理者': 3,
   '開発者':     4,
 }
@@ -102,7 +107,8 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, e
 
     if (displayRole === '開発者')           { role = 'admin';        employment_type = '社員' }
     else if (displayRole === '運用管理者') { role = 'ops_manager';  employment_type = '社員' }
-    else if (displayRole === 'マネージャー') { role = 'manager';     employment_type = '社員' }
+    else if (displayRole === 'マネジャー') { role = 'manager';     employment_type = '社員' }
+    else if (displayRole === '店長')       { role = 'store_manager'; employment_type = '社員' }
     else if (displayRole === 'メイト')     { role = 'employee';     employment_type = 'メイト' }
     else                                  { role = 'employee';     employment_type = '社員' }
 

@@ -20,7 +20,7 @@ export default async function SkillsPage({
   const supabase = await createClient()
 
   const cookieStore = await cookies()
-  const canViewAs = ['manager', 'admin', 'ops_manager', 'testuser'].includes(currentEmployee.role)
+  const canViewAs = ['store_manager', 'manager', 'admin', 'ops_manager', 'testuser'].includes(currentEmployee.role)
   const viewAsId = canViewAs ? (cookieStore.get(VIEW_AS_COOKIE)?.value ?? null) : null
 
   const db = currentEmployee.role === 'testuser' ? createAdminClient() : supabase

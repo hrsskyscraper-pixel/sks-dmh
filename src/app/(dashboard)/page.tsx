@@ -48,7 +48,7 @@ export default async function DashboardPage({
   const supabase = await createClient()
 
   const cookieStore = await cookies()
-  const canViewAs = ['manager', 'admin', 'ops_manager', 'testuser'].includes(currentEmployee.role)
+  const canViewAs = ['store_manager', 'manager', 'admin', 'ops_manager', 'testuser'].includes(currentEmployee.role)
   const viewAsId = canViewAs ? (cookieStore.get(VIEW_AS_COOKIE)?.value ?? null) : null
 
   // testuser で view-as 未設定 → ガイド画面を表示
@@ -98,10 +98,10 @@ export default async function DashboardPage({
 
   // pending件数（manager は内部で直列クエリが必要なため async IIFE で並列起動）
   const pendingCountsTask = (async (): Promise<{ pendingAchievementsCount: number; pendingTeamRequestsCount: number }> => {
-    if (!['manager', 'admin', 'ops_manager'].includes(effectiveRole)) {
+    if (!['store_manager', 'manager', 'admin', 'ops_manager'].includes(effectiveRole)) {
       return { pendingAchievementsCount: 0, pendingTeamRequestsCount: 0 }
     }
-    const achievementsCountP = effectiveRole === 'manager'
+    const achievementsCountP = (effectiveRole === 'store_manager' || effectiveRole === 'manager')
       ? (async () => {
           const { data: leaderTeamRows } = await db
             .from('team_managers').select('team_id').eq('employee_id', employee.id)

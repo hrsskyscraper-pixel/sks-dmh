@@ -7,7 +7,7 @@ import { CsvImport } from '@/components/admin/csv-import'
 
 export default async function CsvImportPage() {
   const employee = await getCurrentEmployee()
-  if (!employee || !['manager', 'admin', 'ops_manager', 'testuser'].includes(employee.role)) {
+  if (!employee || !['store_manager', 'manager', 'admin', 'ops_manager', 'testuser'].includes(employee.role)) {
     redirect('/')
   }
 
