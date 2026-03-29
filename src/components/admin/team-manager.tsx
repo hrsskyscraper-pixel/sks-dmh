@@ -67,7 +67,7 @@ const STATUS_LABELS: Record<TeamChangeRequest['status'], string> = {
 }
 
 function canDirectEdit(role: Role) {
-  return role === 'admin' || role === 'ops_manager'
+  return role === 'admin' || role === 'ops_manager' || role === 'executive'
 }
 
 export function TeamManager({
@@ -90,7 +90,7 @@ export function TeamManager({
   const supabase = createClient()
   // effectiveRole で権限を判定（view-as 中はそちらを優先）
   const isDirectEdit = canDirectEdit(effectiveRole)
-  const isReadOnly = !['store_manager', 'manager', 'admin', 'ops_manager'].includes(effectiveRole)
+  const isReadOnly = !['store_manager', 'manager', 'admin', 'ops_manager', 'executive'].includes(effectiveRole)
   // view-as 中は申請操作を無効化（requested_by が admin になってしまうため）
   const isViewAs = currentEmployee.id !== effectiveEmployee.id
 
@@ -209,9 +209,9 @@ export function TeamManager({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // マネジャー候補（manager/admin/ops_manager）
+  // マネジャー候補（manager/admin/ops_manager/executive）
   const managerCandidates = employees.filter(e =>
-    ['store_manager', 'manager', 'admin', 'ops_manager'].includes(e.role)
+    ['store_manager', 'manager', 'admin', 'ops_manager', 'executive'].includes(e.role)
   )
 
   // -------------------------------------------------------
@@ -521,6 +521,7 @@ export function TeamManager({
 
   const getDisplayRole = (emp: Pick<Employee, 'role' | 'employment_type'>) => {
     if (emp.role === 'admin') return '開発者'
+    if (emp.role === 'executive') return '役員'
     if (emp.role === 'ops_manager') return '運用管理者'
     if (emp.role === 'manager') return 'マネジャー'
     if (emp.role === 'store_manager') return '店長'
@@ -528,7 +529,7 @@ export function TeamManager({
   }
 
   const DISPLAY_ROLE_ORDER: Record<string, number> = {
-    '社員': 0, 'メイト': 1, '店長': 1.5, 'マネジャー': 2, '運用管理者': 3, '開発者': 4,
+    '社員': 0, 'メイト': 1, '店長': 1.5, 'マネジャー': 2, '運用管理者': 3, '役員': 3.5, '開発者': 4,
   }
 
   const sortEmployees = <T extends Pick<Employee, 'role' | 'employment_type' | 'name'>>(list: T[]) =>

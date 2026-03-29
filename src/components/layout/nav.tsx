@@ -10,14 +10,14 @@ import { useNotificationCount } from '@/components/layout/notification-context'
 import type { Role } from '@/types/database'
 
 const navItems = [
-  { href: '/',                 label: 'ダッシュボード', icon: LayoutDashboard,    roles: ['employee', 'store_manager', 'manager', 'admin', 'ops_manager', 'testuser'] },
-  { href: '/skills',           label: 'スキル',         icon: CheckSquare,        roles: ['employee', 'store_manager', 'manager', 'admin', 'ops_manager', 'testuser'] },
-  { href: '/timeline',         label: 'タイムライン',   icon: MessageSquare,      roles: ['employee', 'store_manager', 'manager', 'admin', 'ops_manager', 'testuser'] },
-  { href: '/team',             label: '認定',            icon: BadgeCheck,         roles: ['store_manager', 'manager', 'admin', 'ops_manager', 'testuser'] },
-  { href: '/admin/teams',      label: 'チーム',          icon: Building2,          roles: ['employee', 'store_manager', 'manager', 'admin', 'ops_manager', 'testuser'] },
-  { href: '/admin/employees',  label: 'メンバー',        icon: Users2,             roles: ['employee', 'store_manager', 'manager', 'admin', 'ops_manager', 'testuser'] },
-  { href: '/admin/csv-import', label: 'CSV取込',         icon: Upload,             roles: ['store_manager', 'manager', 'admin', 'ops_manager', 'testuser'] },
-  { href: '/admin/projects',   label: 'プロジェクト',     icon: FolderKanban,       roles: ['admin', 'ops_manager', 'testuser'] },
+  { href: '/',                 label: 'ダッシュボード', icon: LayoutDashboard,    roles: ['employee', 'store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'] },
+  { href: '/skills',           label: 'スキル',         icon: CheckSquare,        roles: ['employee', 'store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'] },
+  { href: '/timeline',         label: 'タイムライン',   icon: MessageSquare,      roles: ['employee', 'store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'] },
+  { href: '/team',             label: '認定',            icon: BadgeCheck,         roles: ['store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'] },
+  { href: '/admin/teams',      label: 'チーム',          icon: Building2,          roles: ['employee', 'store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'] },
+  { href: '/admin/employees',  label: 'メンバー',        icon: Users2,             roles: ['employee', 'store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'] },
+  { href: '/admin/csv-import', label: 'CSV取込',         icon: Upload,             roles: ['store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'] },
+  { href: '/admin/projects',   label: 'プロジェクト',     icon: FolderKanban,       roles: ['admin', 'ops_manager', 'executive', 'testuser'] },
 ] as const
 
 interface NavProps {

@@ -6,7 +6,7 @@ import { FolderKanban } from 'lucide-react'
 
 export default async function SettingsPage() {
   const currentEmployee = await getCurrentEmployee()
-  if (!currentEmployee || !['admin', 'ops_manager'].includes(currentEmployee.role)) {
+  if (!currentEmployee || !['admin', 'ops_manager', 'executive'].includes(currentEmployee.role)) {
     redirect('/')
   }
 

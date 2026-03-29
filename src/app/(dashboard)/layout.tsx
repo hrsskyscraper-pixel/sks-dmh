@@ -68,7 +68,7 @@ export default async function DashboardLayout({
 
   // viewAs Cookie の処理（manager/admin のみ有効）
   const cookieStore = await cookies()
-  const canViewAs = role === 'store_manager' || role === 'manager' || role === 'admin' || role === 'ops_manager' || role === 'testuser'
+  const canViewAs = role === 'store_manager' || role === 'manager' || role === 'admin' || role === 'ops_manager' || role === 'executive' || role === 'testuser'
   const viewAsId = canViewAs ? (cookieStore.get(VIEW_AS_COOKIE)?.value ?? null) : null
 
   // viewAs社員取得

@@ -18,6 +18,7 @@ export function TestUserGuide({ employees }: { employees: TestEmployee[] }) {
     store_manager: '店長',
     manager: 'マネジャー',
     admin: '開発者',
+    executive: '役員',
     ops_manager: '社内管理者',
   }
 
@@ -27,6 +28,7 @@ export function TestUserGuide({ employees }: { employees: TestEmployee[] }) {
     if (emp.role === 'store_manager') return 1.5
     if (emp.role === 'manager') return 2
     if (emp.role === 'ops_manager') return 3
+    if (emp.role === 'executive') return 3.5
     if (emp.role === 'admin') return 4
     return 5
   }

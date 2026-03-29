@@ -13,7 +13,7 @@ export default async function ProjectsPage() {
   const supabase = await createClient()
 
   const effectiveRole: Role = currentEmployee.role
-  if (!['admin', 'ops_manager', 'testuser'].includes(effectiveRole)) redirect('/')
+  if (!['admin', 'ops_manager', 'executive', 'testuser'].includes(effectiveRole)) redirect('/')
 
   const db = currentEmployee.role === 'testuser' ? createAdminClient() : supabase
 

@@ -16,7 +16,7 @@ export default async function NotificationsPage() {
 
   // view-as対応: 対象社員を特定
   const cookieStore = await cookies()
-  const canViewAs = ['store_manager', 'manager', 'admin', 'ops_manager', 'testuser'].includes(currentEmployee.role)
+  const canViewAs = ['store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'].includes(currentEmployee.role)
   const viewAsId = canViewAs ? (cookieStore.get(VIEW_AS_COOKIE)?.value ?? null) : null
 
   let targetEmployee = currentEmployee
@@ -79,7 +79,7 @@ export default async function NotificationsPage() {
             .order('achieved_at', { ascending: false })
             .limit(20)
         })()
-      : ['store_manager', 'admin', 'ops_manager'].includes(targetRole)
+      : ['store_manager', 'admin', 'ops_manager', 'executive'].includes(targetRole)
         ? db.from('achievements')
             .select('id, employee_id, skill_id, status, achieved_at, skills(name)')
             .eq('status', 'pending')

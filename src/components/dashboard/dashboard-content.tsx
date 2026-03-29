@@ -327,6 +327,7 @@ export function DashboardContent({
                 {employee.role === 'store_manager' && <span className="text-[10px] bg-teal-400/40 text-teal-100 rounded-full px-2 py-0.5 font-medium">店長</span>}
                 {employee.role === 'manager' && <span className="text-[10px] bg-blue-400/40 text-blue-100 rounded-full px-2 py-0.5 font-medium">マネジャー</span>}
                 {employee.role === 'ops_manager' && <span className="text-[10px] bg-purple-400/40 text-purple-100 rounded-full px-2 py-0.5 font-medium">運用管理者</span>}
+                {employee.role === 'executive' && <span className="text-[10px] bg-rose-400/40 text-rose-100 rounded-full px-2 py-0.5 font-medium">役員</span>}
                 {employee.role === 'admin' && <span className="text-[10px] bg-red-400/40 text-red-100 rounded-full px-2 py-0.5 font-medium">開発者</span>}
               </div>
             </div>

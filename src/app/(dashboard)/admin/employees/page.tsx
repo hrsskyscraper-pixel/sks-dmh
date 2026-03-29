@@ -29,7 +29,7 @@ export default async function EmployeesPage() {
     if (viewAsEmp) effectiveRole = viewAsEmp.role as Role
   }
 
-  const canEdit = ['admin', 'ops_manager'].includes(effectiveRole)
+  const canEdit = ['admin', 'ops_manager', 'executive'].includes(effectiveRole)
 
   const [
     { data: employees },

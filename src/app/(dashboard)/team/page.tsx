@@ -10,7 +10,7 @@ import { buildMilestoneMap, calcStandardPct } from '@/lib/milestone'
 
 export default async function TeamPage() {
   const currentEmployee = await getCurrentEmployee()
-  if (!currentEmployee || !['store_manager', 'manager', 'admin', 'ops_manager', 'testuser'].includes(currentEmployee.role)) {
+  if (!currentEmployee || !['store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'].includes(currentEmployee.role)) {
     redirect('/')
   }
 

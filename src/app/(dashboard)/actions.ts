@@ -18,7 +18,7 @@ export async function setViewAs(employeeId: string) {
     .eq('auth_user_id', user.id)
     .single()
 
-  if (!currentEmployee || !['store_manager', 'manager', 'admin', 'ops_manager', 'testuser'].includes(currentEmployee.role)) return
+  if (!currentEmployee || !['store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'].includes(currentEmployee.role)) return
 
   const cookieStore = await cookies()
   cookieStore.set(VIEW_AS_COOKIE, employeeId, { path: '/' })
@@ -44,7 +44,7 @@ export async function updateSkillCategory(skillId: string, newCategory: string):
     .eq('auth_user_id', user.id)
     .single()
 
-  if (!emp || !['admin', 'ops_manager', 'testuser'].includes(emp.role)) {
+  if (!emp || !['admin', 'ops_manager', 'executive', 'testuser'].includes(emp.role)) {
     return { error: '権限がありません' }
   }
 
@@ -89,7 +89,7 @@ export async function addCareerRecord(data: {
   if (!user) return { error: '認証エラー' }
 
   const { data: emp } = await supabase.from('employees').select('id, role').eq('auth_user_id', user.id).single()
-  if (!emp || !['store_manager', 'manager', 'admin', 'ops_manager', 'testuser'].includes(emp.role)) return { error: '権限がありません' }
+  if (!emp || !['store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'].includes(emp.role)) return { error: '権限がありません' }
 
   const adminDb = createAdminClient()
   const { error } = await adminDb.from('career_records').insert({
@@ -124,7 +124,7 @@ export async function updateSkillStandardHours(skillId: string, hours: number | 
     .eq('auth_user_id', user.id)
     .single()
 
-  if (!emp || !['admin', 'ops_manager', 'testuser'].includes(emp.role)) {
+  if (!emp || !['admin', 'ops_manager', 'executive', 'testuser'].includes(emp.role)) {
     return { error: '権限がありません' }
   }
 

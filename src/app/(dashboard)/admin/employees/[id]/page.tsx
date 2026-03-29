@@ -11,7 +11,7 @@ export default async function EmployeeDetailPage({ params }: { params: Promise<{
   const { id } = await params
 
   // 社員は自分のカルテのみ閲覧可能
-  const isAdmin = ['store_manager', 'manager', 'admin', 'ops_manager', 'testuser'].includes(currentEmployee.role)
+  const isAdmin = ['store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'].includes(currentEmployee.role)
   if (!isAdmin && currentEmployee.id !== id) redirect('/')
   const db = createAdminClient()
 

@@ -91,7 +91,7 @@ export function NotificationList({ reactions, comments, achievementMap, employee
 
   const items: NotificationItem[] = [...groupMap.values()]
 
-  if (['store_manager', 'manager', 'admin', 'ops_manager'].includes(currentRole)) {
+  if (['store_manager', 'manager', 'admin', 'ops_manager', 'executive'].includes(currentRole)) {
     for (const p of pendingForMe) {
       items.push({
         id: `p-${p.id}`, type: 'pending', employeeId: p.employee_id, achievementId: p.id,
