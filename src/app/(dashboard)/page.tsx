@@ -141,6 +141,7 @@ export default async function DashboardPage({
     { data: goalRows },
     { data: careerRows },
     { data: allEmployeesForCareer },
+    { data: teamMemberRows },
     { pendingAchievementsCount, pendingTeamRequestsCount },
   ] = await Promise.all([
     selectedProject
@@ -158,6 +159,7 @@ export default async function DashboardPage({
     db.from('goals').select('id, content, set_at, deadline').eq('employee_id', employee.id).order('created_at', { ascending: false }).limit(1),
     db.from('career_records').select('record_type, related_employee_ids').eq('employee_id', employee.id).in('record_type', ['面接', '採用', '育成']),
     db.from('employees').select('id, name').order('name'),
+    db.from('team_members').select('team_id, teams(name, type)').eq('employee_id', employee.id),
     pendingCountsTask,
   ])
 
@@ -233,6 +235,10 @@ export default async function DashboardPage({
             if (names.length > 0) summary[r.record_type] = names
           }
           return summary
+        })()}
+        storeName={(() => {
+          const storeTeam = (teamMemberRows ?? []).find((m: { teams: { type: string } | null }) => m.teams?.type === 'store')
+          return (storeTeam as { teams: { name: string } } | undefined)?.teams?.name ?? null
         })()}
       />
       <Suspense fallback={<TeamRankingSkeleton />}>

@@ -98,6 +98,14 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, e
   const [employees, setEmployees] = useState(initialEmployees)
   const [isPending, startTransition] = useTransition()
   const [uploadingId, setUploadingId] = useState<string | null>(null)
+
+  // 店舗マッピング
+  const storeTeams = teams.filter(t => t.type === 'store')
+  const storeTeamById = Object.fromEntries(storeTeams.map(t => [t.id, t.name]))
+  const storeByEmployee: Record<string, string> = {}
+  for (const m of teamMembers) {
+    if (storeTeamById[m.team_id]) storeByEmployee[m.employee_id] = storeTeamById[m.team_id]
+  }
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null)
   const supabase = createClient()
 
@@ -280,7 +288,12 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, e
                       {displayRole}
                     </Badge>
                   </div>
-                  <p className="text-xs text-muted-foreground truncate">{employee.email}</p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-xs text-muted-foreground truncate">{employee.email}</p>
+                    {storeByEmployee[employee.id] && (
+                      <Badge className="text-[9px] bg-blue-50 text-blue-600 border-0 flex-shrink-0">{storeByEmployee[employee.id]}</Badge>
+                    )}
+                  </div>
                   {/* 入社日 + 入社X年目バッジ */}
                   {employee.hire_date && (
                     <div className="flex items-center gap-1.5 mt-0.5">

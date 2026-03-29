@@ -46,6 +46,7 @@ interface Props {
   currentGoal: Pick<Goal, 'id' | 'content' | 'set_at' | 'deadline'> | null
   isOwnDashboard: boolean
   careerSummary?: Record<string, string[]>
+  storeName?: string | null
 }
 
 const PHASE_COLORS = ['bg-orange-500', 'bg-amber-500', 'bg-red-500', 'bg-blue-500', 'bg-green-500', 'bg-purple-500']
@@ -100,7 +101,7 @@ export function DashboardContent({
   projectPhases, skillPhaseMap, currentProject, employeeProjects,
   unreadNotifications: initialNotifications,
   pendingAchievementsCount = 0, pendingTeamRequestsCount = 0,
-  currentGoal: initialGoal, isOwnDashboard, careerSummary = {}
+  currentGoal: initialGoal, isOwnDashboard, careerSummary = {}, storeName = null
 }: Props) {
   const [achievementList, setAchievementList] = useState(initialAchievements)
   const [notifications, setNotifications] = useState(initialNotifications)
@@ -322,8 +323,11 @@ export function DashboardContent({
                   <span className="text-[10px] bg-white/15 text-orange-50 rounded-full px-2 py-0.5">{fmtHireDate(employee.hire_date)} 入社</span>
                 )}
                 <span className="text-[10px] bg-white/25 text-white font-semibold rounded-full px-2 py-0.5">{calcHireYear(employee.hire_date)}年目</span>
+                {storeName && (
+                  <span className="text-[10px] bg-white/20 text-white rounded-full px-2 py-0.5">{storeName}</span>
+                )}
                 {currentProject && (
-                  <span className="text-[10px] bg-white/20 text-white rounded-full px-2 py-0.5">{currentProject.name}</span>
+                  <span className="text-[10px] bg-white/15 text-orange-100 rounded-full px-2 py-0.5">{currentProject.name}</span>
                 )}
                 {employee.role === 'store_manager' && <span className="text-[10px] bg-teal-400/40 text-teal-100 rounded-full px-2 py-0.5 font-medium">店長</span>}
                 {employee.role === 'manager' && <span className="text-[10px] bg-blue-400/40 text-blue-100 rounded-full px-2 py-0.5 font-medium">マネジャー</span>}

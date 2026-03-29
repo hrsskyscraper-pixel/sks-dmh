@@ -51,15 +51,19 @@ export default async function EmployeeDetailPage({ params }: { params: Promise<{
     { data: employee },
     { data: careerRecords },
     { data: allEmployees },
+    { data: teamMemberRows },
   ] = await Promise.all([
     db.from('employees').select('id, name, email, role, employment_type, hire_date, avatar_url, instagram_url').eq('id', id).single(),
     db.from('career_records').select('*').eq('employee_id', id).order('occurred_at', { ascending: false }),
     db.from('employees').select('id, name, avatar_url').order('name'),
+    db.from('team_members').select('team_id, teams(name, type)').eq('employee_id', id),
   ])
 
   if (!employee) redirect('/admin/employees')
 
   const employeeMap = Object.fromEntries((allEmployees ?? []).map(e => [e.id, e]))
+  const storeTeam = (teamMemberRows ?? []).find((m: { teams: { type: string } | null }) => m.teams?.type === 'store')
+  const storeName = (storeTeam as { teams: { name: string } } | undefined)?.teams?.name ?? null
 
   return (
     <>
@@ -70,6 +74,7 @@ export default async function EmployeeDetailPage({ params }: { params: Promise<{
         employeeMap={employeeMap}
         allEmployees={allEmployees ?? []}
         canEdit={canEdit}
+        storeName={storeName}
       />
     </>
   )

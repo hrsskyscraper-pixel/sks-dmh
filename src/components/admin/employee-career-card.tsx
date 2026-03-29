@@ -34,9 +34,10 @@ interface Props {
   employeeMap: Record<string, EmployeeInfo>
   allEmployees: EmployeeInfo[]
   canEdit: boolean
+  storeName?: string | null
 }
 
-export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEmployees, canEdit }: Props) {
+export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEmployees, canEdit, storeName }: Props) {
   const [isPending, startTransition] = useTransition()
   const [employeeName, setEmployeeName] = useState(employee.name)
   const [nameDialogOpen, setNameDialogOpen] = useState(false)
@@ -151,8 +152,11 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
                 )}
               </div>
               <p className="text-sm text-gray-500">{employee.email}</p>
-              <div className="flex gap-1.5 mt-1">
+              <div className="flex gap-1.5 mt-1 flex-wrap">
                 <Badge className="text-[10px] bg-orange-100 text-orange-700 border-0">{employee.employment_type}</Badge>
+                {storeName && (
+                  <Badge className="text-[10px] bg-blue-50 text-blue-600 border-0">{storeName}</Badge>
+                )}
                 {employee.hire_date && (
                   <Badge className="text-[10px] bg-gray-100 text-gray-600 border-0">
                     {employee.hire_date} 入社
