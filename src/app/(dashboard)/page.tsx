@@ -15,7 +15,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card'
 
 function TeamRankingSkeleton() {
   return (
-    <Card className="mx-4 mb-4">
+    <Card className="mx-4">
       <CardHeader className="pb-3 pt-4 px-4">
         <div className="h-4 w-32 bg-gray-200 rounded animate-pulse" />
       </CardHeader>
@@ -227,12 +227,14 @@ export default async function DashboardPage({
           selectedProjectId={selectedProject?.id ?? null}
         />
       </Suspense>
-      <Suspense fallback={<div className="px-4 py-8 text-center text-sm text-muted-foreground animate-pulse">タイムラインを読み込み中...</div>}>
-        <TimelineServer
-          employeeId={employee.id}
-          employeeRole={currentEmployee.role}
-        />
-      </Suspense>
+      <div className="mt-4">
+        <Suspense fallback={<div className="px-4 py-8 text-center text-sm text-muted-foreground animate-pulse">タイムラインを読み込み中...</div>}>
+          <TimelineServer
+            employeeId={employee.id}
+            employeeRole={currentEmployee.role}
+          />
+        </Suspense>
+      </div>
     </>
   )
 }
