@@ -427,7 +427,16 @@ export function ProjectManager({
                 <p className="text-xs text-muted-foreground text-center py-2">先にフェーズを作成してください</p>
               )}
               {categories.map(category => {
-                const catSkills = skillsState.filter(s => s.category === category)
+                const catSkills = skillsState
+                  .filter(s => s.category === category)
+                  .sort((a, b) => {
+                    const phaseA = selectedPhases.find(p => p.id === skillPhaseMap[a.id])
+                    const phaseB = selectedPhases.find(p => p.id === skillPhaseMap[b.id])
+                    const orderA = phaseA?.order_index ?? 9999
+                    const orderB = phaseB?.order_index ?? 9999
+                    if (orderA !== orderB) return orderA - orderB
+                    return a.order_index - b.order_index
+                  })
                 if (catSkills.length === 0) return null
                 return (
                   <div key={category}>
