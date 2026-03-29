@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useCallback } from 'react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -115,6 +116,27 @@ export function NotificationList({ reactions, comments, achievementMap, employee
 
   items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 
+  // 個別既読管理（localStorage）
+  const STORAGE_KEY = 'notif_read_ids'
+  const getReadIds = (): Set<string> => {
+    try {
+      return new Set(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]'))
+    } catch { return new Set() }
+  }
+  const [readIds, setReadIds] = useState<Set<string>>(() => getReadIds())
+
+  const markAsRead = useCallback((id: string) => {
+    setReadIds(prev => {
+      const next = new Set(prev)
+      next.add(id)
+      // 最新200件だけ保持
+      const arr = [...next]
+      const trimmed = arr.length > 200 ? arr.slice(arr.length - 200) : arr
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed))
+      return new Set(trimmed)
+    })
+  }, [])
+
   if (items.length === 0) {
     return (
       <div className="p-8 text-center text-sm text-muted-foreground">
@@ -130,9 +152,10 @@ export function NotificationList({ reactions, comments, achievementMap, employee
         const href = item.type === 'pending'
           ? '/team?tab=pending'
           : `/timeline#achievement-${item.achievementId}`
+        const isUnread = item.isNew && !readIds.has(item.id)
         return (
-          <Link key={item.id} href={href}>
-            <Card className={cn('hover:shadow-md transition-shadow cursor-pointer', item.isNew && 'border-orange-200 bg-orange-50/50')}>
+          <Link key={item.id} href={href} onClick={() => markAsRead(item.id)}>
+            <Card className={cn('hover:shadow-md transition-shadow cursor-pointer', isUnread ? 'border-orange-200 bg-orange-50/50' : '')}>
               <CardContent className="py-3 px-4">
               <div className="flex items-start gap-2.5">
                 <Avatar className="w-8 h-8 flex-shrink-0 mt-0.5">
@@ -165,7 +188,7 @@ export function NotificationList({ reactions, comments, achievementMap, employee
                   </p>
                   <div className="flex items-center gap-2 mt-0.5">
                     <span className="text-[10px] text-gray-400">{timeAgo(item.createdAt)}</span>
-                    {item.isNew && <Badge className="text-[9px] bg-orange-500 text-white border-0 h-4 px-1.5">NEW</Badge>}
+                    {isUnread && <Badge className="text-[9px] bg-orange-500 text-white border-0 h-4 px-1.5">NEW</Badge>}
                   </div>
                 </div>
               </div>
