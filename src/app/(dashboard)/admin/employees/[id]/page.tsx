@@ -9,11 +9,43 @@ export default async function EmployeeDetailPage({ params }: { params: Promise<{
   if (!currentEmployee) redirect('/login')
 
   const { id } = await params
-
-  // 社員は自分のカルテのみ閲覧可能
-  const isAdmin = ['store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'].includes(currentEmployee.role)
-  if (!isAdmin && currentEmployee.id !== id) redirect('/')
   const db = createAdminClient()
+  const role = currentEmployee.role
+
+  // アクセス権限チェック
+  const isFullAccess = ['admin', 'ops_manager', 'executive', 'testuser'].includes(role)
+  const isTeamAccess = ['manager', 'store_manager'].includes(role)
+  const isSelfOnly = !isFullAccess && !isTeamAccess
+
+  if (isSelfOnly && currentEmployee.id !== id) redirect('/')
+
+  // マネジャー・店長: 自チーム/プロジェクトのメンバーのみ
+  if (isTeamAccess && currentEmployee.id !== id) {
+    const [{ data: myTeams }, { data: myProjects }] = await Promise.all([
+      db.from('team_managers').select('team_id').eq('employee_id', currentEmployee.id),
+      db.from('employee_projects').select('project_id').eq('employee_id', currentEmployee.id),
+    ])
+    const myTeamIds = (myTeams ?? []).map(t => t.team_id)
+    const myProjectIds = (myProjects ?? []).map(p => p.project_id)
+
+    const [{ data: teamMembers }, { data: projectMembers }] = await Promise.all([
+      myTeamIds.length > 0
+        ? db.from('team_members').select('employee_id').in('team_id', myTeamIds)
+        : Promise.resolve({ data: [] }),
+      myProjectIds.length > 0
+        ? db.from('employee_projects').select('employee_id').in('project_id', myProjectIds)
+        : Promise.resolve({ data: [] }),
+    ])
+
+    const accessibleIds = new Set([
+      ...(teamMembers ?? []).map(m => m.employee_id),
+      ...(projectMembers ?? []).map(m => m.employee_id),
+      currentEmployee.id,
+    ])
+    if (!accessibleIds.has(id)) redirect('/admin/employees')
+  }
+
+  const canEdit = isFullAccess || isTeamAccess
 
   const [
     { data: employee },
@@ -37,7 +69,7 @@ export default async function EmployeeDetailPage({ params }: { params: Promise<{
         careerRecords={careerRecords ?? []}
         employeeMap={employeeMap}
         allEmployees={allEmployees ?? []}
-        canEdit={isAdmin}
+        canEdit={canEdit}
       />
     </>
   )

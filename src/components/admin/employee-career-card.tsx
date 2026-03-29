@@ -221,6 +221,14 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
                       {record.notes && (
                         <p className="text-sm text-gray-600">{record.notes}</p>
                       )}
+                      {/* 記録者・記録日時 */}
+                      <p className="text-[10px] text-gray-300 mt-1">
+                        {record.created_by && employeeMap[record.created_by]
+                          ? `${employeeMap[record.created_by].name} が記録`
+                          : '記録'}
+                        {' · '}
+                        {new Date(record.created_at).toLocaleDateString('ja-JP')}
+                      </p>
                     </div>
                     {canEdit && (
                       <div className="flex gap-0.5 flex-shrink-0">
