@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/select'
 import { Plus, Pencil, Archive, ArchiveRestore, Trash2, GripVertical, UserMinus, UserPlus } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { updateSkillCategory, updateSkillStandardHours, updateSkillName, toggleSkillCheckpoint, createSkill, deleteSkill, reorderSkills } from '@/app/(dashboard)/actions'
+import { updateSkillCategory, updateSkillStandardHours, updateSkillName, toggleSkillCheckpoint, createSkill, deleteSkill, reorderSkills, updateSkillTargetDate } from '@/app/(dashboard)/actions'
 import { sortCategories } from '@/lib/category-order'
 import { cn } from '@/lib/utils'
 import type { SkillProject, ProjectPhase, ProjectSkill, EmployeeProject, Skill, Employee } from '@/types/database'
@@ -332,6 +332,15 @@ export function ProjectManager({
     })
   }
 
+  function handleChangeTargetDate(skillId: string, value: string) {
+    const date = value || null
+    setSkillsState(prev => prev.map(s => s.id === skillId ? { ...s, target_date_hint: date } : s))
+    startTransition(async () => {
+      const result = await updateSkillTargetDate(skillId, date)
+      if (result.error) toast.error(result.error)
+    })
+  }
+
   function handleRenameSkill(skillId: string, newName: string) {
     if (!newName.trim()) return
     setSkillsState(prev => prev.map(s => s.id === skillId ? { ...s, name: newName.trim() } : s))
@@ -560,25 +569,27 @@ export function ProjectManager({
                               className="flex-1 text-sm text-gray-800 min-w-0 bg-transparent border-b border-transparent hover:border-gray-300 focus:border-orange-400 focus:outline-none px-0.5 py-0"
                               disabled={isPending}
                             />
-                            <Select
-                              value={skill.category}
-                              onValueChange={v => {
-                                if (v === '__new__') { setNewCategoryForSkillId(skill.id); setShowNewCategoryInput(true); return }
-                                handleChangeSkillCategory(skill.id, v)
-                              }}
-                              disabled={isPending}
-                            >
-                              <SelectTrigger className="h-7 text-xs w-24 flex-shrink-0">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {categories.map(c => (
-                                  <SelectItem key={c} value={c}>{c}</SelectItem>
-                                ))}
-                                <SelectItem value="__new__">+ 新規追加</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <div className="flex items-center gap-0.5 flex-shrink-0">
+                            <div title="カテゴリ">
+                              <Select
+                                value={skill.category}
+                                onValueChange={v => {
+                                  if (v === '__new__') { setNewCategoryForSkillId(skill.id); setShowNewCategoryInput(true); return }
+                                  handleChangeSkillCategory(skill.id, v)
+                                }}
+                                disabled={isPending}
+                              >
+                                <SelectTrigger className="h-7 text-xs w-24 flex-shrink-0">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {categories.map(c => (
+                                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                                  ))}
+                                  <SelectItem value="__new__">+ 新規追加</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="flex items-center gap-0.5 flex-shrink-0" title="標準習得時間">
                               <Input
                                 type="number"
                                 min={0}
@@ -591,22 +602,33 @@ export function ProjectManager({
                               <span className="text-[10px] text-gray-400">h</span>
                             </div>
                             {isChecked && selectedPhases.length > 0 && (
-                              <Select
-                                value={currentPhaseId ?? 'none'}
-                                onValueChange={v => handleChangeSkillPhase(skill.id, v === 'none' ? null : v)}
-                                disabled={isPending}
-                              >
-                                <SelectTrigger className="h-7 text-xs w-32 flex-shrink-0">
-                                  <SelectValue placeholder="フェーズ未設定" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="none">未設定</SelectItem>
-                                  {selectedPhases.map(phase => (
-                                    <SelectItem key={phase.id} value={phase.id}>{phase.name}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                              <div title="フェーズ">
+                                <Select
+                                  value={currentPhaseId ?? 'none'}
+                                  onValueChange={v => handleChangeSkillPhase(skill.id, v === 'none' ? null : v)}
+                                  disabled={isPending}
+                                >
+                                  <SelectTrigger className="h-7 text-xs w-28 flex-shrink-0">
+                                    <SelectValue placeholder="フェーズ未設定" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="none">未設定</SelectItem>
+                                    {selectedPhases.map(phase => (
+                                      <SelectItem key={phase.id} value={phase.id}>{phase.name}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
                             )}
+                            <div title="予定日">
+                              <Input
+                                type="date"
+                                value={skill.target_date_hint ?? ''}
+                                onChange={e => handleChangeTargetDate(skill.id, e.target.value)}
+                                className="h-7 text-xs w-32 flex-shrink-0"
+                                disabled={isPending}
+                              />
+                            </div>
                             <Button
                               variant="ghost" size="sm"
                               className="h-7 w-7 p-0 text-gray-300 hover:text-red-500 flex-shrink-0"

@@ -172,6 +172,17 @@ export async function updateSkillStandardHours(skillId: string, hours: number | 
   return {}
 }
 
+export async function updateSkillTargetDate(skillId: string, date: string | null): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: '認証エラー' }
+
+  const adminDb = createAdminClient()
+  const { error } = await adminDb.from('skills').update({ target_date_hint: date }).eq('id', skillId)
+  if (error) return { error: error.message }
+  return {}
+}
+
 export async function updateSkillName(skillId: string, newName: string): Promise<{ error?: string }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
