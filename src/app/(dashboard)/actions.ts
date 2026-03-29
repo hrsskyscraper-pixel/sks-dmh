@@ -117,6 +117,24 @@ export async function addCareerRecord(data: {
   return {}
 }
 
+export async function updateCareerRecord(recordId: string, employeeId: string, data: {
+  record_type: string
+  occurred_at: string | null
+  related_employee_ids: string[]
+  department: string | null
+  notes: string | null
+}): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: '認証エラー' }
+
+  const adminDb = createAdminClient()
+  const { error } = await adminDb.from('career_records').update(data).eq('id', recordId)
+  if (error) return { error: error.message }
+  revalidatePath(`/admin/employees/${employeeId}`)
+  return {}
+}
+
 export async function deleteCareerRecord(recordId: string, employeeId: string): Promise<{ error?: string }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()

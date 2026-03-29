@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 import { Plus, Trash2, ArrowLeft, Users, Briefcase, GraduationCap, MapPin, ArrowRightLeft, FileText, Pencil } from 'lucide-react'
-import { addCareerRecord, deleteCareerRecord, updateEmployeeName } from '@/app/(dashboard)/actions'
+import { addCareerRecord, updateCareerRecord, deleteCareerRecord, updateEmployeeName } from '@/app/(dashboard)/actions'
 import Link from 'next/link'
 import type { CareerRecord } from '@/types/database'
 
@@ -42,6 +42,7 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
   const [nameDialogOpen, setNameDialogOpen] = useState(false)
   const [nameInput, setNameInput] = useState(employee.name)
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [editingRecordId, setEditingRecordId] = useState<string | null>(null)
   const [formType, setFormType] = useState('面接')
   const [formDate, setFormDate] = useState('')
   const [formPeople, setFormPeople] = useState<string[]>([])
@@ -55,18 +56,20 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
     e.name.toLowerCase().includes(personSearch.toLowerCase())
   )
 
-  const handleAdd = () => {
+  const handleSave = () => {
     startTransition(async () => {
-      const result = await addCareerRecord({
-        employee_id: employee.id,
+      const data = {
         record_type: formType,
         occurred_at: formDate || null,
         related_employee_ids: formPeople,
         department: formDept.trim() || null,
         notes: formNotes.trim() || null,
-      })
+      }
+      const result = editingRecordId
+        ? await updateCareerRecord(editingRecordId, employee.id, data)
+        : await addCareerRecord({ ...data, employee_id: employee.id })
       if (result.error) { toast.error(result.error); return }
-      toast.success('記録を追加しました')
+      toast.success(editingRecordId ? '記録を更新しました' : '記録を追加しました')
       setDialogOpen(false)
       resetForm()
       router.refresh()
@@ -84,6 +87,7 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
   }
 
   const resetForm = () => {
+    setEditingRecordId(null)
     setFormType('面接')
     setFormDate('')
     setFormPeople([])
@@ -95,6 +99,17 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
   const openDialog = (type?: string) => {
     resetForm()
     if (type) setFormType(type)
+    setDialogOpen(true)
+  }
+
+  const openEditDialog = (record: CareerRecord) => {
+    setEditingRecordId(record.id)
+    setFormType(record.record_type)
+    setFormDate(record.occurred_at ?? '')
+    setFormPeople(record.related_employee_ids ?? [])
+    setFormDept(record.department ?? '')
+    setFormNotes(record.notes ?? '')
+    setPersonSearch('')
     setDialogOpen(true)
   }
 
@@ -203,10 +218,16 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
                       )}
                     </div>
                     {canEdit && (
-                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-gray-300 hover:text-red-500 flex-shrink-0"
-                        onClick={() => handleDelete(record.id)} disabled={isPending}>
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
+                      <div className="flex gap-0.5 flex-shrink-0">
+                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-gray-300 hover:text-orange-500"
+                          onClick={() => openEditDialog(record)} disabled={isPending}>
+                          <Pencil className="w-3 h-3" />
+                        </Button>
+                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-gray-300 hover:text-red-500"
+                          onClick={() => handleDelete(record.id)} disabled={isPending}>
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -251,7 +272,7 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
       {/* 追加ダイアログ */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>キャリア記録を追加</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editingRecordId ? 'キャリア記録を編集' : 'キャリア記録を追加'}</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div>
               <p className="text-xs font-medium text-gray-600 mb-1">種別</p>
@@ -317,7 +338,7 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>キャンセル</Button>
-            <Button onClick={handleAdd} disabled={isPending} className="bg-orange-500 hover:bg-orange-600 text-white">追加</Button>
+            <Button onClick={handleSave} disabled={isPending} className="bg-orange-500 hover:bg-orange-600 text-white">{editingRecordId ? '更新' : '追加'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
