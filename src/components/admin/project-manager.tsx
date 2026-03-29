@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/select'
 import { Plus, Pencil, Archive, ArchiveRestore, Trash2, GripVertical, UserMinus, UserPlus } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { updateSkillCategory } from '@/app/(dashboard)/actions'
+import { updateSkillCategory, updateSkillStandardHours } from '@/app/(dashboard)/actions'
 import { sortCategories } from '@/lib/category-order'
 import { cn } from '@/lib/utils'
 import type { SkillProject, ProjectPhase, ProjectSkill, EmployeeProject, Skill, Employee } from '@/types/database'
@@ -260,6 +260,16 @@ export function ProjectManager({
     })
   }
 
+  function handleChangeStandardHours(skillId: string, value: string) {
+    const hours = value === '' ? null : parseInt(value, 10)
+    if (value !== '' && isNaN(hours as number)) return
+    setSkillsState(prev => prev.map(s => s.id === skillId ? { ...s, standard_hours: hours } : s))
+    startTransition(async () => {
+      const result = await updateSkillStandardHours(skillId, hours)
+      if (result.error) toast.error(`保存に失敗: ${result.error}`)
+    })
+  }
+
   // ===== メンバー操作 =====
 
   function handleToggleMember(employeeId: string, isMember: boolean) {
@@ -444,6 +454,18 @@ export function ProjectManager({
                                 <SelectItem value="__new__">+ 新規追加</SelectItem>
                               </SelectContent>
                             </Select>
+                            <div className="flex items-center gap-0.5 flex-shrink-0">
+                              <Input
+                                type="number"
+                                min={0}
+                                placeholder="-"
+                                value={skill.standard_hours ?? ''}
+                                onChange={e => handleChangeStandardHours(skill.id, e.target.value)}
+                                className="h-7 text-xs w-14 text-right"
+                                disabled={isPending}
+                              />
+                              <span className="text-[10px] text-gray-400">h</span>
+                            </div>
                             {isChecked && selectedPhases.length > 0 && (
                               <Select
                                 value={currentPhaseId ?? 'none'}

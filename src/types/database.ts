@@ -363,6 +363,7 @@ export type Database = {
           category: string
           order_index: number
           target_date_hint: string | null
+          standard_hours: number | null
           created_at: string
         }
         Insert: {
@@ -372,6 +373,7 @@ export type Database = {
           category: string
           order_index?: number
           target_date_hint?: string | null
+          standard_hours?: number | null
           created_at?: string
         }
         Update: {
@@ -381,6 +383,7 @@ export type Database = {
           category?: string
           order_index?: number
           target_date_hint?: string | null
+          standard_hours?: number | null
           created_at?: string
         }
         Relationships: []
