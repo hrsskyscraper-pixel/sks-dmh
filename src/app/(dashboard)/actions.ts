@@ -63,11 +63,14 @@ export async function markNotificationsRead(): Promise<{ error?: string }> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '認証エラー' }
 
+  // view-as中は対象社員のnotifications_read_atを更新
+  const cookieStore = await cookies()
+  const viewAsId = cookieStore.get(VIEW_AS_COOKIE)?.value ?? null
+
   const adminDb = createAdminClient()
-  const { error } = await adminDb
-    .from('employees')
-    .update({ notifications_read_at: new Date().toISOString() })
-    .eq('auth_user_id', user.id)
+  const { error } = viewAsId
+    ? await adminDb.from('employees').update({ notifications_read_at: new Date().toISOString() }).eq('id', viewAsId)
+    : await adminDb.from('employees').update({ notifications_read_at: new Date().toISOString() }).eq('auth_user_id', user.id)
 
   if (error) return { error: error.message }
   return {}
