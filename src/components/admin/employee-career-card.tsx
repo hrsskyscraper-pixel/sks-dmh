@@ -12,8 +12,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
-import { Plus, Trash2, ArrowLeft, Users, Briefcase, GraduationCap, MapPin, ArrowRightLeft, FileText } from 'lucide-react'
-import { addCareerRecord, deleteCareerRecord } from '@/app/(dashboard)/actions'
+import { Plus, Trash2, ArrowLeft, Users, Briefcase, GraduationCap, MapPin, ArrowRightLeft, FileText, Pencil } from 'lucide-react'
+import { addCareerRecord, deleteCareerRecord, updateEmployeeName } from '@/app/(dashboard)/actions'
 import Link from 'next/link'
 import type { CareerRecord } from '@/types/database'
 
@@ -38,6 +38,9 @@ interface Props {
 
 export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEmployees, canEdit }: Props) {
   const [isPending, startTransition] = useTransition()
+  const [employeeName, setEmployeeName] = useState(employee.name)
+  const [nameDialogOpen, setNameDialogOpen] = useState(false)
+  const [nameInput, setNameInput] = useState(employee.name)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [formType, setFormType] = useState('面接')
   const [formDate, setFormDate] = useState('')
@@ -119,7 +122,14 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
               <AvatarFallback className="bg-orange-100 text-orange-700 text-xl font-bold">{employee.name.charAt(0)}</AvatarFallback>
             </Avatar>
             <div>
-              <h2 className="text-xl font-bold text-gray-800">{employee.name}</h2>
+              <div className="flex items-center gap-1.5">
+                <h2 className="text-xl font-bold text-gray-800">{employeeName}</h2>
+                {canEdit && (
+                  <button onClick={() => { setNameInput(employeeName); setNameDialogOpen(true) }} className="text-gray-300 hover:text-orange-500 transition-colors">
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
               <p className="text-sm text-gray-500">{employee.email}</p>
               <div className="flex gap-1.5 mt-1">
                 <Badge className="text-[10px] bg-orange-100 text-orange-700 border-0">{employee.employment_type}</Badge>
@@ -212,6 +222,31 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
           まだキャリア記録がありません
         </div>
       )}
+
+      {/* 名前編集ダイアログ */}
+      <Dialog open={nameDialogOpen} onOpenChange={setNameDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>名前を変更</DialogTitle></DialogHeader>
+          <Input value={nameInput} onChange={e => setNameInput(e.target.value)} className="text-sm" />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNameDialogOpen(false)}>キャンセル</Button>
+            <Button
+              disabled={isPending || !nameInput.trim() || nameInput.trim() === employeeName}
+              className="bg-orange-500 hover:bg-orange-600 text-white"
+              onClick={() => {
+                startTransition(async () => {
+                  const result = await updateEmployeeName(employee.id, nameInput.trim())
+                  if (result.error) { toast.error(result.error); return }
+                  setEmployeeName(nameInput.trim())
+                  setNameDialogOpen(false)
+                  toast.success('名前を変更しました')
+                  router.refresh()
+                })
+              }}
+            >変更</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* 追加ダイアログ */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

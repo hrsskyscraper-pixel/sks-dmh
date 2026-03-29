@@ -33,6 +33,22 @@ export async function clearViewAs() {
   redirect('/')
 }
 
+export async function updateEmployeeName(employeeId: string, newName: string): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: '認証エラー' }
+
+  const { data: emp } = await supabase.from('employees').select('role').eq('auth_user_id', user.id).single()
+  if (!emp || !['admin', 'ops_manager', 'executive', 'testuser'].includes(emp.role)) return { error: '権限がありません' }
+
+  const adminDb = createAdminClient()
+  const { error } = await adminDb.from('employees').update({ name: newName.trim() }).eq('id', employeeId)
+  if (error) return { error: error.message }
+  revalidatePath('/admin/employees')
+  revalidatePath(`/admin/employees/${employeeId}`)
+  return {}
+}
+
 export async function updateSkillCategory(skillId: string, newCategory: string): Promise<{ error?: string }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
