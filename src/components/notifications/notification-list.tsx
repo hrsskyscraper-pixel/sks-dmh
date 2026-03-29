@@ -1,13 +1,8 @@
 'use client'
 
-import { useState, useCallback, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useCallback } from 'react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
-import { markNotificationsRead } from '@/app/(dashboard)/actions'
 import Link from 'next/link'
 
 interface EmployeeInfo { id: string; name: string; avatar_url: string | null }
@@ -21,7 +16,6 @@ interface Props {
   pendingForMe: { id: string; employee_id: string; skill_id: string; status: string; achieved_at: string; skills: { name: string } | null }[]
   currentRole: string
   notificationsReadAt: string | null
-  canMarkAllRead?: boolean
 }
 
 function timeAgo(dateStr: string): string {
@@ -48,12 +42,17 @@ type NotificationItem = {
   isNew: boolean
 }
 
-export function NotificationList({ reactions, comments, achievementMap, employeeMap, pendingForMe, currentRole, notificationsReadAt, canMarkAllRead = false }: Props) {
-  const [isPending, startTransition] = useTransition()
-  const router = useRouter()
+const STORAGE_KEY = 'notif_clicked_ids'
+
+function getClickedIds(): Set<string> {
+  try { return new Set(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]')) }
+  catch { return new Set() }
+}
+
+export function NotificationList({ reactions, comments, achievementMap, employeeMap, pendingForMe, currentRole, notificationsReadAt }: Props) {
   const readAt = notificationsReadAt ? new Date(notificationsReadAt).getTime() : 0
 
-  // 同じスキル×同じ人のリアクション・コメントをグルーピング
+  // 同じスキル×同じ人をグルーピング
   const groupMap = new Map<string, NotificationItem>()
 
   for (const r of reactions) {
@@ -66,15 +65,9 @@ export function NotificationList({ reactions, comments, achievementMap, employee
       if (new Date(r.created_at).getTime() > readAt) existing.isNew = true
     } else {
       groupMap.set(key, {
-        id: key,
-        type: 'activity',
-        employeeId: r.employee_id,
-        achievementId: r.achievement_id,
-        skillName: ach?.skills?.name ?? '不明',
-        emojis: [r.emoji],
-        commentText: null,
-        createdAt: r.created_at,
-        isNew: new Date(r.created_at).getTime() > readAt,
+        id: key, type: 'activity', employeeId: r.employee_id, achievementId: r.achievement_id,
+        skillName: ach?.skills?.name ?? '不明', emojis: [r.emoji], commentText: null,
+        createdAt: r.created_at, isNew: new Date(r.created_at).getTime() > readAt,
       })
     }
   }
@@ -89,15 +82,9 @@ export function NotificationList({ reactions, comments, achievementMap, employee
       if (new Date(c.created_at).getTime() > readAt) existing.isNew = true
     } else {
       groupMap.set(key, {
-        id: key,
-        type: 'activity',
-        employeeId: c.employee_id,
-        achievementId: c.achievement_id,
-        skillName: ach?.skills?.name ?? '不明',
-        emojis: [],
-        commentText: c.content,
-        createdAt: c.created_at,
-        isNew: new Date(c.created_at).getTime() > readAt,
+        id: key, type: 'activity', employeeId: c.employee_id, achievementId: c.achievement_id,
+        skillName: ach?.skills?.name ?? '不明', emojis: [], commentText: c.content,
+        createdAt: c.created_at, isNew: new Date(c.created_at).getTime() > readAt,
       })
     }
   }
@@ -107,41 +94,26 @@ export function NotificationList({ reactions, comments, achievementMap, employee
   if (['manager', 'admin', 'ops_manager'].includes(currentRole)) {
     for (const p of pendingForMe) {
       items.push({
-        id: `p-${p.id}`,
-        type: 'pending',
-        employeeId: p.employee_id,
-        achievementId: p.id,
-        skillName: p.skills?.name ?? '不明',
-        emojis: [],
-        commentText: null,
-        createdAt: p.achieved_at,
-        isNew: new Date(p.achieved_at).getTime() > readAt,
+        id: `p-${p.id}`, type: 'pending', employeeId: p.employee_id, achievementId: p.id,
+        skillName: p.skills?.name ?? '不明', emojis: [], commentText: null,
+        createdAt: p.achieved_at, isNew: new Date(p.achieved_at).getTime() > readAt,
       })
     }
   }
 
   items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 
-  // 個別既読管理（localStorage）
-  const STORAGE_KEY = 'notif_read_ids'
-  const getReadIds = (): Set<string> => {
-    try {
-      return new Set(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]'))
-    } catch { return new Set() }
-  }
-  const [readIds, setReadIds] = useState<Set<string>>(() => getReadIds())
+  // 個別クリック状態（localStorage）
+  const [clickedIds, setClickedIds] = useState<Set<string>>(() => getClickedIds())
 
-  const markAsRead = useCallback((id: string) => {
-    setReadIds(prev => {
+  const handleClick = useCallback((id: string) => {
+    setClickedIds(prev => {
       const next = new Set(prev)
       next.add(id)
-      const arr = [...next]
-      const trimmed = arr.length > 200 ? arr.slice(arr.length - 200) : arr
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed))
-      return new Set(trimmed)
+      const arr = [...next].slice(-200)
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(arr))
+      return new Set(arr)
     })
-    // サーバー側も既読更新（ベルバッジに反映させるため）
-    markNotificationsRead()
   }, [])
 
   if (items.length === 0) {
@@ -152,77 +124,55 @@ export function NotificationList({ reactions, comments, achievementMap, employee
     )
   }
 
-  const unreadCount = items.filter(i => i.isNew && !readIds.has(i.id)).length
-
-  const handleMarkAllRead = () => {
-    startTransition(async () => {
-      await markNotificationsRead()
-      // 全アイテムをlocalStorageにも既読登録
-      const allIds = items.map(i => i.id)
-      const next = new Set([...readIds, ...allIds])
-      const arr = [...next].slice(-200)
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(arr))
-      setReadIds(new Set(arr))
-      router.refresh()
-    })
-  }
-
   return (
-    <div className="p-4 space-y-2">
-      {canMarkAllRead && unreadCount > 0 && (
-        <div className="flex justify-end">
-          <Button variant="ghost" size="sm" className="text-xs text-gray-500 h-7" onClick={handleMarkAllRead} disabled={isPending}>
-            全て既読にする
-          </Button>
-        </div>
-      )}
+    <div className="p-4 space-y-0.5">
       {items.map(item => {
         const emp = employeeMap[item.employeeId]
         const href = item.type === 'pending'
           ? '/team?tab=pending'
           : `/timeline#achievement-${item.achievementId}`
-        const isUnread = item.isNew && !readIds.has(item.id)
+        const isClicked = clickedIds.has(item.id)
+
         return (
-          <Link key={item.id} href={href} onClick={() => markAsRead(item.id)}>
-            <Card className={cn('hover:shadow-md transition-shadow cursor-pointer', isUnread ? 'border-orange-200 bg-orange-50/50' : '')}>
-              <CardContent className="py-3 px-4">
-              <div className="flex items-start gap-2.5">
-                <Avatar className="w-8 h-8 flex-shrink-0 mt-0.5">
-                  <AvatarImage src={emp?.avatar_url ?? undefined} />
-                  <AvatarFallback className="bg-gray-100 text-gray-600 text-xs font-bold">
-                    {emp?.name?.charAt(0) ?? '?'}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-gray-800">
-                    {item.type === 'activity' && (
-                      <>
-                        <span className="font-semibold">{emp?.name}</span>
-                        <span className="text-gray-500"> さんが </span>
-                        <span className="font-semibold text-orange-600">{item.skillName}</span>
-                        <span className="text-gray-500"> に </span>
-                        {item.emojis.length > 0 && <span className="text-lg">{item.emojis.join('')}</span>}
-                        {item.emojis.length > 0 && item.commentText && <span className="text-gray-500"> と </span>}
-                        {item.commentText && <span className="text-gray-700">「{item.commentText}」</span>}
-                      </>
-                    )}
-                    {item.type === 'pending' && (
-                      <>
-                        <span className="font-semibold">{emp?.name}</span>
-                        <span className="text-gray-500"> さんが </span>
-                        <span className="font-semibold text-orange-600">{item.skillName}</span>
-                        <span className="text-gray-500"> の認定を申請しました</span>
-                      </>
-                    )}
-                  </p>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-[10px] text-gray-400">{timeAgo(item.createdAt)}</span>
-                    {isUnread && <Badge className="text-[9px] bg-orange-500 text-white border-0 h-4 px-1.5">NEW</Badge>}
-                  </div>
-                </div>
+          <Link key={item.id} href={href} onClick={() => handleClick(item.id)}>
+            <div className={cn(
+              'flex items-start gap-2.5 rounded-lg px-3 py-3 transition-colors',
+              isClicked ? 'bg-white hover:bg-gray-50' : 'bg-blue-50 hover:bg-blue-100'
+            )}>
+              <Avatar className="w-10 h-10 flex-shrink-0 mt-0.5">
+                <AvatarImage src={emp?.avatar_url ?? undefined} />
+                <AvatarFallback className="bg-gray-100 text-gray-600 text-xs font-bold">
+                  {emp?.name?.charAt(0) ?? '?'}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0">
+                <p className={cn('text-sm', isClicked ? 'text-gray-500' : 'text-gray-800')}>
+                  {item.type === 'activity' && (
+                    <>
+                      <span className={cn('font-semibold', isClicked ? 'text-gray-600' : 'text-gray-800')}>{emp?.name}</span>
+                      <span> さんが </span>
+                      <span className={cn('font-semibold', isClicked ? 'text-orange-400' : 'text-orange-600')}>{item.skillName}</span>
+                      <span> に </span>
+                      {item.emojis.length > 0 && <span className="text-lg">{item.emojis.join('')}</span>}
+                      {item.emojis.length > 0 && item.commentText && <span> と </span>}
+                      {item.commentText && <span>「{item.commentText}」</span>}
+                    </>
+                  )}
+                  {item.type === 'pending' && (
+                    <>
+                      <span className={cn('font-semibold', isClicked ? 'text-gray-600' : 'text-gray-800')}>{emp?.name}</span>
+                      <span> さんが </span>
+                      <span className={cn('font-semibold', isClicked ? 'text-orange-400' : 'text-orange-600')}>{item.skillName}</span>
+                      <span> の認定を申請しました</span>
+                    </>
+                  )}
+                </p>
+                <span className="text-[10px] text-gray-400">{timeAgo(item.createdAt)}</span>
               </div>
-            </CardContent>
-          </Card>
+              {!isClicked && (
+                <div className="w-2.5 h-2.5 rounded-full bg-blue-500 flex-shrink-0 mt-2" />
+              )}
+            </div>
           </Link>
         )
       })}

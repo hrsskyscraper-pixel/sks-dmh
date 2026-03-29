@@ -95,6 +95,19 @@ export default async function NotificationsPage() {
     (myAchievements ?? []).map(a => [a.id, a])
   )
 
+  // 通知ページを開いた時点で既読タイムスタンプを更新（ベルバッジを消す）
+  if (!viewAsId) {
+    const adminDb = createAdminClient()
+    await adminDb.from('employees')
+      .update({ notifications_read_at: new Date().toISOString() })
+      .eq('id', currentEmployee.id)
+  } else {
+    const adminDb = createAdminClient()
+    await adminDb.from('employees')
+      .update({ notifications_read_at: new Date().toISOString() })
+      .eq('id', viewAsId)
+  }
+
   return (
     <>
       <TopBar title="お知らせ" hideNotificationBell />
@@ -106,7 +119,6 @@ export default async function NotificationsPage() {
         pendingForMe={pendingForMe ?? []}
         currentRole={targetRole}
         notificationsReadAt={targetEmployee.notifications_read_at}
-        canMarkAllRead={!viewAsId}
       />
     </>
   )
