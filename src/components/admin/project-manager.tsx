@@ -623,8 +623,10 @@ export function ProjectManager({
                             <div title="予定日">
                               <Input
                                 type="date"
-                                value={skill.target_date_hint ?? ''}
-                                onChange={e => handleChangeTargetDate(skill.id, e.target.value)}
+                                defaultValue={skill.target_date_hint ?? ''}
+                                onBlur={e => {
+                                  if (e.target.value !== (skill.target_date_hint ?? '')) handleChangeTargetDate(skill.id, e.target.value)
+                                }}
                                 className="h-7 text-xs w-32 flex-shrink-0"
                                 disabled={isPending}
                               />
