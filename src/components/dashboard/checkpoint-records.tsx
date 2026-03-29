@@ -98,13 +98,13 @@ export async function CheckpointRecords({ employeeId, employeeRole, projectSkill
               const MEDALS = ['🥇', '🥈', '🥉']
               return (
                 <div key={skill.id} className={`rounded-lg px-3 py-2 ${isAchieved ? 'bg-green-50 border border-green-200' : 'bg-gray-50 border border-gray-100'}`}>
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <div className="flex flex-wrap items-center gap-y-1.5">
+                    <div className="flex items-center gap-1.5 flex-shrink-0 w-[160px]">
                       <Badge className="text-[9px] bg-red-500 text-white border-0 px-1.5">CP</Badge>
-                      <p className="text-sm font-semibold text-gray-800 whitespace-nowrap" title={skill.name}>{skill.name}</p>
-                      {isAchieved && <span className="text-[10px] text-green-600 font-bold">達成済</span>}
+                      <p className="text-sm font-semibold text-gray-800 truncate" title={skill.name}>{skill.name}</p>
+                      {isAchieved && <span className="text-[10px] text-green-600 font-bold flex-shrink-0">達成済</span>}
                     </div>
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
                       {[1, 2, 3].map(rank => {
                         const entry = top3.find(e => e.rank === rank)
                         const holder = entry ? holderMap[entry.employeeId] : null
