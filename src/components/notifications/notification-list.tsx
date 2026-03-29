@@ -35,6 +35,7 @@ type NotificationItem = {
   id: string
   type: 'activity' | 'pending'
   employeeId: string
+  achievementId: string
   skillName: string
   emojis: string[]
   commentText: string | null
@@ -61,6 +62,7 @@ export function NotificationList({ reactions, comments, achievementMap, employee
         id: key,
         type: 'activity',
         employeeId: r.employee_id,
+        achievementId: r.achievement_id,
         skillName: ach?.skills?.name ?? '不明',
         emojis: [r.emoji],
         commentText: null,
@@ -83,6 +85,7 @@ export function NotificationList({ reactions, comments, achievementMap, employee
         id: key,
         type: 'activity',
         employeeId: c.employee_id,
+        achievementId: c.achievement_id,
         skillName: ach?.skills?.name ?? '不明',
         emojis: [],
         commentText: c.content,
@@ -100,6 +103,7 @@ export function NotificationList({ reactions, comments, achievementMap, employee
         id: `p-${p.id}`,
         type: 'pending',
         employeeId: p.employee_id,
+        achievementId: p.id,
         skillName: p.skills?.name ?? '不明',
         emojis: [],
         commentText: null,
@@ -123,9 +127,13 @@ export function NotificationList({ reactions, comments, achievementMap, employee
     <div className="p-4 space-y-2">
       {items.map(item => {
         const emp = employeeMap[item.employeeId]
+        const href = item.type === 'pending'
+          ? '/team?tab=pending'
+          : `/timeline#achievement-${item.achievementId}`
         return (
-          <Card key={item.id} className={cn(item.isNew && 'border-orange-200 bg-orange-50/50')}>
-            <CardContent className="py-3 px-4">
+          <Link key={item.id} href={href}>
+            <Card className={cn('hover:shadow-md transition-shadow cursor-pointer', item.isNew && 'border-orange-200 bg-orange-50/50')}>
+              <CardContent className="py-3 px-4">
               <div className="flex items-start gap-2.5">
                 <Avatar className="w-8 h-8 flex-shrink-0 mt-0.5">
                   <AvatarImage src={emp?.avatar_url ?? undefined} />
@@ -158,14 +166,12 @@ export function NotificationList({ reactions, comments, achievementMap, employee
                   <div className="flex items-center gap-2 mt-0.5">
                     <span className="text-[10px] text-gray-400">{timeAgo(item.createdAt)}</span>
                     {item.isNew && <Badge className="text-[9px] bg-orange-500 text-white border-0 h-4 px-1.5">NEW</Badge>}
-                    {item.type === 'pending' && (
-                      <Link href="/team?tab=pending" className="text-[10px] text-blue-600 hover:underline">確認する →</Link>
-                    )}
                   </div>
                 </div>
               </div>
             </CardContent>
           </Card>
+          </Link>
         )
       })}
     </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect } from 'react'
 import { toast } from 'sonner'
 import { Card, CardContent } from '@/components/ui/card'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -70,6 +70,18 @@ export function TimelineFeed({ achievements, comments: initialComments, reaction
   const [expandedComments, setExpandedComments] = useState<Set<string>>(new Set())
   const [isPending, startTransition] = useTransition()
   const supabase = createClient()
+
+  // ハッシュによるスクロール＋ハイライト
+  useEffect(() => {
+    const hash = window.location.hash
+    if (!hash) return
+    const el = document.querySelector(hash)
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      el.classList.add('ring-2', 'ring-orange-400')
+      setTimeout(() => el.classList.remove('ring-2', 'ring-orange-400'), 3000)
+    }
+  }, [])
 
   const commentsByAchievement = comments.reduce((acc, c) => {
     if (!acc[c.achievement_id]) acc[c.achievement_id] = []
@@ -150,7 +162,7 @@ export function TimelineFeed({ achievements, comments: initialComments, reaction
         const wrapperClass = compact ? 'border-b border-gray-100 pb-3 last:border-b-0' : 'overflow-hidden'
 
         return (
-          <Wrapper key={achievement.id} className={wrapperClass}>
+          <Wrapper key={achievement.id} id={`achievement-${achievement.id}`} className={wrapperClass}>
             <div className={compact ? 'pt-1' : 'pt-4 pb-3 px-4'}>
               {/* ヘッダー */}
               <div className="flex items-center gap-2.5 mb-2">
