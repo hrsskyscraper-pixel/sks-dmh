@@ -2,6 +2,7 @@
 
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
+import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
@@ -21,12 +22,14 @@ export async function setViewAs(employeeId: string) {
 
   const cookieStore = await cookies()
   cookieStore.set(VIEW_AS_COOKIE, employeeId, { path: '/' })
+  revalidatePath('/', 'layout')
   redirect('/')
 }
 
 export async function clearViewAs() {
   const cookieStore = await cookies()
   cookieStore.delete(VIEW_AS_COOKIE)
+  revalidatePath('/', 'layout')
   redirect('/')
 }
 
