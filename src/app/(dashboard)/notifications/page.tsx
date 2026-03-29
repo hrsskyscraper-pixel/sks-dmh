@@ -97,7 +97,7 @@ export default async function NotificationsPage() {
 
   return (
     <>
-      <TopBar title="お知らせ" />
+      <TopBar title="お知らせ" hideNotificationBell />
       <NotificationList
         reactions={reactions ?? []}
         comments={comments ?? []}

@@ -79,7 +79,7 @@ export function BottomNav({ role, unreadRequestCount = 0 }: NavProps) {
   )
 }
 
-export function TopBar({ title, right }: { title: string; right?: React.ReactNode }) {
+export function TopBar({ title, right, hideNotificationBell = false }: { title: string; right?: React.ReactNode; hideNotificationBell?: boolean }) {
   const notificationCount = useNotificationCount()
   return (
     <header className="sticky bg-white/80 backdrop-blur-sm border-b border-gray-100 z-40" style={{ top: 'var(--banner-h, 0px)' }}>
@@ -88,7 +88,7 @@ export function TopBar({ title, right }: { title: string; right?: React.ReactNod
         <div className="flex-1 min-w-0 flex justify-end">
           {right}
         </div>
-        <Link
+        {!hideNotificationBell && <Link
           href="/notifications"
           className="relative flex items-center justify-center w-9 h-9 rounded-full hover:bg-gray-100 transition-colors flex-shrink-0"
         >
@@ -98,7 +98,7 @@ export function TopBar({ title, right }: { title: string; right?: React.ReactNod
               {notificationCount > 99 ? '99+' : notificationCount}
             </span>
           )}
-        </Link>
+        </Link>}
       </div>
     </header>
   )

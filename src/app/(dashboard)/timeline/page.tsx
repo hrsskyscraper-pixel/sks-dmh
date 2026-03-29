@@ -39,7 +39,7 @@ export default async function TimelinePage() {
 
   return (
     <>
-      <TopBar title="タイムライン" />
+      <TopBar title="タイムライン" hideNotificationBell />
       <TimelineFeed
         achievements={certifiedAchievements ?? []}
         comments={comments ?? []}
