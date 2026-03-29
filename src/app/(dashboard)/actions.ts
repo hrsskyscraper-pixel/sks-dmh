@@ -76,6 +76,43 @@ export async function markNotificationsRead(): Promise<{ error?: string }> {
   return {}
 }
 
+export async function addCareerRecord(data: {
+  employee_id: string
+  record_type: string
+  occurred_at: string | null
+  related_employee_ids: string[]
+  department: string | null
+  notes: string | null
+}): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: '認証エラー' }
+
+  const { data: emp } = await supabase.from('employees').select('id, role').eq('auth_user_id', user.id).single()
+  if (!emp || !['manager', 'admin', 'ops_manager', 'testuser'].includes(emp.role)) return { error: '権限がありません' }
+
+  const adminDb = createAdminClient()
+  const { error } = await adminDb.from('career_records').insert({
+    ...data,
+    created_by: emp.id,
+  })
+  if (error) return { error: error.message }
+  revalidatePath(`/admin/employees/${data.employee_id}`)
+  return {}
+}
+
+export async function deleteCareerRecord(recordId: string, employeeId: string): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: '認証エラー' }
+
+  const adminDb = createAdminClient()
+  const { error } = await adminDb.from('career_records').delete().eq('id', recordId)
+  if (error) return { error: error.message }
+  revalidatePath(`/admin/employees/${employeeId}`)
+  return {}
+}
+
 export async function updateSkillStandardHours(skillId: string, hours: number | null): Promise<{ error?: string }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()

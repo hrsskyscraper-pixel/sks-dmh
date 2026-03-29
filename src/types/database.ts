@@ -576,6 +576,42 @@ export type Database = {
         }
         Relationships: []
       }
+      career_records: {
+        Row: {
+          id: string
+          employee_id: string
+          record_type: string
+          occurred_at: string | null
+          related_employee_ids: string[]
+          department: string | null
+          notes: string | null
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          employee_id: string
+          record_type: string
+          occurred_at?: string | null
+          related_employee_ids?: string[]
+          department?: string | null
+          notes?: string | null
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          employee_id?: string
+          record_type?: string
+          occurred_at?: string | null
+          related_employee_ids?: string[]
+          department?: string | null
+          notes?: string | null
+          created_by?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -612,6 +648,7 @@ export type ProjectSkill = Database['public']['Tables']['project_skills']['Row']
 export type EmployeeProject = Database['public']['Tables']['employee_projects']['Row']
 export type Goal = Database['public']['Tables']['goals']['Row']
 export type AchievementComment = Database['public']['Tables']['achievement_comments']['Row']
+export type CareerRecord = { id: string; employee_id: string; record_type: string; occurred_at: string | null; related_employee_ids: string[]; department: string | null; notes: string | null; created_by: string | null; created_at: string }
 export type AchievementReaction = Database['public']['Tables']['achievement_reactions']['Row']
 
 // LegacyPhase: 旧来の固定フェーズ型（後方互換のため残す）

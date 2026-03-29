@@ -12,7 +12,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { MoreVertical, Shield, User, Crown, Eye, Camera, Loader2 } from 'lucide-react'
+import { MoreVertical, Shield, User, Crown, Eye, Camera, Loader2, FileText } from 'lucide-react'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { setViewAs } from '@/app/(dashboard)/actions'
 import { Store, FolderKanban } from 'lucide-react'
@@ -303,6 +304,12 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, e
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
+                        <DropdownMenuItem asChild>
+                          <Link href={`/admin/employees/${employee.id}`} className="flex items-center gap-2 text-sm">
+                            <FileText className="w-3.5 h-3.5" />
+                            社員カルテ
+                          </Link>
+                        </DropdownMenuItem>
                         {ALL_DISPLAY_ROLES
                           .filter(r => r !== displayRole)
                           .map(r => (
