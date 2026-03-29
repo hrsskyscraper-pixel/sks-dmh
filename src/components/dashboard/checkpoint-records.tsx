@@ -1,4 +1,3 @@
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -12,7 +11,7 @@ interface Props {
 }
 
 export async function CheckpointRecords({ employeeId, employeeRole, projectSkillIds }: Props) {
-  const db = employeeRole === 'testuser' ? createAdminClient() : await createClient()
+  const db = createAdminClient()
 
   // CPスキル取得
   const { data: cpSkills } = await db
