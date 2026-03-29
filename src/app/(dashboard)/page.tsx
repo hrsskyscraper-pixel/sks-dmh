@@ -8,6 +8,7 @@ import { TopBar } from '@/components/layout/nav'
 import { DashboardContent } from '@/components/dashboard/dashboard-content'
 import { TestUserGuide } from '@/components/testuser/test-user-guide'
 import { TeamRankingServer } from '@/components/dashboard/team-ranking-server'
+import { TimelineServer } from '@/components/timeline/timeline-server'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
 import { buildMilestoneMap } from '@/lib/milestone'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
@@ -224,6 +225,12 @@ export default async function DashboardPage({
           employeeId={employee.id}
           employeeRole={currentEmployee.role}
           selectedProjectId={selectedProject?.id ?? null}
+        />
+      </Suspense>
+      <Suspense fallback={<div className="px-4 py-8 text-center text-sm text-muted-foreground animate-pulse">タイムラインを読み込み中...</div>}>
+        <TimelineServer
+          employeeId={employee.id}
+          employeeRole={currentEmployee.role}
         />
       </Suspense>
     </>

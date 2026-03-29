@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, CheckSquare, BadgeCheck, Upload, Users2, LogOut, Building2, FolderKanban } from 'lucide-react'
+import { LayoutDashboard, CheckSquare, BadgeCheck, Upload, Users2, LogOut, Building2, FolderKanban, MessageSquare } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
@@ -11,6 +11,7 @@ import type { Role } from '@/types/database'
 const navItems = [
   { href: '/',                 label: 'ダッシュボード', icon: LayoutDashboard,    roles: ['employee', 'manager', 'admin', 'ops_manager', 'testuser'] },
   { href: '/skills',           label: 'スキル',         icon: CheckSquare,        roles: ['employee', 'manager', 'admin', 'ops_manager', 'testuser'] },
+  { href: '/timeline',         label: 'タイムライン',   icon: MessageSquare,      roles: ['employee', 'manager', 'admin', 'ops_manager', 'testuser'] },
   { href: '/team',             label: '認定',            icon: BadgeCheck,         roles: ['manager', 'admin', 'ops_manager', 'testuser'] },
   { href: '/admin/teams',      label: 'チーム',          icon: Building2,          roles: ['employee', 'manager', 'admin', 'ops_manager', 'testuser'] },
   { href: '/admin/employees',  label: 'メンバー',        icon: Users2,             roles: ['employee', 'manager', 'admin', 'ops_manager', 'testuser'] },
