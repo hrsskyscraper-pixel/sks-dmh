@@ -33,10 +33,11 @@ function timeAgo(dateStr: string): string {
 
 type NotificationItem = {
   id: string
-  type: 'reaction' | 'comment' | 'pending'
+  type: 'activity' | 'pending'
   employeeId: string
   skillName: string
-  detail: string
+  emojis: string[]
+  commentText: string | null
   createdAt: string
   isNew: boolean
 }
@@ -44,34 +45,54 @@ type NotificationItem = {
 export function NotificationList({ reactions, comments, achievementMap, employeeMap, pendingForMe, currentRole, notificationsReadAt }: Props) {
   const readAt = notificationsReadAt ? new Date(notificationsReadAt).getTime() : 0
 
-  // 統合してソート
-  const items: NotificationItem[] = []
+  // 同じスキル×同じ人のリアクション・コメントをグルーピング
+  const groupMap = new Map<string, NotificationItem>()
 
   for (const r of reactions) {
     const ach = achievementMap[r.achievement_id]
-    items.push({
-      id: `r-${r.id}`,
-      type: 'reaction',
-      employeeId: r.employee_id,
-      skillName: ach?.skills?.name ?? '不明',
-      detail: r.emoji,
-      createdAt: r.created_at,
-      isNew: new Date(r.created_at).getTime() > readAt,
-    })
+    const key = `${r.employee_id}:${r.achievement_id}`
+    const existing = groupMap.get(key)
+    if (existing) {
+      if (!existing.emojis.includes(r.emoji)) existing.emojis.push(r.emoji)
+      if (new Date(r.created_at).getTime() > new Date(existing.createdAt).getTime()) existing.createdAt = r.created_at
+      if (new Date(r.created_at).getTime() > readAt) existing.isNew = true
+    } else {
+      groupMap.set(key, {
+        id: key,
+        type: 'activity',
+        employeeId: r.employee_id,
+        skillName: ach?.skills?.name ?? '不明',
+        emojis: [r.emoji],
+        commentText: null,
+        createdAt: r.created_at,
+        isNew: new Date(r.created_at).getTime() > readAt,
+      })
+    }
   }
 
   for (const c of comments) {
     const ach = achievementMap[c.achievement_id]
-    items.push({
-      id: `c-${c.id}`,
-      type: 'comment',
-      employeeId: c.employee_id,
-      skillName: ach?.skills?.name ?? '不明',
-      detail: c.content,
-      createdAt: c.created_at,
-      isNew: new Date(c.created_at).getTime() > readAt,
-    })
+    const key = `${c.employee_id}:${c.achievement_id}`
+    const existing = groupMap.get(key)
+    if (existing) {
+      existing.commentText = c.content
+      if (new Date(c.created_at).getTime() > new Date(existing.createdAt).getTime()) existing.createdAt = c.created_at
+      if (new Date(c.created_at).getTime() > readAt) existing.isNew = true
+    } else {
+      groupMap.set(key, {
+        id: key,
+        type: 'activity',
+        employeeId: c.employee_id,
+        skillName: ach?.skills?.name ?? '不明',
+        emojis: [],
+        commentText: c.content,
+        createdAt: c.created_at,
+        isNew: new Date(c.created_at).getTime() > readAt,
+      })
+    }
   }
+
+  const items: NotificationItem[] = [...groupMap.values()]
 
   if (['manager', 'admin', 'ops_manager'].includes(currentRole)) {
     for (const p of pendingForMe) {
@@ -80,7 +101,8 @@ export function NotificationList({ reactions, comments, achievementMap, employee
         type: 'pending',
         employeeId: p.employee_id,
         skillName: p.skills?.name ?? '不明',
-        detail: '認定待ち',
+        emojis: [],
+        commentText: null,
         createdAt: p.achieved_at,
         isNew: new Date(p.achieved_at).getTime() > readAt,
       })
@@ -113,22 +135,15 @@ export function NotificationList({ reactions, comments, achievementMap, employee
                 </Avatar>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-gray-800">
-                    {item.type === 'reaction' && (
+                    {item.type === 'activity' && (
                       <>
                         <span className="font-semibold">{emp?.name}</span>
                         <span className="text-gray-500"> さんが </span>
                         <span className="font-semibold text-orange-600">{item.skillName}</span>
                         <span className="text-gray-500"> に </span>
-                        <span className="text-lg">{item.detail}</span>
-                      </>
-                    )}
-                    {item.type === 'comment' && (
-                      <>
-                        <span className="font-semibold">{emp?.name}</span>
-                        <span className="text-gray-500"> さんが </span>
-                        <span className="font-semibold text-orange-600">{item.skillName}</span>
-                        <span className="text-gray-500"> にコメント: </span>
-                        <span className="text-gray-700">「{item.detail}」</span>
+                        {item.emojis.length > 0 && <span className="text-lg">{item.emojis.join('')}</span>}
+                        {item.emojis.length > 0 && item.commentText && <span className="text-gray-500"> と </span>}
+                        {item.commentText && <span className="text-gray-700">「{item.commentText}」</span>}
                       </>
                     )}
                     {item.type === 'pending' && (
