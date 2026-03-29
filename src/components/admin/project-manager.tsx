@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/select'
 import { Plus, Pencil, Archive, ArchiveRestore, Trash2, GripVertical, UserMinus, UserPlus } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { updateSkillCategory, updateSkillStandardHours } from '@/app/(dashboard)/actions'
+import { updateSkillCategory, updateSkillStandardHours, updateSkillName, toggleSkillCheckpoint } from '@/app/(dashboard)/actions'
 import { sortCategories } from '@/lib/category-order'
 import { cn } from '@/lib/utils'
 import type { SkillProject, ProjectPhase, ProjectSkill, EmployeeProject, Skill, Employee } from '@/types/database'
@@ -270,6 +270,23 @@ export function ProjectManager({
     })
   }
 
+  function handleToggleCheckpoint(skillId: string, current: boolean) {
+    setSkillsState(prev => prev.map(s => s.id === skillId ? { ...s, is_checkpoint: !current } : s))
+    startTransition(async () => {
+      const result = await toggleSkillCheckpoint(skillId, !current)
+      if (result.error) toast.error(result.error)
+    })
+  }
+
+  function handleRenameSkill(skillId: string, newName: string) {
+    if (!newName.trim()) return
+    setSkillsState(prev => prev.map(s => s.id === skillId ? { ...s, name: newName.trim() } : s))
+    startTransition(async () => {
+      const result = await updateSkillName(skillId, newName.trim())
+      if (result.error) toast.error(result.error)
+    })
+  }
+
   // ===== メンバー操作 =====
 
   function handleToggleMember(employeeId: string, isMember: boolean) {
@@ -433,9 +450,24 @@ export function ProjectManager({
                               onCheckedChange={checked => handleToggleSkill(skill.id, !!checked)}
                               disabled={isPending}
                             />
-                            <label htmlFor={`skill-${skill.id}`} className="flex-1 text-sm text-gray-800 cursor-pointer min-w-0 truncate">
-                              {skill.name}
-                            </label>
+                            <button
+                              onClick={() => handleToggleCheckpoint(skill.id, skill.is_checkpoint)}
+                              className={cn(
+                                'text-[9px] font-bold rounded px-1 py-0.5 flex-shrink-0 transition-colors',
+                                skill.is_checkpoint ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-400 hover:bg-gray-300'
+                              )}
+                              disabled={isPending}
+                              title="チェックポイント"
+                            >
+                              CP
+                            </button>
+                            <input
+                              defaultValue={skill.name}
+                              onBlur={e => { if (e.target.value !== skill.name) handleRenameSkill(skill.id, e.target.value) }}
+                              onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+                              className="flex-1 text-sm text-gray-800 min-w-0 bg-transparent border-b border-transparent hover:border-gray-300 focus:border-orange-400 focus:outline-none px-0.5 py-0"
+                              disabled={isPending}
+                            />
                             <Select
                               value={skill.category}
                               onValueChange={v => {

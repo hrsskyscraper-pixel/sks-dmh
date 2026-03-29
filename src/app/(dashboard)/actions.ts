@@ -171,3 +171,31 @@ export async function updateSkillStandardHours(skillId: string, hours: number | 
   if (error) return { error: error.message }
   return {}
 }
+
+export async function updateSkillName(skillId: string, newName: string): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: '認証エラー' }
+
+  const { data: emp } = await supabase.from('employees').select('role').eq('auth_user_id', user.id).single()
+  if (!emp || !['admin', 'ops_manager', 'executive', 'testuser'].includes(emp.role)) return { error: '権限がありません' }
+
+  const adminDb = createAdminClient()
+  const { error } = await adminDb.from('skills').update({ name: newName.trim() }).eq('id', skillId)
+  if (error) return { error: error.message }
+  return {}
+}
+
+export async function toggleSkillCheckpoint(skillId: string, isCheckpoint: boolean): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: '認証エラー' }
+
+  const { data: emp } = await supabase.from('employees').select('role').eq('auth_user_id', user.id).single()
+  if (!emp || !['admin', 'ops_manager', 'executive', 'testuser'].includes(emp.role)) return { error: '権限がありません' }
+
+  const adminDb = createAdminClient()
+  const { error } = await adminDb.from('skills').update({ is_checkpoint: isCheckpoint }).eq('id', skillId)
+  if (error) return { error: error.message }
+  return {}
+}

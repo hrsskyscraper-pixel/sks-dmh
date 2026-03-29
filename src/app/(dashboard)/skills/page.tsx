@@ -63,7 +63,7 @@ export default async function SkillsPage({
     selectedProject
       ? db.from('project_skills').select('skill_id, project_phase_id').eq('project_id', selectedProject.id)
       : Promise.resolve({ data: null as { skill_id: string; project_phase_id: string | null }[] | null }),
-    db.from('skills').select('id, name, phase, category, order_index, target_date_hint, standard_hours, created_at').order('order_index'),
+    db.from('skills').select('id, name, phase, category, order_index, target_date_hint, standard_hours, is_checkpoint, created_at').order('order_index'),
     db.from('achievements')
       .select('*, certified_employee:employees!achievements_certified_by_fkey(name), skills(*)')
       .eq('employee_id', employee.id),

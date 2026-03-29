@@ -367,6 +367,7 @@ export type Database = {
           order_index: number
           target_date_hint: string | null
           standard_hours: number | null
+          is_checkpoint: boolean
           created_at: string
         }
         Insert: {
@@ -377,6 +378,7 @@ export type Database = {
           order_index?: number
           target_date_hint?: string | null
           standard_hours?: number | null
+          is_checkpoint?: boolean
           created_at?: string
         }
         Update: {
@@ -387,6 +389,7 @@ export type Database = {
           order_index?: number
           target_date_hint?: string | null
           standard_hours?: number | null
+          is_checkpoint?: boolean
           created_at?: string
         }
         Relationships: []
