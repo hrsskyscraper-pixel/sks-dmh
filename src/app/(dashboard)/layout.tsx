@@ -86,23 +86,26 @@ export default async function DashboardLayout({
     .eq('status', 'certified')
   const targetAchIds = (targetAchievements ?? []).map(a => a.id)
 
-  const [unreadResult, reactionsCount, commentsCount] = await Promise.all([
+  const [unreadResult, { data: unreadReactions }, { data: unreadComments }] = await Promise.all([
     role === 'manager' && employee
       ? supabase.from('team_change_requests').select('*', { count: 'exact', head: true })
           .eq('requested_by', employee.id).in('status', ['approved', 'rejected']).is('applicant_read_at', null)
       : Promise.resolve({ count: 0 }),
     targetAchIds.length > 0
-      ? db.from('achievement_reactions').select('*', { count: 'exact', head: true })
+      ? db.from('achievement_reactions').select('achievement_id, employee_id')
           .in('achievement_id', targetAchIds).neq('employee_id', notifTargetId).gt('created_at', notifReadAt)
-      : Promise.resolve({ count: 0 }),
+      : Promise.resolve({ data: [] }),
     targetAchIds.length > 0
-      ? db.from('achievement_comments').select('*', { count: 'exact', head: true })
+      ? db.from('achievement_comments').select('achievement_id, employee_id')
           .in('achievement_id', targetAchIds).neq('employee_id', notifTargetId).gt('created_at', notifReadAt)
-      : Promise.resolve({ count: 0 }),
+      : Promise.resolve({ data: [] }),
   ])
   const unreadRequestCount = (unreadResult as { count: number | null }).count ?? 0
-  const unreadNotifCount = ((reactionsCount as { count: number | null }).count ?? 0)
-    + ((commentsCount as { count: number | null }).count ?? 0)
+  // 同じ achievement_id + employee_id をまとめてカウント
+  const notifKeys = new Set<string>()
+  for (const r of unreadReactions ?? []) notifKeys.add(`${r.employee_id}:${r.achievement_id}`)
+  for (const c of unreadComments ?? []) notifKeys.add(`${c.employee_id}:${c.achievement_id}`)
+  const unreadNotifCount = notifKeys.size
 
   // BottomNav は viewAs 社員のロールで表示を切り替える
   const effectiveRole: Role = (viewAsEmployee?.role as Role | undefined) ?? role
