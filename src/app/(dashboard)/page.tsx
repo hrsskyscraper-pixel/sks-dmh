@@ -139,6 +139,8 @@ export default async function DashboardPage({
     { data: achievements },
     workHoursSumResult,
     { data: goalRows },
+    { data: careerRows },
+    { data: allEmployeesForCareer },
     { pendingAchievementsCount, pendingTeamRequestsCount },
   ] = await Promise.all([
     selectedProject
@@ -154,6 +156,8 @@ export default async function DashboardPage({
       p_as_of_date: new Date().toISOString().split('T')[0],
     }),
     db.from('goals').select('id, content, set_at, deadline').eq('employee_id', employee.id).order('created_at', { ascending: false }).limit(1),
+    db.from('career_records').select('record_type, related_employee_ids').eq('employee_id', employee.id).in('record_type', ['面接', '採用', '育成']),
+    db.from('employees').select('id, name').order('name'),
     pendingCountsTask,
   ])
 
@@ -221,6 +225,15 @@ export default async function DashboardPage({
         pendingTeamRequestsCount={pendingTeamRequestsCount}
         currentGoal={(goalRows ?? [])[0] ?? null}
         isOwnDashboard={!viewAsId}
+        careerSummary={(() => {
+          const empMap = Object.fromEntries((allEmployeesForCareer ?? []).map(e => [e.id, e.name]))
+          const summary: Record<string, string[]> = {}
+          for (const r of careerRows ?? []) {
+            const names = (r.related_employee_ids ?? []).map((id: string) => empMap[id] ?? '不明')
+            if (names.length > 0) summary[r.record_type] = names
+          }
+          return summary
+        })()}
       />
       <Suspense fallback={<TeamRankingSkeleton />}>
         <TeamRankingServer

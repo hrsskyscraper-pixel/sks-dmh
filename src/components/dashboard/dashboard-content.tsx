@@ -45,6 +45,7 @@ interface Props {
   pendingTeamRequestsCount?: number
   currentGoal: Pick<Goal, 'id' | 'content' | 'set_at' | 'deadline'> | null
   isOwnDashboard: boolean
+  careerSummary?: Record<string, string[]>
 }
 
 const PHASE_COLORS = ['bg-orange-500', 'bg-amber-500', 'bg-red-500', 'bg-blue-500', 'bg-green-500', 'bg-purple-500']
@@ -99,7 +100,7 @@ export function DashboardContent({
   projectPhases, skillPhaseMap, currentProject, employeeProjects,
   unreadNotifications: initialNotifications,
   pendingAchievementsCount = 0, pendingTeamRequestsCount = 0,
-  currentGoal: initialGoal, isOwnDashboard
+  currentGoal: initialGoal, isOwnDashboard, careerSummary = {}
 }: Props) {
   const [achievementList, setAchievementList] = useState(initialAchievements)
   const [notifications, setNotifications] = useState(initialNotifications)
@@ -330,6 +331,20 @@ export function DashboardContent({
                 {employee.role === 'executive' && <span className="text-[10px] bg-rose-400/40 text-rose-100 rounded-full px-2 py-0.5 font-medium">役員</span>}
                 {employee.role === 'admin' && <span className="text-[10px] bg-red-400/40 text-red-100 rounded-full px-2 py-0.5 font-medium">開発者</span>}
               </div>
+              {/* キャリア情報 */}
+              {Object.keys(careerSummary).length > 0 && (
+                <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1.5">
+                  {['面接', '採用', '育成'].map(type => {
+                    const names = careerSummary[type]
+                    if (!names?.length) return null
+                    return (
+                      <span key={type} className="text-[10px] text-orange-100">
+                        {type}: <span className="text-white font-medium">{names.join('・')}</span>
+                      </span>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           </div>
 
