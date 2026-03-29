@@ -426,23 +426,22 @@ export function ProjectManager({
               {selectedPhases.length === 0 && (
                 <p className="text-xs text-muted-foreground text-center py-2">先にフェーズを作成してください</p>
               )}
-              {categories.map(category => {
-                const catSkills = skillsState
-                  .filter(s => s.category === category)
-                  .sort((a, b) => {
-                    const phaseA = selectedPhases.find(p => p.id === skillPhaseMap[a.id])
-                    const phaseB = selectedPhases.find(p => p.id === skillPhaseMap[b.id])
-                    const orderA = phaseA?.order_index ?? 9999
-                    const orderB = phaseB?.order_index ?? 9999
-                    if (orderA !== orderB) return orderA - orderB
-                    return a.order_index - b.order_index
-                  })
-                if (catSkills.length === 0) return null
+              {[...selectedPhases, { id: '__unassigned__', name: '未割当', order_index: 9999, project_id: '', end_hours: 0, created_at: '' }].map(phase => {
+                const phaseSkills = phase.id === '__unassigned__'
+                  ? skillsState.filter(s => !selectedProjectSkillIds.has(s.id) || !skillPhaseMap[s.id])
+                  : skillsState.filter(s => skillPhaseMap[s.id] === phase.id)
+                const sorted = phaseSkills.sort((a, b) => {
+                  const catA = categories.indexOf(a.category)
+                  const catB = categories.indexOf(b.category)
+                  if (catA !== catB) return catA - catB
+                  return a.order_index - b.order_index
+                })
+                if (sorted.length === 0) return null
                 return (
-                  <div key={category}>
-                    <h3 className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">{category}</h3>
+                  <div key={phase.id}>
+                    <h3 className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">{phase.name}</h3>
                     <div className="space-y-1.5">
-                      {catSkills.map(skill => {
+                      {sorted.map(skill => {
                         const isChecked = selectedProjectSkillIds.has(skill.id)
                         const currentPhaseId = skillPhaseMap[skill.id] ?? null
                         return (
