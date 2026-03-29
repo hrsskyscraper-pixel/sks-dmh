@@ -100,23 +100,30 @@ export async function CheckpointRecords({ employeeId, employeeRole, projectSkill
                 <div key={skill.id} className={`flex items-center gap-2 rounded-lg px-3 py-2 ${isAchieved ? 'bg-green-50 border border-green-200' : 'bg-gray-50 border border-gray-100'}`}>
                   <Badge className="text-[8px] bg-red-500 text-white border-0 flex-shrink-0 px-1">CP</Badge>
                   <p className="text-[11px] font-semibold text-gray-800 truncate min-w-0 flex-1" title={skill.name}>{skill.name}</p>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    {top3.map(entry => {
-                      const holder = holderMap[entry.employeeId]
-                      const isMe = entry.employeeId === employeeId
-                      const RANK_STYLES = [
-                        'bg-yellow-400 text-white',
-                        'bg-gray-400 text-white',
-                        'bg-amber-600 text-white',
-                      ]
+                  <div className="flex items-center flex-shrink-0">
+                    {[1, 2, 3].map(rank => {
+                      const entry = top3.find(e => e.rank === rank)
+                      const holder = entry ? holderMap[entry.employeeId] : null
+                      const isMe = entry?.employeeId === employeeId
                       return (
-                        <div key={entry.employeeId} className="flex items-center gap-0.5" title={`${holder?.name ?? '不明'} ${entry.hours}h`}>
-                          <span className={`text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 ${RANK_STYLES[entry.rank - 1]}`}>{entry.rank}</span>
-                          <Avatar className="w-4 h-4">
-                            <AvatarImage src={holder?.avatar_url ?? undefined} />
-                            <AvatarFallback className={`text-[7px] font-bold ${isMe ? 'bg-orange-200 text-orange-700' : 'bg-gray-200 text-gray-600'}`}>{holder?.name?.charAt(0) ?? '?'}</AvatarFallback>
-                          </Avatar>
-                          <span className={`text-[9px] ${isMe ? 'font-bold text-orange-600' : 'text-gray-500'}`}>{entry.hours}h</span>
+                        <div key={rank} className="flex items-center gap-0.5 w-28" title={entry ? `${holder?.name ?? '不明'} ${entry.hours}h` : ''}>
+                          {entry ? (
+                            <>
+                              {rank === 1 ? (
+                                <span className="text-sm flex-shrink-0 w-4 text-center">👑</span>
+                              ) : (
+                                <span className={`text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 ${rank === 2 ? 'bg-gray-400 text-white' : 'bg-amber-600 text-white'}`}>{rank}</span>
+                              )}
+                              <Avatar className="w-5 h-5 flex-shrink-0">
+                                <AvatarImage src={holder?.avatar_url ?? undefined} />
+                                <AvatarFallback className={`text-[7px] font-bold ${isMe ? 'bg-orange-200 text-orange-700' : 'bg-gray-200 text-gray-600'}`}>{holder?.name?.charAt(0) ?? '?'}</AvatarFallback>
+                              </Avatar>
+                              <span className={`text-[10px] truncate ${isMe ? 'font-bold text-orange-600' : 'text-gray-600'}`}>{holder?.name?.split(/\s/)[0] ?? '?'}</span>
+                              <span className={`text-[9px] flex-shrink-0 ${isMe ? 'font-bold text-orange-500' : 'text-gray-400'}`}>{entry.hours}h</span>
+                            </>
+                          ) : (
+                            <span className="text-[10px] text-gray-300 w-full text-center">-</span>
+                          )}
                         </div>
                       )
                     })}
