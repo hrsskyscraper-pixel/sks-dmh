@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { TimelineFeed } from '@/components/timeline/timeline-feed'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import Link from 'next/link'
 
 interface Props {
@@ -38,21 +39,27 @@ export async function TimelineServer({ employeeId, employeeRole }: Props) {
   )
 
   return (
-    <div className="px-4 space-y-2">
-      <div className="flex items-center justify-between px-1">
-        <p className="text-sm font-semibold text-gray-700">みんなの成長</p>
-        <Link href="/timeline" className="text-xs text-orange-600 hover:underline">
-          すべて見る →
-        </Link>
-      </div>
-      <TimelineFeed
-        achievements={certifiedAchievements ?? []}
-        comments={comments ?? []}
-        reactions={reactions ?? []}
-        employeeMap={employeeMap}
-        currentEmployeeId={employeeId}
-        compact
-      />
+    <div className="px-4">
+      <Card>
+        <CardHeader className="pb-2 pt-4 px-4">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm font-semibold text-gray-700">みんなの成長</CardTitle>
+            <Link href="/timeline" className="text-xs text-orange-600 hover:underline">
+              すべて見る →
+            </Link>
+          </div>
+        </CardHeader>
+        <CardContent className="px-4 pb-4">
+          <TimelineFeed
+            achievements={certifiedAchievements ?? []}
+            comments={comments ?? []}
+            reactions={reactions ?? []}
+            employeeMap={employeeMap}
+            currentEmployeeId={employeeId}
+            compact
+          />
+        </CardContent>
+      </Card>
     </div>
   )
 }

@@ -146,9 +146,12 @@ export function TimelineFeed({ achievements, comments: initialComments, reaction
           if (r.employee_id === currentEmployeeId) reactionCounts[r.emoji].hasOwn = true
         }
 
+        const Wrapper = compact ? 'div' : Card
+        const wrapperClass = compact ? 'border-b border-gray-100 pb-3 last:border-b-0' : 'overflow-hidden'
+
         return (
-          <Card key={achievement.id} className="overflow-hidden">
-            <CardContent className="pt-4 pb-3 px-4">
+          <Wrapper key={achievement.id} className={wrapperClass}>
+            <div className={compact ? 'pt-1' : 'pt-4 pb-3 px-4'}>
               {/* ヘッダー */}
               <div className="flex items-center gap-2.5 mb-2">
                 <Avatar className="w-9 h-9 flex-shrink-0">
@@ -258,8 +261,8 @@ export function TimelineFeed({ achievements, comments: initialComments, reaction
                   </div>
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </Wrapper>
         )
       })}
     </div>
