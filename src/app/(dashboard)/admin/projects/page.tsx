@@ -1,5 +1,4 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
 import { TopBar } from '@/components/layout/nav'
@@ -10,12 +9,10 @@ export default async function ProjectsPage() {
   const currentEmployee = await getCurrentEmployee()
   if (!currentEmployee) redirect('/login')
 
-  const supabase = await createClient()
-
   const effectiveRole: Role = currentEmployee.role
   if (!['admin', 'ops_manager', 'executive', 'testuser'].includes(effectiveRole)) redirect('/')
 
-  const db = currentEmployee.role === 'testuser' ? createAdminClient() : supabase
+  const db = createAdminClient()
 
   const [
     { data: projects },
