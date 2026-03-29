@@ -39,6 +39,17 @@ interface Props {
   employees: Pick<Employee, 'id' | 'name' | 'employment_type' | 'hire_date'>[]
 }
 
+const CATEGORY_ROW_COLORS: Record<number, { checked: string; unchecked: string }> = {
+  0: { checked: 'bg-blue-50 border-blue-200', unchecked: 'bg-blue-50/30 border-blue-100' },
+  1: { checked: 'bg-green-50 border-green-200', unchecked: 'bg-green-50/30 border-green-100' },
+  2: { checked: 'bg-purple-50 border-purple-200', unchecked: 'bg-purple-50/30 border-purple-100' },
+  3: { checked: 'bg-amber-50 border-amber-200', unchecked: 'bg-amber-50/30 border-amber-100' },
+  4: { checked: 'bg-red-50 border-red-200', unchecked: 'bg-red-50/30 border-red-100' },
+  5: { checked: 'bg-teal-50 border-teal-200', unchecked: 'bg-teal-50/30 border-teal-100' },
+  6: { checked: 'bg-pink-50 border-pink-200', unchecked: 'bg-pink-50/30 border-pink-100' },
+  7: { checked: 'bg-indigo-50 border-indigo-200', unchecked: 'bg-indigo-50/30 border-indigo-100' },
+}
+
 // カテゴリはスキルデータから動的に取得（コンポーネント内で計算）
 
 export function ProjectManager({
@@ -448,8 +459,12 @@ export function ProjectManager({
                           <div
                             key={skill.id}
                             className={cn(
-                              'flex items-center gap-2 rounded-lg px-3 py-2 border',
-                              isChecked ? 'bg-orange-50 border-orange-200' : 'bg-gray-50 border-gray-100'
+                              'flex items-center gap-2 rounded-lg px-3 py-2 border border-l-4',
+                              (() => {
+                                const catIdx = categories.indexOf(skill.category)
+                                const colors = CATEGORY_ROW_COLORS[catIdx % Object.keys(CATEGORY_ROW_COLORS).length] ?? CATEGORY_ROW_COLORS[0]
+                                return isChecked ? colors.checked : colors.unchecked
+                              })()
                             )}
                           >
                             <Checkbox
