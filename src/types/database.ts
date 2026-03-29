@@ -20,6 +20,7 @@ export type Database = {
           employment_type: '社員' | 'メイト'
           avatar_url: string | null
           instagram_url: string | null
+          notifications_read_at: string | null
           created_at: string
           updated_at: string
         }
@@ -33,6 +34,7 @@ export type Database = {
           employment_type?: '社員' | 'メイト'
           avatar_url?: string | null
           instagram_url?: string | null
+          notifications_read_at?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -46,6 +48,7 @@ export type Database = {
           employment_type?: '社員' | 'メイト'
           avatar_url?: string | null
           instagram_url?: string | null
+          notifications_read_at?: string | null
           created_at?: string
           updated_at?: string
         }

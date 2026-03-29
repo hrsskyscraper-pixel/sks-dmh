@@ -21,7 +21,7 @@ export const getCurrentEmployee = cache(async () => {
 
   const { data } = await supabase
     .from('employees')
-    .select('id, name, email, role, employment_type, hire_date, avatar_url, instagram_url, auth_user_id, created_at, updated_at')
+    .select('id, name, email, role, employment_type, hire_date, avatar_url, instagram_url, notifications_read_at, auth_user_id, created_at, updated_at')
     .eq('auth_user_id', user.id)
     .single()
 
