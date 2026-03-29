@@ -22,9 +22,11 @@ export async function CheckpointRecords({ employeeId, employeeRole, projectSkill
 
   if (!cpSkills?.length) return null
 
-  // プロジェクトに含まれるCPスキルのみ
+  // プロジェクトに含まれるCPスキル（未割当の場合は全CPスキル）
   const pSkillIdSet = new Set(projectSkillIds)
-  const projectCpSkills = cpSkills.filter(s => pSkillIdSet.has(s.id))
+  const projectCpSkills = pSkillIdSet.size > 0
+    ? cpSkills.filter(s => pSkillIdSet.has(s.id))
+    : cpSkills
   if (!projectCpSkills.length) return null
 
   // 全認定済みachievementsを取得（CPスキルのみ）
