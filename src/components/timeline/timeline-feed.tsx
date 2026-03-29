@@ -7,10 +7,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
-import { MessageCircle, Send } from 'lucide-react'
+import { Heart, MessageCircle, Send } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-
-const REACTION_EMOJIS = ['👍', '🎉', '👏', '💪', '🔥']
 
 interface FeedAchievement {
   id: string
@@ -151,12 +149,11 @@ export function TimelineFeed({ achievements, comments: initialComments, reaction
         const isExpanded = expandedComments.has(achievement.id)
 
         // リアクション集計
-        const reactionCounts: Record<string, { count: number; hasOwn: boolean }> = {}
-        for (const r of achReactions) {
-          if (!reactionCounts[r.emoji]) reactionCounts[r.emoji] = { count: 0, hasOwn: false }
-          reactionCounts[r.emoji].count++
-          if (r.employee_id === currentEmployeeId) reactionCounts[r.emoji].hasOwn = true
-        }
+        const hasOwnLike = achReactions.some(r => r.employee_id === currentEmployeeId)
+        const likeCount = achReactions.length
+        const likerNames = achReactions
+          .map(r => employeeMap[r.employee_id]?.name ?? '不明')
+          .filter((name, i, arr) => arr.indexOf(name) === i)
 
         const Wrapper = compact ? 'div' : Card
         const wrapperClass = compact ? 'border-b border-gray-100 pb-3 last:border-b-0' : 'overflow-hidden'
@@ -192,41 +189,36 @@ export function TimelineFeed({ achievements, comments: initialComments, reaction
                 </div>
               </div>
 
-              {/* リアクションボタン */}
-              <div className="flex items-center gap-1 mt-2 flex-wrap">
-                {REACTION_EMOJIS.map(emoji => {
-                  const info = reactionCounts[emoji]
-                  const hasOwn = info?.hasOwn ?? false
-                  const count = info?.count ?? 0
-                  return (
-                    <button
-                      key={emoji}
-                      onClick={() => handleReaction(achievement.id, emoji)}
-                      disabled={isPending}
-                      className={cn(
-                        'flex items-center gap-0.5 rounded-full px-2 py-0.5 text-sm transition-colors border',
-                        hasOwn
-                          ? 'bg-orange-100 border-orange-300 text-orange-700'
-                          : 'bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100'
-                      )}
-                    >
-                      <span>{emoji}</span>
-                      {count > 0 && <span className="text-[10px] font-medium">{count}</span>}
-                    </button>
-                  )
-                })}
+              {/* いいね & コメントアイコン */}
+              <div className="flex items-center gap-4 mt-2">
+                <button
+                  onClick={() => handleReaction(achievement.id, '❤️')}
+                  disabled={isPending}
+                  className="flex items-center gap-1 transition-colors"
+                >
+                  <Heart className={cn('w-5 h-5', hasOwnLike ? 'fill-red-500 text-red-500' : 'text-gray-400 hover:text-red-400')} />
+                  {likeCount > 0 && <span className={cn('text-xs font-medium', hasOwnLike ? 'text-red-500' : 'text-gray-500')}>{likeCount}</span>}
+                </button>
                 <button
                   onClick={() => setExpandedComments(prev => {
                     const next = new Set(prev)
                     next.has(achievement.id) ? next.delete(achievement.id) : next.add(achievement.id)
                     return next
                   })}
-                  className="flex items-center gap-0.5 rounded-full px-2 py-0.5 text-sm bg-gray-50 border border-gray-200 text-gray-500 hover:bg-gray-100 transition-colors"
+                  className="flex items-center gap-1 text-gray-400 hover:text-gray-600 transition-colors"
                 >
-                  <MessageCircle className="w-3.5 h-3.5" />
-                  {achComments.length > 0 && <span className="text-[10px] font-medium">{achComments.length}</span>}
+                  <MessageCircle className="w-5 h-5" />
+                  {achComments.length > 0 && <span className="text-xs font-medium text-gray-500">{achComments.length}</span>}
                 </button>
               </div>
+              {/* いいねした人 */}
+              {likerNames.length > 0 && (
+                <p className="text-[11px] text-gray-500 mt-1">
+                  <span className="font-semibold">{likerNames.slice(0, 3).join('、')}</span>
+                  {likerNames.length > 3 && `、他${likerNames.length - 3}人`}
+                  が❤️しました
+                </p>
+              )}
 
               {/* コメント */}
               {(isExpanded || (!compact && achComments.length > 0)) && (
