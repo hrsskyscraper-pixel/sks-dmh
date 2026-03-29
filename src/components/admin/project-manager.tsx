@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/select'
 import { Plus, Pencil, Archive, ArchiveRestore, Trash2, GripVertical, UserMinus, UserPlus } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { updateSkillCategory, updateSkillStandardHours, updateSkillName, toggleSkillCheckpoint } from '@/app/(dashboard)/actions'
+import { updateSkillCategory, updateSkillStandardHours, updateSkillName, toggleSkillCheckpoint, createSkill, deleteSkill } from '@/app/(dashboard)/actions'
 import { sortCategories } from '@/lib/category-order'
 import { cn } from '@/lib/utils'
 import type { SkillProject, ProjectPhase, ProjectSkill, EmployeeProject, Skill, Employee } from '@/types/database'
@@ -66,6 +66,10 @@ export function ProjectManager({
   const categories = sortCategories([...new Set(skillsState.map(s => s.category))])
   const [newCategoryInput, setNewCategoryInput] = useState('')
   const [showNewCategoryInput, setShowNewCategoryInput] = useState(false)
+  const [newCategoryForSkillId, setNewCategoryForSkillId] = useState<string | null>(null)
+  const [showNewSkillDialog, setShowNewSkillDialog] = useState(false)
+  const [newSkillName, setNewSkillName] = useState('')
+  const [newSkillCategory, setNewSkillCategory] = useState('')
 
   // ---- state ----
   const [projects, setProjects] = useState(initialProjects)
@@ -494,7 +498,7 @@ export function ProjectManager({
                             <Select
                               value={skill.category}
                               onValueChange={v => {
-                                if (v === '__new__') { setShowNewCategoryInput(true); return }
+                                if (v === '__new__') { setNewCategoryForSkillId(skill.id); setShowNewCategoryInput(true); return }
                                 handleChangeSkillCategory(skill.id, v)
                               }}
                               disabled={isPending}
@@ -538,6 +542,22 @@ export function ProjectManager({
                                 </SelectContent>
                               </Select>
                             )}
+                            <Button
+                              variant="ghost" size="sm"
+                              className="h-7 w-7 p-0 text-gray-300 hover:text-red-500 flex-shrink-0"
+                              disabled={isPending}
+                              onClick={() => {
+                                if (!confirm(`「${skill.name}」を削除しますか？\n\nこのスキルに関連する認定データも削除されます。`)) return
+                                startTransition(async () => {
+                                  const result = await deleteSkill(skill.id)
+                                  if (result.error) { toast.error(result.error); return }
+                                  setSkillsState(prev => prev.filter(s => s.id !== skill.id))
+                                  toast.success('スキルを削除しました')
+                                })
+                              }}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
                           </div>
                         )
                       })}
@@ -545,6 +565,17 @@ export function ProjectManager({
                   </div>
                 )
               })}
+
+              {/* スキル新規作成ボタン */}
+              <Button
+                variant="outline"
+                className="w-full mt-2"
+                onClick={() => { setNewSkillName(''); setNewSkillCategory(categories[0] ?? '接客'); setShowNewSkillDialog(true) }}
+              >
+                <Plus className="w-4 h-4 mr-1" />
+                スキルを新規作成
+              </Button>
+
               <p className="text-xs text-muted-foreground text-center">
                 選択中: {selectedProjectSkillIds.size} / {allSkills.length} スキル
               </p>
@@ -730,15 +761,70 @@ export function ProjectManager({
               disabled={!newCategoryInput.trim() || categories.includes(newCategoryInput.trim())}
               onClick={() => {
                 const name = newCategoryInput.trim()
-                // ダミーのスキルを追加してカテゴリを表示可能にする（実際にはスキルのカテゴリを変更する）
-                setSkillsState(prev => [...prev, { ...prev[0], id: `__placeholder_${name}`, name: `（${name}にスキルを移動してください）`, category: name }])
+                if (newCategoryForSkillId) {
+                  // 選択中のスキルのカテゴリを同時に変更
+                  handleChangeSkillCategory(newCategoryForSkillId, name)
+                }
                 setShowNewCategoryInput(false)
                 setNewCategoryInput('')
-                toast.success(`カテゴリ「${name}」を追加しました。スキルのカテゴリを変更してください。`)
+                setNewCategoryForSkillId(null)
+                toast.success(`カテゴリ「${name}」を作成しました`)
               }}
             >
               追加
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* スキル新規作成ダイアログ */}
+      <Dialog open={showNewSkillDialog} onOpenChange={setShowNewSkillDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>スキルを新規作成</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <p className="text-xs font-medium text-gray-600 mb-1">スキル名</p>
+              <Input placeholder="例: お客様対応（応用）" value={newSkillName} onChange={e => setNewSkillName(e.target.value)} className="text-sm" />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-gray-600 mb-1">カテゴリ</p>
+              <Select value={newSkillCategory} onValueChange={setNewSkillCategory}>
+                <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {categories.map(c => (
+                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowNewSkillDialog(false)}>キャンセル</Button>
+            <Button
+              disabled={isPending || !newSkillName.trim()}
+              className="bg-orange-500 hover:bg-orange-600 text-white"
+              onClick={() => {
+                startTransition(async () => {
+                  const result = await createSkill({ name: newSkillName.trim(), category: newSkillCategory })
+                  if (result.error) { toast.error(result.error); return }
+                  if (result.data) {
+                    setSkillsState(prev => [...prev, {
+                      id: result.data!.id,
+                      name: newSkillName.trim(),
+                      category: newSkillCategory,
+                      phase: null,
+                      order_index: 9999,
+                      target_date_hint: null,
+                      standard_hours: null,
+                      is_checkpoint: false,
+                      created_at: new Date().toISOString(),
+                    }])
+                  }
+                  setShowNewSkillDialog(false)
+                  toast.success('スキルを作成しました')
+                })
+              }}
+            >作成</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

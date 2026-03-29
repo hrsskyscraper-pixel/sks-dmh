@@ -186,6 +186,40 @@ export async function updateSkillName(skillId: string, newName: string): Promise
   return {}
 }
 
+export async function createSkill(data: { name: string; category: string }): Promise<{ data?: { id: string }; error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: '認証エラー' }
+
+  const { data: emp } = await supabase.from('employees').select('role').eq('auth_user_id', user.id).single()
+  if (!emp || !['admin', 'ops_manager', 'executive', 'testuser'].includes(emp.role)) return { error: '権限がありません' }
+
+  const adminDb = createAdminClient()
+  const { data: maxOrder } = await adminDb.from('skills').select('order_index').order('order_index', { ascending: false }).limit(1).single()
+  const nextOrder = (maxOrder?.order_index ?? 0) + 1
+
+  const { data: created, error } = await adminDb.from('skills')
+    .insert({ name: data.name.trim(), category: data.category, order_index: nextOrder })
+    .select('id')
+    .single()
+  if (error) return { error: error.message }
+  return { data: created }
+}
+
+export async function deleteSkill(skillId: string): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: '認証エラー' }
+
+  const { data: emp } = await supabase.from('employees').select('role').eq('auth_user_id', user.id).single()
+  if (!emp || !['admin', 'ops_manager', 'executive', 'testuser'].includes(emp.role)) return { error: '権限がありません' }
+
+  const adminDb = createAdminClient()
+  const { error } = await adminDb.from('skills').delete().eq('id', skillId)
+  if (error) return { error: error.message }
+  return {}
+}
+
 export async function toggleSkillCheckpoint(skillId: string, isCheckpoint: boolean): Promise<{ error?: string }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
