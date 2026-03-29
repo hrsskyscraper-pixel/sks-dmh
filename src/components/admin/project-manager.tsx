@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/select'
 import { Plus, Pencil, Archive, ArchiveRestore, Trash2, GripVertical, UserMinus, UserPlus } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { updateSkillCategory, updateSkillStandardHours, updateSkillName, toggleSkillCheckpoint, createSkill, deleteSkill } from '@/app/(dashboard)/actions'
+import { updateSkillCategory, updateSkillStandardHours, updateSkillName, toggleSkillCheckpoint, createSkill, deleteSkill, reorderSkills } from '@/app/(dashboard)/actions'
 import { sortCategories } from '@/lib/category-order'
 import { cn } from '@/lib/utils'
 import type { SkillProject, ProjectPhase, ProjectSkill, EmployeeProject, Skill, Employee } from '@/types/database'
@@ -70,6 +70,8 @@ export function ProjectManager({
   const [showNewSkillDialog, setShowNewSkillDialog] = useState(false)
   const [newSkillName, setNewSkillName] = useState('')
   const [newSkillCategory, setNewSkillCategory] = useState('')
+  const [dragSkillId, setDragSkillId] = useState<string | null>(null)
+  const [dragOverInfo, setDragOverInfo] = useState<{ skillId: string; position: 'before' | 'after' } | null>(null)
 
   // ---- state ----
   const [projects, setProjects] = useState(initialProjects)
@@ -285,6 +287,43 @@ export function ProjectManager({
     })
   }
 
+  function handleDrop(targetSkillId: string, targetPhaseId: string) {
+    if (!dragSkillId || dragSkillId === targetSkillId) {
+      setDragSkillId(null)
+      setDragOverInfo(null)
+      return
+    }
+    const dragSkill = skillsState.find(s => s.id === dragSkillId)
+    if (!dragSkill) return
+
+    // フェーズ変更（異なるフェーズにドロップした場合）
+    const currentPhaseId = skillPhaseMap[dragSkillId]
+    if (currentPhaseId !== targetPhaseId && targetPhaseId !== '__unassigned__') {
+      handleChangeSkillPhase(dragSkillId, targetPhaseId)
+    }
+
+    // 並び順変更: 同じカテゴリ内で順番を入れ替え
+    const targetSkill = skillsState.find(s => s.id === targetSkillId)
+    if (targetSkill) {
+      const pos = dragOverInfo?.position ?? 'after'
+      // order_indexを再計算
+      const allSorted = [...skillsState].sort((a, b) => a.order_index - b.order_index)
+      const without = allSorted.filter(s => s.id !== dragSkillId)
+      const targetIdx = without.findIndex(s => s.id === targetSkillId)
+      const insertIdx = pos === 'before' ? targetIdx : targetIdx + 1
+      without.splice(insertIdx, 0, dragSkill)
+      const updated = without.map((s, i) => ({ ...s, order_index: i + 1 }))
+      setSkillsState(updated)
+      // DB保存（バッチ）
+      startTransition(async () => {
+        await reorderSkills(updated.map(s => s.id))
+      })
+    }
+
+    setDragSkillId(null)
+    setDragOverInfo(null)
+  }
+
   function handleToggleCheckpoint(skillId: string, current: boolean) {
     setSkillsState(prev => prev.map(s => s.id === skillId ? { ...s, is_checkpoint: !current } : s))
     startTransition(async () => {
@@ -453,17 +492,43 @@ export function ProjectManager({
                 })
                 if (sorted.length === 0) return null
                 return (
-                  <div key={phase.id}>
+                  <div
+                    key={phase.id}
+                    onDragOver={e => e.preventDefault()}
+                    onDrop={e => {
+                      e.preventDefault()
+                      if (dragSkillId && phase.id !== '__unassigned__') {
+                        handleChangeSkillPhase(dragSkillId, phase.id)
+                        setDragSkillId(null)
+                        setDragOverInfo(null)
+                      }
+                    }}
+                  >
                     <h3 className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">{phase.name}</h3>
                     <div className="space-y-1.5">
                       {sorted.map(skill => {
                         const isChecked = selectedProjectSkillIds.has(skill.id)
                         const currentPhaseId = skillPhaseMap[skill.id] ?? null
+                        const isDragging = dragSkillId === skill.id
+                        const isDragOver = dragOverInfo?.skillId === skill.id
                         return (
                           <div
                             key={skill.id}
+                            draggable
+                            onDragStart={() => setDragSkillId(skill.id)}
+                            onDragEnd={() => { setDragSkillId(null); setDragOverInfo(null) }}
+                            onDragOver={e => {
+                              e.preventDefault()
+                              const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                              const pos = e.clientY < rect.top + rect.height / 2 ? 'before' : 'after'
+                              setDragOverInfo({ skillId: skill.id, position: pos })
+                            }}
+                            onDrop={e => { e.preventDefault(); handleDrop(skill.id, phase.id) }}
                             className={cn(
-                              'flex items-center gap-2 rounded-lg px-3 py-2 border border-l-4',
+                              'flex items-center gap-2 rounded-lg px-3 py-2 border border-l-4 transition-all cursor-grab active:cursor-grabbing',
+                              isDragging && 'opacity-30',
+                              isDragOver && dragOverInfo?.position === 'before' && 'border-t-2 border-t-orange-500',
+                              isDragOver && dragOverInfo?.position === 'after' && 'border-b-2 border-b-orange-500',
                               (() => {
                                 const catIdx = categories.indexOf(skill.category)
                                 const colors = CATEGORY_ROW_COLORS[catIdx % Object.keys(CATEGORY_ROW_COLORS).length] ?? CATEGORY_ROW_COLORS[0]

@@ -206,6 +206,21 @@ export async function createSkill(data: { name: string; category: string }): Pro
   return { data: created }
 }
 
+export async function reorderSkills(skillIds: string[]): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: '認証エラー' }
+
+  const adminDb = createAdminClient()
+  const updates = skillIds.map((id, index) =>
+    adminDb.from('skills').update({ order_index: index + 1 }).eq('id', id)
+  )
+  const results = await Promise.all(updates)
+  const failed = results.find(r => r.error)
+  if (failed?.error) return { error: failed.error.message }
+  return {}
+}
+
 export async function deleteSkill(skillId: string): Promise<{ error?: string }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
