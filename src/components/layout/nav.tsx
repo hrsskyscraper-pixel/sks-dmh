@@ -6,6 +6,7 @@ import { LayoutDashboard, CheckSquare, BadgeCheck, Upload, Users2, LogOut, Build
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
+import { useNotificationCount } from '@/components/layout/notification-context'
 import type { Role } from '@/types/database'
 
 const navItems = [
@@ -79,11 +80,25 @@ export function BottomNav({ role, unreadRequestCount = 0 }: NavProps) {
 }
 
 export function TopBar({ title, right }: { title: string; right?: React.ReactNode }) {
+  const notificationCount = useNotificationCount()
   return (
     <header className="sticky bg-white/80 backdrop-blur-sm border-b border-gray-100 z-40" style={{ top: 'var(--banner-h, 0px)' }}>
-      <div className="flex items-center justify-between h-14 px-4 max-w-2xl mx-auto">
-        <h1 className="text-base font-bold text-gray-900">{title}</h1>
-        {right}
+      <div className="flex items-center h-14 px-4 max-w-2xl mx-auto gap-2">
+        <h1 className="text-base font-bold text-gray-900 flex-shrink-0">{title}</h1>
+        <div className="flex-1 min-w-0 flex justify-end">
+          {right}
+        </div>
+        <Link
+          href="/notifications"
+          className="relative flex items-center justify-center w-9 h-9 rounded-full hover:bg-gray-100 transition-colors flex-shrink-0"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+          {notificationCount > 0 && (
+            <span className="absolute top-0 right-0 bg-red-500 text-white text-[9px] font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-1 leading-none">
+              {notificationCount > 99 ? '99+' : notificationCount}
+            </span>
+          )}
+        </Link>
       </div>
     </header>
   )

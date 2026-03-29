@@ -7,6 +7,7 @@ import { Toaster } from '@/components/ui/sonner'
 import { ViewAsBanner } from '@/components/layout/view-as-banner'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { NotificationCountProvider } from '@/components/layout/notification-context'
 import type { Database, Role } from '@/types/database'
 
 export default async function DashboardLayout({
@@ -106,26 +107,15 @@ export default async function DashboardLayout({
   const effectiveRole: Role = (viewAsEmployee?.role as Role | undefined) ?? role
 
   return (
-    <div className="min-h-screen bg-gray-50" style={viewAsEmployee ? { '--banner-h': '2.5rem' } as React.CSSProperties : undefined}>
-      {viewAsEmployee && <ViewAsBanner employeeName={viewAsEmployee.name} />}
-      {/* 通知ベルアイコン（ヘッダー右上に固定） */}
-      <a
-        href="/notifications"
-        className="fixed z-50 right-4 flex items-center justify-center w-9 h-9 rounded-full bg-white shadow-md border border-gray-200 hover:bg-gray-50 transition-colors"
-        style={{ top: `calc(${viewAsEmployee ? 'var(--banner-h, 0px)' : '0px'} + 0.65rem)` }}
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-600"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
-        {unreadNotifCount > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-1 leading-none">
-            {unreadNotifCount > 99 ? '99+' : unreadNotifCount}
-          </span>
-        )}
-      </a>
-      <main className="pb-20 max-w-2xl mx-auto">
-        {children}
-      </main>
-      <BottomNav role={effectiveRole} unreadRequestCount={unreadRequestCount} />
-      <Toaster position="top-center" richColors />
-    </div>
+    <NotificationCountProvider count={unreadNotifCount}>
+      <div className="min-h-screen bg-gray-50" style={viewAsEmployee ? { '--banner-h': '2.5rem' } as React.CSSProperties : undefined}>
+        {viewAsEmployee && <ViewAsBanner employeeName={viewAsEmployee.name} />}
+        <main className="pb-20 max-w-2xl mx-auto">
+          {children}
+        </main>
+        <BottomNav role={effectiveRole} unreadRequestCount={unreadRequestCount} />
+        <Toaster position="top-center" richColors />
+      </div>
+    </NotificationCountProvider>
   )
 }
