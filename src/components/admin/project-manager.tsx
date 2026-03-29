@@ -564,6 +564,7 @@ export function ProjectManager({
                             </button>
                             <input
                               defaultValue={skill.name}
+                              title={skill.name}
                               onBlur={e => { if (e.target.value !== skill.name) handleRenameSkill(skill.id, e.target.value) }}
                               onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
                               className="flex-1 text-sm text-gray-800 min-w-0 bg-transparent border-b border-transparent hover:border-gray-300 focus:border-orange-400 focus:outline-none px-0.5 py-0"
@@ -578,28 +579,28 @@ export function ProjectManager({
                                 }}
                                 disabled={isPending}
                               >
-                                <SelectTrigger className="h-7 text-xs w-24 flex-shrink-0">
+                                <SelectTrigger className="h-6 text-[10px] w-16 flex-shrink-0 px-1.5">
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
                                   {categories.map(c => (
                                     <SelectItem key={c} value={c}>{c}</SelectItem>
                                   ))}
-                                  <SelectItem value="__new__">+ 新規追加</SelectItem>
+                                  <SelectItem value="__new__">+ 新規</SelectItem>
                                 </SelectContent>
                               </Select>
                             </div>
-                            <div className="flex items-center gap-0.5 flex-shrink-0" title="標準習得時間">
+                            <div className="flex items-center gap-0 flex-shrink-0" title="標準習得時間">
                               <Input
                                 type="number"
                                 min={0}
                                 placeholder="-"
                                 value={skill.standard_hours ?? ''}
                                 onChange={e => handleChangeStandardHours(skill.id, e.target.value)}
-                                className="h-7 text-xs w-14 text-right"
+                                className="h-6 text-[10px] w-10 text-right px-1"
                                 disabled={isPending}
                               />
-                              <span className="text-[10px] text-gray-400">h</span>
+                              <span className="text-[9px] text-gray-400">h</span>
                             </div>
                             {isChecked && selectedPhases.length > 0 && (
                               <div title="フェーズ">
@@ -608,8 +609,8 @@ export function ProjectManager({
                                   onValueChange={v => handleChangeSkillPhase(skill.id, v === 'none' ? null : v)}
                                   disabled={isPending}
                                 >
-                                  <SelectTrigger className="h-7 text-xs w-28 flex-shrink-0">
-                                    <SelectValue placeholder="フェーズ未設定" />
+                                  <SelectTrigger className="h-6 text-[10px] w-20 flex-shrink-0 px-1.5">
+                                    <SelectValue placeholder="未設定" />
                                   </SelectTrigger>
                                   <SelectContent>
                                     <SelectItem value="none">未設定</SelectItem>
@@ -620,16 +621,19 @@ export function ProjectManager({
                                 </Select>
                               </div>
                             )}
-                            <div title="予定日">
+                            <div title={skill.target_date_hint ? `予定日: ${skill.target_date_hint}` : '予定日'} className="flex-shrink-0 relative">
                               <Input
                                 type="date"
                                 defaultValue={skill.target_date_hint ?? ''}
                                 onBlur={e => {
                                   if (e.target.value !== (skill.target_date_hint ?? '')) handleChangeTargetDate(skill.id, e.target.value)
                                 }}
-                                className="h-7 text-xs w-32 flex-shrink-0"
+                                className="h-6 text-[10px] w-20 flex-shrink-0 px-1 opacity-0 absolute inset-0 cursor-pointer"
                                 disabled={isPending}
                               />
+                              <span className={cn('text-[10px] h-6 w-20 flex items-center justify-center border rounded-md cursor-pointer', skill.target_date_hint ? 'text-gray-700 bg-white border-gray-200' : 'text-gray-400 bg-gray-50 border-gray-200')}>
+                                {skill.target_date_hint ? `${skill.target_date_hint.slice(2, 7).replace('-', '/')}` : '予定日'}
+                              </span>
                             </div>
                             <Button
                               variant="ghost" size="sm"
