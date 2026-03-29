@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
+import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
@@ -96,17 +97,13 @@ export default async function NotificationsPage() {
   )
 
   // 通知ページを開いた時点で既読タイムスタンプを更新（ベルバッジを消す）
-  if (!viewAsId) {
-    const adminDb = createAdminClient()
-    await adminDb.from('employees')
-      .update({ notifications_read_at: new Date().toISOString() })
-      .eq('id', currentEmployee.id)
-  } else {
-    const adminDb = createAdminClient()
-    await adminDb.from('employees')
-      .update({ notifications_read_at: new Date().toISOString() })
-      .eq('id', viewAsId)
-  }
+  const adminDb = createAdminClient()
+  const targetIdForRead = viewAsId ?? currentEmployee.id
+  await adminDb.from('employees')
+    .update({ notifications_read_at: new Date().toISOString() })
+    .eq('id', targetIdForRead)
+  // 他ページのベルバッジを更新するためキャッシュ無効化
+  revalidatePath('/', 'layout')
 
   return (
     <>
