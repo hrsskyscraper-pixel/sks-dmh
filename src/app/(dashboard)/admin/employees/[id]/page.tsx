@@ -7,9 +7,12 @@ import { EmployeeCareerCard } from '@/components/admin/employee-career-card'
 export default async function EmployeeDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const currentEmployee = await getCurrentEmployee()
   if (!currentEmployee) redirect('/login')
-  if (!['manager', 'admin', 'ops_manager', 'testuser'].includes(currentEmployee.role)) redirect('/')
 
   const { id } = await params
+
+  // 社員は自分のカルテのみ閲覧可能
+  const isAdmin = ['manager', 'admin', 'ops_manager', 'testuser'].includes(currentEmployee.role)
+  if (!isAdmin && currentEmployee.id !== id) redirect('/')
   const db = createAdminClient()
 
   const [
@@ -34,6 +37,7 @@ export default async function EmployeeDetailPage({ params }: { params: Promise<{
         careerRecords={careerRecords ?? []}
         employeeMap={employeeMap}
         allEmployees={allEmployees ?? []}
+        canEdit={isAdmin}
       />
     </>
   )

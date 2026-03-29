@@ -260,7 +260,9 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, e
                 <div className="flex-1 min-w-0">
                   {/* 名前 + 役割バッジ */}
                   <div className="flex items-center gap-1.5 mb-1">
-                    <p className="text-sm font-medium text-gray-800">{employee.name}</p>
+                    <Link href={`/admin/employees/${employee.id}`} className="text-sm font-medium text-gray-800 hover:text-orange-600 hover:underline transition-colors">
+                      {employee.name}
+                    </Link>
                     <Badge className={`${DISPLAY_ROLE_COLORS[displayRole]} text-xs border-0 flex items-center gap-1 flex-shrink-0`}>
                       {DISPLAY_ROLE_ICONS[displayRole]}
                       {displayRole}

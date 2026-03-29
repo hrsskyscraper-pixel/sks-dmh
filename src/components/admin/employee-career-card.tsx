@@ -33,9 +33,10 @@ interface Props {
   careerRecords: CareerRecord[]
   employeeMap: Record<string, EmployeeInfo>
   allEmployees: EmployeeInfo[]
+  canEdit: boolean
 }
 
-export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEmployees }: Props) {
+export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEmployees, canEdit }: Props) {
   const [isPending, startTransition] = useTransition()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [formType, setFormType] = useState('面接')
@@ -134,10 +135,12 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
       </Card>
 
       {/* 記録追加ボタン */}
-      <Button onClick={() => openDialog()} className="w-full bg-orange-500 hover:bg-orange-600 text-white" disabled={isPending}>
-        <Plus className="w-4 h-4 mr-1" />
-        キャリア記録を追加
-      </Button>
+      {canEdit && (
+        <Button onClick={() => openDialog()} className="w-full bg-orange-500 hover:bg-orange-600 text-white" disabled={isPending}>
+          <Plus className="w-4 h-4 mr-1" />
+          キャリア記録を追加
+        </Button>
+      )}
 
       {/* タイプ別記録 */}
       {RECORD_TYPES.map(({ value, label, icon: Icon, color }) => {
@@ -151,9 +154,11 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
                   <Icon className="w-4 h-4" />
                   {label}
                 </CardTitle>
-                <Button variant="ghost" size="sm" className="h-7 text-xs text-orange-600" onClick={() => openDialog(value)}>
-                  <Plus className="w-3 h-3 mr-0.5" />追加
-                </Button>
+                {canEdit && (
+                  <Button variant="ghost" size="sm" className="h-7 text-xs text-orange-600" onClick={() => openDialog(value)}>
+                    <Plus className="w-3 h-3 mr-0.5" />追加
+                  </Button>
+                )}
               </div>
             </CardHeader>
             <CardContent className="px-4 pb-4 space-y-2">
@@ -187,10 +192,12 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
                         <p className="text-sm text-gray-600">{record.notes}</p>
                       )}
                     </div>
-                    <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-gray-300 hover:text-red-500 flex-shrink-0"
-                      onClick={() => handleDelete(record.id)} disabled={isPending}>
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
+                    {canEdit && (
+                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-gray-300 hover:text-red-500 flex-shrink-0"
+                        onClick={() => handleDelete(record.id)} disabled={isPending}>
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))}
