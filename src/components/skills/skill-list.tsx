@@ -77,6 +77,40 @@ function getCategoryColor(category: string, allCategories: string[]): string {
   return 'bg-gray-100 text-gray-700'
 }
 
+const CATEGORY_BORDER_PALETTE = [
+  'border-l-blue-500',
+  'border-l-green-500',
+  'border-l-purple-500',
+  'border-l-amber-500',
+  'border-l-red-500',
+  'border-l-teal-500',
+  'border-l-pink-500',
+  'border-l-indigo-500',
+]
+
+const CATEGORY_BG_PALETTE = [
+  'bg-blue-50/50',
+  'bg-green-50/50',
+  'bg-purple-50/50',
+  'bg-amber-50/50',
+  'bg-red-50/50',
+  'bg-teal-50/50',
+  'bg-pink-50/50',
+  'bg-indigo-50/50',
+]
+
+function getCategoryBorderColor(category: string, allCategories: string[]): string {
+  const idx = allCategories.indexOf(category)
+  if (idx >= 0) return CATEGORY_BORDER_PALETTE[idx % CATEGORY_BORDER_PALETTE.length]
+  return 'border-l-gray-300'
+}
+
+function getCategoryBgColor(category: string, allCategories: string[]): string {
+  const idx = allCategories.indexOf(category)
+  if (idx >= 0) return CATEGORY_BG_PALETTE[idx % CATEGORY_BG_PALETTE.length]
+  return 'bg-gray-50/50'
+}
+
 function getCategoryProgressColor(category: string, allCategories: string[]): string {
   const idx = allCategories.indexOf(category)
   if (idx >= 0) return CATEGORY_PROGRESS_PALETTE[idx % CATEGORY_PROGRESS_PALETTE.length]
@@ -423,9 +457,9 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
                 const isCertifiedExpanded = expandedStatusGroups.has(certifiedKey)
 
                 return (
-                  <Card key={category} className="overflow-hidden">
+                  <Card key={category} className={cn('overflow-hidden border-l-4', getCategoryBorderColor(category, categories))}>
                     <button
-                      className="w-full flex items-center justify-between p-3 hover:bg-gray-50 transition-colors"
+                      className={cn('w-full flex items-center justify-between p-3 transition-colors', getCategoryBgColor(category, categories), 'hover:opacity-80')}
                       onClick={() => toggleCategory(key)}
                     >
                       <div className="flex-1 min-w-0">
