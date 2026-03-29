@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
-import { Plus, Trash2, ArrowLeft, Users, Briefcase, GraduationCap, MapPin, ArrowRightLeft, FileText, Pencil } from 'lucide-react'
+import { Plus, Trash2, ArrowLeft, Users, Briefcase, GraduationCap, MapPin, ArrowRightLeft, FileText, Pencil, Instagram } from 'lucide-react'
 import { addCareerRecord, updateCareerRecord, deleteCareerRecord, updateEmployeeName } from '@/app/(dashboard)/actions'
 import Link from 'next/link'
 import type { CareerRecord } from '@/types/database'
@@ -29,7 +29,7 @@ const RECORD_TYPES = [
 interface EmployeeInfo { id: string; name: string; avatar_url: string | null }
 
 interface Props {
-  employee: { id: string; name: string; email: string; role: string; employment_type: string; hire_date: string | null; avatar_url: string | null }
+  employee: { id: string; name: string; email: string; role: string; employment_type: string; hire_date: string | null; avatar_url: string | null; instagram_url: string | null }
   careerRecords: CareerRecord[]
   employeeMap: Record<string, EmployeeInfo>
   allEmployees: EmployeeInfo[]
@@ -143,6 +143,11 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
                   <button onClick={() => { setNameInput(employeeName); setNameDialogOpen(true) }} className="text-gray-300 hover:text-orange-500 transition-colors">
                     <Pencil className="w-4 h-4" />
                   </button>
+                )}
+                {employee.instagram_url && (
+                  <a href={employee.instagram_url.startsWith('http') ? employee.instagram_url : `https://instagram.com/${employee.instagram_url.replace(/^@/, '')}`} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-pink-500 transition-colors">
+                    <Instagram className="w-5 h-5" />
+                  </a>
                 )}
               </div>
               <p className="text-sm text-gray-500">{employee.email}</p>

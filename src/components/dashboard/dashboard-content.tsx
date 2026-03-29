@@ -305,7 +305,7 @@ export function DashboardContent({
             <div className="flex-1 min-w-0">
               <p className="text-orange-100 text-sm">Enjoy your growth!</p>
               <div className="flex items-center gap-2 mb-1.5">
-                <h2 className="text-2xl font-bold">{fullName} さん</h2>
+                <Link href={`/admin/employees/${employee.id}`} className="text-2xl font-bold hover:underline decoration-white/50 transition-colors">{fullName} さん</Link>
                 {instagramUrl && (
                   <a href={instagramUrl.startsWith('http') ? instagramUrl : `https://instagram.com/${instagramUrl.replace(/^@/, '')}`} target="_blank" rel="noopener noreferrer" className="opacity-70 hover:opacity-100 transition-opacity">
                     <Instagram className="w-5 h-5 text-white" />

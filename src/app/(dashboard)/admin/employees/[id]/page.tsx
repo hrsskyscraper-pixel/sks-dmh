@@ -20,7 +20,7 @@ export default async function EmployeeDetailPage({ params }: { params: Promise<{
     { data: careerRecords },
     { data: allEmployees },
   ] = await Promise.all([
-    db.from('employees').select('id, name, email, role, employment_type, hire_date, avatar_url').eq('id', id).single(),
+    db.from('employees').select('id, name, email, role, employment_type, hire_date, avatar_url, instagram_url').eq('id', id).single(),
     db.from('career_records').select('*').eq('employee_id', id).order('occurred_at', { ascending: false }),
     db.from('employees').select('id, name, avatar_url').order('name'),
   ])
@@ -31,7 +31,7 @@ export default async function EmployeeDetailPage({ params }: { params: Promise<{
 
   return (
     <>
-      <TopBar title="社員カルテ" />
+      <TopBar title="メンバーカルテ" />
       <EmployeeCareerCard
         employee={employee}
         careerRecords={careerRecords ?? []}

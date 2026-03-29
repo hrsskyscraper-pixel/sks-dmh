@@ -321,7 +321,7 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, e
                         <DropdownMenuItem asChild>
                           <Link href={`/admin/employees/${employee.id}`} className="flex items-center gap-2 text-sm">
                             <FileText className="w-3.5 h-3.5" />
-                            社員カルテ
+                            メンバーカルテ
                           </Link>
                         </DropdownMenuItem>
                         {ALL_DISPLAY_ROLES
