@@ -61,7 +61,7 @@ const STATUS_COLORS: Record<TeamChangeRequest['status'], string> = {
 }
 
 const STATUS_LABELS: Record<TeamChangeRequest['status'], string> = {
-  pending: '審査中',
+  pending: '承認待ち',
   approved: '承認済み',
   rejected: '差し戻し',
 }
@@ -167,7 +167,7 @@ export function TeamManager({
   }
 
   const pendingRequests = changeRequests.filter(r => r.status === 'pending')
-  // マネジャー向け: 未読の審査結果件数（view-as 対応で effectiveEmployee を使う）
+  // マネジャー向け: 未読の承認結果件数（view-as 対応で effectiveEmployee を使う）
   const unreadResults = changeRequests.filter(
     r => r.requested_by === effectiveEmployee.id && r.status !== 'pending' && !r.applicant_read_at
   )
@@ -179,7 +179,7 @@ export function TeamManager({
   const pendingMyCount = !isDirectEdit
     ? displayRequests.filter(r => r.status === 'pending').length
     : 0
-  // admin/ops_manager が自分で審査した履歴（approved/rejected）
+  // admin/ops_manager が自分で承認した履歴（approved/rejected）
   const reviewedRequests = isDirectEdit
     ? changeRequests
         .filter(r => (r.status === 'approved' || r.status === 'rejected') && r.reviewed_by === currentEmployee.id)
@@ -226,6 +226,27 @@ export function TeamManager({
   // Direct edit actions (admin / ops_manager)
   // -------------------------------------------------------
 
+  // 直接編集の承認履歴を記録
+  const logDirectAction = async (
+    requestType: RequestType,
+    teamId: string | null,
+    payload: Record<string, unknown>,
+  ) => {
+    const { data } = await supabase.from('team_change_requests').insert({
+      requested_by: currentEmployee.id,
+      request_type: requestType,
+      team_id: teamId,
+      payload: payload as unknown as import('@/types/database').Json,
+      status: 'approved' as const,
+      reviewed_by: currentEmployee.id,
+      reviewed_at: new Date().toISOString(),
+      review_comment: '直接実行',
+    }).select().maybeSingle()
+    if (data) {
+      setChangeRequests(prev => [...prev, data])
+    }
+  }
+
   const handleCreateTeam = () => {
     if (!isDirectEdit) return
     if (!newTeamName.trim() || !newTeamType || !newTeamManagerId) return
@@ -244,6 +265,7 @@ export function TeamManager({
 
       setTeams(prev => [...prev, team])
       setTeamManagers(prev => [...prev, { team_id: team.id, employee_id: newTeamManagerId, role: 'primary' as const }])
+      await logDirectAction('create_team', team.id, { team_name: team.name, team_type: newTeamType, manager_id: newTeamManagerId, manager_name: getEmployeeName(newTeamManagerId) })
       setShowCreateTeam(false)
       setNewTeamName('')
       setNewTeamType('')
@@ -272,6 +294,10 @@ export function TeamManager({
         .insert(employeeIds.map(id => ({ team_id: teamId, employee_id: id })))
       if (error) { toast.error('追加に失敗しました'); return }
       setTeamMembers(prev => [...prev, ...employeeIds.map(id => ({ team_id: teamId, employee_id: id }))])
+      const teamName = teams.find(t => t.id === teamId)?.name ?? ''
+      for (const empId of employeeIds) {
+        await logDirectAction('add_member', teamId, { team_name: teamName, employee_id: empId, employee_name: getEmployeeName(empId) })
+      }
       setAddDialog(null)
       setSelectedEmployeeIds(new Set())
       toast.success(`${employeeIds.length}名をメンバーに追加しました`)
@@ -288,6 +314,8 @@ export function TeamManager({
         .eq('employee_id', employeeId)
       if (error) { toast.error('削除に失敗しました'); return }
       setTeamMembers(prev => prev.filter(m => !(m.team_id === teamId && m.employee_id === employeeId)))
+      const teamName = teams.find(t => t.id === teamId)?.name ?? ''
+      await logDirectAction('remove_member', teamId, { team_name: teamName, employee_id: employeeId, employee_name: getEmployeeName(employeeId) })
       toast.success('メンバーを削除しました')
     })
   }
@@ -314,6 +342,10 @@ export function TeamManager({
           : prev
         return [...updated, ...employeeIds.map(id => ({ team_id: teamId, employee_id: id, role }))]
       })
+      const teamName = teams.find(t => t.id === teamId)?.name ?? ''
+      for (const empId of employeeIds) {
+        await logDirectAction('add_manager', teamId, { team_name: teamName, employee_id: empId, employee_name: getEmployeeName(empId), role })
+      }
       setAddDialog(null)
       setSelectedEmployeeIds(new Set())
       setNewManagerRole('secondary')
@@ -331,6 +363,8 @@ export function TeamManager({
         .eq('employee_id', employeeId)
       if (error) { toast.error('削除に失敗しました'); return }
       setTeamManagers(prev => prev.filter(m => !(m.team_id === teamId && m.employee_id === employeeId)))
+      const teamName = teams.find(t => t.id === teamId)?.name ?? ''
+      await logDirectAction('remove_manager', teamId, { team_name: teamName, employee_id: employeeId, employee_name: getEmployeeName(employeeId) })
       toast.success('マネジャーを削除しました')
     })
   }
@@ -1037,27 +1071,27 @@ export function TeamManager({
           <TabsTrigger value="teams" className="text-xs">チーム一覧</TabsTrigger>
           <TabsTrigger value="requests" className="text-xs">
             申請
-            {/* admin/ops_manager: 審査待ち件数 */}
+            {/* admin/ops_manager: 承認待ち件数 */}
             {isDirectEdit && pendingRequests.length > 0 && (
               <Badge className="ml-1 bg-red-500 text-white text-[10px] h-4 px-1 border-0">
                 {pendingRequests.length}
               </Badge>
             )}
-            {/* manager: 未読の審査結果件数 */}
+            {/* manager: 未読の承認結果件数 */}
             {!isDirectEdit && unreadResults.length > 0 && (
               <Badge className="ml-1 bg-red-500 text-white text-[10px] h-4 px-1 border-0">
                 {unreadResults.length}
               </Badge>
             )}
-            {/* manager: 自分の審査待ち申請件数 */}
+            {/* manager: 自分の承認待ち申請件数 */}
             {!isDirectEdit && pendingMyCount > 0 && (
               <Badge className="ml-1 bg-amber-400 text-white text-[10px] h-4 px-1 border-0">
-                審査中{pendingMyCount}
+                承認中{pendingMyCount}
               </Badge>
             )}
           </TabsTrigger>
           {isDirectEdit && (
-            <TabsTrigger value="review-history" className="text-xs">審査履歴</TabsTrigger>
+            <TabsTrigger value="review-history" className="text-xs">承認履歴</TabsTrigger>
           )}
         </TabsList>
 
@@ -1092,7 +1126,7 @@ export function TeamManager({
         <TabsContent value="requests" className="mt-3 space-y-3">
           {isDirectEdit && pendingRequests.length > 0 && (
             <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-2 text-sm text-amber-800 font-medium">
-              審査待ち {pendingRequests.length}件
+              承認待ち {pendingRequests.length}件
             </div>
           )}
           {!isDirectEdit && pendingMyCount > 0 && (
@@ -1168,7 +1202,7 @@ export function TeamManager({
                     {(req.review_comment || req.reviewed_by) && req.status !== 'pending' && (
                       <p className="text-xs text-gray-600 mt-1 bg-white rounded px-2 py-1 border border-gray-100">
                         <span className="font-medium">
-                          {req.reviewed_by ? getEmployeeName(req.reviewed_by) : '審査者'}：
+                          {req.reviewed_by ? getEmployeeName(req.reviewed_by) : '承認者'}：
                         </span>
                         {req.review_comment ?? (req.status === 'approved' ? '承認しました' : '差し戻ししました')}
                       </p>
@@ -1213,13 +1247,13 @@ export function TeamManager({
           })}
         </TabsContent>
 
-        {/* ===== 審査履歴タブ (admin/ops_manager のみ) ===== */}
+        {/* ===== 承認履歴タブ (admin/ops_manager のみ) ===== */}
         {isDirectEdit && (
           <TabsContent value="review-history" className="mt-3 space-y-3">
             {reviewedRequests.length === 0 ? (
               <Card>
                 <CardContent className="py-10 text-center text-sm text-muted-foreground">
-                  審査履歴がありません
+                  承認履歴がありません
                 </CardContent>
               </Card>
             ) : (
@@ -1273,7 +1307,7 @@ export function TeamManager({
                     <div className="mt-1 space-y-0.5">
                       <p className="text-[10px] text-gray-400">申請: {fmtDateTime(req.created_at)}</p>
                       {req.reviewed_at && (
-                        <p className="text-[10px] text-gray-400">審査: {fmtDateTime(req.reviewed_at)}</p>
+                        <p className="text-[10px] text-gray-400">承認: {fmtDateTime(req.reviewed_at)}</p>
                       )}
                     </div>
                   </CardContent>

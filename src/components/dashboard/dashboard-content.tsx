@@ -524,7 +524,7 @@ export function DashboardContent({
                       <ClipboardList className="w-4 h-4 text-amber-600" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-amber-800">チーム変更の申請審査</p>
+                      <p className="text-sm font-medium text-amber-800">チーム変更の承認依頼</p>
                       <p className="text-xs text-amber-600">承認または差し戻しが必要な申請があります</p>
                     </div>
                     <span className="text-2xl font-black text-amber-600 flex-shrink-0">{pendingTeamRequestsCount}<span className="text-xs font-normal ml-0.5">件</span></span>
