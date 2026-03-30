@@ -15,6 +15,7 @@ import { TimelineServer } from '@/components/timeline/timeline-server'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
 import { buildMilestoneMap } from '@/lib/milestone'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import { LineLinkBanner } from '@/components/layout/line-link-banner'
 
 function TeamRankingSkeleton() {
   return (
@@ -213,6 +214,7 @@ export default async function DashboardPage({
           </div>
         }
       />
+      {!currentEmployee.line_user_id && <LineLinkBanner />}
       <DashboardContent
         employee={employee}
         skills={skills}

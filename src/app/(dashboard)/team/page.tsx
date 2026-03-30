@@ -42,10 +42,10 @@ export default async function TeamPage() {
     { data: allTeams },
     { data: allTeamMembersForStore },
   ] = await Promise.all([
-    db.from('employees').select('id, auth_user_id, name, email, role, employment_type, hire_date, avatar_url, instagram_url, notifications_read_at, created_at, updated_at').order('hire_date'),
+    db.from('employees').select('id, auth_user_id, name, email, role, employment_type, hire_date, avatar_url, instagram_url, status, requested_team_id, line_user_id, notifications_read_at, created_at, updated_at').order('hire_date'),
     db.from('skills').select('id, name, phase, category, order_index, target_date_hint, standard_hours, is_checkpoint, created_at'),
     db.from('achievements')
-      .select('id, status, employee_id, skill_id, achieved_at, certified_by, certified_at, cumulative_hours_at_achievement, notes, apply_comment, certify_comment, is_read, created_at, skills(id, name, phase, category, order_index, target_date_hint, standard_hours, is_checkpoint, created_at), employees!achievements_employee_id_fkey(id, auth_user_id, name, email, role, employment_type, hire_date, avatar_url, instagram_url, notifications_read_at, created_at, updated_at)')
+      .select('id, status, employee_id, skill_id, achieved_at, certified_by, certified_at, cumulative_hours_at_achievement, notes, apply_comment, certify_comment, is_read, created_at, skills(id, name, phase, category, order_index, target_date_hint, standard_hours, is_checkpoint, created_at), employees!achievements_employee_id_fkey(id, auth_user_id, name, email, role, employment_type, hire_date, avatar_url, instagram_url, status, requested_team_id, line_user_id, notifications_read_at, created_at, updated_at)')
       .order('created_at', { ascending: false }),
     db.from('team_managers').select('team_id').eq('employee_id', effectiveEmployeeId),
     db.from('work_hours').select('employee_id, hours'),

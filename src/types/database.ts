@@ -20,6 +20,9 @@ export type Database = {
           employment_type: '社員' | 'メイト'
           avatar_url: string | null
           instagram_url: string | null
+          status: 'pending' | 'approved'
+          requested_team_id: string | null
+          line_user_id: string | null
           notifications_read_at: string | null
           created_at: string
           updated_at: string
@@ -34,6 +37,9 @@ export type Database = {
           employment_type?: '社員' | 'メイト'
           avatar_url?: string | null
           instagram_url?: string | null
+          status?: 'pending' | 'approved'
+          requested_team_id?: string | null
+          line_user_id?: string | null
           notifications_read_at?: string | null
           created_at?: string
           updated_at?: string
@@ -48,6 +54,9 @@ export type Database = {
           employment_type?: '社員' | 'メイト'
           avatar_url?: string | null
           instagram_url?: string | null
+          status?: 'pending' | 'approved'
+          requested_team_id?: string | null
+          line_user_id?: string | null
           notifications_read_at?: string | null
           created_at?: string
           updated_at?: string
@@ -660,6 +669,7 @@ export type LegacyPhase = '4月' | '5月〜6月' | '7月〜8月'
 export type Phase = string
 export type Category = string
 export type Role = 'employee' | 'store_manager' | 'manager' | 'admin' | 'ops_manager' | 'executive' | 'testuser'
+export type EmployeeStatus = 'pending' | 'approved'
 export type AchievementStatus = 'pending' | 'certified' | 'rejected'
 export type EmploymentType = '社員' | 'メイト'
 export type TeamType = 'store' | 'project'

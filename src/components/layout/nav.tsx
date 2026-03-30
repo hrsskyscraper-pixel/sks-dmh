@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, CheckSquare, BadgeCheck, Upload, Users2, LogOut, Building2, FolderKanban, MessageSquare } from 'lucide-react'
+import { LayoutDashboard, CheckSquare, BadgeCheck, Upload, Users2, LogOut, Building2, FolderKanban, MessageSquare, UserPlus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
@@ -18,14 +18,16 @@ const navItems = [
   { href: '/admin/employees',  label: 'メンバー',        icon: Users2,             roles: ['employee', 'store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'] },
   { href: '/admin/csv-import', label: 'CSV取込',         icon: Upload,             roles: ['store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'] },
   { href: '/admin/projects',   label: 'プロジェクト',     icon: FolderKanban,       roles: ['admin', 'ops_manager', 'executive', 'testuser'] },
+  { href: '/approval',         label: '参加許諾',          icon: UserPlus,           roles: ['store_manager', 'manager', 'admin', 'ops_manager', 'executive'] },
 ] as const
 
 interface NavProps {
   role: Role
   unreadRequestCount?: number
+  pendingApprovalCount?: number
 }
 
-export function BottomNav({ role, unreadRequestCount = 0 }: NavProps) {
+export function BottomNav({ role, unreadRequestCount = 0, pendingApprovalCount = 0 }: NavProps) {
   const pathname = usePathname()
   const router = useRouter()
   const visibleItems = navItems.filter(item => (item.roles as readonly string[]).includes(role))
@@ -43,7 +45,8 @@ export function BottomNav({ role, unreadRequestCount = 0 }: NavProps) {
       <div className="flex justify-around items-center h-16 max-w-lg mx-auto">
         {visibleItems.map(({ href, label, icon: Icon }) => {
           const isActive = href === '/' ? pathname === '/' : pathname.startsWith(href)
-          const showBadge = href === '/admin/teams' && unreadRequestCount > 0
+          const showBadge = (href === '/admin/teams' && unreadRequestCount > 0) || (href === '/approval' && pendingApprovalCount > 0)
+          const badgeCount = href === '/approval' ? pendingApprovalCount : unreadRequestCount
           return (
             <Link
               key={href}
@@ -59,7 +62,7 @@ export function BottomNav({ role, unreadRequestCount = 0 }: NavProps) {
                 <Icon className={cn('w-5 h-5', isActive && 'text-orange-500')} />
                 {showBadge && (
                   <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold rounded-full min-w-[14px] h-[14px] flex items-center justify-center px-0.5 leading-none">
-                    {unreadRequestCount > 9 ? '9+' : unreadRequestCount}
+                    {badgeCount > 9 ? '9+' : badgeCount}
                   </span>
                 )}
               </div>

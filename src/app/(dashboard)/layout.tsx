@@ -10,6 +10,8 @@ import { ViewAsBanner } from '@/components/layout/view-as-banner'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { NotificationCountProvider } from '@/components/layout/notification-context'
+import { OnboardingDialog } from '@/components/onboarding/onboarding-dialog'
+import { PendingScreen } from '@/components/onboarding/pending-screen'
 import type { Database, Role } from '@/types/database'
 
 export default async function DashboardLayout({
@@ -31,16 +33,17 @@ export default async function DashboardLayout({
       auth_user_id: user.id,
       name: (user.user_metadata.full_name as string | undefined) ?? user.email ?? '未設定',
       email: user.email ?? '',
-      role: 'testuser',
+      role: 'employee',
       employment_type: '社員',
       avatar_url: (user.user_metadata.avatar_url as string | undefined) ?? null,
+      status: 'pending',
     }
     const { error: insertError } = await adminDb.from('employees').insert(insertData)
     if (!insertError) {
       // RLS を回避するため admin client で再取得
       const { data: created } = await adminDb
         .from('employees')
-        .select('id, name, email, role, employment_type, hire_date, avatar_url, instagram_url, notifications_read_at, auth_user_id, created_at, updated_at')
+        .select('id, name, email, role, employment_type, hire_date, avatar_url, instagram_url, status, requested_team_id, line_user_id, notifications_read_at, auth_user_id, created_at, updated_at')
         .eq('auth_user_id', user.id)
         .single()
       employee = created
@@ -62,6 +65,38 @@ export default async function DashboardLayout({
   if (!employee) {
     await supabase.auth.signOut()
     redirect('/login?error=employee_fetch_failed')
+  }
+
+  // pending ユーザーはダッシュボードを見せない
+  if (employee.status === 'pending') {
+    // まだ店舗未選択 → オンボーディングダイアログ表示
+    if (!employee.requested_team_id) {
+      const adminDb = createAdminClient()
+      const { data: storeTeams } = await adminDb
+        .from('teams')
+        .select('id, name')
+        .eq('type', 'store')
+        .order('name')
+      return (
+        <OnboardingDialog
+          employeeId={employee.id}
+          email={employee.email}
+          defaultName={employee.name}
+          teams={storeTeams ?? []}
+        />
+      )
+    }
+    // 店舗選択済み → 待機画面
+    const adminDb = createAdminClient()
+    const { data: team } = await adminDb.from('teams').select('name').eq('id', employee.requested_team_id).single()
+    const systemUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://sks-dmh.vercel.app'
+    return (
+      <PendingScreen
+        email={employee.email}
+        teamName={team?.name ?? '未設定'}
+        systemUrl={systemUrl}
+      />
+    )
   }
 
   const role: Role = employee.role as Role
@@ -112,6 +147,19 @@ export default async function DashboardLayout({
   // BottomNav は viewAs 社員のロールで表示を切り替える
   const effectiveRole: Role = (viewAsEmployee?.role as Role | undefined) ?? role
 
+  // 参加許諾待ち人数（管理者ロールのみ）
+  const approvalRoles: Role[] = ['store_manager', 'manager', 'admin', 'ops_manager', 'executive']
+  let pendingApprovalCount = 0
+  if (approvalRoles.includes(effectiveRole)) {
+    const adminDb = createAdminClient()
+    const { count } = await adminDb
+      .from('employees')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'pending')
+      .not('requested_team_id', 'is', null)
+    pendingApprovalCount = count ?? 0
+  }
+
   return (
     <NotificationCountProvider count={unreadNotifCount}>
       <div className="min-h-screen bg-gray-50" style={viewAsEmployee ? { '--banner-h': '2.5rem' } as React.CSSProperties : undefined}>
@@ -119,7 +167,7 @@ export default async function DashboardLayout({
         <main className="pb-20 max-w-2xl mx-auto">
           {children}
         </main>
-        <BottomNav role={effectiveRole} unreadRequestCount={unreadRequestCount} />
+        <BottomNav role={effectiveRole} unreadRequestCount={unreadRequestCount} pendingApprovalCount={pendingApprovalCount} />
         <Toaster position="top-center" richColors />
       </div>
     </NotificationCountProvider>
