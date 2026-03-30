@@ -6,6 +6,12 @@ import type { Role } from '@/types/database'
 
 const APPROVAL_ROLES: Role[] = ['store_manager', 'manager', 'admin', 'ops_manager', 'executive']
 
+// mate ロールは DB 上は employee + employment_type='メイト' として保存
+function resolveRole(role: string): { dbRole: string; employmentType: '社員' | 'メイト' } {
+  if (role === 'mate') return { dbRole: 'employee', employmentType: 'メイト' }
+  return { dbRole: role, employmentType: '社員' }
+}
+
 export async function POST(request: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -24,24 +30,29 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: '権限がありません' }, { status: 403 })
   }
 
-  const { employeeId, teamId, projectId, employmentType, role, approvedBy } = await request.json()
-  if (!employeeId || !teamId || !projectId || !employmentType || !role) {
+  const { employeeId, teamId, projectId, role, approvedBy } = await request.json()
+  if (!employeeId || !role) {
     return NextResponse.json({ error: '必須項目が不足しています' }, { status: 400 })
   }
+
+  const effectiveTeamId = teamId === '__none__' ? null : (teamId || null)
+  const effectiveProjectId = projectId === '__none__' ? null : (projectId || null)
 
   // store_manager / manager は自分の管理チームのみ承認可能
   const isSystemAdmin = ['admin', 'ops_manager', 'executive'].includes(approver.role)
   if (!isSystemAdmin) {
-    const { data: managed } = await db
-      .from('team_managers')
-      .select('team_id')
-      .eq('employee_id', approver.id)
-    const managedIds = (managed ?? []).map(m => m.team_id)
-    if (!managedIds.includes(teamId)) {
-      return NextResponse.json({ error: 'この店舗の承認権限がありません' }, { status: 403 })
+    if (effectiveTeamId) {
+      const { data: managed } = await db
+        .from('team_managers')
+        .select('team_id')
+        .eq('employee_id', approver.id)
+      const managedIds = (managed ?? []).map(m => m.team_id)
+      if (!managedIds.includes(effectiveTeamId)) {
+        return NextResponse.json({ error: 'この店舗の承認権限がありません' }, { status: 403 })
+      }
     }
-    // 店長・マネージャーはロール変更不可（employee のみ）
-    if (role !== 'employee') {
+    // 店長・マネジャーは mate / employee のみ
+    if (!['mate', 'employee'].includes(role)) {
       return NextResponse.json({ error: 'ロール変更の権限がありません' }, { status: 403 })
     }
   }
@@ -57,25 +68,35 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: '対象の社員が見つかりません' }, { status: 404 })
   }
 
+  const { dbRole, employmentType } = resolveRole(role)
+
   // 1. employee を approved に更新
   const { error: updateErr } = await db.from('employees').update({
-    status: 'approved',
-    role,
+    status: 'approved' as const,
+    role: dbRole as 'employee' | 'store_manager' | 'manager' | 'admin' | 'ops_manager' | 'executive',
     employment_type: employmentType,
   }).eq('id', employeeId)
   if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
 
-  // 2. team_members に追加
-  await db.from('team_members').upsert({ team_id: teamId, employee_id: employeeId })
+  // 2. team_members に追加（設定されている場合のみ）
+  if (effectiveTeamId) {
+    await db.from('team_members').upsert({ team_id: effectiveTeamId, employee_id: employeeId })
+  }
 
-  // 3. employee_projects に追加
-  await db.from('employee_projects').upsert({ employee_id: employeeId, project_id: projectId })
+  // 3. employee_projects に追加（設定されている場合のみ）
+  if (effectiveProjectId) {
+    await db.from('employee_projects').upsert({ employee_id: employeeId, project_id: effectiveProjectId })
+  }
 
   // 4. 通知送信
-  const { data: team } = await db.from('teams').select('name').eq('id', teamId).single()
+  let teamName = ''
+  if (effectiveTeamId) {
+    const { data: team } = await db.from('teams').select('name').eq('id', effectiveTeamId).single()
+    teamName = team?.name ?? ''
+  }
   await sendApprovalNotification({
     employee: target,
-    teamName: team?.name ?? '',
+    teamName,
     approvedBy: approvedBy,
   }).catch(err => console.error('承認通知送信エラー:', err))
 

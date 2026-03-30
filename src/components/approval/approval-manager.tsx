@@ -26,28 +26,43 @@ interface Props {
   projects: { id: string; name: string }[]
   currentEmployeeId: string
   isSystemAdmin: boolean
+  approverRole: string
 }
 
-export function ApprovalManager({ pendingEmployees, teams, projects, currentEmployeeId, isSystemAdmin }: Props) {
+const ROLE_OPTIONS_STORE_MANAGER = [
+  { value: 'mate', label: 'メイト' },
+  { value: 'employee', label: '社員' },
+]
+
+const ROLE_OPTIONS_SYSTEM_ADMIN = [
+  { value: 'mate', label: 'メイト' },
+  { value: 'employee', label: '社員' },
+  { value: 'store_manager', label: '店長' },
+  { value: 'manager', label: 'マネジャー' },
+  { value: 'ops_manager', label: '運用管理者' },
+  { value: 'executive', label: '役員' },
+]
+
+export function ApprovalManager({ pendingEmployees, teams, projects, currentEmployeeId, isSystemAdmin, approverRole }: Props) {
   const router = useRouter()
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [confirmTarget, setConfirmTarget] = useState<PendingEmployee | null>(null)
   const [processing, setProcessing] = useState(false)
 
+  const roleOptions = isSystemAdmin ? ROLE_OPTIONS_SYSTEM_ADMIN : ROLE_OPTIONS_STORE_MANAGER
+
   // 承認設定の状態
   const [settings, setSettings] = useState<Record<string, {
     teamId: string
     projectId: string
-    employmentType: '社員' | 'メイト'
     role: string
   }>>({})
 
   const getSettings = (empId: string, requestedTeamId: string | null) => {
     return settings[empId] ?? {
       teamId: requestedTeamId ?? '',
-      projectId: projects[0]?.id ?? '',
-      employmentType: '社員' as const,
-      role: 'employee',
+      projectId: '',
+      role: 'mate',
     }
   }
 
@@ -65,9 +80,8 @@ export function ApprovalManager({ pendingEmployees, teams, projects, currentEmpl
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         employeeId: emp.id,
-        teamId: s.teamId,
-        projectId: s.projectId,
-        employmentType: s.employmentType,
+        teamId: s.teamId || null,
+        projectId: s.projectId || null,
         role: s.role,
         approvedBy: currentEmployeeId,
       }),
@@ -133,9 +147,10 @@ export function ApprovalManager({ pendingEmployees, teams, projects, currentEmpl
                       <Label className="text-xs text-gray-500">店舗／部署</Label>
                       <Select value={s.teamId} onValueChange={v => updateSetting(emp.id, emp.requested_team_id, 'teamId', v)}>
                         <SelectTrigger className="mt-1">
-                          <SelectValue placeholder="選択" />
+                          <SelectValue placeholder="未設定" />
                         </SelectTrigger>
                         <SelectContent>
+                          <SelectItem value="__none__">（未設定）</SelectItem>
                           {teams.map(t => (
                             <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
                           ))}
@@ -147,9 +162,10 @@ export function ApprovalManager({ pendingEmployees, teams, projects, currentEmpl
                       <Label className="text-xs text-gray-500">プロジェクト</Label>
                       <Select value={s.projectId} onValueChange={v => updateSetting(emp.id, emp.requested_team_id, 'projectId', v)}>
                         <SelectTrigger className="mt-1">
-                          <SelectValue placeholder="選択" />
+                          <SelectValue placeholder="未設定" />
                         </SelectTrigger>
                         <SelectContent>
+                          <SelectItem value="__none__">（未設定）</SelectItem>
                           {projects.map(p => (
                             <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                           ))}
@@ -158,42 +174,24 @@ export function ApprovalManager({ pendingEmployees, teams, projects, currentEmpl
                     </div>
 
                     <div>
-                      <Label className="text-xs text-gray-500">雇用形態</Label>
-                      <Select value={s.employmentType} onValueChange={v => updateSetting(emp.id, emp.requested_team_id, 'employmentType', v)}>
+                      <Label className="text-xs text-gray-500">ロール</Label>
+                      <Select value={s.role} onValueChange={v => updateSetting(emp.id, emp.requested_team_id, 'role', v)}>
                         <SelectTrigger className="mt-1">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="社員">社員</SelectItem>
-                          <SelectItem value="メイト">メイト</SelectItem>
+                          {roleOptions.map(r => (
+                            <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>
-
-                    {isSystemAdmin && (
-                      <div>
-                        <Label className="text-xs text-gray-500">ロール</Label>
-                        <Select value={s.role} onValueChange={v => updateSetting(emp.id, emp.requested_team_id, 'role', v)}>
-                          <SelectTrigger className="mt-1">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="employee">一般社員</SelectItem>
-                            <SelectItem value="store_manager">店長</SelectItem>
-                            <SelectItem value="manager">マネージャー</SelectItem>
-                            <SelectItem value="admin">管理者</SelectItem>
-                            <SelectItem value="ops_manager">運用管理者</SelectItem>
-                            <SelectItem value="executive">役員</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
 
                     <div className="flex gap-2 pt-2">
                       <Button
                         className="flex-1 bg-green-500 hover:bg-green-600"
                         onClick={() => setConfirmTarget(emp)}
-                        disabled={!s.teamId || !s.projectId}
+                        disabled={!s.role}
                       >
                         <CheckCircle className="w-4 h-4 mr-1.5" />
                         承認

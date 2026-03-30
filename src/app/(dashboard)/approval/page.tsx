@@ -60,6 +60,7 @@ export default async function ApprovalPage() {
           projects={projects ?? []}
           currentEmployeeId={employee.id}
           isSystemAdmin={isSystemAdmin}
+          approverRole={role}
         />
       </div>
     </>
