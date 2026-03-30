@@ -3,7 +3,7 @@
 import { useState, useTransition, useEffect, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
-import { Plus, Trash2, UserPlus, UserMinus, ClipboardList, Check, X, ChevronDown, ChevronUp, Pencil } from 'lucide-react'
+import { Plus, Trash2, UserPlus, UserMinus, ClipboardList, Check, X, ChevronDown, ChevronUp, ChevronRight, Pencil, MapPin } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -134,6 +134,14 @@ export function TeamManager({
 
   // ===== Expanded teams =====
   const [expandedTeams, setExpandedTeams] = useState<Set<string>>(new Set())
+
+  // ===== 都道府県折りたたみ =====
+  const [expandedPrefs, setExpandedPrefs] = useState<Set<string>>(new Set())
+  const togglePref = (pref: string) => setExpandedPrefs(prev => {
+    const next = new Set(prev)
+    next.has(pref) ? next.delete(pref) : next.add(pref)
+    return next
+  })
 
   // ===== チーム名インライン編集 =====
   const [inlineTeamName, setInlineTeamName] = useState<{ teamId: string; value: string } | null>(null)
@@ -596,7 +604,8 @@ export function TeamManager({
         </Card>
       )}
 
-      {[...teams].sort((a, b) => {
+      {/* チーム (project) */}
+      {[...teams].filter(t => t.type === 'project').sort((a, b) => {
         const aIsMine = getTeamManagerIds(a.id).includes(effectiveEmployee.id) || getTeamMemberIds(a.id).includes(effectiveEmployee.id)
         const bIsMine = getTeamManagerIds(b.id).includes(effectiveEmployee.id) || getTeamMemberIds(b.id).includes(effectiveEmployee.id)
         return aIsMine === bIsMine ? 0 : aIsMine ? -1 : 1
@@ -863,6 +872,146 @@ export function TeamManager({
           </Card>
         )
       })}
+
+      {/* 店舗 (store) — 都道府県別折りたたみ */}
+      {(() => {
+        const storeTeams = teams.filter(t => t.type === 'store')
+        const PREF_ORDER = ['秋田県','栃木県','群馬県','埼玉県','千葉県','東京都','神奈川県','新潟県','静岡県','茨城県']
+        const grouped: Record<string, Team[]> = {}
+        const noPref: Team[] = []
+        for (const t of storeTeams) {
+          if (t.prefecture) {
+            if (!grouped[t.prefecture]) grouped[t.prefecture] = []
+            grouped[t.prefecture].push(t)
+          } else {
+            noPref.push(t)
+          }
+        }
+        const prefOrder = PREF_ORDER.filter(p => grouped[p])
+        for (const p of Object.keys(grouped)) { if (!prefOrder.includes(p)) prefOrder.push(p) }
+        const allStoresList = [...prefOrder.flatMap(p => ({ pref: p, teams: grouped[p] })), ...(noPref.length > 0 ? [{ pref: 'その他', teams: noPref }] : [])]
+
+        return allStoresList.map(({ pref, teams: stores }) => {
+          const isPrefExpanded = expandedPrefs.has(pref)
+          return (
+            <div key={pref}>
+              <button
+                type="button"
+                onClick={() => togglePref(pref)}
+                className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors mb-1.5"
+              >
+                {isPrefExpanded
+                  ? <ChevronDown className="w-4 h-4 text-gray-500" />
+                  : <ChevronRight className="w-4 h-4 text-gray-500" />
+                }
+                <MapPin className="w-4 h-4 text-blue-500" />
+                <span className="text-sm font-semibold text-gray-700">{pref}</span>
+                <span className="text-xs text-gray-400 ml-auto">{stores.length}店舗</span>
+              </button>
+              {isPrefExpanded && stores.map(storeTeam => {
+                const memberIds = getTeamMemberIds(storeTeam.id)
+                const managerIds = getTeamManagerIds(storeTeam.id)
+                const isExpanded = expandedTeams.has(storeTeam.id)
+                const isManagedByMe = managerIds.includes(effectiveEmployee.id)
+                const isMemberOfMe = !isManagedByMe && memberIds.includes(effectiveEmployee.id)
+                return (
+                  <Card key={storeTeam.id} className={`mb-1.5 ${isManagedByMe ? 'border-orange-300 bg-orange-50' : isMemberOfMe ? 'border-green-200 bg-green-50' : ''}`}>
+                    <CardHeader className="pb-2 pt-3 px-4">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <Badge className={`${TEAM_TYPE_COLORS[storeTeam.type]} text-xs border-0 flex-shrink-0`}>
+                            {TEAM_TYPE_LABELS[storeTeam.type]}
+                          </Badge>
+                          {isDirectEdit && inlineTeamName?.teamId === storeTeam.id ? (
+                            <input
+                              className="text-sm font-semibold text-gray-800 border-b-2 border-orange-400 outline-none bg-transparent min-w-0 flex-1"
+                              value={inlineTeamName.value}
+                              onChange={e => setInlineTeamName({ teamId: storeTeam.id, value: e.target.value })}
+                              onBlur={handleSaveTeamName}
+                              onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) handleSaveTeamName(); if (e.key === 'Escape') setInlineTeamName(null) }}
+                              autoFocus
+                              disabled={isPending}
+                            />
+                          ) : (
+                            <button
+                              className="text-sm font-semibold text-gray-800 truncate text-left flex items-center gap-1 group"
+                              onClick={() => isDirectEdit && setInlineTeamName({ teamId: storeTeam.id, value: storeTeam.name })}
+                              style={{ cursor: isDirectEdit ? 'pointer' : 'default' }}
+                            >
+                              {storeTeam.name}
+                              {isDirectEdit && <Pencil className="w-3 h-3 text-gray-300 group-hover:text-orange-400 flex-shrink-0 opacity-0 group-hover:opacity-100" />}
+                            </button>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-gray-400" onClick={() => toggleExpand(storeTeam.id)}>
+                            {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                          </Button>
+                          {isDirectEdit && (
+                            <Button
+                              variant="ghost" size="sm"
+                              className="h-7 w-7 p-0 text-red-400 hover:text-red-600 hover:bg-red-50"
+                              onClick={() => setConfirmDialog({ title: '削除の確認', message: `店舗「${storeTeam.name}」を削除しますか？`, confirmLabel: '削除する', confirmClassName: 'flex-1 bg-red-500 hover:bg-red-600 text-white', onConfirm: () => handleDeleteTeam(storeTeam.id) })}
+                              disabled={isPending}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                      <p className="text-xs text-muted-foreground">メンバー {memberIds.length}名　担当リーダー {managerIds.length}名</p>
+                    </CardHeader>
+                    {isExpanded && (
+                      <CardContent className="px-4 pb-3 space-y-3">
+                        <div>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <p className="text-xs font-medium text-gray-600">メンバー</p>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {memberIds.length === 0 && <p className="text-xs text-muted-foreground">メンバーなし</p>}
+                            {memberIds.map(empId => {
+                              const emp = getEmployee(empId)
+                              return (
+                                <div key={empId} className="flex items-center gap-1 bg-gray-100 rounded-full pl-0.5 pr-2 py-0.5">
+                                  <Avatar className="w-4 h-4 flex-shrink-0">
+                                    <AvatarImage src={emp?.avatar_url ?? undefined} />
+                                    <AvatarFallback className="text-[8px] bg-gray-300 text-gray-600">{emp?.name.charAt(0)}</AvatarFallback>
+                                  </Avatar>
+                                  <span className="text-xs text-gray-700">{getEmployeeName(empId)}</span>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium text-gray-600 mb-1.5">担当リーダー</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {managerIds.length === 0 && <p className="text-xs text-muted-foreground">担当なし</p>}
+                            {teamManagers.filter(m => m.team_id === storeTeam.id).map(manager => {
+                              const emp = getEmployee(manager.employee_id)
+                              const isPrimary = manager.role === 'primary'
+                              return (
+                                <div key={manager.employee_id} className={`flex items-center gap-1 ${isPrimary ? 'bg-amber-100' : 'bg-blue-100'} rounded-full pl-1 pr-2 py-0.5`}>
+                                  <span className={`text-[9px] font-bold ${isPrimary ? 'text-amber-600' : 'text-blue-500'}`}>{isPrimary ? '主' : '副'}</span>
+                                  <Avatar className="w-4 h-4 flex-shrink-0">
+                                    <AvatarImage src={emp?.avatar_url ?? undefined} />
+                                    <AvatarFallback className={`text-[8px] ${isPrimary ? 'bg-amber-300 text-amber-700' : 'bg-blue-300 text-blue-700'}`}>{emp?.name.charAt(0)}</AvatarFallback>
+                                  </Avatar>
+                                  <span className={`text-xs ${isPrimary ? 'text-amber-700' : 'text-blue-700'}`}>{getEmployeeName(manager.employee_id)}</span>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      </CardContent>
+                    )}
+                  </Card>
+                )
+              })}
+            </div>
+          )
+        })
+      })()}
 
     </div>
   )
