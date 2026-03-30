@@ -6,13 +6,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { StoreSelect } from '@/components/ui/store-select'
 
 interface Props {
   employeeId: string
   email: string
   defaultName: string
-  teams: { id: string; name: string }[]
+  teams: { id: string; name: string; prefecture: string | null }[]
 }
 
 export function OnboardingDialog({ employeeId, email, defaultName, teams }: Props) {
@@ -24,7 +24,7 @@ export function OnboardingDialog({ employeeId, email, defaultName, teams }: Prop
 
   const handleSubmit = async () => {
     if (!name.trim()) { setError('氏名を入力してください'); return }
-    if (!teamId) { setError('店舗／部署を選択してください'); return }
+    if (!teamId || teamId === '__none__') { setError('店舗／部署を選択してください'); return }
     setSubmitting(true)
     setError('')
 
@@ -74,17 +74,15 @@ export function OnboardingDialog({ employeeId, email, defaultName, teams }: Prop
             </div>
 
             <div>
-              <Label htmlFor="team">店舗／部署</Label>
-              <Select value={teamId} onValueChange={setTeamId}>
-                <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="選択してください" />
-                </SelectTrigger>
-                <SelectContent>
-                  {teams.map(t => (
-                    <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>店舗／部署</Label>
+              <div className="mt-1">
+                <StoreSelect
+                  teams={teams}
+                  value={teamId}
+                  onChange={setTeamId}
+                  placeholder="選択してください"
+                />
+              </div>
             </div>
 
             {error && <p className="text-sm text-red-500">{error}</p>}

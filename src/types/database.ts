@@ -68,6 +68,7 @@ export type Database = {
           id: string
           name: string
           type: 'store' | 'project'
+          prefecture: string | null
           created_at: string
           updated_at: string
         }
@@ -75,6 +76,7 @@ export type Database = {
           id?: string
           name: string
           type: 'store' | 'project'
+          prefecture?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -82,6 +84,7 @@ export type Database = {
           id?: string
           name?: string
           type?: 'store' | 'project'
+          prefecture?: string | null
           created_at?: string
           updated_at?: string
         }

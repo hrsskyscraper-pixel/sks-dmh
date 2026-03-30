@@ -40,7 +40,7 @@ export default async function AdminTeamsPage() {
     { data: employees },
     { data: changeRequests },
   ] = await Promise.all([
-    db.from('teams').select('id, name, type, created_at, updated_at').order('name'),
+    db.from('teams').select('id, name, type, prefecture, created_at, updated_at').order('name'),
     db.from('team_members').select('team_id, employee_id'),
     db.from('team_managers').select('team_id, employee_id, role'),
     db.from('employees').select('id, auth_user_id, name, email, role, employment_type, hire_date, avatar_url, instagram_url, status, requested_team_id, line_user_id, notifications_read_at, created_at, updated_at').order('name'),

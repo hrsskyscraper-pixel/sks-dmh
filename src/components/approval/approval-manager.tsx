@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
+import { StoreSelect } from '@/components/ui/store-select'
 import { CheckCircle, UserPlus, XCircle } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -22,7 +23,7 @@ interface PendingEmployee {
 
 interface Props {
   pendingEmployees: PendingEmployee[]
-  teams: { id: string; name: string; type: string }[]
+  teams: { id: string; name: string; type: string; prefecture: string | null }[]
   projects: { id: string; name: string }[]
   currentEmployeeId: string
   isSystemAdmin: boolean
@@ -145,17 +146,14 @@ export function ApprovalManager({ pendingEmployees, teams, projects, currentEmpl
                   <div className="mt-4 pt-4 border-t space-y-3">
                     <div>
                       <Label className="text-xs text-gray-500">店舗／部署</Label>
-                      <Select value={s.teamId} onValueChange={v => updateSetting(emp.id, emp.requested_team_id, 'teamId', v)}>
-                        <SelectTrigger className="mt-1">
-                          <SelectValue placeholder="未設定" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none__">（未設定）</SelectItem>
-                          {teams.map(t => (
-                            <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div className="mt-1">
+                        <StoreSelect
+                          teams={teams}
+                          value={s.teamId}
+                          onChange={v => updateSetting(emp.id, emp.requested_team_id, 'teamId', v)}
+                          placeholder="未設定"
+                        />
+                      </div>
                     </div>
 
                     <div>

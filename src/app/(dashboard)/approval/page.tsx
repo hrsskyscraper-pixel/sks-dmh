@@ -45,7 +45,7 @@ export default async function ApprovalPage() {
     : (pendingEmployees ?? []).filter(e => managedTeamIds.includes(e.requested_team_id!))
 
   // チーム情報取得
-  const { data: teams } = await db.from('teams').select('id, name, type').eq('type', 'store').order('name')
+  const { data: teams } = await db.from('teams').select('id, name, type, prefecture').eq('type', 'store').order('name')
 
   // プロジェクト情報取得
   const { data: projects } = await db.from('skill_projects').select('id, name').eq('is_active', true)

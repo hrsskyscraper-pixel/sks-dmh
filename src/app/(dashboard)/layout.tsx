@@ -74,7 +74,7 @@ export default async function DashboardLayout({
       const adminDb = createAdminClient()
       const { data: storeTeams } = await adminDb
         .from('teams')
-        .select('id, name')
+        .select('id, name, prefecture')
         .eq('type', 'store')
         .order('name')
       return (
