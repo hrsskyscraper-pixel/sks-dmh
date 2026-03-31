@@ -284,22 +284,23 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
 
               <div className="flex gap-1.5 mt-2 flex-wrap items-center">
                 <Badge className="text-[10px] bg-orange-100 text-orange-700 border-0">{currentRole}</Badge>
+                {(() => {
+                  const latestPosition = careerRecords.find(r => r.record_type === '役職')
+                  return latestPosition?.department ? (
+                    <Badge className="text-[10px] bg-sky-100 text-sky-700 border-0">
+                      {latestPosition.department}
+                    </Badge>
+                  ) : null
+                })()}
                 {currentBirthDate && (
                   <Badge className="text-[10px] bg-pink-50 text-pink-600 border-0">
                     {currentBirthDate}生（{calcAge(currentBirthDate)}歳）
                   </Badge>
                 )}
                 {currentHireDate && (
-                  <>
-                    <Badge className="text-[10px] bg-gray-100 text-gray-600 border-0">
-                      {currentHireDate} 入社
-                    </Badge>
-                    {getHireYearLabel(currentHireDate) && (
-                      <Badge className="text-[10px] bg-amber-100 text-amber-700 border-0">
-                        {getHireYearLabel(currentHireDate)}
-                      </Badge>
-                    )}
-                  </>
+                  <Badge className="text-[10px] bg-gray-100 text-gray-600 border-0">
+                    {currentHireDate} 入社{getHireYearLabel(currentHireDate) ? `（${getHireYearLabel(currentHireDate)}）` : ''}
+                  </Badge>
                 )}
                 {currentInstagram && (
                   <a href={currentInstagram.startsWith('http') ? currentInstagram : `https://instagram.com/${currentInstagram.replace(/^@/, '')}`} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-pink-500 transition-colors">
