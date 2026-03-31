@@ -16,7 +16,7 @@ import { MoreVertical, Shield, User, Crown, Eye, Camera, Loader2, FileText } fro
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { setViewAs } from '@/app/(dashboard)/actions'
-import { Store, FolderKanban, Building2, ChevronDown, ChevronRight, MapPin, Award, Star, Instagram } from 'lucide-react'
+import { Store, FolderKanban, Building2, ChevronDown, ChevronRight, MapPin, Award, Star, Instagram, MessageCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Employee, Role, EmploymentType, Team, TeamMember } from '@/types/database'
 
@@ -429,17 +429,22 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
                         {employee.name}
                       </Link>
                     )}
+                    {employee.instagram_url && (
+                      <a href={employee.instagram_url.startsWith('http') ? employee.instagram_url : `https://instagram.com/${employee.instagram_url.replace(/^@/, '')}`} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-pink-500 transition-colors" onClick={e => e.stopPropagation()}>
+                        <Instagram className="w-3.5 h-3.5" />
+                      </a>
+                    )}
+                    {employee.line_url && (
+                      <a href={employee.line_url} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-green-500 transition-colors" onClick={e => e.stopPropagation()}>
+                        <MessageCircle className="w-3.5 h-3.5" />
+                      </a>
+                    )}
                     <Badge className={`${DISPLAY_ROLE_COLORS[displayRole]} text-xs border-0 flex items-center gap-1 flex-shrink-0`}>
                       {DISPLAY_ROLE_ICONS[displayRole]}
                       {displayRole}
                     </Badge>
                     {positionByEmployee[employee.id] && (
                       <Badge className="text-[9px] bg-sky-100 text-sky-700 border-0 flex-shrink-0">{positionByEmployee[employee.id]}</Badge>
-                    )}
-                    {employee.instagram_url && (
-                      <a href={employee.instagram_url.startsWith('http') ? employee.instagram_url : `https://instagram.com/${employee.instagram_url.replace(/^@/, '')}`} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-pink-500 transition-colors" onClick={e => e.stopPropagation()}>
-                        <Instagram className="w-3.5 h-3.5" />
-                      </a>
                     )}
                   </div>
                   {/* 社内資格 */}

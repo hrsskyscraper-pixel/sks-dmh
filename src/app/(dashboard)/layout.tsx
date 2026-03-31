@@ -43,7 +43,7 @@ export default async function DashboardLayout({
       // RLS を回避するため admin client で再取得
       const { data: created } = await adminDb
         .from('employees')
-        .select('id, name, email, role, employment_type, hire_date, birth_date, avatar_url, instagram_url, status, requested_team_id, requested_project_team_id, line_user_id, notifications_read_at, auth_user_id, created_at, updated_at')
+        .select('id, name, email, role, employment_type, hire_date, birth_date, avatar_url, instagram_url, line_url, status, requested_team_id, requested_project_team_id, line_user_id, notifications_read_at, auth_user_id, created_at, updated_at')
         .eq('auth_user_id', user.id)
         .single()
       employee = created

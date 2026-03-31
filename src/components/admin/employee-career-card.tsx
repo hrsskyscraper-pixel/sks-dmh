@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
-import { Plus, Trash2, ArrowLeft, Users, Briefcase, GraduationCap, MapPin, ArrowRightLeft, FileText, Pencil, Instagram, X, Store, FolderKanban, Building2, Award, Star, UserCog, LogIn, Camera, Loader2, ChevronDown, ChevronRight } from 'lucide-react'
+import { Plus, Trash2, ArrowLeft, Users, Briefcase, GraduationCap, MapPin, ArrowRightLeft, FileText, Pencil, Instagram, MessageCircle, X, Store, FolderKanban, Building2, Award, Star, UserCog, LogIn, Camera, Loader2, ChevronDown, ChevronRight } from 'lucide-react'
 import { CertIcon as CertIconComponent, getCertColorClasses } from '@/components/admin/certification-manager'
 import { addCareerRecord, updateCareerRecord, deleteCareerRecord, updateEmployeeName } from '@/app/(dashboard)/actions'
 import Link from 'next/link'
@@ -93,7 +93,7 @@ function calcAge(birthDate: string | null): number | null {
 }
 
 interface Props {
-  employee: { id: string; name: string; email: string; role: string; employment_type: string; hire_date: string | null; birth_date: string | null; avatar_url: string | null; instagram_url: string | null }
+  employee: { id: string; name: string; email: string; role: string; employment_type: string; hire_date: string | null; birth_date: string | null; avatar_url: string | null; instagram_url: string | null; line_url: string | null }
   careerRecords: CareerRecord[]
   employeeMap: Record<string, EmployeeInfo>
   allEmployees: EmployeeInfo[]
@@ -127,9 +127,11 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
   const [editRole, setEditRole] = useState(getDisplayRole(employee.role, employee.employment_type))
   const [editBirthDate, setEditBirthDate] = useState(employee.birth_date ?? '')
   const [editInstagram, setEditInstagram] = useState(employee.instagram_url ?? '')
+  const [editLineUrl, setEditLineUrl] = useState(employee.line_url ?? '')
   const [currentRole, setCurrentRole] = useState(getDisplayRole(employee.role, employee.employment_type))
   const [currentBirthDate, setCurrentBirthDate] = useState(employee.birth_date)
   const [currentInstagram, setCurrentInstagram] = useState(employee.instagram_url)
+  const [currentLineUrl, setCurrentLineUrl] = useState(employee.line_url)
 
   // 入社日はキャリア記録の「入社」レコードの最も古い日付から自動取得
   const hireRecords = careerRecords.filter(r => r.record_type === '入社' && r.occurred_at)
@@ -148,12 +150,14 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
         employment_type: rm.employment_type,
         birth_date: editBirthDate || null,
         instagram_url: editInstagram || null,
+        line_url: editLineUrl || null,
       }).eq('id', employee.id)
       if (error) { toast.error('更新に失敗しました'); return }
       setEmployeeName(editName.trim())
       setCurrentRole(editRole)
       setCurrentBirthDate(editBirthDate || null)
       setCurrentInstagram(editInstagram || null)
+      setCurrentLineUrl(editLineUrl || null)
       setProfileDialogOpen(false)
       toast.success('プロフィールを更新しました')
     })
@@ -340,6 +344,11 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
                     <Instagram className="w-5 h-5" />
                   </a>
                 )}
+                {currentLineUrl && (
+                  <a href={currentLineUrl} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-green-500 transition-colors">
+                    <MessageCircle className="w-5 h-5" />
+                  </a>
+                )}
               </div>
               <p className="text-sm text-gray-500">{employee.email}</p>
 
@@ -404,6 +413,7 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
                     setEditRole(currentRole)
                     setEditBirthDate(currentBirthDate ?? '')
                     setEditInstagram(currentInstagram ?? '')
+                    setEditLineUrl(currentLineUrl ?? '')
                     setProfileDialogOpen(true)
                   }}
                   className="mt-2 text-xs text-orange-500 hover:text-orange-700 flex items-center gap-1"
@@ -444,8 +454,12 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
               <Input type="date" value={editBirthDate} onChange={e => setEditBirthDate(e.target.value)} className="mt-1" />
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-600">Instagram URL</label>
+              <label className="text-xs font-medium text-gray-600">Instagram</label>
               <Input value={editInstagram} onChange={e => setEditInstagram(e.target.value)} placeholder="@username or URL" className="mt-1" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-600">LINE</label>
+              <Input value={editLineUrl} onChange={e => setEditLineUrl(e.target.value)} placeholder="LINE プロフィールURL" className="mt-1" />
             </div>
           </div>
           <DialogFooter>

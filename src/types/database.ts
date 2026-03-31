@@ -21,6 +21,7 @@ export type Database = {
           employment_type: '社員' | 'メイト'
           avatar_url: string | null
           instagram_url: string | null
+          line_url: string | null
           status: 'pending' | 'approved'
           requested_team_id: string | null
           requested_project_team_id: string | null
@@ -40,6 +41,7 @@ export type Database = {
           employment_type?: '社員' | 'メイト'
           avatar_url?: string | null
           instagram_url?: string | null
+          line_url?: string | null
           status?: 'pending' | 'approved'
           requested_team_id?: string | null
           requested_project_team_id?: string | null
@@ -59,6 +61,7 @@ export type Database = {
           employment_type?: '社員' | 'メイト'
           avatar_url?: string | null
           instagram_url?: string | null
+          line_url?: string | null
           status?: 'pending' | 'approved'
           requested_team_id?: string | null
           requested_project_team_id?: string | null
