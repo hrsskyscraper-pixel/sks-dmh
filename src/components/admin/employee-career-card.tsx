@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
-import { Plus, Trash2, ArrowLeft, Users, Briefcase, GraduationCap, MapPin, ArrowRightLeft, FileText, Pencil, Instagram, X, Store, FolderKanban, Building2, Award, Star, UserCog, LogIn } from 'lucide-react'
+import { Plus, Trash2, ArrowLeft, Users, Briefcase, GraduationCap, MapPin, ArrowRightLeft, FileText, Pencil, Instagram, X, Store, FolderKanban, Building2, Award, Star, UserCog, LogIn, Camera, Loader2 } from 'lucide-react'
 import { CertIcon as CertIconComponent, getCertColorClasses } from '@/components/admin/certification-manager'
 import { addCareerRecord, updateCareerRecord, deleteCareerRecord, updateEmployeeName } from '@/app/(dashboard)/actions'
 import Link from 'next/link'
@@ -106,6 +106,8 @@ interface Props {
 
 export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEmployees, canEdit, memberTeamIds, allTeams, goal, certifications }: Props) {
   const [isPending, startTransition] = useTransition()
+  const [avatarUrl, setAvatarUrl] = useState(employee.avatar_url)
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [employeeName, setEmployeeName] = useState(employee.name)
   const [nameDialogOpen, setNameDialogOpen] = useState(false)
   const [nameInput, setNameInput] = useState(employee.name)
@@ -168,6 +170,25 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
     const { createClient } = require('@/lib/supabase/client')
     return createClient()
   })()
+
+  const handleAvatarUpload = async (file: File) => {
+    setUploadingAvatar(true)
+    try {
+      const ext = file.name.split('.').pop() ?? 'jpg'
+      const path = `${employee.id}.${ext}`
+      const { error: uploadError } = await supabase.storage.from('avatars').upload(path, file, { upsert: true, contentType: file.type })
+      if (uploadError) { toast.error('アップロードに失敗しました'); return }
+      const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path)
+      // キャッシュバスター付きURLで保存
+      const urlWithCacheBust = `${publicUrl}?t=${Date.now()}`
+      const { error: updateError } = await supabase.from('employees').update({ avatar_url: urlWithCacheBust }).eq('id', employee.id)
+      if (updateError) { toast.error('更新に失敗しました'); return }
+      setAvatarUrl(urlWithCacheBust)
+      toast.success('写真を更新しました')
+    } finally {
+      setUploadingAvatar(false)
+    }
+  }
 
   const handleAddTeam = (teamId: string) => {
     startTransition(async () => {
@@ -274,12 +295,32 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
       <Card>
         <CardContent className="pt-5 pb-5">
           <div className="flex items-start gap-4">
-            <Avatar className="w-16 h-16 flex-shrink-0">
-              <AvatarImage src={employee.avatar_url ?? undefined} />
-              <AvatarFallback className="bg-orange-100 text-orange-700 text-xl font-bold">{employee.name.charAt(0)}</AvatarFallback>
-            </Avatar>
+            {canEdit ? (
+              <label htmlFor="career-avatar" className="relative cursor-pointer group flex-shrink-0">
+                <Avatar className="w-16 h-16">
+                  <AvatarImage src={avatarUrl ?? undefined} />
+                  <AvatarFallback className="bg-orange-100 text-orange-700 text-xl font-bold">{employee.name.charAt(0)}</AvatarFallback>
+                </Avatar>
+                <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  {uploadingAvatar ? <Loader2 className="w-5 h-5 text-white animate-spin" /> : <Camera className="w-5 h-5 text-white" />}
+                </div>
+                <input id="career-avatar" type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) handleAvatarUpload(f); e.target.value = '' }} />
+              </label>
+            ) : (
+              <Avatar className="w-16 h-16 flex-shrink-0">
+                <AvatarImage src={avatarUrl ?? undefined} />
+                <AvatarFallback className="bg-orange-100 text-orange-700 text-xl font-bold">{employee.name.charAt(0)}</AvatarFallback>
+              </Avatar>
+            )}
             <div className="flex-1 min-w-0">
-              <h2 className="text-xl font-bold text-gray-800">{employeeName}</h2>
+              <div className="flex items-center gap-1.5">
+                <h2 className="text-xl font-bold text-gray-800">{employeeName}</h2>
+                {currentInstagram && (
+                  <a href={currentInstagram.startsWith('http') ? currentInstagram : `https://instagram.com/${currentInstagram.replace(/^@/, '')}`} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-pink-500 transition-colors">
+                    <Instagram className="w-5 h-5" />
+                  </a>
+                )}
+              </div>
               <p className="text-sm text-gray-500">{employee.email}</p>
 
               <div className="flex gap-1.5 mt-2 flex-wrap items-center">
@@ -301,11 +342,6 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
                   <Badge className="text-[10px] bg-gray-100 text-gray-600 border-0">
                     {currentHireDate} 入社{getHireYearLabel(currentHireDate) ? `（${getHireYearLabel(currentHireDate)}）` : ''}
                   </Badge>
-                )}
-                {currentInstagram && (
-                  <a href={currentInstagram.startsWith('http') ? currentInstagram : `https://instagram.com/${currentInstagram.replace(/^@/, '')}`} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-pink-500 transition-colors">
-                    <Instagram className="w-4 h-4" />
-                  </a>
                 )}
               </div>
 

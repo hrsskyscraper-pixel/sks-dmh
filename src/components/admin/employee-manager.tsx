@@ -204,9 +204,10 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
         .from('avatars')
         .getPublicUrl(path)
 
+      const urlWithCacheBust = `${publicUrl}?t=${Date.now()}`
       const { error: updateError } = await supabase
         .from('employees')
-        .update({ avatar_url: publicUrl })
+        .update({ avatar_url: urlWithCacheBust })
         .eq('id', employeeId)
 
       if (updateError) {
@@ -215,7 +216,7 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
       }
 
       setEmployees(prev =>
-        prev.map(e => e.id === employeeId ? { ...e, avatar_url: publicUrl } : e)
+        prev.map(e => e.id === employeeId ? { ...e, avatar_url: urlWithCacheBust } : e)
       )
       toast.success('写真を更新しました')
     } finally {
