@@ -232,7 +232,9 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
       if (result.error) { toast.error(result.error); return }
       // 入社記録の場合、最も古い入社日を employees.hire_date に自動更新
       if (formType === '入社') {
-        const allHireDates = [...hireRecords.map(r => r.occurred_at!), ...(formDate ? [formDate] : [])]
+        // 編集時は編集対象を除外してから新しい日付を追加
+        const otherDates = hireRecords.filter(r => r.id !== editingRecordId && r.occurred_at).map(r => r.occurred_at!)
+        const allHireDates = [...otherDates, ...(formDate ? [formDate] : [])]
         const oldest = allHireDates.sort()[0]
         if (oldest) {
           await supabase.from('employees').update({ hire_date: oldest }).eq('id', employee.id)
@@ -248,8 +250,15 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
   const handleDelete = (recordId: string) => {
     if (!confirm('この記録を削除しますか？')) return
     startTransition(async () => {
+      const deletedRecord = careerRecords.find(r => r.id === recordId)
       const result = await deleteCareerRecord(recordId, employee.id)
       if (result.error) { toast.error(result.error); return }
+      // 入社記録を削除した場合、残りの入社記録から最古を再計算
+      if (deletedRecord?.record_type === '入社') {
+        const remaining = hireRecords.filter(r => r.id !== recordId && r.occurred_at).map(r => r.occurred_at!)
+        const oldest = remaining.sort()[0] ?? null
+        await supabase.from('employees').update({ hire_date: oldest }).eq('id', employee.id)
+      }
       toast.success('記録を削除しました')
       router.refresh()
     })
