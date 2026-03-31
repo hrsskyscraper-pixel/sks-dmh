@@ -86,7 +86,12 @@ export function TopBar({ title, right, hideNotificationBell = false }: { title: 
   return (
     <header className="sticky bg-white/80 backdrop-blur-sm border-b border-gray-100 z-40" style={{ top: 'var(--banner-h, 0px)' }}>
       <div className="flex items-center h-14 px-4 max-w-2xl mx-auto gap-2">
-        <h1 className="text-base font-bold text-gray-900 flex-shrink-0">{title}</h1>
+        <Link href="/" className="flex-shrink-0">
+          <h1 className="text-base font-bold text-gray-900 leading-tight">{title}</h1>
+          {title === 'Growth Driver' && (
+            <p className="text-[9px] text-gray-400 leading-none -mt-0.5">目標GAPから、次の一歩へ。</p>
+          )}
+        </Link>
         <div className="flex-1 min-w-0 flex justify-end">
           {right}
         </div>
