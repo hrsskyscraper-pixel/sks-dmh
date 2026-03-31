@@ -43,7 +43,7 @@ export default async function EmployeesPage() {
     { data: teams },
     { data: teamMembers },
   ] = await Promise.all([
-    db.from('employees').select('id, auth_user_id, name, email, role, employment_type, hire_date, avatar_url, instagram_url, status, requested_team_id, requested_project_team_id, line_user_id, notifications_read_at, created_at, updated_at').order('created_at'),
+    db.from('employees').select('id, auth_user_id, name, email, role, employment_type, hire_date, birth_date, avatar_url, instagram_url, status, requested_team_id, requested_project_team_id, line_user_id, notifications_read_at, created_at, updated_at').order('created_at'),
     db.from('achievements').select('employee_id, skill_id').eq('status', 'certified'),
     db.from('work_hours').select('employee_id, hours'),
     db.from('employee_projects').select('employee_id, project_id'),
