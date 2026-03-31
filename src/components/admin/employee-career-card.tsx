@@ -94,7 +94,7 @@ function calcAge(birthDate: string | null): number | null {
 }
 
 interface Props {
-  employee: { id: string; name: string; email: string; role: string; employment_type: string; hire_date: string | null; birth_date: string | null; avatar_url: string | null; instagram_url: string | null; line_url: string | null }
+  employee: { id: string; name: string; name_kana: string | null; email: string; role: string; employment_type: string; hire_date: string | null; birth_date: string | null; avatar_url: string | null; instagram_url: string | null; line_url: string | null }
   careerRecords: CareerRecord[]
   employeeMap: Record<string, EmployeeInfo>
   allEmployees: EmployeeInfo[]
@@ -135,6 +135,8 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
   // プロフィール編集
   const [profileDialogOpen, setProfileDialogOpen] = useState(false)
   const [editName, setEditName] = useState(employee.name)
+  const [editNameKana, setEditNameKana] = useState(employee.name_kana ?? '')
+  const [currentNameKana, setCurrentNameKana] = useState(employee.name_kana)
   const [editRole, setEditRole] = useState(getDisplayRole(employee.role, employee.employment_type))
   const [editBirthDate, setEditBirthDate] = useState(employee.birth_date ?? '')
   const [editInstagram, setEditInstagram] = useState(employee.instagram_url ?? '')
@@ -157,6 +159,7 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
     startTransition(async () => {
       const { error } = await supabase.from('employees').update({
         name: editName.trim(),
+        name_kana: editNameKana.trim() || null,
         role: rm.role,
         employment_type: rm.employment_type,
         birth_date: editBirthDate || null,
@@ -165,6 +168,7 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
       }).eq('id', employee.id)
       if (error) { toast.error('更新に失敗しました'); return }
       setEmployeeName(editName.trim())
+      setCurrentNameKana(editNameKana.trim() || null)
       setCurrentRole(editRole)
       setCurrentBirthDate(editBirthDate || null)
       setCurrentInstagram(editInstagram || null)
@@ -351,8 +355,11 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
               </Avatar>
             )}
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 flex-wrap">
                 <h2 className="text-xl font-bold text-gray-800">{employeeName}</h2>
+                {currentNameKana && (
+                  <span className="text-xs text-gray-400">{currentNameKana}</span>
+                )}
                 {currentInstagram && (
                   <a href={currentInstagram.startsWith('http') ? currentInstagram : `https://instagram.com/${currentInstagram.replace(/^@/, '')}`} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-pink-500 transition-colors">
                     <Instagram className="w-5 h-5" />
@@ -433,6 +440,7 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
                 <button
                   onClick={() => {
                     setEditName(employeeName)
+                    setEditNameKana(currentNameKana ?? '')
                     setEditRole(currentRole)
                     setEditBirthDate(currentBirthDate ?? '')
                     setEditInstagram(currentInstagram ?? '')
@@ -460,6 +468,10 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
             <div>
               <label className="text-xs font-medium text-gray-600">氏名</label>
               <Input value={editName} onChange={e => setEditName(e.target.value)} className="mt-1" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-600">ふりがな</label>
+              <Input value={editNameKana} onChange={e => setEditNameKana(e.target.value)} placeholder="すがい ひろやす" className="mt-1" />
             </div>
             <div>
               <label className="text-xs font-medium text-gray-600">ロール</label>

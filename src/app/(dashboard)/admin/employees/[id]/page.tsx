@@ -56,7 +56,7 @@ export default async function EmployeeDetailPage({ params, searchParams }: { par
     { data: goals },
     { data: certs },
   ] = await Promise.all([
-    db.from('employees').select('id, name, email, role, employment_type, hire_date, birth_date, avatar_url, instagram_url, line_url').eq('id', id).single(),
+    db.from('employees').select('id, name, name_kana, email, role, employment_type, hire_date, birth_date, avatar_url, instagram_url, line_url').eq('id', id).single(),
     db.from('career_records').select('*').eq('employee_id', id).order('occurred_at', { ascending: false }),
     db.from('employees').select('id, name, avatar_url').order('name'),
     db.from('team_members').select('team_id').eq('employee_id', id),

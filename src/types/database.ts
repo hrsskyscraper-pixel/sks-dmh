@@ -14,6 +14,7 @@ export type Database = {
           id: string
           auth_user_id: string | null
           name: string
+          name_kana: string | null
           email: string
           hire_date: string | null
           birth_date: string | null
@@ -34,6 +35,7 @@ export type Database = {
           id?: string
           auth_user_id?: string | null
           name: string
+          name_kana?: string | null
           email: string
           hire_date?: string | null
           birth_date?: string | null
@@ -54,6 +56,7 @@ export type Database = {
           id?: string
           auth_user_id?: string | null
           name?: string
+          name_kana?: string | null
           email?: string
           hire_date?: string | null
           birth_date?: string | null
