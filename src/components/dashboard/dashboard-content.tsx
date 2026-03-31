@@ -43,7 +43,7 @@ interface Props {
   unreadNotifications: AchievementWithSkill[]
   pendingAchievementsCount?: number
   pendingTeamRequestsCount?: number
-  currentGoal: Pick<Goal, 'id' | 'content' | 'set_at' | 'deadline'> | null
+  currentGoal: (Pick<Goal, 'id' | 'content' | 'set_at' | 'deadline'> & { reason?: string }) | null
   isOwnDashboard: boolean
   careerSummary?: Record<string, string[]>
   storeName?: string | null
@@ -437,8 +437,9 @@ export function DashboardContent({
                 <Target className="w-3.5 h-3.5 text-orange-100 mt-0.5 flex-shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-white font-medium">{goal.content}</p>
+                  {goal.reason && <p className="text-[10px] text-orange-100 mt-0.5">目的：{goal.reason}</p>}
                   {goal.deadline && (
-                    <span className="text-[10px] text-orange-100 flex items-center gap-0.5 mt-1">
+                    <span className="text-[10px] text-orange-200/70 flex items-center gap-0.5 mt-0.5">
                       <CalendarDays className="w-3 h-3" />
                       {goal.deadline} まで
                     </span>

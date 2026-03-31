@@ -423,7 +423,7 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
                 return (
                   <div className="mt-2 bg-rose-50 rounded-lg px-3 py-2">
                     <p className="text-xs text-rose-700 font-medium">{nearestGoal.department}</p>
-                    {nearestGoal.reason && <p className="text-[10px] text-rose-500 mt-0.5">{nearestGoal.reason}</p>}
+                    {nearestGoal.reason && <p className="text-[10px] text-rose-500 mt-0.5">目的：{nearestGoal.reason}</p>}
                     <p className="text-[10px] text-rose-400 mt-0.5">{nearestGoal.occurred_at} まで</p>
                   </div>
                 )
@@ -773,7 +773,7 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
                   <Input placeholder="達成したい目標を入力" value={formDept} onChange={e => setFormDept(e.target.value)} className="text-sm" />
                 </div>
                 <div>
-                  <p className="text-xs font-medium text-gray-600 mb-1">それを目指す理由</p>
+                  <p className="text-xs font-medium text-gray-600 mb-1">それを目指す理由・目的</p>
                   <Textarea placeholder="この目標を目指す理由..." value={formReason} onChange={e => setFormReason(e.target.value)} className="text-sm" rows={3} />
                 </div>
               </>

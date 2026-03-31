@@ -160,7 +160,7 @@ export default async function DashboardPage({
       p_as_of_date: new Date().toISOString().split('T')[0],
     }),
     db.from('goals').select('id, content, set_at, deadline').eq('employee_id', employee.id).order('created_at', { ascending: false }).limit(1),
-    db.from('career_records').select('record_type, department, related_employee_ids, occurred_at').eq('employee_id', employee.id).order('occurred_at', { ascending: false }),
+    db.from('career_records').select('record_type, department, reason, related_employee_ids, occurred_at').eq('employee_id', employee.id).order('occurred_at', { ascending: false }),
     db.from('employees').select('id, name').order('name'),
     db.from('team_members').select('team_id, teams(name, type)').eq('employee_id', employee.id),
     pendingCountsTask,
@@ -237,7 +237,7 @@ export default async function DashboardPage({
             .sort((a, b) => (a.occurred_at ?? '').localeCompare(b.occurred_at ?? ''))
           const today = new Date().toISOString().split('T')[0]
           const upcoming = goalRecords.find(r => r.occurred_at! >= today) ?? goalRecords[goalRecords.length - 1]
-          if (upcoming) return { id: '', content: upcoming.department!, set_at: '', deadline: upcoming.occurred_at }
+          if (upcoming) return { id: '', content: upcoming.department!, set_at: '', deadline: upcoming.occurred_at, reason: upcoming.reason ?? undefined }
           // フォールバック: 旧 goals テーブル
           return (goalRows ?? [])[0] ?? null
         })()}
