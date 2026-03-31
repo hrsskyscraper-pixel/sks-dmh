@@ -83,7 +83,7 @@ export type Database = {
         Update: {
           id?: string
           name?: string
-          type?: 'store' | 'project'
+          type?: 'store' | 'project' | 'department'
           prefecture?: string | null
           created_at?: string
           updated_at?: string
@@ -675,7 +675,7 @@ export type Role = 'employee' | 'store_manager' | 'manager' | 'admin' | 'ops_man
 export type EmployeeStatus = 'pending' | 'approved'
 export type AchievementStatus = 'pending' | 'certified' | 'rejected'
 export type EmploymentType = '社員' | 'メイト'
-export type TeamType = 'store' | 'project'
+export type TeamType = 'store' | 'project' | 'department'
 
 export type Employee = Database['public']['Tables']['employees']['Row']
 

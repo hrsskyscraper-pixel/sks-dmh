@@ -168,6 +168,41 @@ export function TeamManager({
     })
   }
 
+  // ===== チーム編集ダイアログ =====
+  const [editTeam, setEditTeam] = useState<{ id: string; name: string; type: Team['type']; prefecture: string } | null>(null)
+
+  function handleSaveEditTeam() {
+    if (!editTeam) return
+    const trimmed = editTeam.name.trim()
+    if (!trimmed) { toast.error('名前を入力してください'); return }
+    startTransition(async () => {
+      const { data, error } = await supabase
+        .from('teams')
+        .update({
+          name: trimmed,
+          type: editTeam.type,
+          prefecture: editTeam.prefecture || null,
+        })
+        .eq('id', editTeam.id)
+        .select()
+        .single()
+      if (error) { toast.error('更新に失敗しました'); return }
+      setTeams(prev => prev.map(t => t.id === data.id ? data : t))
+      setEditTeam(null)
+      toast.success('チーム情報を更新しました')
+    })
+  }
+
+  const PREFECTURES = [
+    '北海道','青森県','岩手県','宮城県','秋田県','山形県','福島県',
+    '茨城県','栃木県','群馬県','埼玉県','千葉県','東京都','神奈川県',
+    '新潟県','富山県','石川県','福井県','山梨県','長野県','岐阜県','静岡県','愛知県',
+    '三重県','滋賀県','京都府','大阪府','兵庫県','奈良県','和歌山県',
+    '鳥取県','島根県','岡山県','広島県','山口県',
+    '徳島県','香川県','愛媛県','高知県',
+    '福岡県','佐賀県','長崎県','熊本県','大分県','宮崎県','鹿児島県','沖縄県',
+  ]
+
   const pendingRequests = changeRequests.filter(r => r.status === 'pending')
   // マネジャー向け: 未読の承認結果件数（view-as 対応で effectiveEmployee を使う）
   const unreadResults = changeRequests.filter(
@@ -660,26 +695,14 @@ export function TeamManager({
                   <Badge className={`${TEAM_TYPE_COLORS[team.type]} text-xs border-0 flex-shrink-0`}>
                     {TEAM_TYPE_LABELS[team.type]}
                   </Badge>
-                  {isDirectEdit && inlineTeamName?.teamId === team.id ? (
-                    <input
-                      className="text-sm font-semibold text-gray-800 border-b-2 border-orange-400 outline-none bg-transparent min-w-0 flex-1"
-                      value={inlineTeamName.value}
-                      onChange={e => setInlineTeamName({ teamId: team.id, value: e.target.value })}
-                      onBlur={handleSaveTeamName}
-                      onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) handleSaveTeamName(); if (e.key === 'Escape') setInlineTeamName(null) }}
-                      autoFocus
-                      disabled={isPending}
-                    />
-                  ) : (
-                    <button
-                      className="text-sm font-semibold text-gray-800 truncate text-left flex items-center gap-1 group"
-                      onClick={() => isDirectEdit && setInlineTeamName({ teamId: team.id, value: team.name })}
-                      style={{ cursor: isDirectEdit ? 'pointer' : 'default' }}
-                    >
-                      {team.name}
-                      {isDirectEdit && <Pencil className="w-3 h-3 text-gray-300 group-hover:text-orange-400 flex-shrink-0 opacity-0 group-hover:opacity-100" />}
-                    </button>
-                  )}
+                  <button
+                    className="text-sm font-semibold text-gray-800 truncate text-left flex items-center gap-1 group"
+                    onClick={() => isDirectEdit && setEditTeam({ id: team.id, name: team.name, type: team.type, prefecture: team.prefecture ?? '' })}
+                    style={{ cursor: isDirectEdit ? 'pointer' : 'default' }}
+                  >
+                    {team.name}
+                    {isDirectEdit && <Pencil className="w-3 h-3 text-gray-300 group-hover:text-orange-400 flex-shrink-0 opacity-0 group-hover:opacity-100" />}
+                  </button>
                   {isManagedByMe && (
                     <Badge className="bg-orange-100 text-orange-700 text-[10px] border-0 flex-shrink-0">担当</Badge>
                   )}
@@ -924,26 +947,14 @@ export function TeamManager({
                   <Badge className={`${TEAM_TYPE_COLORS[team.type]} text-xs border-0 flex-shrink-0`}>
                     {TEAM_TYPE_LABELS[team.type]}
                   </Badge>
-                  {isDirectEdit && inlineTeamName?.teamId === team.id ? (
-                    <input
-                      className="text-sm font-semibold text-gray-800 border-b-2 border-orange-400 outline-none bg-transparent min-w-0 flex-1"
-                      value={inlineTeamName.value}
-                      onChange={e => setInlineTeamName({ teamId: team.id, value: e.target.value })}
-                      onBlur={handleSaveTeamName}
-                      onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) handleSaveTeamName(); if (e.key === 'Escape') setInlineTeamName(null) }}
-                      autoFocus
-                      disabled={isPending}
-                    />
-                  ) : (
-                    <button
-                      className="text-sm font-semibold text-gray-800 truncate text-left flex items-center gap-1 group"
-                      onClick={() => isDirectEdit && setInlineTeamName({ teamId: team.id, value: team.name })}
-                      style={{ cursor: isDirectEdit ? 'pointer' : 'default' }}
-                    >
-                      {team.name}
-                      {isDirectEdit && <Pencil className="w-3 h-3 text-gray-300 group-hover:text-orange-400 flex-shrink-0 opacity-0 group-hover:opacity-100" />}
-                    </button>
-                  )}
+                  <button
+                    className="text-sm font-semibold text-gray-800 truncate text-left flex items-center gap-1 group"
+                    onClick={() => isDirectEdit && setEditTeam({ id: team.id, name: team.name, type: team.type, prefecture: team.prefecture ?? '' })}
+                    style={{ cursor: isDirectEdit ? 'pointer' : 'default' }}
+                  >
+                    {team.name}
+                    {isDirectEdit && <Pencil className="w-3 h-3 text-gray-300 group-hover:text-orange-400 flex-shrink-0 opacity-0 group-hover:opacity-100" />}
+                  </button>
                 </div>
                 <div className="flex items-center gap-1">
                   <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-gray-400" onClick={() => toggleExpand(team.id)}>
@@ -1078,26 +1089,14 @@ export function TeamManager({
                           <Badge className={`${TEAM_TYPE_COLORS[storeTeam.type]} text-xs border-0 flex-shrink-0`}>
                             {TEAM_TYPE_LABELS[storeTeam.type]}
                           </Badge>
-                          {isDirectEdit && inlineTeamName?.teamId === storeTeam.id ? (
-                            <input
-                              className="text-sm font-semibold text-gray-800 border-b-2 border-orange-400 outline-none bg-transparent min-w-0 flex-1"
-                              value={inlineTeamName.value}
-                              onChange={e => setInlineTeamName({ teamId: storeTeam.id, value: e.target.value })}
-                              onBlur={handleSaveTeamName}
-                              onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) handleSaveTeamName(); if (e.key === 'Escape') setInlineTeamName(null) }}
-                              autoFocus
-                              disabled={isPending}
-                            />
-                          ) : (
-                            <button
-                              className="text-sm font-semibold text-gray-800 truncate text-left flex items-center gap-1 group"
-                              onClick={() => isDirectEdit && setInlineTeamName({ teamId: storeTeam.id, value: storeTeam.name })}
-                              style={{ cursor: isDirectEdit ? 'pointer' : 'default' }}
-                            >
-                              {storeTeam.name}
-                              {isDirectEdit && <Pencil className="w-3 h-3 text-gray-300 group-hover:text-orange-400 flex-shrink-0 opacity-0 group-hover:opacity-100" />}
-                            </button>
-                          )}
+                          <button
+                            className="text-sm font-semibold text-gray-800 truncate text-left flex items-center gap-1 group"
+                            onClick={() => isDirectEdit && setEditTeam({ id: storeTeam.id, name: storeTeam.name, type: storeTeam.type, prefecture: storeTeam.prefecture ?? '' })}
+                            style={{ cursor: isDirectEdit ? 'pointer' : 'default' }}
+                          >
+                            {storeTeam.name}
+                            {isDirectEdit && <Pencil className="w-3 h-3 text-gray-300 group-hover:text-orange-400 flex-shrink-0 opacity-0 group-hover:opacity-100" />}
+                          </button>
                         </div>
                         <div className="flex items-center gap-1">
                           <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-gray-400" onClick={() => toggleExpand(storeTeam.id)}>
@@ -1885,6 +1884,68 @@ export function TeamManager({
                 disabled={isPending}
               >
                 {confirmDialog?.confirmLabel}
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* チーム編集ダイアログ */}
+      <Dialog open={editTeam !== null} onOpenChange={open => { if (!open) setEditTeam(null) }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-base">チーム編集</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs font-medium text-gray-600">名前</label>
+              <input
+                className="w-full mt-1 rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-orange-400"
+                value={editTeam?.name ?? ''}
+                onChange={e => setEditTeam(prev => prev ? { ...prev, name: e.target.value } : prev)}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-600">種別</label>
+              <div className="flex gap-2 mt-1">
+                {(['project', 'department', 'store'] as const).map(type => (
+                  <button
+                    key={type}
+                    onClick={() => setEditTeam(prev => prev ? { ...prev, type } : prev)}
+                    className={`flex-1 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                      editTeam?.type === type
+                        ? `${TEAM_TYPE_COLORS[type]} border-current`
+                        : 'bg-gray-50 text-gray-500 border-gray-200'
+                    }`}
+                  >
+                    {TEAM_TYPE_LABELS[type]}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {editTeam?.type === 'store' && (
+              <div>
+                <label className="text-xs font-medium text-gray-600">都道府県</label>
+                <select
+                  className="w-full mt-1 rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-orange-400"
+                  value={editTeam.prefecture}
+                  onChange={e => setEditTeam(prev => prev ? { ...prev, prefecture: e.target.value } : prev)}
+                >
+                  <option value="">未設定</option>
+                  {PREFECTURES.map(p => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+          <DialogFooter className="flex-col gap-2 sm:flex-col">
+            <div className="flex gap-2 w-full">
+              <Button variant="outline" className="flex-1" onClick={() => setEditTeam(null)} disabled={isPending}>
+                キャンセル
+              </Button>
+              <Button className="flex-1 bg-orange-500 hover:bg-orange-600" onClick={handleSaveEditTeam} disabled={isPending || !editTeam?.name.trim()}>
+                {isPending ? '保存中...' : '保存'}
               </Button>
             </div>
           </DialogFooter>
