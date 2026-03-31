@@ -4,7 +4,7 @@ import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
 import { TopBar } from '@/components/layout/nav'
 import { EmployeeCareerCard } from '@/components/admin/employee-career-card'
 
-export default async function EmployeeDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function EmployeeDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams?: Promise<{ add?: string }> }) {
   const currentEmployee = await getCurrentEmployee()
   if (!currentEmployee) redirect('/login')
 
@@ -83,6 +83,7 @@ export default async function EmployeeDetailPage({ params }: { params: Promise<{
         allTeams={(allTeams ?? []) as { id: string; name: string; type: 'store' | 'project' | 'department'; prefecture: string | null }[]}
         goal={(goals ?? [])[0] ?? null}
         certifications={(certs ?? []) as { id: string; name: string; icon: 'award' | 'star'; color: string }[]}
+        autoAddType={(await (searchParams ?? Promise.resolve({})) as { add?: string })?.add ?? undefined}
       />
     </>
   )

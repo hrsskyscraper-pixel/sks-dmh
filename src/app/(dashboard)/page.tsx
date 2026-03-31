@@ -230,7 +230,17 @@ export default async function DashboardPage({
         unreadNotifications={unreadNotifications}
         pendingAchievementsCount={pendingAchievementsCount}
         pendingTeamRequestsCount={pendingTeamRequestsCount}
-        currentGoal={(goalRows ?? [])[0] ?? null}
+        currentGoal={(() => {
+          // キャリア記録の「目標」から目標期日が最も近い（今日以降の）ものを取得
+          const goalRecords = (careerRows ?? [])
+            .filter(r => r.record_type === '目標' && r.department && r.occurred_at)
+            .sort((a, b) => (a.occurred_at ?? '').localeCompare(b.occurred_at ?? ''))
+          const today = new Date().toISOString().split('T')[0]
+          const upcoming = goalRecords.find(r => r.occurred_at! >= today) ?? goalRecords[goalRecords.length - 1]
+          if (upcoming) return { id: '', content: upcoming.department!, set_at: '', deadline: upcoming.occurred_at }
+          // フォールバック: 旧 goals テーブル
+          return (goalRows ?? [])[0] ?? null
+        })()}
         isOwnDashboard={!viewAsId}
         careerSummary={(() => {
           const empMap = Object.fromEntries((allEmployeesForCareer ?? []).map(e => [e.id, e.name]))
@@ -247,6 +257,8 @@ export default async function DashboardPage({
         })()}
         position={(careerRows ?? []).find(r => r.record_type === '役職' && r.department)?.department ?? null}
         internalCerts={[...new Set((careerRows ?? []).filter(r => r.record_type === '資格' && r.department?.startsWith('[社内]')).map(r => r.department!.replace('[社内]', '')))]}
+        employeeId={employee.id}
+        hasGoalRecords={(careerRows ?? []).some(r => r.record_type === '目標')}
       />
       <Suspense fallback={<TeamRankingSkeleton />}>
         <TeamRankingServer

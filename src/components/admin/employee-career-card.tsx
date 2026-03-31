@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
-import { Plus, Trash2, ArrowLeft, Users, Briefcase, GraduationCap, MapPin, ArrowRightLeft, FileText, Pencil, Instagram, MessageCircle, X, Store, FolderKanban, Building2, Award, Star, UserCog, LogIn, Camera, Loader2, ChevronDown, ChevronRight } from 'lucide-react'
+import { Plus, Trash2, ArrowLeft, Users, Briefcase, GraduationCap, MapPin, ArrowRightLeft, FileText, Pencil, Instagram, MessageCircle, X, Store, FolderKanban, Building2, Award, Star, UserCog, LogIn, Camera, Loader2, ChevronDown, ChevronRight, Target } from 'lucide-react'
 import { CertIcon as CertIconComponent, getCertColorClasses } from '@/components/admin/certification-manager'
 import { addCareerRecord, updateCareerRecord, deleteCareerRecord, updateEmployeeName } from '@/app/(dashboard)/actions'
 import Link from 'next/link'
@@ -26,6 +26,7 @@ const RECORD_TYPES = [
   { value: '育成', label: '育成', icon: GraduationCap, color: 'bg-purple-100 text-purple-700' },
   { value: '役職', label: '役職', icon: UserCog, color: 'bg-sky-100 text-sky-700' },
   { value: '資格', label: '資格', icon: Award, color: 'bg-emerald-100 text-emerald-700' },
+  { value: '目標', label: '目標', icon: Target, color: 'bg-rose-100 text-rose-700' },
   { value: 'その他', label: 'その他', icon: FileText, color: 'bg-gray-100 text-gray-700' },
 ]
 
@@ -102,9 +103,10 @@ interface Props {
   allTeams: TeamInfo[]
   goal: GoalInfo | null
   certifications: { id: string; name: string; icon: 'award' | 'star'; color: string }[]
+  autoAddType?: string
 }
 
-export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEmployees, canEdit, memberTeamIds, allTeams, goal, certifications }: Props) {
+export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEmployees, canEdit, memberTeamIds, allTeams, goal, certifications, autoAddType }: Props) {
   const [isPending, startTransition] = useTransition()
   const [avatarUrl, setAvatarUrl] = useState(employee.avatar_url)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
@@ -120,6 +122,14 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
   const [formNotes, setFormNotes] = useState('')
   const [personSearch, setPersonSearch] = useState('')
   const router = useRouter()
+
+  // autoAddType で自動ダイアログ起動
+  useEffect(() => {
+    if (autoAddType) {
+      openDialog(autoAddType)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // プロフィール編集
   const [profileDialogOpen, setProfileDialogOpen] = useState(false)
@@ -740,9 +750,21 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
               </Select>
             </div>
             <div>
-              <p className="text-xs font-medium text-gray-600 mb-1">日付</p>
+              <p className="text-xs font-medium text-gray-600 mb-1">{formType === '目標' ? '目標期日' : '日付'}</p>
               <Input type="date" value={formDate} onChange={e => setFormDate(e.target.value)} className="text-sm" />
             </div>
+            {formType === '目標' && (
+              <>
+                <div>
+                  <p className="text-xs font-medium text-gray-600 mb-1">目標</p>
+                  <Input placeholder="達成したい目標を入力" value={formDept} onChange={e => setFormDept(e.target.value)} className="text-sm" />
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-600 mb-1">それを目指す理由</p>
+                  <Textarea placeholder="この目標を目指す理由..." value={formNotes} onChange={e => setFormNotes(e.target.value)} className="text-sm" rows={3} />
+                </div>
+              </>
+            )}
             {formType === '配属・異動' && (
               <div>
                 <p className="text-xs font-medium text-gray-600 mb-1">配属先・異動先</p>

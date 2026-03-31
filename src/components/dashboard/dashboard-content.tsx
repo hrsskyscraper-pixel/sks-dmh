@@ -49,6 +49,8 @@ interface Props {
   storeName?: string | null
   position?: string | null
   internalCerts?: string[]
+  employeeId?: string
+  hasGoalRecords?: boolean
 }
 
 const PHASE_COLORS = ['bg-orange-500', 'bg-amber-500', 'bg-red-500', 'bg-blue-500', 'bg-green-500', 'bg-purple-500']
@@ -103,7 +105,7 @@ export function DashboardContent({
   projectPhases, skillPhaseMap, currentProject, employeeProjects,
   unreadNotifications: initialNotifications,
   pendingAchievementsCount = 0, pendingTeamRequestsCount = 0,
-  currentGoal: initialGoal, isOwnDashboard, careerSummary = {}, storeName = null, position = null, internalCerts = []
+  currentGoal: initialGoal, isOwnDashboard, careerSummary = {}, storeName = null, position = null, internalCerts = [], employeeId, hasGoalRecords = false
 }: Props) {
   const [achievementList, setAchievementList] = useState(initialAchievements)
   const [notifications, setNotifications] = useState(initialNotifications)
@@ -435,32 +437,27 @@ export function DashboardContent({
                 <Target className="w-3.5 h-3.5 text-orange-100 mt-0.5 flex-shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-white font-medium">{goal.content}</p>
-                  <div className="flex items-center gap-3 mt-1">
-                    {goal.deadline && (
-                      <span className="text-[10px] text-orange-100 flex items-center gap-0.5">
-                        <CalendarDays className="w-3 h-3" />
-                        {goal.deadline} まで
-                      </span>
-                    )}
-                    <span className="text-[10px] text-orange-200/70">
-                      {new Date(goal.set_at).toLocaleDateString('ja-JP')} 設定
+                  {goal.deadline && (
+                    <span className="text-[10px] text-orange-100 flex items-center gap-0.5 mt-1">
+                      <CalendarDays className="w-3 h-3" />
+                      {goal.deadline} まで
                     </span>
-                  </div>
+                  )}
                 </div>
-                {isOwnDashboard && (
-                  <button onClick={() => { setGoalContent(goal.content); setGoalDeadline(goal.deadline ?? ''); setGoalDialogOpen(true) }} className="opacity-50 hover:opacity-100 transition-opacity flex-shrink-0">
+                {isOwnDashboard && employeeId && (
+                  <Link href={`/admin/employees/${employeeId}#目標`} className="opacity-50 hover:opacity-100 transition-opacity flex-shrink-0">
                     <Pencil className="w-3.5 h-3.5 text-white" />
-                  </button>
+                  </Link>
                 )}
               </div>
             </div>
-          ) : isOwnDashboard ? (
-            <button onClick={() => { setGoalContent(''); setGoalDeadline(''); setGoalDialogOpen(true) }} className="mt-3 w-full bg-white/10 hover:bg-white/20 transition-colors rounded-lg px-3 py-2 text-left">
+          ) : isOwnDashboard && employeeId ? (
+            <Link href={`/admin/employees/${employeeId}?add=目標`} className="mt-3 block w-full bg-white/10 hover:bg-white/20 transition-colors rounded-lg px-3 py-2 text-left">
               <div className="flex items-center gap-2">
                 <Target className="w-3.5 h-3.5 text-orange-200" />
                 <p className="text-sm text-orange-100">目標を設定する</p>
               </div>
-            </button>
+            </Link>
           ) : null}
         </CardContent>
       </Card>
