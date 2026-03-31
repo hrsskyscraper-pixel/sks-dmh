@@ -32,7 +32,7 @@ export default async function ApprovalPage() {
   // pending 社員取得
   const pendingQuery = db
     .from('employees')
-    .select('id, name, email, avatar_url, requested_team_id, created_at')
+    .select('id, name, email, avatar_url, requested_team_id, requested_project_team_id, created_at')
     .eq('status', 'pending')
     .not('requested_team_id', 'is', null)
     .order('created_at')

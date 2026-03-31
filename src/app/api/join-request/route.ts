@@ -32,6 +32,7 @@ export async function POST(request: Request) {
   const { error: updateError } = await db.from('employees').update({
     name,
     requested_team_id: teamId,
+    requested_project_team_id: projectTeamId || null,
   }).eq('id', employeeId)
 
   if (updateError) {

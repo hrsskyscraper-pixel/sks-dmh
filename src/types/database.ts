@@ -22,6 +22,7 @@ export type Database = {
           instagram_url: string | null
           status: 'pending' | 'approved'
           requested_team_id: string | null
+          requested_project_team_id: string | null
           line_user_id: string | null
           notifications_read_at: string | null
           created_at: string
@@ -39,6 +40,7 @@ export type Database = {
           instagram_url?: string | null
           status?: 'pending' | 'approved'
           requested_team_id?: string | null
+          requested_project_team_id?: string | null
           line_user_id?: string | null
           notifications_read_at?: string | null
           created_at?: string
@@ -56,6 +58,7 @@ export type Database = {
           instagram_url?: string | null
           status?: 'pending' | 'approved'
           requested_team_id?: string | null
+          requested_project_team_id?: string | null
           line_user_id?: string | null
           notifications_read_at?: string | null
           created_at?: string

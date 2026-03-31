@@ -19,6 +19,7 @@ interface PendingEmployee {
   email: string
   avatar_url: string | null
   requested_team_id: string | null
+  requested_project_team_id: string | null
   created_at: string
 }
 
@@ -65,7 +66,7 @@ export function ApprovalManager({ pendingEmployees, teams, projectTeams, current
     return settings[emp.id] ?? {
       name: emp.name,
       teamId: emp.requested_team_id ?? '',
-      projectTeamId: '',
+      projectTeamId: emp.requested_project_team_id ?? '',
       role: '',
     }
   }
