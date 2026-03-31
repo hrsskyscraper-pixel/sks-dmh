@@ -25,7 +25,7 @@ interface PendingEmployee {
 interface Props {
   pendingEmployees: PendingEmployee[]
   teams: { id: string; name: string; type: 'store' | 'project' | 'department'; prefecture: string | null }[]
-  projects: { id: string; name: string }[]
+  projectTeams: { id: string; name: string }[]
   currentEmployeeId: string
   isSystemAdmin: boolean
   approverRole: string
@@ -45,7 +45,7 @@ const ROLE_OPTIONS_SYSTEM_ADMIN = [
   { value: 'executive', label: '役員' },
 ]
 
-export function ApprovalManager({ pendingEmployees, teams, projects, currentEmployeeId, isSystemAdmin, approverRole }: Props) {
+export function ApprovalManager({ pendingEmployees, teams, projectTeams, currentEmployeeId, isSystemAdmin, approverRole }: Props) {
   const router = useRouter()
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [confirmTarget, setConfirmTarget] = useState<PendingEmployee | null>(null)
@@ -57,7 +57,7 @@ export function ApprovalManager({ pendingEmployees, teams, projects, currentEmpl
   const [settings, setSettings] = useState<Record<string, {
     name: string
     teamId: string
-    projectId: string
+    projectTeamId: string
     role: string
   }>>({})
 
@@ -65,7 +65,7 @@ export function ApprovalManager({ pendingEmployees, teams, projects, currentEmpl
     return settings[emp.id] ?? {
       name: emp.name,
       teamId: emp.requested_team_id ?? '',
-      projectId: '',
+      projectTeamId: '',
       role: '',
     }
   }
@@ -86,7 +86,7 @@ export function ApprovalManager({ pendingEmployees, teams, projects, currentEmpl
         employeeId: emp.id,
         name: s.name.trim(),
         teamId: s.teamId || null,
-        projectId: s.projectId || null,
+        projectTeamId: s.projectTeamId || null,
         role: s.role,
         approvedBy: currentEmployeeId,
       }),
@@ -170,14 +170,14 @@ export function ApprovalManager({ pendingEmployees, teams, projects, currentEmpl
                     </div>
 
                     <div>
-                      <Label className="text-xs text-gray-500">プロジェクト</Label>
-                      <Select value={s.projectId} onValueChange={v => updateSetting(emp, 'projectId', v)}>
+                      <Label className="text-xs text-gray-500">チーム</Label>
+                      <Select value={s.projectTeamId} onValueChange={v => updateSetting(emp, 'projectTeamId', v)}>
                         <SelectTrigger className="mt-1">
                           <SelectValue placeholder="未設定" />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="__none__">（未設定）</SelectItem>
-                          {projects.map(p => (
+                          {projectTeams.map(p => (
                             <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                           ))}
                         </SelectContent>

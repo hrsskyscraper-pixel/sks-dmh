@@ -30,13 +30,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: '権限がありません' }, { status: 403 })
   }
 
-  const { employeeId, name, teamId, projectId, role, approvedBy } = await request.json()
+  const { employeeId, name, teamId, projectTeamId, role, approvedBy } = await request.json()
   if (!employeeId || !role) {
     return NextResponse.json({ error: '必須項目が不足しています' }, { status: 400 })
   }
 
   const effectiveTeamId = teamId === '__none__' ? null : (teamId || null)
-  const effectiveProjectId = projectId === '__none__' ? null : (projectId || null)
+  const effectiveProjectTeamId = projectTeamId === '__none__' ? null : (projectTeamId || null)
 
   // store_manager / manager は自分の管理チームのみ承認可能
   const isSystemAdmin = ['admin', 'ops_manager', 'executive'].includes(approver.role)
@@ -84,9 +84,9 @@ export async function POST(request: Request) {
     await db.from('team_members').upsert({ team_id: effectiveTeamId, employee_id: employeeId })
   }
 
-  // 3. employee_projects に追加（設定されている場合のみ）
-  if (effectiveProjectId) {
-    await db.from('employee_projects').upsert({ employee_id: employeeId, project_id: effectiveProjectId })
+  // 3. チーム（project type）の team_members に追加（設定されている場合のみ）
+  if (effectiveProjectTeamId) {
+    await db.from('team_members').upsert({ team_id: effectiveProjectTeamId, employee_id: employeeId })
   }
 
   // 4. 通知送信

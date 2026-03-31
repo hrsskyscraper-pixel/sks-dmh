@@ -44,11 +44,11 @@ export default async function ApprovalPage() {
     ? (pendingEmployees ?? [])
     : (pendingEmployees ?? []).filter(e => managedTeamIds.includes(e.requested_team_id!))
 
-  // チーム情報取得
+  // 店舗・部署取得
   const { data: teams } = await db.from('teams').select('id, name, type, prefecture').in('type', ['store', 'department']).order('name')
 
-  // プロジェクト情報取得
-  const { data: projects } = await db.from('skill_projects').select('id, name').eq('is_active', true)
+  // チーム（type=project）取得
+  const { data: projectTeams } = await db.from('teams').select('id, name').eq('type', 'project').order('name')
 
   return (
     <>
@@ -57,7 +57,7 @@ export default async function ApprovalPage() {
         <ApprovalManager
           pendingEmployees={filtered}
           teams={teams ?? []}
-          projects={projects ?? []}
+          projectTeams={projectTeams ?? []}
           currentEmployeeId={employee.id}
           isSystemAdmin={isSystemAdmin}
           approverRole={role}
