@@ -162,6 +162,7 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
   // 所属チーム管理
   const [currentTeamIds, setCurrentTeamIds] = useState<string[]>(memberTeamIds)
   const [addTeamDialogOpen, setAddTeamDialogOpen] = useState(false)
+  const [expandedAddPrefs, setExpandedAddPrefs] = useState<Set<string>>(new Set())
   const teamMap = Object.fromEntries(allTeams.map(t => [t.id, t]))
   const currentTeams = currentTeamIds.map(id => teamMap[id]).filter(Boolean)
   const storeTeamsList = currentTeams.filter(t => t.type === 'store')
@@ -539,12 +540,13 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
           <DialogHeader>
             <DialogTitle className="text-base">所属を追加</DialogTitle>
           </DialogHeader>
-          {(['project', 'department', 'store'] as const).map(type => {
+          {/* チーム・部署 */}
+          {(['project', 'department'] as const).map(type => {
             const typeTeams = availableTeams.filter(t => t.type === type)
             if (typeTeams.length === 0) return null
-            const label = type === 'project' ? 'チーム' : type === 'department' ? '部署' : '店舗'
-            const Icon = type === 'project' ? FolderKanban : type === 'department' ? Building2 : Store
-            const colors = type === 'project' ? 'hover:bg-purple-50' : type === 'department' ? 'hover:bg-teal-50' : 'hover:bg-blue-50'
+            const label = type === 'project' ? 'チーム' : '部署'
+            const Icon = type === 'project' ? FolderKanban : Building2
+            const colors = type === 'project' ? 'hover:bg-purple-50' : 'hover:bg-teal-50'
             return (
               <div key={type}>
                 <p className="text-xs font-medium text-gray-500 mb-1 flex items-center gap-1">
@@ -552,20 +554,65 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
                 </p>
                 <div className="space-y-0.5">
                   {typeTeams.map(t => (
-                    <button
-                      key={t.id}
-                      onClick={() => handleAddTeam(t.id)}
-                      disabled={isPending}
+                    <button key={t.id} onClick={() => handleAddTeam(t.id)} disabled={isPending}
                       className={`w-full text-left px-3 py-1.5 rounded text-sm text-gray-700 ${colors} transition-colors`}
-                    >
-                      {t.prefecture && <span className="text-gray-400 mr-1">{t.prefecture}</span>}
-                      {t.name}
-                    </button>
+                    >{t.name}</button>
                   ))}
                 </div>
               </div>
             )
           })}
+          {/* 店舗（都道府県折りたたみ） */}
+          {(() => {
+            const storeTeamsAvail = availableTeams.filter(t => t.type === 'store')
+            if (storeTeamsAvail.length === 0) return null
+            const PREF_ORDER = ['秋田県','栃木県','群馬県','埼玉県','千葉県','東京都','神奈川県','新潟県','静岡県','茨城県']
+            const grouped: Record<string, typeof storeTeamsAvail> = {}
+            const noPref: typeof storeTeamsAvail = []
+            for (const t of storeTeamsAvail) {
+              if (t.prefecture) {
+                if (!grouped[t.prefecture]) grouped[t.prefecture] = []
+                grouped[t.prefecture].push(t)
+              } else { noPref.push(t) }
+            }
+            const order = PREF_ORDER.filter(p => grouped[p])
+            for (const p of Object.keys(grouped)) { if (!order.includes(p)) order.push(p) }
+            return (
+              <div>
+                <p className="text-xs font-medium text-gray-500 mb-1 flex items-center gap-1">
+                  <Store className="w-3 h-3" />店舗
+                </p>
+                {order.map(pref => {
+                  const stores = grouped[pref]
+                  const isExp = expandedAddPrefs.has(pref)
+                  return (
+                    <div key={pref}>
+                      <button
+                        type="button"
+                        onClick={() => setExpandedAddPrefs(prev => { const n = new Set(prev); n.has(pref) ? n.delete(pref) : n.add(pref); return n })}
+                        className="w-full flex items-center gap-1.5 px-2 py-1.5 text-xs text-gray-600 hover:bg-gray-50 rounded"
+                      >
+                        {isExp ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                        <MapPin className="w-3 h-3 text-gray-400" />
+                        <span className="font-medium">{pref}</span>
+                        <span className="text-gray-400 ml-auto">{stores.length}</span>
+                      </button>
+                      {isExp && stores.map(t => (
+                        <button key={t.id} onClick={() => handleAddTeam(t.id)} disabled={isPending}
+                          className="w-full text-left pl-8 pr-3 py-1.5 rounded text-sm text-gray-700 hover:bg-blue-50 transition-colors"
+                        >{t.name}</button>
+                      ))}
+                    </div>
+                  )
+                })}
+                {noPref.map(t => (
+                  <button key={t.id} onClick={() => handleAddTeam(t.id)} disabled={isPending}
+                    className="w-full text-left px-3 py-1.5 rounded text-sm text-gray-700 hover:bg-blue-50 transition-colors"
+                  >{t.name}</button>
+                ))}
+              </div>
+            )
+          })()}
         </DialogContent>
       </Dialog>
 
