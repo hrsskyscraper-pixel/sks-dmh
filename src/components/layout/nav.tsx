@@ -16,7 +16,6 @@ const navItems = [
   { href: '/team',             label: '認定',            icon: BadgeCheck,         roles: ['store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'] },
   { href: '/admin/teams',      label: 'チーム',          icon: Building2,          roles: ['employee', 'store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'] },
   { href: '/admin/employees',  label: 'メンバー',        icon: Users2,             roles: ['employee', 'store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'] },
-  { href: '/admin/csv-import', label: 'CSV取込',         icon: Upload,             roles: ['store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'] },
   { href: '/approval',         label: '参加許諾',          icon: UserPlus,           roles: ['store_manager', 'manager', 'admin', 'ops_manager', 'executive'] },
   { href: '/admin/settings',   label: '設定',             icon: Settings,           roles: ['admin', 'ops_manager', 'executive'] },
 ] as const
