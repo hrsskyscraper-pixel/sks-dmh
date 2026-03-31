@@ -12,7 +12,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
-import { Plus, Trash2, ArrowLeft, Users, Briefcase, GraduationCap, MapPin, ArrowRightLeft, FileText, Pencil, Instagram, X, Store, FolderKanban, Building2, Award } from 'lucide-react'
+import { Plus, Trash2, ArrowLeft, Users, Briefcase, GraduationCap, MapPin, ArrowRightLeft, FileText, Pencil, Instagram, X, Store, FolderKanban, Building2, Award, Star } from 'lucide-react'
+import { CertIcon as CertIconComponent, getCertColorClasses } from '@/components/admin/certification-manager'
 import { addCareerRecord, updateCareerRecord, deleteCareerRecord, updateEmployeeName } from '@/app/(dashboard)/actions'
 import Link from 'next/link'
 import type { CareerRecord } from '@/types/database'
@@ -88,7 +89,7 @@ interface Props {
   memberTeamIds: string[]
   allTeams: TeamInfo[]
   goal: GoalInfo | null
-  certifications: { id: string; name: string }[]
+  certifications: { id: string; name: string; icon: 'award' | 'star'; color: string }[]
 }
 
 export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEmployees, canEdit, memberTeamIds, allTeams, goal, certifications }: Props) {
@@ -288,19 +289,24 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
 
               {/* 社内資格 */}
               {(() => {
-                const internalCerts = careerRecords
+                const internalCertNames = careerRecords
                   .filter(r => (RECORD_TYPE_ALIASES[r.record_type] ?? r.record_type) === '資格' && r.department?.startsWith('[社内]'))
                   .map(r => r.department!.replace('[社内]', ''))
-                const uniqueCerts = [...new Set(internalCerts)]
-                if (uniqueCerts.length === 0) return null
+                const uniqueNames = [...new Set(internalCertNames)]
+                if (uniqueNames.length === 0) return null
+                const certMap = Object.fromEntries(certifications.map(c => [c.name, c]))
                 return (
                   <div className="flex flex-wrap gap-1 mt-2">
-                    {uniqueCerts.map(name => (
-                      <Badge key={name} className="text-[10px] bg-emerald-100 text-emerald-700 border-0 flex items-center gap-0.5">
-                        <Award className="w-3 h-3" />
-                        {name}
-                      </Badge>
-                    ))}
+                    {uniqueNames.map(certName => {
+                      const cert = certMap[certName]
+                      const colorCls = cert ? getCertColorClasses(cert.color as Parameters<typeof getCertColorClasses>[0]) : getCertColorClasses('emerald')
+                      return (
+                        <Badge key={certName} className={`text-[10px] ${colorCls.bg} ${colorCls.text} border-0 flex items-center gap-0.5`}>
+                          {cert ? <CertIconComponent icon={cert.icon} color={cert.color as 'emerald'} className="w-3 h-3" /> : <Award className="w-3 h-3" />}
+                          {certName}
+                        </Badge>
+                      )
+                    })}
                   </div>
                 )
               })()}

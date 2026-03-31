@@ -62,7 +62,7 @@ export default async function EmployeeDetailPage({ params }: { params: Promise<{
     db.from('team_members').select('team_id').eq('employee_id', id),
     db.from('teams').select('id, name, type, prefecture').order('name'),
     db.from('goals').select('id, content, deadline, set_at').eq('employee_id', id).order('created_at', { ascending: false }).limit(1),
-    db.from('certifications').select('id, name').eq('is_active', true).order('order_index'),
+    db.from('certifications').select('id, name, icon, color').eq('is_active', true).order('order_index'),
   ])
 
   if (!employee) redirect('/admin/employees')
@@ -82,7 +82,7 @@ export default async function EmployeeDetailPage({ params }: { params: Promise<{
         memberTeamIds={memberTeamIds}
         allTeams={(allTeams ?? []) as { id: string; name: string; type: 'store' | 'project' | 'department'; prefecture: string | null }[]}
         goal={(goals ?? [])[0] ?? null}
-        certifications={(certs ?? []) as { id: string; name: string }[]}
+        certifications={(certs ?? []) as { id: string; name: string; icon: 'award' | 'star'; color: string }[]}
       />
     </>
   )

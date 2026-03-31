@@ -635,6 +635,8 @@ export type Database = {
           id: string
           name: string
           description: string | null
+          icon: 'award' | 'star'
+          color: 'emerald' | 'gold' | 'blue' | 'purple' | 'red' | 'orange' | 'pink' | 'gray'
           order_index: number
           is_active: boolean
           created_at: string
@@ -643,6 +645,8 @@ export type Database = {
           id?: string
           name: string
           description?: string | null
+          icon?: 'award' | 'star'
+          color?: 'emerald' | 'gold' | 'blue' | 'purple' | 'red' | 'orange' | 'pink' | 'gray'
           order_index?: number
           is_active?: boolean
           created_at?: string
@@ -651,6 +655,8 @@ export type Database = {
           id?: string
           name?: string
           description?: string | null
+          icon?: 'award' | 'star'
+          color?: 'emerald' | 'gold' | 'blue' | 'purple' | 'red' | 'orange' | 'pink' | 'gray'
           order_index?: number
           is_active?: boolean
           created_at?: string

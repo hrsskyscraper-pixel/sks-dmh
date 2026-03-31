@@ -15,7 +15,7 @@ export default async function SettingsPage() {
   const db = createAdminClient()
   const { data: certifications } = await db
     .from('certifications')
-    .select('id, name, description, order_index, is_active, created_at')
+    .select('id, name, description, icon, color, order_index, is_active, created_at')
     .order('order_index')
 
   return (
