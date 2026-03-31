@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
-import { Plus, Trash2, ArrowLeft, Users, Briefcase, GraduationCap, MapPin, ArrowRightLeft, FileText, Pencil, Instagram } from 'lucide-react'
+import { Plus, Trash2, ArrowLeft, Users, Briefcase, GraduationCap, MapPin, ArrowRightLeft, FileText, Pencil, Instagram, X, Store, FolderKanban, Building2 } from 'lucide-react'
 import { addCareerRecord, updateCareerRecord, deleteCareerRecord, updateEmployeeName } from '@/app/(dashboard)/actions'
 import Link from 'next/link'
 import type { CareerRecord } from '@/types/database'
@@ -28,16 +28,24 @@ const RECORD_TYPES = [
 
 interface EmployeeInfo { id: string; name: string; avatar_url: string | null }
 
+interface TeamInfo {
+  id: string
+  name: string
+  type: 'store' | 'project' | 'department'
+  prefecture: string | null
+}
+
 interface Props {
   employee: { id: string; name: string; email: string; role: string; employment_type: string; hire_date: string | null; avatar_url: string | null; instagram_url: string | null }
   careerRecords: CareerRecord[]
   employeeMap: Record<string, EmployeeInfo>
   allEmployees: EmployeeInfo[]
   canEdit: boolean
-  storeName?: string | null
+  memberTeamIds: string[]
+  allTeams: TeamInfo[]
 }
 
-export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEmployees, canEdit, storeName }: Props) {
+export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEmployees, canEdit, memberTeamIds, allTeams }: Props) {
   const [isPending, startTransition] = useTransition()
   const [employeeName, setEmployeeName] = useState(employee.name)
   const [nameDialogOpen, setNameDialogOpen] = useState(false)
@@ -51,6 +59,40 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
   const [formNotes, setFormNotes] = useState('')
   const [personSearch, setPersonSearch] = useState('')
   const router = useRouter()
+
+  // 所属チーム管理
+  const [currentTeamIds, setCurrentTeamIds] = useState<string[]>(memberTeamIds)
+  const [addTeamDialogOpen, setAddTeamDialogOpen] = useState(false)
+  const teamMap = Object.fromEntries(allTeams.map(t => [t.id, t]))
+  const currentTeams = currentTeamIds.map(id => teamMap[id]).filter(Boolean)
+  const storeTeamsList = currentTeams.filter(t => t.type === 'store')
+  const deptTeamsList = currentTeams.filter(t => t.type === 'department')
+  const projectTeamsList = currentTeams.filter(t => t.type === 'project')
+  const availableTeams = allTeams.filter(t => !currentTeamIds.includes(t.id))
+
+  const supabase = (() => {
+    const { createClient } = require('@/lib/supabase/client')
+    return createClient()
+  })()
+
+  const handleAddTeam = (teamId: string) => {
+    startTransition(async () => {
+      const { error } = await supabase.from('team_members').insert({ team_id: teamId, employee_id: employee.id })
+      if (error) { toast.error('追加に失敗しました'); return }
+      setCurrentTeamIds(prev => [...prev, teamId])
+      setAddTeamDialogOpen(false)
+      toast.success(`${teamMap[teamId]?.name ?? ''}に追加しました`)
+    })
+  }
+
+  const handleRemoveTeam = (teamId: string) => {
+    startTransition(async () => {
+      const { error } = await supabase.from('team_members').delete().eq('team_id', teamId).eq('employee_id', employee.id)
+      if (error) { toast.error('削除に失敗しました'); return }
+      setCurrentTeamIds(prev => prev.filter(id => id !== teamId))
+      toast.success(`${teamMap[teamId]?.name ?? ''}から削除しました`)
+    })
+  }
 
   const filteredEmployees = allEmployees.filter(e =>
     e.id !== employee.id && !formPeople.includes(e.id) &&
@@ -154,9 +196,6 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
               <p className="text-sm text-gray-500">{employee.email}</p>
               <div className="flex gap-1.5 mt-1 flex-wrap">
                 <Badge className="text-[10px] bg-orange-100 text-orange-700 border-0">{employee.employment_type}</Badge>
-                {storeName && (
-                  <Badge className="text-[10px] bg-blue-50 text-blue-600 border-0">{storeName}</Badge>
-                )}
                 {employee.hire_date && (
                   <Badge className="text-[10px] bg-gray-100 text-gray-600 border-0">
                     {employee.hire_date} 入社
@@ -167,6 +206,119 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
           </div>
         </CardContent>
       </Card>
+
+      {/* 所属情報 */}
+      <Card>
+        <CardHeader className="pb-2 pt-4 px-4">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
+              <MapPin className="w-4 h-4" />
+              所属
+            </CardTitle>
+            {canEdit && (
+              <Button variant="ghost" size="sm" className="h-7 text-xs text-orange-500 px-2" onClick={() => setAddTeamDialogOpen(true)} disabled={isPending}>
+                <Plus className="w-3 h-3 mr-1" />追加
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="px-4 pb-4 space-y-2">
+          {storeTeamsList.length > 0 && (
+            <div>
+              <p className="text-[10px] text-gray-400 font-medium mb-1">店舗</p>
+              <div className="flex flex-wrap gap-1.5">
+                {storeTeamsList.map(t => (
+                  <div key={t.id} className="flex items-center gap-1 bg-blue-50 text-blue-700 rounded-full pl-2 pr-1 py-0.5 text-xs">
+                    <Store className="w-3 h-3" />
+                    {t.prefecture && <span className="text-blue-400">{t.prefecture}</span>}
+                    {t.name}
+                    {canEdit && (
+                      <button onClick={() => handleRemoveTeam(t.id)} className="text-blue-300 hover:text-red-500 ml-0.5" disabled={isPending}>
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {deptTeamsList.length > 0 && (
+            <div>
+              <p className="text-[10px] text-gray-400 font-medium mb-1">部署</p>
+              <div className="flex flex-wrap gap-1.5">
+                {deptTeamsList.map(t => (
+                  <div key={t.id} className="flex items-center gap-1 bg-teal-50 text-teal-700 rounded-full pl-2 pr-1 py-0.5 text-xs">
+                    <Building2 className="w-3 h-3" />
+                    {t.name}
+                    {canEdit && (
+                      <button onClick={() => handleRemoveTeam(t.id)} className="text-teal-300 hover:text-red-500 ml-0.5" disabled={isPending}>
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {projectTeamsList.length > 0 && (
+            <div>
+              <p className="text-[10px] text-gray-400 font-medium mb-1">チーム</p>
+              <div className="flex flex-wrap gap-1.5">
+                {projectTeamsList.map(t => (
+                  <div key={t.id} className="flex items-center gap-1 bg-purple-50 text-purple-700 rounded-full pl-2 pr-1 py-0.5 text-xs">
+                    <FolderKanban className="w-3 h-3" />
+                    {t.name}
+                    {canEdit && (
+                      <button onClick={() => handleRemoveTeam(t.id)} className="text-purple-300 hover:text-red-500 ml-0.5" disabled={isPending}>
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {currentTeams.length === 0 && (
+            <p className="text-xs text-gray-400">未所属</p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* 所属追加ダイアログ */}
+      <Dialog open={addTeamDialogOpen} onOpenChange={setAddTeamDialogOpen}>
+        <DialogContent className="max-w-sm max-h-[70vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-base">所属を追加</DialogTitle>
+          </DialogHeader>
+          {(['project', 'department', 'store'] as const).map(type => {
+            const typeTeams = availableTeams.filter(t => t.type === type)
+            if (typeTeams.length === 0) return null
+            const label = type === 'project' ? 'チーム' : type === 'department' ? '部署' : '店舗'
+            const Icon = type === 'project' ? FolderKanban : type === 'department' ? Building2 : Store
+            const colors = type === 'project' ? 'hover:bg-purple-50' : type === 'department' ? 'hover:bg-teal-50' : 'hover:bg-blue-50'
+            return (
+              <div key={type}>
+                <p className="text-xs font-medium text-gray-500 mb-1 flex items-center gap-1">
+                  <Icon className="w-3 h-3" />{label}
+                </p>
+                <div className="space-y-0.5">
+                  {typeTeams.map(t => (
+                    <button
+                      key={t.id}
+                      onClick={() => handleAddTeam(t.id)}
+                      disabled={isPending}
+                      className={`w-full text-left px-3 py-1.5 rounded text-sm text-gray-700 ${colors} transition-colors`}
+                    >
+                      {t.prefecture && <span className="text-gray-400 mr-1">{t.prefecture}</span>}
+                      {t.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )
+          })}
+        </DialogContent>
+      </Dialog>
 
       {/* 記録追加ボタン */}
       {canEdit && (
