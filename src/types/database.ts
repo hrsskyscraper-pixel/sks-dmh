@@ -67,7 +67,7 @@ export type Database = {
         Row: {
           id: string
           name: string
-          type: 'store' | 'project'
+          type: 'store' | 'project' | 'department'
           prefecture: string | null
           created_at: string
           updated_at: string
@@ -75,7 +75,7 @@ export type Database = {
         Insert: {
           id?: string
           name: string
-          type: 'store' | 'project'
+          type: 'store' | 'project' | 'department'
           prefecture?: string | null
           created_at?: string
           updated_at?: string

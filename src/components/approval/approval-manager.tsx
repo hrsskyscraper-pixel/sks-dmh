@@ -23,7 +23,7 @@ interface PendingEmployee {
 
 interface Props {
   pendingEmployees: PendingEmployee[]
-  teams: { id: string; name: string; type: string; prefecture: string | null }[]
+  teams: { id: string; name: string; type: 'store' | 'project' | 'department'; prefecture: string | null }[]
   projects: { id: string; name: string }[]
   currentEmployeeId: string
   isSystemAdmin: boolean

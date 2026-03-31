@@ -8,7 +8,7 @@ export async function POST(request: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: '未認証' }, { status: 401 })
 
-  const { employeeId, name, teamId } = await request.json()
+  const { employeeId, name, teamId, projectTeamId } = await request.json()
   if (!employeeId || !name || !teamId) {
     return NextResponse.json({ error: '必須項目が不足しています' }, { status: 400 })
   }
@@ -41,9 +41,15 @@ export async function POST(request: Request) {
   // 通知送信（メール・LINE）
   const { data: empUpdated } = await db.from('employees').select('id, name, email, avatar_url').eq('id', employeeId).single()
   if (empUpdated) {
+    let projectTeamName: string | undefined
+    if (projectTeamId) {
+      const { data: pt } = await db.from('teams').select('name').eq('id', projectTeamId).single()
+      projectTeamName = pt?.name ?? undefined
+    }
     await sendJoinRequestNotification({
       applicant: empUpdated,
       team,
+      projectTeamName,
     }).catch(err => console.error('通知送信エラー:', err))
   }
 

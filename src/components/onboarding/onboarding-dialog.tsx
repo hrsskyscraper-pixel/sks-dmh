@@ -6,21 +6,33 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { StoreSelect } from '@/components/ui/store-select'
+
+interface TeamItem {
+  id: string
+  name: string
+  type: 'store' | 'project' | 'department'
+  prefecture: string | null
+}
 
 interface Props {
   employeeId: string
   email: string
   defaultName: string
-  teams: { id: string; name: string; prefecture: string | null }[]
+  teams: TeamItem[]
 }
 
 export function OnboardingDialog({ employeeId, email, defaultName, teams }: Props) {
   const router = useRouter()
   const [name, setName] = useState(defaultName)
   const [teamId, setTeamId] = useState('')
+  const [projectTeamId, setProjectTeamId] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+
+  const storeDeptTeams = teams.filter(t => t.type === 'store' || t.type === 'department')
+  const projectTeams = teams.filter(t => t.type === 'project')
 
   const handleSubmit = async () => {
     if (!name.trim()) { setError('氏名を入力してください'); return }
@@ -31,7 +43,12 @@ export function OnboardingDialog({ employeeId, email, defaultName, teams }: Prop
     const res = await fetch('/api/join-request', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ employeeId, name: name.trim(), teamId }),
+      body: JSON.stringify({
+        employeeId,
+        name: name.trim(),
+        teamId,
+        projectTeamId: projectTeamId && projectTeamId !== '__none__' ? projectTeamId : null,
+      }),
     })
 
     if (!res.ok) {
@@ -77,12 +94,27 @@ export function OnboardingDialog({ employeeId, email, defaultName, teams }: Prop
               <Label>店舗／部署</Label>
               <div className="mt-1">
                 <StoreSelect
-                  teams={teams}
+                  teams={storeDeptTeams}
                   value={teamId}
                   onChange={setTeamId}
                   placeholder="選択してください"
                 />
               </div>
+            </div>
+
+            <div>
+              <Label>チーム</Label>
+              <Select value={projectTeamId} onValueChange={setProjectTeamId}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="未設定" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">（未設定）</SelectItem>
+                  {projectTeams.map(t => (
+                    <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {error && <p className="text-sm text-red-500">{error}</p>}

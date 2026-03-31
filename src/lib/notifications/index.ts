@@ -5,6 +5,7 @@ import { sendLineMessages, sendLineMessage } from './line'
 interface JoinRequestParams {
   applicant: { id: string; name: string; email: string; avatar_url: string | null }
   team: { id: string; name: string }
+  projectTeamName?: string
 }
 
 interface ApprovalParams {
@@ -19,7 +20,7 @@ interface ApprovalParams {
  * - 直属上長（店舗の店長・マネージャー）にメール送信（CC: システム管理者）
  * - 上長にLINE通知
  */
-export async function sendJoinRequestNotification({ applicant, team }: JoinRequestParams) {
+export async function sendJoinRequestNotification({ applicant, team, projectTeamName }: JoinRequestParams) {
   const db = createAdminClient()
 
   // 店舗の管理者（店長・マネージャー）を取得
@@ -68,7 +69,8 @@ export async function sendJoinRequestNotification({ applicant, team }: JoinReque
       '',
       systemUrl,
       '',
-      `希望店舗: ${team.name}`,
+      `希望店舗／部署: ${team.name}`,
+      ...(projectTeamName ? [`希望チーム: ${projectTeamName}`] : []),
     ].join('\n'),
   }).catch(err => console.error('本人宛メール送信失敗:', err))
 
@@ -83,7 +85,8 @@ export async function sendJoinRequestNotification({ applicant, team }: JoinReque
       body: [
         `${applicant.name} さん（${applicant.email}）からシステムへの参加依頼がありました。`,
         '',
-        `希望店舗: ${team.name}`,
+        `希望店舗／部署: ${team.name}`,
+        ...(projectTeamName ? [`希望チーム: ${projectTeamName}`] : []),
         '',
         '以下のリンクから参加許諾画面にアクセスし、',
         '必要な設定を行った上で承認してください。',

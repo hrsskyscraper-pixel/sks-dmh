@@ -72,17 +72,16 @@ export default async function DashboardLayout({
     // まだ店舗未選択 → オンボーディングダイアログ表示
     if (!employee.requested_team_id) {
       const adminDb = createAdminClient()
-      const { data: storeTeams } = await adminDb
+      const { data: allTeams } = await adminDb
         .from('teams')
-        .select('id, name, prefecture')
-        .eq('type', 'store')
+        .select('id, name, type, prefecture')
         .order('name')
       return (
         <OnboardingDialog
           employeeId={employee.id}
           email={employee.email}
           defaultName={employee.name}
-          teams={storeTeams ?? []}
+          teams={allTeams ?? []}
         />
       )
     }

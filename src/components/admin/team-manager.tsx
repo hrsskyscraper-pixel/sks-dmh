@@ -39,11 +39,13 @@ type RequestType = TeamChangeRequest['request_type']
 const TEAM_TYPE_LABELS: Record<Team['type'], string> = {
   store: '店舗',
   project: 'チーム',
+  department: '部署',
 }
 
 const TEAM_TYPE_COLORS: Record<Team['type'], string> = {
   store: 'bg-blue-100 text-blue-700',
   project: 'bg-purple-100 text-purple-700',
+  department: 'bg-teal-100 text-teal-700',
 }
 
 const REQUEST_TYPE_LABELS: Record<RequestType, string> = {
@@ -907,6 +909,126 @@ export function TeamManager({
         )
       })}
 
+      {/* 部署 (department) */}
+      {[...teams].filter(t => t.type === 'department').sort((a, b) => a.name.localeCompare(b.name, 'ja')).map(team => {
+        const memberIds = getTeamMemberIds(team.id)
+        const managerIds = getTeamManagerIds(team.id)
+        const isExpanded = expandedTeams.has(team.id)
+        const isManagedByMe = managerIds.includes(effectiveEmployee.id)
+        const isMemberOfMe = !isManagedByMe && memberIds.includes(effectiveEmployee.id)
+        return (
+          <Card key={team.id} className={`${isManagedByMe ? 'border-orange-300 bg-orange-50' : isMemberOfMe ? 'border-green-200 bg-green-50' : ''}`}>
+            <CardHeader className="pb-2 pt-3 px-4">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <Badge className={`${TEAM_TYPE_COLORS[team.type]} text-xs border-0 flex-shrink-0`}>
+                    {TEAM_TYPE_LABELS[team.type]}
+                  </Badge>
+                  {isDirectEdit && inlineTeamName?.teamId === team.id ? (
+                    <input
+                      className="text-sm font-semibold text-gray-800 border-b-2 border-orange-400 outline-none bg-transparent min-w-0 flex-1"
+                      value={inlineTeamName.value}
+                      onChange={e => setInlineTeamName({ teamId: team.id, value: e.target.value })}
+                      onBlur={handleSaveTeamName}
+                      onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) handleSaveTeamName(); if (e.key === 'Escape') setInlineTeamName(null) }}
+                      autoFocus
+                      disabled={isPending}
+                    />
+                  ) : (
+                    <button
+                      className="text-sm font-semibold text-gray-800 truncate text-left flex items-center gap-1 group"
+                      onClick={() => isDirectEdit && setInlineTeamName({ teamId: team.id, value: team.name })}
+                      style={{ cursor: isDirectEdit ? 'pointer' : 'default' }}
+                    >
+                      {team.name}
+                      {isDirectEdit && <Pencil className="w-3 h-3 text-gray-300 group-hover:text-orange-400 flex-shrink-0 opacity-0 group-hover:opacity-100" />}
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-gray-400" onClick={() => toggleExpand(team.id)}>
+                    {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  </Button>
+                  {isDirectEdit && (
+                    <Button
+                      variant="ghost" size="sm"
+                      className="h-7 w-7 p-0 text-red-400 hover:text-red-600 hover:bg-red-50"
+                      onClick={() => setConfirmDialog({ title: '削除の確認', message: `部署「${team.name}」を削除しますか？`, confirmLabel: '削除する', confirmClassName: 'flex-1 bg-red-500 hover:bg-red-600 text-white', onConfirm: () => handleDeleteTeam(team.id) })}
+                      disabled={isPending}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">メンバー {memberIds.length}名　担当リーダー {managerIds.length}名</p>
+            </CardHeader>
+            {isExpanded && (
+              <CardContent className="px-4 pb-3 space-y-3">
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <p className="text-xs font-medium text-gray-600">メンバー</p>
+                    {isDirectEdit && (
+                      <Button variant="ghost" size="sm" className="h-6 text-xs text-orange-500 px-2" onClick={() => setAddDialog({ teamId: team.id, type: 'member' })}>
+                        <UserPlus className="w-3 h-3 mr-1" />追加
+                      </Button>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {memberIds.length === 0 && <p className="text-xs text-muted-foreground">メンバーなし</p>}
+                    {memberIds.map(empId => {
+                      const emp = getEmployee(empId)
+                      return (
+                        <div key={empId} className="flex items-center gap-1 bg-gray-100 rounded-full pl-0.5 pr-2 py-0.5">
+                          <Avatar className="w-4 h-4 flex-shrink-0">
+                            <AvatarImage src={emp?.avatar_url ?? undefined} />
+                            <AvatarFallback className="text-[8px] bg-gray-300 text-gray-600">{emp?.name.charAt(0)}</AvatarFallback>
+                          </Avatar>
+                          <span className="text-xs text-gray-700">{getEmployeeName(empId)}</span>
+                          {isDirectEdit && (
+                            <button onClick={() => setConfirmDialog({ title: 'メンバー削除', message: `${getEmployeeName(empId)} をこの部署から削除しますか？`, confirmLabel: '削除', confirmClassName: 'flex-1 bg-red-500 hover:bg-red-600 text-white', onConfirm: () => handleRemoveMember(team.id, empId) })} className="text-gray-300 hover:text-red-500 ml-0.5"><X className="w-3 h-3" /></button>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <p className="text-xs font-medium text-gray-600">担当リーダー</p>
+                    {isDirectEdit && (
+                      <Button variant="ghost" size="sm" className="h-6 text-xs text-orange-500 px-2" onClick={() => setAddDialog({ teamId: team.id, type: 'manager' })}>
+                        <UserPlus className="w-3 h-3 mr-1" />追加
+                      </Button>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {managerIds.length === 0 && <p className="text-xs text-muted-foreground">担当なし</p>}
+                    {teamManagers.filter(m => m.team_id === team.id).map(manager => {
+                      const emp = getEmployee(manager.employee_id)
+                      const isPrimary = manager.role === 'primary'
+                      return (
+                        <div key={manager.employee_id} className={`flex items-center gap-1 ${isPrimary ? 'bg-amber-100' : 'bg-blue-100'} rounded-full pl-1 pr-2 py-0.5`}>
+                          <span className={`text-[9px] font-bold ${isPrimary ? 'text-amber-600' : 'text-blue-500'}`}>{isPrimary ? '主' : '副'}</span>
+                          <Avatar className="w-4 h-4 flex-shrink-0">
+                            <AvatarImage src={emp?.avatar_url ?? undefined} />
+                            <AvatarFallback className={`text-[8px] ${isPrimary ? 'bg-amber-300 text-amber-700' : 'bg-blue-300 text-blue-700'}`}>{emp?.name.charAt(0)}</AvatarFallback>
+                          </Avatar>
+                          <span className={`text-xs ${isPrimary ? 'text-amber-700' : 'text-blue-700'}`}>{getEmployeeName(manager.employee_id)}</span>
+                          {isDirectEdit && (
+                            <button onClick={() => setConfirmDialog({ title: 'リーダー削除', message: `${getEmployeeName(manager.employee_id)} をリーダーから削除しますか？`, confirmLabel: '削除', confirmClassName: 'flex-1 bg-red-500 hover:bg-red-600 text-white', onConfirm: () => handleRemoveManager(team.id, manager.employee_id) })} className={`${isPrimary ? 'text-amber-400' : 'text-blue-400'} hover:text-red-500 ml-0.5`}><X className="w-3 h-3" /></button>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              </CardContent>
+            )}
+          </Card>
+        )
+      })}
+
       {/* 店舗 (store) — 都道府県別折りたたみ */}
       {(() => {
         const storeTeams = teams.filter(t => t.type === 'store')
@@ -1341,15 +1463,13 @@ export function TeamManager({
                 <p className="text-[10px] text-muted-foreground">店舗を横断するチームの場合、チームを選択してください。</p>
               </div>
               <div className="flex gap-2">
-                {(['project', 'store'] as const).map(type => (
+                {(['project', 'department', 'store'] as const).map(type => (
                   <button
                     key={type}
                     onClick={() => setNewTeamType(type)}
                     className={`flex-1 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
                       newTeamType === type
-                        ? type === 'store'
-                          ? 'bg-blue-100 text-blue-700 border-blue-300'
-                          : 'bg-purple-100 text-purple-700 border-purple-300'
+                        ? `${TEAM_TYPE_COLORS[type]} border-current`
                         : 'bg-gray-50 text-gray-500 border-gray-200'
                     }`}
                   >

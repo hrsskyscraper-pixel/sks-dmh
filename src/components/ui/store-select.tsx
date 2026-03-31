@@ -1,12 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { ChevronDown, ChevronRight, MapPin } from 'lucide-react'
+import { Building2, ChevronDown, ChevronRight, MapPin } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface StoreTeam {
   id: string
   name: string
+  type?: 'store' | 'department' | 'project'
   prefecture: string | null
 }
 
@@ -17,28 +18,23 @@ interface Props {
   placeholder?: string
 }
 
-// 地方→都道府県の表示順序
 const REGION_ORDER = [
-  '秋田県',
-  '栃木県',
-  '群馬県',
-  '埼玉県',
-  '千葉県',
-  '東京都',
-  '神奈川県',
-  '新潟県',
-  '静岡県',
-  '茨城県',
+  '秋田県', '栃木県', '群馬県', '埼玉県', '千葉県',
+  '東京都', '神奈川県', '新潟県', '静岡県', '茨城県',
 ]
 
-export function StoreSelect({ teams, value, onChange, placeholder = '店舗を選択' }: Props) {
+export function StoreSelect({ teams, value, onChange, placeholder = '店舗／部署を選択' }: Props) {
   const [isOpen, setIsOpen] = useState(false)
   const [expandedPref, setExpandedPref] = useState<string | null>(null)
 
-  // 都道府県ごとにグループ化
+  // 部署と店舗を分離
+  const departments = teams.filter(t => t.type === 'department')
+  const stores = teams.filter(t => t.type !== 'department')
+
+  // 店舗を都道府県ごとにグループ化
   const grouped: Record<string, StoreTeam[]> = {}
   const noPref: StoreTeam[] = []
-  for (const t of teams) {
+  for (const t of stores) {
     if (t.prefecture) {
       if (!grouped[t.prefecture]) grouped[t.prefecture] = []
       grouped[t.prefecture].push(t)
@@ -47,9 +43,7 @@ export function StoreSelect({ teams, value, onChange, placeholder = '店舗を�
     }
   }
 
-  // 都道府県の並び順
   const prefOrder = REGION_ORDER.filter(p => grouped[p])
-  // REGION_ORDER に含まれない都道府県を末尾に
   for (const p of Object.keys(grouped)) {
     if (!prefOrder.includes(p)) prefOrder.push(p)
   }
@@ -63,7 +57,6 @@ export function StoreSelect({ teams, value, onChange, placeholder = '店舗を�
 
   return (
     <div className="relative">
-      {/* トリガー */}
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
@@ -76,6 +69,7 @@ export function StoreSelect({ teams, value, onChange, placeholder = '店舗を�
         <span className="truncate">
           {selectedTeam ? (
             <>
+              {selectedTeam.type === 'department' && <span className="text-teal-500 mr-1">[部署]</span>}
               {selectedTeam.prefecture && <span className="text-gray-400 mr-1">{selectedTeam.prefecture}</span>}
               {selectedTeam.name}
             </>
@@ -84,12 +78,10 @@ export function StoreSelect({ teams, value, onChange, placeholder = '店舗を�
         <ChevronDown className={cn('w-4 h-4 ml-2 flex-shrink-0 transition-transform', isOpen && 'rotate-180')} />
       </button>
 
-      {/* ドロップダウン */}
       {isOpen && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
           <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-72 overflow-y-auto">
-            {/* 未設定オプション */}
             <button
               type="button"
               onClick={() => handleSelect('__none__')}
@@ -98,11 +90,34 @@ export function StoreSelect({ teams, value, onChange, placeholder = '店舗を�
               （未設定）
             </button>
 
-            {/* 都道府県グループ */}
+            {/* 部署 */}
+            {departments.length > 0 && (
+              <>
+                <div className="px-3 py-1.5 text-xs text-teal-600 font-semibold flex items-center gap-1.5 bg-teal-50">
+                  <Building2 className="w-3 h-3" />
+                  部署
+                </div>
+                {departments.map(dept => (
+                  <button
+                    key={dept.id}
+                    type="button"
+                    onClick={() => handleSelect(dept.id)}
+                    className={cn(
+                      'w-full text-left pl-6 pr-3 py-1.5 text-sm hover:bg-gray-50',
+                      dept.id === value ? 'text-orange-600 font-medium bg-orange-50' : 'text-gray-600'
+                    )}
+                  >
+                    {dept.name}
+                  </button>
+                ))}
+              </>
+            )}
+
+            {/* 店舗（都道府県グループ） */}
             {prefOrder.map(pref => {
-              const stores = grouped[pref]
+              const prefStores = grouped[pref]
               const isExpanded = expandedPref === pref
-              const hasSelected = stores.some(s => s.id === value)
+              const hasSelected = prefStores.some(s => s.id === value)
 
               return (
                 <div key={pref}>
@@ -120,9 +135,9 @@ export function StoreSelect({ teams, value, onChange, placeholder = '店舗を�
                     }
                     <MapPin className="w-3.5 h-3.5 flex-shrink-0 text-gray-400" />
                     <span>{pref}</span>
-                    <span className="text-xs text-gray-400 ml-auto">{stores.length}店舗</span>
+                    <span className="text-xs text-gray-400 ml-auto">{prefStores.length}店舗</span>
                   </button>
-                  {isExpanded && stores.map(store => (
+                  {isExpanded && prefStores.map(store => (
                     <button
                       key={store.id}
                       type="button"
@@ -139,7 +154,6 @@ export function StoreSelect({ teams, value, onChange, placeholder = '店舗を�
               )
             })}
 
-            {/* 都道府県未設定の店舗 */}
             {noPref.length > 0 && (
               <div>
                 <div className="px-3 py-2 text-xs text-gray-400 font-medium">その他</div>
