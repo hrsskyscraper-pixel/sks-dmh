@@ -632,6 +632,12 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
                 <Input placeholder="例: 渋谷本店" value={formDept} onChange={e => setFormDept(e.target.value)} className="text-sm" />
               </div>
             )}
+            {formType === '役職' && (
+              <div>
+                <p className="text-xs font-medium text-gray-600 mb-1">役職名</p>
+                <Input placeholder="例: 店長、副店長、トレーナー" value={formDept} onChange={e => setFormDept(e.target.value)} className="text-sm" />
+              </div>
+            )}
             {formType === '資格' && (
               <div>
                 <p className="text-xs font-medium text-gray-600 mb-1">資格名</p>
