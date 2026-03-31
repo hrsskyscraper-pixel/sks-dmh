@@ -5,12 +5,12 @@ import { createAdminClient } from '@/lib/supabase/admin'
 export async function GET(request: Request) {
   const url = new URL(request.url)
   const code = url.searchParams.get('code')
-  const state = url.searchParams.get('state')
   const error = url.searchParams.get('error')
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://sks-dmh.vercel.app'
 
   if (error || !code) {
-    return NextResponse.redirect(`${baseUrl}/admin/settings?line_error=${encodeURIComponent(error ?? 'no_code')}`)
+    console.error('LINE callback error:', error)
+    return NextResponse.redirect(`${baseUrl}/?line_error=${encodeURIComponent(error ?? 'no_code')}`)
   }
 
   // 現在ログイン中の社員を確認
@@ -46,7 +46,7 @@ export async function GET(request: Request) {
   if (!tokenRes.ok) {
     const err = await tokenRes.text()
     console.error('LINE token error:', err)
-    return NextResponse.redirect(`${baseUrl}/admin/settings?line_error=token_failed`)
+    return NextResponse.redirect(`${baseUrl}/?line_error=token_failed`)
   }
 
   const tokenData = await tokenRes.json()
@@ -58,7 +58,8 @@ export async function GET(request: Request) {
   })
 
   if (!profileRes.ok) {
-    return NextResponse.redirect(`${baseUrl}/admin/settings?line_error=profile_failed`)
+    console.error('LINE profile error:', await profileRes.text())
+    return NextResponse.redirect(`${baseUrl}/?line_error=profile_failed`)
   }
 
   const profile = await profileRes.json()
@@ -72,8 +73,8 @@ export async function GET(request: Request) {
 
   if (updateError) {
     console.error('LINE userId 保存失敗:', updateError)
-    return NextResponse.redirect(`${baseUrl}/admin/settings?line_error=save_failed`)
+    return NextResponse.redirect(`${baseUrl}/?line_error=save_failed`)
   }
 
-  return NextResponse.redirect(`${baseUrl}/admin/settings?line_linked=true`)
+  return NextResponse.redirect(`${baseUrl}/?line_linked=true`)
 }
