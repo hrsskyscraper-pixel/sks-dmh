@@ -16,6 +16,7 @@ import { VIEW_AS_COOKIE } from '@/lib/view-as'
 import { buildMilestoneMap } from '@/lib/milestone'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { LineLinkBanner } from '@/components/layout/line-link-banner'
+import { LineLinkToast } from '@/components/layout/line-link-toast'
 
 function TeamRankingSkeleton() {
   return (
@@ -42,7 +43,7 @@ function TeamRankingSkeleton() {
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ project_id?: string }>
+  searchParams?: Promise<{ project_id?: string; line_linked?: string; line_error?: string }>
 }) {
   const currentEmployee = await getCurrentEmployee()
   if (!currentEmployee) redirect('/login')
@@ -191,6 +192,7 @@ export default async function DashboardPage({
 
   return (
     <>
+      <Suspense><LineLinkToast /></Suspense>
       <TopBar
         title="できました表"
         right={
