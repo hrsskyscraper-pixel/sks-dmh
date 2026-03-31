@@ -69,8 +69,8 @@ export async function sendJoinRequestNotification({ applicant, team, projectTeam
       '',
       systemUrl,
       '',
-      `希望店舗／部署: ${team.name}`,
-      ...(projectTeamName ? [`希望チーム: ${projectTeamName}`] : []),
+      `申請店舗／部署: ${team.name}`,
+      ...(projectTeamName ? [`申請チーム: ${projectTeamName}`] : []),
     ].join('\n'),
   }).catch(err => console.error('本人宛メール送信失敗:', err))
 
@@ -85,8 +85,8 @@ export async function sendJoinRequestNotification({ applicant, team, projectTeam
       body: [
         `${applicant.name} さん（${applicant.email}）からシステムへの参加依頼がありました。`,
         '',
-        `希望店舗／部署: ${team.name}`,
-        ...(projectTeamName ? [`希望チーム: ${projectTeamName}`] : []),
+        `申請店舗／部署: ${team.name}`,
+        ...(projectTeamName ? [`申請チーム: ${projectTeamName}`] : []),
         '',
         '以下のリンクから参加許諾画面にアクセスし、',
         '必要な設定を行った上で承認してください。',

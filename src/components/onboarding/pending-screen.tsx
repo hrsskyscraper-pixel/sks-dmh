@@ -48,7 +48,7 @@ export function PendingScreen({ email, teamName, systemUrl }: Props) {
           </div>
 
           <div className="text-xs text-gray-400 text-center">
-            希望店舗: {teamName}
+            申請店舗: {teamName}
           </div>
 
           <Button variant="outline" onClick={handleLogout} className="w-full">
