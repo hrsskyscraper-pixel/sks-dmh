@@ -15,6 +15,15 @@ export async function GET() {
     })
   }
 
+  // デバッグ情報（一時的）
+  return NextResponse.json({
+    status: 'debug',
+    GMAIL_USER: gmailUser,
+    GMAIL_APP_PASSWORD_LENGTH: gmailPass.length,
+    GMAIL_APP_PASSWORD_FIRST2: gmailPass.substring(0, 2),
+    GMAIL_APP_PASSWORD_LAST2: gmailPass.substring(gmailPass.length - 2),
+  })
+
   try {
     await sendMail({
       to: gmailUser,
