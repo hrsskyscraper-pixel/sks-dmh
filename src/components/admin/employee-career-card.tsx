@@ -111,6 +111,7 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
 
   // プロフィール編集
   const [profileDialogOpen, setProfileDialogOpen] = useState(false)
+  const [editName, setEditName] = useState(employee.name)
   const [editRole, setEditRole] = useState(getDisplayRole(employee.role, employee.employment_type))
   const [editInstagram, setEditInstagram] = useState(employee.instagram_url ?? '')
   const [currentRole, setCurrentRole] = useState(getDisplayRole(employee.role, employee.employment_type))
@@ -122,14 +123,16 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
 
   const handleProfileSave = () => {
     const rm = ROLE_MAP.find(r => r.display === editRole)
-    if (!rm) return
+    if (!rm || !editName.trim()) return
     startTransition(async () => {
       const { error } = await supabase.from('employees').update({
+        name: editName.trim(),
         role: rm.role,
         employment_type: rm.employment_type,
         instagram_url: editInstagram || null,
       }).eq('id', employee.id)
       if (error) { toast.error('更新に失敗しました'); return }
+      setEmployeeName(editName.trim())
       setCurrentRole(editRole)
       setCurrentInstagram(editInstagram || null)
       setProfileDialogOpen(false)
@@ -262,14 +265,7 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
               <AvatarFallback className="bg-orange-100 text-orange-700 text-xl font-bold">{employee.name.charAt(0)}</AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1.5">
-                <h2 className="text-xl font-bold text-gray-800">{employeeName}</h2>
-                {canEdit && (
-                  <button onClick={() => { setNameInput(employeeName); setNameDialogOpen(true) }} className="text-gray-300 hover:text-orange-500 transition-colors">
-                    <Pencil className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
+              <h2 className="text-xl font-bold text-gray-800">{employeeName}</h2>
               <p className="text-sm text-gray-500">{employee.email}</p>
 
               <div className="flex gap-1.5 mt-2 flex-wrap">
@@ -328,6 +324,7 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
               {canEdit && (
                 <button
                   onClick={() => {
+                    setEditName(employeeName)
                     setEditRole(currentRole)
                     setEditInstagram(currentInstagram ?? '')
                     setProfileDialogOpen(true)
@@ -350,6 +347,10 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
             <DialogTitle className="text-base">プロフィール編集</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
+            <div>
+              <label className="text-xs font-medium text-gray-600">氏名</label>
+              <Input value={editName} onChange={e => setEditName(e.target.value)} className="mt-1" />
+            </div>
             <div>
               <label className="text-xs font-medium text-gray-600">ロール</label>
               <Select value={editRole} onValueChange={v => setEditRole(v as DisplayRole)}>
@@ -580,31 +581,6 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
           まだキャリア記録がありません
         </div>
       )}
-
-      {/* 名前編集ダイアログ */}
-      <Dialog open={nameDialogOpen} onOpenChange={setNameDialogOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle>名前を変更</DialogTitle></DialogHeader>
-          <Input value={nameInput} onChange={e => setNameInput(e.target.value)} className="text-sm" />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setNameDialogOpen(false)}>キャンセル</Button>
-            <Button
-              disabled={isPending || !nameInput.trim() || nameInput.trim() === employeeName}
-              className="bg-orange-500 hover:bg-orange-600 text-white"
-              onClick={() => {
-                startTransition(async () => {
-                  const result = await updateEmployeeName(employee.id, nameInput.trim())
-                  if (result.error) { toast.error(result.error); return }
-                  setEmployeeName(nameInput.trim())
-                  setNameDialogOpen(false)
-                  toast.success('名前を変更しました')
-                  router.refresh()
-                })
-              }}
-            >変更</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* 追加ダイアログ */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
