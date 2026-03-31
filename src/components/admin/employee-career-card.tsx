@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
-import { Plus, Trash2, ArrowLeft, Users, Briefcase, GraduationCap, MapPin, ArrowRightLeft, FileText, Pencil, Instagram, X, Store, FolderKanban, Building2, Award, Star, UserCog } from 'lucide-react'
+import { Plus, Trash2, ArrowLeft, Users, Briefcase, GraduationCap, MapPin, ArrowRightLeft, FileText, Pencil, Instagram, X, Store, FolderKanban, Building2, Award, Star, UserCog, LogIn } from 'lucide-react'
 import { CertIcon as CertIconComponent, getCertColorClasses } from '@/components/admin/certification-manager'
 import { addCareerRecord, updateCareerRecord, deleteCareerRecord, updateEmployeeName } from '@/app/(dashboard)/actions'
 import Link from 'next/link'
@@ -21,8 +21,9 @@ import type { CareerRecord } from '@/types/database'
 const RECORD_TYPES = [
   { value: '面接', label: '面接', icon: Users, color: 'bg-blue-100 text-blue-700' },
   { value: '採用', label: '採用', icon: Briefcase, color: 'bg-green-100 text-green-700' },
-  { value: '育成', label: '育成', icon: GraduationCap, color: 'bg-purple-100 text-purple-700' },
+  { value: '入社', label: '入社', icon: LogIn, color: 'bg-lime-100 text-lime-700' },
   { value: '配属・異動', label: '配属・異動', icon: MapPin, color: 'bg-amber-100 text-amber-700' },
+  { value: '育成', label: '育成', icon: GraduationCap, color: 'bg-purple-100 text-purple-700' },
   { value: '役職', label: '役職', icon: UserCog, color: 'bg-sky-100 text-sky-700' },
   { value: '資格', label: '資格', icon: Award, color: 'bg-emerald-100 text-emerald-700' },
   { value: 'その他', label: 'その他', icon: FileText, color: 'bg-gray-100 text-gray-700' },
