@@ -55,7 +55,7 @@ export async function sendJoinRequestNotification({ applicant, team, projectTeam
   // 1. 本人宛メール（No-Reply）
   await sendMail({
     to: applicant.email,
-    subject: '【できました表】参加依頼を受け付けました',
+    subject: '【Growth Driver】参加依頼を受け付けました',
     body: [
       `${applicant.name} 様`,
       '',
@@ -81,7 +81,7 @@ export async function sendJoinRequestNotification({ applicant, team, projectTeam
     await sendMail({
       to: toAddresses,
       cc: ccAddresses,
-      subject: `【できました表】参加許諾依頼: ${applicant.name}（${team.name}）`,
+      subject: `【Growth Driver】参加許諾依頼: ${applicant.name}（${team.name}）`,
       body: [
         `${applicant.name} さん（${applicant.email}）からシステムへの参加依頼がありました。`,
         '',
@@ -134,7 +134,7 @@ export async function sendApprovalNotification({ employee, teamName, approvedBy 
   await sendMail({
     to: employee.email,
     cc: sysAdminEmails,
-    subject: '【できました表】システム参加の準備が整いました',
+    subject: '【Growth Driver】システム参加の準備が整いました',
     body: [
       `${employee.name} 様`,
       '',
@@ -158,7 +158,7 @@ export async function sendApprovalNotification({ employee, teamName, approvedBy 
   if (emp?.line_user_id) {
     await sendLineMessage(
       emp.line_user_id,
-      `【できました表】\nシステム参加の準備が整いました。\n\nログインしてご利用ください。\n${systemUrl}`
+      `【Growth Driver】\nシステム参加の準備が整いました。\n\nログインしてご利用ください。\n${systemUrl}`
     ).catch(err => console.error('承認LINE通知失敗:', err))
   }
 }
