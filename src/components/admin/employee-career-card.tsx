@@ -131,9 +131,12 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
   const [currentBirthDate, setCurrentBirthDate] = useState(employee.birth_date)
   const [currentInstagram, setCurrentInstagram] = useState(employee.instagram_url)
 
-  // 入社日はキャリア記録の「入社」レコードから自動取得
-  const hireRecord = careerRecords.find(r => r.record_type === '入社')
-  const currentHireDate = hireRecord?.occurred_at ?? employee.hire_date
+  // 入社日はキャリア記録の「入社」レコードの最も古い日付から自動取得
+  const hireRecords = careerRecords.filter(r => r.record_type === '入社' && r.occurred_at)
+  const oldestHireDate = hireRecords.length > 0
+    ? hireRecords.reduce((oldest, r) => (!oldest || (r.occurred_at! < oldest) ? r.occurred_at! : oldest), '' as string)
+    : null
+  const currentHireDate = oldestHireDate ?? employee.hire_date
 
   const handleProfileSave = () => {
     const rm = ROLE_MAP.find(r => r.display === editRole)
@@ -227,9 +230,13 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
         ? await updateCareerRecord(editingRecordId, employee.id, data)
         : await addCareerRecord({ ...data, employee_id: employee.id })
       if (result.error) { toast.error(result.error); return }
-      // 入社記録の場合、employees.hire_date を自動更新
-      if (formType === '入社' && formDate) {
-        await supabase.from('employees').update({ hire_date: formDate }).eq('id', employee.id)
+      // 入社記録の場合、最も古い入社日を employees.hire_date に自動更新
+      if (formType === '入社') {
+        const allHireDates = [...hireRecords.map(r => r.occurred_at!), ...(formDate ? [formDate] : [])]
+        const oldest = allHireDates.sort()[0]
+        if (oldest) {
+          await supabase.from('employees').update({ hire_date: oldest }).eq('id', employee.id)
+        }
       }
       toast.success(editingRecordId ? '記録を更新しました' : '記録を追加しました')
       setDialogOpen(false)
@@ -275,12 +282,15 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
     setDialogOpen(true)
   }
 
-  // 記録をタイプ別にグルーピング（旧データの配属・異動を統合）
+  // 記録をタイプ別にグルーピング（旧データの配属・異動を統合）+ 日付昇順ソート
   const recordsByType: Record<string, CareerRecord[]> = {}
   for (const r of careerRecords) {
     const type = RECORD_TYPE_ALIASES[r.record_type] ?? r.record_type
     if (!recordsByType[type]) recordsByType[type] = []
     recordsByType[type].push(r)
+  }
+  for (const type of Object.keys(recordsByType)) {
+    recordsByType[type].sort((a, b) => (a.occurred_at ?? '').localeCompare(b.occurred_at ?? ''))
   }
 
   return (
