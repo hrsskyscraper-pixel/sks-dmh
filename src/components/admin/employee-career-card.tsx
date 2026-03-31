@@ -112,11 +112,13 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
   // プロフィール編集
   const [profileDialogOpen, setProfileDialogOpen] = useState(false)
   const [editRole, setEditRole] = useState(getDisplayRole(employee.role, employee.employment_type))
-  const [editHireDate, setEditHireDate] = useState(employee.hire_date ?? '')
   const [editInstagram, setEditInstagram] = useState(employee.instagram_url ?? '')
   const [currentRole, setCurrentRole] = useState(getDisplayRole(employee.role, employee.employment_type))
-  const [currentHireDate, setCurrentHireDate] = useState(employee.hire_date)
   const [currentInstagram, setCurrentInstagram] = useState(employee.instagram_url)
+
+  // 入社日はキャリア記録の「入社」レコードから自動取得
+  const hireRecord = careerRecords.find(r => r.record_type === '入社')
+  const currentHireDate = hireRecord?.occurred_at ?? employee.hire_date
 
   const handleProfileSave = () => {
     const rm = ROLE_MAP.find(r => r.display === editRole)
@@ -125,12 +127,10 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
       const { error } = await supabase.from('employees').update({
         role: rm.role,
         employment_type: rm.employment_type,
-        hire_date: editHireDate || null,
         instagram_url: editInstagram || null,
       }).eq('id', employee.id)
       if (error) { toast.error('更新に失敗しました'); return }
       setCurrentRole(editRole)
-      setCurrentHireDate(editHireDate || null)
       setCurrentInstagram(editInstagram || null)
       setProfileDialogOpen(false)
       toast.success('プロフィールを更新しました')
@@ -189,6 +189,10 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
         ? await updateCareerRecord(editingRecordId, employee.id, data)
         : await addCareerRecord({ ...data, employee_id: employee.id })
       if (result.error) { toast.error(result.error); return }
+      // 入社記録の場合、employees.hire_date を自動更新
+      if (formType === '入社' && formDate) {
+        await supabase.from('employees').update({ hire_date: formDate }).eq('id', employee.id)
+      }
       toast.success(editingRecordId ? '記録を更新しました' : '記録を追加しました')
       setDialogOpen(false)
       resetForm()
@@ -325,7 +329,6 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
                 <button
                   onClick={() => {
                     setEditRole(currentRole)
-                    setEditHireDate(currentHireDate ?? '')
                     setEditInstagram(currentInstagram ?? '')
                     setProfileDialogOpen(true)
                   }}
@@ -357,10 +360,6 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-            <div>
-              <label className="text-xs font-medium text-gray-600">入社年月日</label>
-              <Input type="date" value={editHireDate} onChange={e => setEditHireDate(e.target.value)} className="mt-1" />
             </div>
             <div>
               <label className="text-xs font-medium text-gray-600">Instagram URL</label>
