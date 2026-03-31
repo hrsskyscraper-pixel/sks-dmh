@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { StoreSelect } from '@/components/ui/store-select'
@@ -54,33 +55,36 @@ export function ApprovalManager({ pendingEmployees, teams, projects, currentEmpl
 
   // 承認設定の状態
   const [settings, setSettings] = useState<Record<string, {
+    name: string
     teamId: string
     projectId: string
     role: string
   }>>({})
 
-  const getSettings = (empId: string, requestedTeamId: string | null) => {
-    return settings[empId] ?? {
-      teamId: requestedTeamId ?? '',
+  const getSettings = (emp: PendingEmployee) => {
+    return settings[emp.id] ?? {
+      name: emp.name,
+      teamId: emp.requested_team_id ?? '',
       projectId: '',
-      role: 'mate',
+      role: '',
     }
   }
 
-  const updateSetting = (empId: string, requestedTeamId: string | null, key: string, value: string) => {
-    const current = getSettings(empId, requestedTeamId)
-    setSettings(prev => ({ ...prev, [empId]: { ...current, [key]: value } }))
+  const updateSetting = (emp: PendingEmployee, key: string, value: string) => {
+    const current = getSettings(emp)
+    setSettings(prev => ({ ...prev, [emp.id]: { ...current, [key]: value } }))
   }
 
   const handleApprove = async (emp: PendingEmployee) => {
     setProcessing(true)
-    const s = getSettings(emp.id, emp.requested_team_id)
+    const s = getSettings(emp)
 
     const res = await fetch('/api/approval', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         employeeId: emp.id,
+        name: s.name.trim(),
         teamId: s.teamId || null,
         projectId: s.projectId || null,
         role: s.role,
@@ -114,7 +118,7 @@ export function ApprovalManager({ pendingEmployees, teams, projects, currentEmpl
       <div className="space-y-3">
         {pendingEmployees.map(emp => {
           const isExpanded = expandedId === emp.id
-          const s = getSettings(emp.id, emp.requested_team_id)
+          const s = getSettings(emp)
           const requestedTeam = teams.find(t => t.id === emp.requested_team_id)
           const daysSince = Math.floor((Date.now() - new Date(emp.created_at).getTime()) / 86400000)
 
@@ -145,12 +149,21 @@ export function ApprovalManager({ pendingEmployees, teams, projects, currentEmpl
                 {isExpanded && (
                   <div className="mt-4 pt-4 border-t space-y-3">
                     <div>
+                      <Label className="text-xs text-gray-500">氏名</Label>
+                      <Input
+                        value={s.name}
+                        onChange={e => updateSetting(emp, 'name', e.target.value)}
+                        className="mt-1"
+                      />
+                    </div>
+
+                    <div>
                       <Label className="text-xs text-gray-500">店舗／部署</Label>
                       <div className="mt-1">
                         <StoreSelect
                           teams={teams}
                           value={s.teamId}
-                          onChange={v => updateSetting(emp.id, emp.requested_team_id, 'teamId', v)}
+                          onChange={v => updateSetting(emp, 'teamId', v)}
                           placeholder="未設定"
                         />
                       </div>
@@ -158,7 +171,7 @@ export function ApprovalManager({ pendingEmployees, teams, projects, currentEmpl
 
                     <div>
                       <Label className="text-xs text-gray-500">プロジェクト</Label>
-                      <Select value={s.projectId} onValueChange={v => updateSetting(emp.id, emp.requested_team_id, 'projectId', v)}>
+                      <Select value={s.projectId} onValueChange={v => updateSetting(emp, 'projectId', v)}>
                         <SelectTrigger className="mt-1">
                           <SelectValue placeholder="未設定" />
                         </SelectTrigger>
@@ -172,10 +185,10 @@ export function ApprovalManager({ pendingEmployees, teams, projects, currentEmpl
                     </div>
 
                     <div>
-                      <Label className="text-xs text-gray-500">ロール</Label>
-                      <Select value={s.role} onValueChange={v => updateSetting(emp.id, emp.requested_team_id, 'role', v)}>
-                        <SelectTrigger className="mt-1">
-                          <SelectValue />
+                      <Label className="text-xs text-gray-500">ロール <span className="text-red-500">*</span></Label>
+                      <Select value={s.role} onValueChange={v => updateSetting(emp, 'role', v)}>
+                        <SelectTrigger className={`mt-1 ${!s.role ? 'border-red-300' : ''}`}>
+                          <SelectValue placeholder="選択してください" />
                         </SelectTrigger>
                         <SelectContent>
                           {roleOptions.map(r => (
@@ -183,13 +196,14 @@ export function ApprovalManager({ pendingEmployees, teams, projects, currentEmpl
                           ))}
                         </SelectContent>
                       </Select>
+                      {!s.role && <p className="text-[11px] text-red-400 mt-0.5">ロールを選択してください</p>}
                     </div>
 
                     <div className="flex gap-2 pt-2">
                       <Button
                         className="flex-1 bg-green-500 hover:bg-green-600"
                         onClick={() => setConfirmTarget(emp)}
-                        disabled={!s.role}
+                        disabled={!s.role || !s.name.trim()}
                       >
                         <CheckCircle className="w-4 h-4 mr-1.5" />
                         承認
