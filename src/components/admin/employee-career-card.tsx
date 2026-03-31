@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
-import { Plus, Trash2, ArrowLeft, Users, Briefcase, GraduationCap, MapPin, ArrowRightLeft, FileText, Pencil, Instagram, X, Store, FolderKanban, Building2 } from 'lucide-react'
+import { Plus, Trash2, ArrowLeft, Users, Briefcase, GraduationCap, MapPin, ArrowRightLeft, FileText, Pencil, Instagram, X, Store, FolderKanban, Building2, Award } from 'lucide-react'
 import { addCareerRecord, updateCareerRecord, deleteCareerRecord, updateEmployeeName } from '@/app/(dashboard)/actions'
 import Link from 'next/link'
 import type { CareerRecord } from '@/types/database'
@@ -21,10 +21,16 @@ const RECORD_TYPES = [
   { value: '面接', label: '面接', icon: Users, color: 'bg-blue-100 text-blue-700' },
   { value: '採用', label: '採用', icon: Briefcase, color: 'bg-green-100 text-green-700' },
   { value: '育成', label: '育成', icon: GraduationCap, color: 'bg-purple-100 text-purple-700' },
-  { value: '配属', label: '配属', icon: MapPin, color: 'bg-amber-100 text-amber-700' },
-  { value: '異動', label: '異動', icon: ArrowRightLeft, color: 'bg-red-100 text-red-700' },
+  { value: '配属・異動', label: '配属・異動', icon: MapPin, color: 'bg-amber-100 text-amber-700' },
+  { value: '資格', label: '資格', icon: Award, color: 'bg-emerald-100 text-emerald-700' },
   { value: 'その他', label: 'その他', icon: FileText, color: 'bg-gray-100 text-gray-700' },
 ]
+
+// 旧データの「配属」「異動」も「配属・異動」として表示
+const RECORD_TYPE_ALIASES: Record<string, string> = {
+  '配属': '配属・異動',
+  '異動': '配属・異動',
+}
 
 interface EmployeeInfo { id: string; name: string; avatar_url: string | null }
 
@@ -223,11 +229,12 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
     setDialogOpen(true)
   }
 
-  // 記録をタイプ別にグルーピング
+  // 記録をタイプ別にグルーピング（旧データの配属・異動を統合）
   const recordsByType: Record<string, CareerRecord[]> = {}
   for (const r of careerRecords) {
-    if (!recordsByType[r.record_type]) recordsByType[r.record_type] = []
-    recordsByType[r.record_type].push(r)
+    const type = RECORD_TYPE_ALIASES[r.record_type] ?? r.record_type
+    if (!recordsByType[type]) recordsByType[type] = []
+    recordsByType[type].push(r)
   }
 
   return (
