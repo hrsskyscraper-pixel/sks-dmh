@@ -53,12 +53,14 @@ export default async function EmployeeDetailPage({ params }: { params: Promise<{
     { data: allEmployees },
     { data: memberTeamRows },
     { data: allTeams },
+    { data: goals },
   ] = await Promise.all([
     db.from('employees').select('id, name, email, role, employment_type, hire_date, avatar_url, instagram_url').eq('id', id).single(),
     db.from('career_records').select('*').eq('employee_id', id).order('occurred_at', { ascending: false }),
     db.from('employees').select('id, name, avatar_url').order('name'),
     db.from('team_members').select('team_id').eq('employee_id', id),
     db.from('teams').select('id, name, type, prefecture').order('name'),
+    db.from('goals').select('id, content, deadline, set_at').eq('employee_id', id).order('created_at', { ascending: false }).limit(1),
   ])
 
   if (!employee) redirect('/admin/employees')
@@ -68,7 +70,7 @@ export default async function EmployeeDetailPage({ params }: { params: Promise<{
 
   return (
     <>
-      <TopBar title="メンバーカルテ" />
+      <TopBar title="メンバーキャリア" />
       <EmployeeCareerCard
         employee={employee}
         careerRecords={careerRecords ?? []}
@@ -77,6 +79,7 @@ export default async function EmployeeDetailPage({ params }: { params: Promise<{
         canEdit={canEdit}
         memberTeamIds={memberTeamIds}
         allTeams={(allTeams ?? []) as { id: string; name: string; type: 'store' | 'project' | 'department'; prefecture: string | null }[]}
+        goal={(goals ?? [])[0] ?? null}
       />
     </>
   )

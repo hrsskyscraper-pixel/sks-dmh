@@ -478,7 +478,7 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
                         <DropdownMenuItem asChild>
                           <Link href={`/admin/employees/${employee.id}`} className="flex items-center gap-2 text-sm">
                             <FileText className="w-3.5 h-3.5" />
-                            メンバーカルテ
+                            メンバーキャリア
                           </Link>
                         </DropdownMenuItem>
                         <DropdownMenuItem

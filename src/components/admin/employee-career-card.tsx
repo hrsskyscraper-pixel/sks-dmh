@@ -35,6 +35,44 @@ interface TeamInfo {
   prefecture: string | null
 }
 
+interface GoalInfo {
+  id: string
+  content: string
+  deadline: string | null
+  set_at: string
+}
+
+type DisplayRole = '開発者' | '役員' | '運用管理者' | 'マネジャー' | '店長' | '社員' | 'メイト'
+
+const ROLE_MAP: { display: DisplayRole; role: string; employment_type: string }[] = [
+  { display: 'メイト', role: 'employee', employment_type: 'メイト' },
+  { display: '社員', role: 'employee', employment_type: '社員' },
+  { display: '店長', role: 'store_manager', employment_type: '社員' },
+  { display: 'マネジャー', role: 'manager', employment_type: '社員' },
+  { display: '運用管理者', role: 'ops_manager', employment_type: '社員' },
+  { display: '役員', role: 'executive', employment_type: '社員' },
+  { display: '開発者', role: 'admin', employment_type: '社員' },
+]
+
+function getDisplayRole(role: string, employmentType: string): DisplayRole {
+  if (role === 'admin') return '開発者'
+  if (role === 'executive') return '役員'
+  if (role === 'ops_manager') return '運用管理者'
+  if (role === 'manager') return 'マネジャー'
+  if (role === 'store_manager') return '店長'
+  if (employmentType === 'メイト') return 'メイト'
+  return '社員'
+}
+
+function getHireYearLabel(hireDate: string | null): string | null {
+  if (!hireDate) return null
+  const hire = new Date(hireDate)
+  const today = new Date()
+  const hireFY = hire.getMonth() >= 3 ? hire.getFullYear() : hire.getFullYear() - 1
+  const todayFY = today.getMonth() >= 3 ? today.getFullYear() : today.getFullYear() - 1
+  return `${Math.max(1, todayFY - hireFY + 1)}年目`
+}
+
 interface Props {
   employee: { id: string; name: string; email: string; role: string; employment_type: string; hire_date: string | null; avatar_url: string | null; instagram_url: string | null }
   careerRecords: CareerRecord[]
@@ -43,9 +81,10 @@ interface Props {
   canEdit: boolean
   memberTeamIds: string[]
   allTeams: TeamInfo[]
+  goal: GoalInfo | null
 }
 
-export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEmployees, canEdit, memberTeamIds, allTeams }: Props) {
+export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEmployees, canEdit, memberTeamIds, allTeams, goal }: Props) {
   const [isPending, startTransition] = useTransition()
   const [employeeName, setEmployeeName] = useState(employee.name)
   const [nameDialogOpen, setNameDialogOpen] = useState(false)
@@ -59,6 +98,34 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
   const [formNotes, setFormNotes] = useState('')
   const [personSearch, setPersonSearch] = useState('')
   const router = useRouter()
+
+  // プロフィール編集
+  const [profileDialogOpen, setProfileDialogOpen] = useState(false)
+  const [editRole, setEditRole] = useState(getDisplayRole(employee.role, employee.employment_type))
+  const [editHireDate, setEditHireDate] = useState(employee.hire_date ?? '')
+  const [editInstagram, setEditInstagram] = useState(employee.instagram_url ?? '')
+  const [currentRole, setCurrentRole] = useState(getDisplayRole(employee.role, employee.employment_type))
+  const [currentHireDate, setCurrentHireDate] = useState(employee.hire_date)
+  const [currentInstagram, setCurrentInstagram] = useState(employee.instagram_url)
+
+  const handleProfileSave = () => {
+    const rm = ROLE_MAP.find(r => r.display === editRole)
+    if (!rm) return
+    startTransition(async () => {
+      const { error } = await supabase.from('employees').update({
+        role: rm.role,
+        employment_type: rm.employment_type,
+        hire_date: editHireDate || null,
+        instagram_url: editInstagram || null,
+      }).eq('id', employee.id)
+      if (error) { toast.error('更新に失敗しました'); return }
+      setCurrentRole(editRole)
+      setCurrentHireDate(editHireDate || null)
+      setCurrentInstagram(editInstagram || null)
+      setProfileDialogOpen(false)
+      toast.success('プロフィールを更新しました')
+    })
+  }
 
   // 所属チーム管理
   const [currentTeamIds, setCurrentTeamIds] = useState<string[]>(memberTeamIds)
@@ -174,12 +241,12 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
       {/* プロフィールヘッダー */}
       <Card>
         <CardContent className="pt-5 pb-5">
-          <div className="flex items-center gap-4">
-            <Avatar className="w-16 h-16">
+          <div className="flex items-start gap-4">
+            <Avatar className="w-16 h-16 flex-shrink-0">
               <AvatarImage src={employee.avatar_url ?? undefined} />
               <AvatarFallback className="bg-orange-100 text-orange-700 text-xl font-bold">{employee.name.charAt(0)}</AvatarFallback>
             </Avatar>
-            <div>
+            <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5">
                 <h2 className="text-xl font-bold text-gray-800">{employeeName}</h2>
                 {canEdit && (
@@ -187,25 +254,92 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
                     <Pencil className="w-4 h-4" />
                   </button>
                 )}
-                {employee.instagram_url && (
-                  <a href={employee.instagram_url.startsWith('http') ? employee.instagram_url : `https://instagram.com/${employee.instagram_url.replace(/^@/, '')}`} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-pink-500 transition-colors">
-                    <Instagram className="w-5 h-5" />
+              </div>
+              <p className="text-sm text-gray-500">{employee.email}</p>
+
+              <div className="flex gap-1.5 mt-2 flex-wrap">
+                <Badge className="text-[10px] bg-orange-100 text-orange-700 border-0">{currentRole}</Badge>
+                {currentHireDate && (
+                  <>
+                    <Badge className="text-[10px] bg-gray-100 text-gray-600 border-0">
+                      {currentHireDate} 入社
+                    </Badge>
+                    {getHireYearLabel(currentHireDate) && (
+                      <Badge className="text-[10px] bg-amber-100 text-amber-700 border-0">
+                        {getHireYearLabel(currentHireDate)}
+                      </Badge>
+                    )}
+                  </>
+                )}
+                {currentInstagram && (
+                  <a href={currentInstagram.startsWith('http') ? currentInstagram : `https://instagram.com/${currentInstagram.replace(/^@/, '')}`} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-pink-500 transition-colors">
+                    <Instagram className="w-4 h-4" />
                   </a>
                 )}
               </div>
-              <p className="text-sm text-gray-500">{employee.email}</p>
-              <div className="flex gap-1.5 mt-1 flex-wrap">
-                <Badge className="text-[10px] bg-orange-100 text-orange-700 border-0">{employee.employment_type}</Badge>
-                {employee.hire_date && (
-                  <Badge className="text-[10px] bg-gray-100 text-gray-600 border-0">
-                    {employee.hire_date} 入社
-                  </Badge>
-                )}
-              </div>
+
+              {/* 目標 */}
+              {goal && (
+                <div className="mt-2 bg-amber-50 rounded-lg px-3 py-2">
+                  <p className="text-xs text-amber-700 font-medium">{goal.content}</p>
+                  {goal.deadline && <p className="text-[10px] text-amber-500 mt-0.5">{goal.deadline} まで</p>}
+                </div>
+              )}
+
+              {canEdit && (
+                <button
+                  onClick={() => {
+                    setEditRole(currentRole)
+                    setEditHireDate(currentHireDate ?? '')
+                    setEditInstagram(currentInstagram ?? '')
+                    setProfileDialogOpen(true)
+                  }}
+                  className="mt-2 text-xs text-orange-500 hover:text-orange-700 flex items-center gap-1"
+                >
+                  <Pencil className="w-3 h-3" />
+                  プロフィールを編集
+                </button>
+              )}
             </div>
           </div>
         </CardContent>
       </Card>
+
+      {/* プロフィール編集ダイアログ */}
+      <Dialog open={profileDialogOpen} onOpenChange={setProfileDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-base">プロフィール編集</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs font-medium text-gray-600">ロール</label>
+              <Select value={editRole} onValueChange={v => setEditRole(v as DisplayRole)}>
+                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {ROLE_MAP.map(r => (
+                    <SelectItem key={r.display} value={r.display}>{r.display}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-600">入社年月日</label>
+              <Input type="date" value={editHireDate} onChange={e => setEditHireDate(e.target.value)} className="mt-1" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-600">Instagram URL</label>
+              <Input value={editInstagram} onChange={e => setEditInstagram(e.target.value)} placeholder="@username or URL" className="mt-1" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setProfileDialogOpen(false)} disabled={isPending}>キャンセル</Button>
+            <Button className="bg-orange-500 hover:bg-orange-600" onClick={handleProfileSave} disabled={isPending}>
+              {isPending ? '保存中...' : '保存'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* 所属情報 */}
       <Card>
