@@ -29,7 +29,7 @@ function LoginContent() {
           </div>
           <CardTitle className="text-2xl font-bold">Growth Driver</CardTitle>
           <CardDescription className="text-sm leading-relaxed">
-            目標GAPから、次の一歩へ。
+            GAPから、次の一歩へ。
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-0">

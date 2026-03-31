@@ -89,7 +89,7 @@ export function TopBar({ title, right, hideNotificationBell = false }: { title: 
         <Link href="/" className="flex-shrink-0">
           <h1 className="text-base font-bold text-gray-900 leading-tight">{title}</h1>
           {title === 'Growth Driver' && (
-            <p className="text-[9px] text-gray-400 leading-none -mt-0.5">目標GAPから、次の一歩へ。</p>
+            <p className="text-[9px] text-gray-400 leading-none mt-0.5">GAPから、次の一歩へ。</p>
           )}
         </Link>
         <div className="flex-1 min-w-0 flex justify-end">

@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Growth Driver",
-  description: "目標GAPから、次の一歩へ。",
+  description: "GAPから、次の一歩へ。",
 };
 
 export default function RootLayout({
