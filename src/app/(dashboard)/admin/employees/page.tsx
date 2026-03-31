@@ -29,7 +29,9 @@ export default async function EmployeesPage() {
     if (viewAsEmp) effectiveRole = viewAsEmp.role as Role
   }
 
-  const canEdit = ['admin', 'ops_manager', 'executive'].includes(effectiveRole)
+  const isSystemAdmin = ['admin', 'ops_manager', 'executive'].includes(effectiveRole)
+  const isTeamManager = ['store_manager', 'manager'].includes(effectiveRole)
+  const canEdit = isSystemAdmin
 
   const [
     { data: employees },
@@ -121,12 +123,29 @@ export default async function EmployeesPage() {
     }
   }
 
+  // マネジャー/店長が管理するチームのメンバーID
+  const effectiveEmployeeId = viewAsId ?? currentEmployee.id
+  let managedMemberIds: string[] = []
+  if (isTeamManager) {
+    const { data: managed } = await db
+      .from('team_managers')
+      .select('team_id')
+      .eq('employee_id', effectiveEmployeeId)
+    const managedTeamIds = (managed ?? []).map(m => m.team_id)
+    if (managedTeamIds.length > 0) {
+      const members = (teamMembers as TeamMember[] ?? []).filter(m => managedTeamIds.includes(m.team_id))
+      managedMemberIds = [...new Set(members.map(m => m.employee_id))]
+    }
+  }
+
   return (
     <>
       <TopBar title="メンバー一覧" />
       <EmployeeManager
         employees={employees ?? []}
         canEdit={canEdit}
+        isTeamManager={isTeamManager}
+        managedMemberIds={managedMemberIds}
         employeeStats={employeeStats}
         teams={teams as Team[] ?? []}
         teamMembers={teamMembers as TeamMember[] ?? []}

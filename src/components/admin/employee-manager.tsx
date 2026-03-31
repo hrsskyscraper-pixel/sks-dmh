@@ -47,10 +47,14 @@ function getHireYearLabel(hireDate: string | null): string {
 interface Props {
   employees: Employee[]
   canEdit?: boolean
+  isTeamManager?: boolean
+  managedMemberIds?: string[]
   employeeStats?: Record<string, { certifiedPct: number; standardPct: number }>
   teams?: Team[]
   teamMembers?: TeamMember[]
 }
+
+const TEAM_MANAGER_ROLES: DisplayRole[] = ['メイト', '社員']
 
 const DISPLAY_ROLE_COLORS: Record<DisplayRole, string> = {
   '開発者':     'bg-purple-100 text-purple-700',
@@ -94,10 +98,13 @@ const DISPLAY_ROLE_ORDER: Record<DisplayRole, number> = {
   '開発者':     4,
 }
 
-export function EmployeeManager({ employees: initialEmployees, canEdit = true, employeeStats = {}, teams = [], teamMembers = [] }: Props) {
+export function EmployeeManager({ employees: initialEmployees, canEdit = true, isTeamManager = false, managedMemberIds = [], employeeStats = {}, teams = [], teamMembers = [] }: Props) {
   const [employees, setEmployees] = useState(initialEmployees)
   const [isPending, startTransition] = useTransition()
   const [uploadingId, setUploadingId] = useState<string | null>(null)
+  const [editingNameId, setEditingNameId] = useState<string | null>(null)
+  const [editingNameValue, setEditingNameValue] = useState('')
+  const managedSet = new Set(managedMemberIds)
 
   // 店舗マッピング
   const storeTeams = teams.filter(t => t.type === 'store')
@@ -114,7 +121,7 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, e
     : null
 
   const handleDisplayRoleChange = (employeeId: string, displayRole: DisplayRole) => {
-    if (!canEdit) return
+    if (!canEdit && !(isTeamManager && managedSet.has(employeeId))) return
     let role: Role
     let employment_type: EmploymentType
 
@@ -144,8 +151,22 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, e
     })
   }
 
+  const handleNameSave = (employeeId: string) => {
+    const trimmed = editingNameValue.trim()
+    if (!trimmed) { setEditingNameId(null); return }
+    const original = employees.find(e => e.id === employeeId)?.name
+    if (trimmed === original) { setEditingNameId(null); return }
+    startTransition(async () => {
+      const { error } = await supabase.from('employees').update({ name: trimmed }).eq('id', employeeId)
+      if (error) { toast.error('名前の更新に失敗しました'); return }
+      setEmployees(prev => prev.map(e => e.id === employeeId ? { ...e, name: trimmed } : e))
+      setEditingNameId(null)
+      toast.success('名前を更新しました')
+    })
+  }
+
   const handleAvatarUpload = async (employeeId: string, file: File) => {
-    if (!canEdit) return
+    if (!canEdit && !(isTeamManager && managedSet.has(employeeId))) return
     setUploadingId(employeeId)
     try {
       const ext = file.name.split('.').pop() ?? 'jpg'
@@ -229,14 +250,16 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, e
       </p>
       {filteredEmployees.map(employee => {
         const displayRole = getDisplayRole(employee)
+        const canEditThis = canEdit || (isTeamManager && managedSet.has(employee.id))
+        const availableRoles = canEdit ? ALL_DISPLAY_ROLES : TEAM_MANAGER_ROLES
         return (
           <Card key={employee.id} className={CARD_BG_COLORS[displayRole]}>
             <CardContent className="py-3 px-4">
               <div className="flex items-center gap-3">
 
 
-                {/* アバター（canEdit時のみクリックで写真アップロード） */}
-                {canEdit ? (
+                {/* アバター（編集可能時のみクリックで写真アップロード） */}
+                {canEditThis ? (
                   <>
                     <label
                       htmlFor={`avatar-${employee.id}`}
@@ -280,9 +303,21 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, e
                 <div className="flex-1 min-w-0">
                   {/* 名前 + 役割バッジ */}
                   <div className="flex items-center gap-1.5 mb-1">
-                    <Link href={`/admin/employees/${employee.id}`} className="text-sm font-medium text-gray-800 hover:text-orange-600 hover:underline transition-colors">
-                      {employee.name}
-                    </Link>
+                    {editingNameId === employee.id ? (
+                      <input
+                        className="text-sm font-medium text-gray-800 border-b-2 border-orange-400 outline-none bg-transparent min-w-0"
+                        value={editingNameValue}
+                        onChange={e => setEditingNameValue(e.target.value)}
+                        onBlur={() => handleNameSave(employee.id)}
+                        onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) handleNameSave(employee.id); if (e.key === 'Escape') setEditingNameId(null) }}
+                        autoFocus
+                        disabled={isPending}
+                      />
+                    ) : (
+                      <Link href={`/admin/employees/${employee.id}`} className="text-sm font-medium text-gray-800 hover:text-orange-600 hover:underline transition-colors">
+                        {employee.name}
+                      </Link>
+                    )}
                     <Badge className={`${DISPLAY_ROLE_COLORS[displayRole]} text-xs border-0 flex items-center gap-1 flex-shrink-0`}>
                       {DISPLAY_ROLE_ICONS[displayRole]}
                       {displayRole}
@@ -311,19 +346,21 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, e
                   )}
                 </div>
 
-                {canEdit && (
+                {canEditThis && (
                   <div className="flex items-center gap-1">
-                    <form action={setViewAs.bind(null, employee.id)}>
-                      <Button
-                        type="submit"
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 w-7 p-0 text-blue-500 hover:text-blue-700 hover:bg-blue-50"
-                        title="この社員として表示"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </Button>
-                    </form>
+                    {canEdit && (
+                      <form action={setViewAs.bind(null, employee.id)}>
+                        <Button
+                          type="submit"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0 text-blue-500 hover:text-blue-700 hover:bg-blue-50"
+                          title="この社員として表示"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </Button>
+                      </form>
+                    )}
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="sm" className="h-7 w-7 p-0" disabled={isPending}>
@@ -337,7 +374,13 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, e
                             メンバーカルテ
                           </Link>
                         </DropdownMenuItem>
-                        {ALL_DISPLAY_ROLES
+                        <DropdownMenuItem
+                          onClick={() => { setEditingNameId(employee.id); setEditingNameValue(employee.name) }}
+                          className="text-sm"
+                        >
+                          名前を編集
+                        </DropdownMenuItem>
+                        {availableRoles
                           .filter(r => r !== displayRole)
                           .map(r => (
                             <DropdownMenuItem
