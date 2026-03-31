@@ -160,7 +160,7 @@ export default async function DashboardPage({
       p_as_of_date: new Date().toISOString().split('T')[0],
     }),
     db.from('goals').select('id, content, set_at, deadline').eq('employee_id', employee.id).order('created_at', { ascending: false }).limit(1),
-    db.from('career_records').select('record_type, related_employee_ids').eq('employee_id', employee.id).in('record_type', ['面接', '採用', '育成']),
+    db.from('career_records').select('record_type, department, related_employee_ids, occurred_at').eq('employee_id', employee.id).order('occurred_at', { ascending: false }),
     db.from('employees').select('id, name').order('name'),
     db.from('team_members').select('team_id, teams(name, type)').eq('employee_id', employee.id),
     pendingCountsTask,
@@ -245,6 +245,8 @@ export default async function DashboardPage({
           const storeTeam = (teamMemberRows ?? []).find((m: { teams: { type: string } | null }) => m.teams?.type === 'store')
           return (storeTeam as { teams: { name: string } } | undefined)?.teams?.name ?? null
         })()}
+        position={(careerRows ?? []).find(r => r.record_type === '役職' && r.department)?.department ?? null}
+        internalCerts={[...new Set((careerRows ?? []).filter(r => r.record_type === '資格' && r.department?.startsWith('[社内]')).map(r => r.department!.replace('[社内]', '')))]}
       />
       <Suspense fallback={<TeamRankingSkeleton />}>
         <TeamRankingServer

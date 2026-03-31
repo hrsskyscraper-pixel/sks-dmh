@@ -42,6 +42,8 @@ export default async function EmployeesPage() {
     { data: allProjectSkills },
     { data: teams },
     { data: teamMembers },
+    { data: careerRecordsRaw },
+    { data: certMaster },
   ] = await Promise.all([
     db.from('employees').select('id, auth_user_id, name, email, role, employment_type, hire_date, birth_date, avatar_url, instagram_url, status, requested_team_id, requested_project_team_id, line_user_id, notifications_read_at, created_at, updated_at').order('created_at'),
     db.from('achievements').select('employee_id, skill_id').eq('status', 'certified'),
@@ -51,6 +53,8 @@ export default async function EmployeesPage() {
     db.from('project_skills').select('project_id, skill_id, project_phase_id'),
     db.from('teams').select('id, name, type, prefecture').order('type').order('name'),
     db.from('team_members').select('team_id, employee_id'),
+    db.from('career_records').select('employee_id, record_type, department, occurred_at').in('record_type', ['役職', '資格']).order('occurred_at', { ascending: false }),
+    db.from('certifications').select('name, icon, color').eq('is_active', true),
   ])
 
   const certifiedByEmployee = (allCertified ?? []).reduce((acc, a) => {
@@ -138,6 +142,20 @@ export default async function EmployeesPage() {
     }
   }
 
+  // 社員ごとの最新役職と社内資格を構築
+  const positionByEmployee: Record<string, string> = {}
+  const certsByEmployee: Record<string, string[]> = {}
+  for (const r of careerRecordsRaw ?? []) {
+    if (r.record_type === '役職' && r.department && !positionByEmployee[r.employee_id]) {
+      positionByEmployee[r.employee_id] = r.department
+    }
+    if (r.record_type === '資格' && r.department?.startsWith('[社内]')) {
+      if (!certsByEmployee[r.employee_id]) certsByEmployee[r.employee_id] = []
+      const name = r.department.replace('[社内]', '')
+      if (!certsByEmployee[r.employee_id].includes(name)) certsByEmployee[r.employee_id].push(name)
+    }
+  }
+
   return (
     <>
       <TopBar title="メンバー一覧" />
@@ -149,6 +167,9 @@ export default async function EmployeesPage() {
         employeeStats={employeeStats}
         teams={teams as Team[] ?? []}
         teamMembers={teamMembers as TeamMember[] ?? []}
+        positionByEmployee={positionByEmployee}
+        certsByEmployee={certsByEmployee}
+        certMaster={(certMaster ?? []) as { name: string; icon: string; color: string }[]}
       />
     </>
   )

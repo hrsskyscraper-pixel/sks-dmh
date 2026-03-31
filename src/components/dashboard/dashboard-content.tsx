@@ -47,6 +47,8 @@ interface Props {
   isOwnDashboard: boolean
   careerSummary?: Record<string, string[]>
   storeName?: string | null
+  position?: string | null
+  internalCerts?: string[]
 }
 
 const PHASE_COLORS = ['bg-orange-500', 'bg-amber-500', 'bg-red-500', 'bg-blue-500', 'bg-green-500', 'bg-purple-500']
@@ -101,7 +103,7 @@ export function DashboardContent({
   projectPhases, skillPhaseMap, currentProject, employeeProjects,
   unreadNotifications: initialNotifications,
   pendingAchievementsCount = 0, pendingTeamRequestsCount = 0,
-  currentGoal: initialGoal, isOwnDashboard, careerSummary = {}, storeName = null
+  currentGoal: initialGoal, isOwnDashboard, careerSummary = {}, storeName = null, position = null, internalCerts = []
 }: Props) {
   const [achievementList, setAchievementList] = useState(initialAchievements)
   const [notifications, setNotifications] = useState(initialNotifications)
@@ -334,6 +336,10 @@ export function DashboardContent({
                 {employee.role === 'ops_manager' && <span className="text-[10px] bg-purple-400/40 text-purple-100 rounded-full px-2 py-0.5 font-medium">運用管理者</span>}
                 {employee.role === 'executive' && <span className="text-[10px] bg-rose-400/40 text-rose-100 rounded-full px-2 py-0.5 font-medium">役員</span>}
                 {employee.role === 'admin' && <span className="text-[10px] bg-red-400/40 text-red-100 rounded-full px-2 py-0.5 font-medium">開発者</span>}
+                {position && <span className="text-[10px] bg-sky-400/40 text-sky-100 rounded-full px-2 py-0.5 font-medium">{position}</span>}
+                {internalCerts.map(name => (
+                  <span key={name} className="text-[10px] bg-emerald-400/40 text-emerald-100 rounded-full px-2 py-0.5 font-medium">{name}</span>
+                ))}
               </div>
               {/* キャリア情報 */}
               {Object.keys(careerSummary).length > 0 && (

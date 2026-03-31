@@ -16,7 +16,7 @@ import { MoreVertical, Shield, User, Crown, Eye, Camera, Loader2, FileText } fro
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { setViewAs } from '@/app/(dashboard)/actions'
-import { Store, FolderKanban, Building2, ChevronDown, ChevronRight, MapPin } from 'lucide-react'
+import { Store, FolderKanban, Building2, ChevronDown, ChevronRight, MapPin, Award, Star, Instagram } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Employee, Role, EmploymentType, Team, TeamMember } from '@/types/database'
 
@@ -52,6 +52,9 @@ interface Props {
   employeeStats?: Record<string, { certifiedPct: number; standardPct: number }>
   teams?: Team[]
   teamMembers?: TeamMember[]
+  positionByEmployee?: Record<string, string>
+  certsByEmployee?: Record<string, string[]>
+  certMaster?: { name: string; icon: string; color: string }[]
 }
 
 const TEAM_MANAGER_ROLES: DisplayRole[] = ['メイト', '社員']
@@ -98,7 +101,7 @@ const DISPLAY_ROLE_ORDER: Record<DisplayRole, number> = {
   '開発者':     4,
 }
 
-export function EmployeeManager({ employees: initialEmployees, canEdit = true, isTeamManager = false, managedMemberIds = [], employeeStats = {}, teams = [], teamMembers = [] }: Props) {
+export function EmployeeManager({ employees: initialEmployees, canEdit = true, isTeamManager = false, managedMemberIds = [], employeeStats = {}, teams = [], teamMembers = [], positionByEmployee = {}, certsByEmployee = {}, certMaster = [] }: Props) {
   const [employees, setEmployees] = useState(initialEmployees)
   const [isPending, startTransition] = useTransition()
   const [uploadingId, setUploadingId] = useState<string | null>(null)
@@ -430,7 +433,41 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
                       {DISPLAY_ROLE_ICONS[displayRole]}
                       {displayRole}
                     </Badge>
+                    {positionByEmployee[employee.id] && (
+                      <Badge className="text-[9px] bg-sky-100 text-sky-700 border-0 flex-shrink-0">{positionByEmployee[employee.id]}</Badge>
+                    )}
+                    {employee.instagram_url && (
+                      <a href={employee.instagram_url.startsWith('http') ? employee.instagram_url : `https://instagram.com/${employee.instagram_url.replace(/^@/, '')}`} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-pink-500 transition-colors" onClick={e => e.stopPropagation()}>
+                        <Instagram className="w-3.5 h-3.5" />
+                      </a>
+                    )}
                   </div>
+                  {/* 社内資格 */}
+                  {certsByEmployee[employee.id]?.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-0.5">
+                      {certsByEmployee[employee.id].map(certName => {
+                        const master = certMaster.find(c => c.name === certName)
+                        const colorMap: Record<string, { bg: string; text: string }> = {
+                          emerald: { bg: 'bg-emerald-100', text: 'text-emerald-700' },
+                          gold: { bg: 'bg-yellow-100', text: 'text-yellow-700' },
+                          blue: { bg: 'bg-blue-100', text: 'text-blue-700' },
+                          purple: { bg: 'bg-purple-100', text: 'text-purple-700' },
+                          red: { bg: 'bg-red-100', text: 'text-red-700' },
+                          orange: { bg: 'bg-orange-100', text: 'text-orange-700' },
+                          pink: { bg: 'bg-pink-100', text: 'text-pink-700' },
+                          gray: { bg: 'bg-gray-100', text: 'text-gray-700' },
+                        }
+                        const c = colorMap[master?.color ?? 'emerald'] ?? colorMap.emerald
+                        const IconComp = master?.icon === 'star' ? Star : Award
+                        return (
+                          <Badge key={certName} className={`text-[9px] ${c.bg} ${c.text} border-0 flex items-center gap-0.5`}>
+                            <IconComp className="w-2.5 h-2.5" />
+                            {certName}
+                          </Badge>
+                        )
+                      })}
+                    </div>
+                  )}
                   <div className="flex items-center gap-1.5">
                     <p className="text-xs text-muted-foreground truncate">{employee.email}</p>
                     {storeByEmployee[employee.id] && (
