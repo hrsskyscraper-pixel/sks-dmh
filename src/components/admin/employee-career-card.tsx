@@ -82,8 +82,18 @@ function getHireYearLabel(hireDate: string | null): string | null {
   return `${Math.max(1, todayFY - hireFY + 1)}年目`
 }
 
+function calcAge(birthDate: string | null): number | null {
+  if (!birthDate) return null
+  const birth = new Date(birthDate)
+  const today = new Date()
+  let age = today.getFullYear() - birth.getFullYear()
+  const m = today.getMonth() - birth.getMonth()
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--
+  return age
+}
+
 interface Props {
-  employee: { id: string; name: string; email: string; role: string; employment_type: string; hire_date: string | null; avatar_url: string | null; instagram_url: string | null }
+  employee: { id: string; name: string; email: string; role: string; employment_type: string; hire_date: string | null; birth_date: string | null; avatar_url: string | null; instagram_url: string | null }
   careerRecords: CareerRecord[]
   employeeMap: Record<string, EmployeeInfo>
   allEmployees: EmployeeInfo[]
@@ -113,8 +123,10 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
   const [profileDialogOpen, setProfileDialogOpen] = useState(false)
   const [editName, setEditName] = useState(employee.name)
   const [editRole, setEditRole] = useState(getDisplayRole(employee.role, employee.employment_type))
+  const [editBirthDate, setEditBirthDate] = useState(employee.birth_date ?? '')
   const [editInstagram, setEditInstagram] = useState(employee.instagram_url ?? '')
   const [currentRole, setCurrentRole] = useState(getDisplayRole(employee.role, employee.employment_type))
+  const [currentBirthDate, setCurrentBirthDate] = useState(employee.birth_date)
   const [currentInstagram, setCurrentInstagram] = useState(employee.instagram_url)
 
   // 入社日はキャリア記録の「入社」レコードから自動取得
@@ -129,11 +141,13 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
         name: editName.trim(),
         role: rm.role,
         employment_type: rm.employment_type,
+        birth_date: editBirthDate || null,
         instagram_url: editInstagram || null,
       }).eq('id', employee.id)
       if (error) { toast.error('更新に失敗しました'); return }
       setEmployeeName(editName.trim())
       setCurrentRole(editRole)
+      setCurrentBirthDate(editBirthDate || null)
       setCurrentInstagram(editInstagram || null)
       setProfileDialogOpen(false)
       toast.success('プロフィールを更新しました')
@@ -268,8 +282,13 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
               <h2 className="text-xl font-bold text-gray-800">{employeeName}</h2>
               <p className="text-sm text-gray-500">{employee.email}</p>
 
-              <div className="flex gap-1.5 mt-2 flex-wrap">
+              <div className="flex gap-1.5 mt-2 flex-wrap items-center">
                 <Badge className="text-[10px] bg-orange-100 text-orange-700 border-0">{currentRole}</Badge>
+                {currentBirthDate && (
+                  <Badge className="text-[10px] bg-pink-50 text-pink-600 border-0">
+                    {currentBirthDate}生（{calcAge(currentBirthDate)}歳）
+                  </Badge>
+                )}
                 {currentHireDate && (
                   <>
                     <Badge className="text-[10px] bg-gray-100 text-gray-600 border-0">
@@ -326,6 +345,7 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
                   onClick={() => {
                     setEditName(employeeName)
                     setEditRole(currentRole)
+                    setEditBirthDate(currentBirthDate ?? '')
                     setEditInstagram(currentInstagram ?? '')
                     setProfileDialogOpen(true)
                   }}
@@ -361,6 +381,10 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-600">生年月日</label>
+              <Input type="date" value={editBirthDate} onChange={e => setEditBirthDate(e.target.value)} className="mt-1" />
             </div>
             <div>
               <label className="text-xs font-medium text-gray-600">Instagram URL</label>

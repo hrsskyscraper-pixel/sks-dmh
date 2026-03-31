@@ -16,6 +16,7 @@ export type Database = {
           name: string
           email: string
           hire_date: string | null
+          birth_date: string | null
           role: 'employee' | 'store_manager' | 'manager' | 'admin' | 'ops_manager' | 'executive' | 'testuser'
           employment_type: '社員' | 'メイト'
           avatar_url: string | null
@@ -34,6 +35,7 @@ export type Database = {
           name: string
           email: string
           hire_date?: string | null
+          birth_date?: string | null
           role?: 'employee' | 'store_manager' | 'manager' | 'admin' | 'ops_manager' | 'executive' | 'testuser'
           employment_type?: '社員' | 'メイト'
           avatar_url?: string | null
@@ -52,6 +54,7 @@ export type Database = {
           name?: string
           email?: string
           hire_date?: string | null
+          birth_date?: string | null
           role?: 'employee' | 'store_manager' | 'manager' | 'admin' | 'ops_manager' | 'executive' | 'testuser'
           employment_type?: '社員' | 'メイト'
           avatar_url?: string | null
