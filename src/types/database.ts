@@ -630,6 +630,33 @@ export type Database = {
         }
         Relationships: []
       }
+      certifications: {
+        Row: {
+          id: string
+          name: string
+          description: string | null
+          order_index: number
+          is_active: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          description?: string | null
+          order_index?: number
+          is_active?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          description?: string | null
+          order_index?: number
+          is_active?: boolean
+          created_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -668,6 +695,7 @@ export type Goal = Database['public']['Tables']['goals']['Row']
 export type AchievementComment = Database['public']['Tables']['achievement_comments']['Row']
 export type CareerRecord = { id: string; employee_id: string; record_type: string; occurred_at: string | null; related_employee_ids: string[]; department: string | null; notes: string | null; created_by: string | null; created_at: string }
 export type AchievementReaction = Database['public']['Tables']['achievement_reactions']['Row']
+export type Certification = Database['public']['Tables']['certifications']['Row']
 
 // LegacyPhase: 旧来の固定フェーズ型（後方互換のため残す）
 export type LegacyPhase = '4月' | '5月〜6月' | '7月〜8月'

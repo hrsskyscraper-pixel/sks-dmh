@@ -88,9 +88,10 @@ interface Props {
   memberTeamIds: string[]
   allTeams: TeamInfo[]
   goal: GoalInfo | null
+  certifications: { id: string; name: string }[]
 }
 
-export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEmployees, canEdit, memberTeamIds, allTeams, goal }: Props) {
+export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEmployees, canEdit, memberTeamIds, allTeams, goal, certifications }: Props) {
   const [isPending, startTransition] = useTransition()
   const [employeeName, setEmployeeName] = useState(employee.name)
   const [nameDialogOpen, setNameDialogOpen] = useState(false)
@@ -284,6 +285,25 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
                   </a>
                 )}
               </div>
+
+              {/* 社内資格 */}
+              {(() => {
+                const internalCerts = careerRecords
+                  .filter(r => (RECORD_TYPE_ALIASES[r.record_type] ?? r.record_type) === '資格' && r.department?.startsWith('[社内]'))
+                  .map(r => r.department!.replace('[社内]', ''))
+                const uniqueCerts = [...new Set(internalCerts)]
+                if (uniqueCerts.length === 0) return null
+                return (
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {uniqueCerts.map(name => (
+                      <Badge key={name} className="text-[10px] bg-emerald-100 text-emerald-700 border-0 flex items-center gap-0.5">
+                        <Award className="w-3 h-3" />
+                        {name}
+                      </Badge>
+                    ))}
+                  </div>
+                )
+              })()}
 
               {/* 目標 */}
               {goal && (
@@ -599,10 +619,24 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
               <p className="text-xs font-medium text-gray-600 mb-1">日付</p>
               <Input type="date" value={formDate} onChange={e => setFormDate(e.target.value)} className="text-sm" />
             </div>
-            {(formType === '配属' || formType === '異動') && (
+            {formType === '配属・異動' && (
               <div>
-                <p className="text-xs font-medium text-gray-600 mb-1">{formType === '配属' ? '配属先' : '異動先'}</p>
+                <p className="text-xs font-medium text-gray-600 mb-1">配属先・異動先</p>
                 <Input placeholder="例: 渋谷本店" value={formDept} onChange={e => setFormDept(e.target.value)} className="text-sm" />
+              </div>
+            )}
+            {formType === '資格' && (
+              <div>
+                <p className="text-xs font-medium text-gray-600 mb-1">資格名</p>
+                <Select value={formDept} onValueChange={setFormDept}>
+                  <SelectTrigger className="text-sm"><SelectValue placeholder="選択または下部に入力" /></SelectTrigger>
+                  <SelectContent>
+                    {certifications.map(c => (
+                      <SelectItem key={c.id} value={`[社内]${c.name}`}>{c.name}（社内資格）</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Input placeholder="社外資格の場合はここに入力" value={formDept.startsWith('[社内]') ? '' : formDept} onChange={e => setFormDept(e.target.value)} className="text-sm mt-1.5" />
               </div>
             )}
             <div>
