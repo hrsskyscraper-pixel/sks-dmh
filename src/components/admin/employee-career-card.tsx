@@ -119,6 +119,7 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
   const [formDate, setFormDate] = useState('')
   const [formPeople, setFormPeople] = useState<string[]>([])
   const [formDept, setFormDept] = useState('')
+  const [formReason, setFormReason] = useState('')
   const [formNotes, setFormNotes] = useState('')
   const [personSearch, setPersonSearch] = useState('')
   const router = useRouter()
@@ -239,6 +240,7 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
         occurred_at: formDate || null,
         related_employee_ids: formPeople,
         department: formDept.trim() || null,
+        reason: formReason.trim() || null,
         notes: formNotes.trim() || null,
       }
       const result = editingRecordId
@@ -285,6 +287,7 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
     setFormDate('')
     setFormPeople([])
     setFormDept('')
+    setFormReason('')
     setFormNotes('')
     setPersonSearch('')
   }
@@ -301,6 +304,7 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
     setFormDate(record.occurred_at ?? '')
     setFormPeople(record.related_employee_ids ?? [])
     setFormDept(record.department ?? '')
+    setFormReason(record.reason ?? '')
     setFormNotes(record.notes ?? '')
     setPersonSearch('')
     setDialogOpen(true)
@@ -408,13 +412,22 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
                 )
               })()}
 
-              {/* 目標 */}
-              {goal && (
-                <div className="mt-2 bg-amber-50 rounded-lg px-3 py-2">
-                  <p className="text-xs text-amber-700 font-medium">{goal.content}</p>
-                  {goal.deadline && <p className="text-[10px] text-amber-500 mt-0.5">{goal.deadline} まで</p>}
-                </div>
-              )}
+              {/* 目標（キャリア記録から最も近い目標期日のものを表示） */}
+              {(() => {
+                const today = new Date().toISOString().split('T')[0]
+                const goalRecords = careerRecords
+                  .filter(r => r.record_type === '目標' && r.department && r.occurred_at)
+                  .sort((a, b) => (a.occurred_at ?? '').localeCompare(b.occurred_at ?? ''))
+                const nearestGoal = goalRecords.find(r => r.occurred_at! >= today) ?? goalRecords[goalRecords.length - 1]
+                if (!nearestGoal) return null
+                return (
+                  <div className="mt-2 bg-rose-50 rounded-lg px-3 py-2">
+                    <p className="text-xs text-rose-700 font-medium">{nearestGoal.department}</p>
+                    {nearestGoal.reason && <p className="text-[10px] text-rose-500 mt-0.5">{nearestGoal.reason}</p>}
+                    <p className="text-[10px] text-rose-400 mt-0.5">{nearestGoal.occurred_at} まで</p>
+                  </div>
+                )
+              })()}
 
               {canEdit && (
                 <button
@@ -761,7 +774,7 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
                 </div>
                 <div>
                   <p className="text-xs font-medium text-gray-600 mb-1">それを目指す理由</p>
-                  <Textarea placeholder="この目標を目指す理由..." value={formNotes} onChange={e => setFormNotes(e.target.value)} className="text-sm" rows={3} />
+                  <Textarea placeholder="この目標を目指す理由..." value={formReason} onChange={e => setFormReason(e.target.value)} className="text-sm" rows={3} />
                 </div>
               </>
             )}

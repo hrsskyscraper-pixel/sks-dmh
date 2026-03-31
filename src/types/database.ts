@@ -608,6 +608,7 @@ export type Database = {
           occurred_at: string | null
           related_employee_ids: string[]
           department: string | null
+          reason: string | null
           notes: string | null
           created_by: string | null
           created_at: string
@@ -619,6 +620,7 @@ export type Database = {
           occurred_at?: string | null
           related_employee_ids?: string[]
           department?: string | null
+          reason?: string | null
           notes?: string | null
           created_by?: string | null
           created_at?: string
@@ -630,6 +632,7 @@ export type Database = {
           occurred_at?: string | null
           related_employee_ids?: string[]
           department?: string | null
+          reason?: string | null
           notes?: string | null
           created_by?: string | null
           created_at?: string
@@ -705,7 +708,7 @@ export type ProjectSkill = Database['public']['Tables']['project_skills']['Row']
 export type EmployeeProject = Database['public']['Tables']['employee_projects']['Row']
 export type Goal = Database['public']['Tables']['goals']['Row']
 export type AchievementComment = Database['public']['Tables']['achievement_comments']['Row']
-export type CareerRecord = { id: string; employee_id: string; record_type: string; occurred_at: string | null; related_employee_ids: string[]; department: string | null; notes: string | null; created_by: string | null; created_at: string }
+export type CareerRecord = { id: string; employee_id: string; record_type: string; occurred_at: string | null; related_employee_ids: string[]; department: string | null; reason: string | null; notes: string | null; created_by: string | null; created_at: string }
 export type AchievementReaction = Database['public']['Tables']['achievement_reactions']['Row']
 export type Certification = Database['public']['Tables']['certifications']['Row']
 

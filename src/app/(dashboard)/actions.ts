@@ -98,6 +98,7 @@ export async function addCareerRecord(data: {
   occurred_at: string | null
   related_employee_ids: string[]
   department: string | null
+  reason: string | null
   notes: string | null
 }): Promise<{ error?: string }> {
   const supabase = await createClient()
@@ -122,6 +123,7 @@ export async function updateCareerRecord(recordId: string, employeeId: string, d
   occurred_at: string | null
   related_employee_ids: string[]
   department: string | null
+  reason: string | null
   notes: string | null
 }): Promise<{ error?: string }> {
   const supabase = await createClient()
