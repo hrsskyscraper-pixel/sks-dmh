@@ -49,7 +49,7 @@ export default async function EmployeesPage() {
     db.from('employee_projects').select('employee_id, project_id'),
     db.from('project_phases').select('id, project_id, name, order_index, end_hours'),
     db.from('project_skills').select('project_id, skill_id, project_phase_id'),
-    db.from('teams').select('id, name, type').order('type').order('name'),
+    db.from('teams').select('id, name, type, prefecture').order('type').order('name'),
     db.from('team_members').select('team_id, employee_id'),
   ])
 

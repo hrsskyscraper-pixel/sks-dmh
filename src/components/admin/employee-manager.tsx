@@ -16,7 +16,7 @@ import { MoreVertical, Shield, User, Crown, Eye, Camera, Loader2, FileText } fro
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { setViewAs } from '@/app/(dashboard)/actions'
-import { Store, FolderKanban } from 'lucide-react'
+import { Store, FolderKanban, Building2, ChevronDown, ChevronRight, MapPin } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Employee, Role, EmploymentType, Team, TeamMember } from '@/types/database'
 
@@ -113,7 +113,26 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
   for (const m of teamMembers) {
     if (storeTeamById[m.team_id]) storeByEmployee[m.employee_id] = storeTeamById[m.team_id]
   }
+  const departmentTeams = teams.filter(t => t.type === 'department')
+  const projectTeams = teams.filter(t => t.type === 'project')
+  const PREF_ORDER = ['秋田県','栃木県','群馬県','埼玉県','千葉県','東京都','神奈川県','新潟県','静岡県','茨城県']
+  const storePrefGrouped: Record<string, typeof storeTeams> = {}
+  const storeNoPref: typeof storeTeams = []
+  for (const t of storeTeams) {
+    const p = (t as { prefecture?: string | null }).prefecture
+    if (p) {
+      if (!storePrefGrouped[p]) storePrefGrouped[p] = []
+      storePrefGrouped[p].push(t)
+    } else {
+      storeNoPref.push(t)
+    }
+  }
+  const prefOrder = PREF_ORDER.filter(p => storePrefGrouped[p])
+  for (const p of Object.keys(storePrefGrouped)) { if (!prefOrder.includes(p)) prefOrder.push(p) }
+
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null)
+  const [expandedPrefs, setExpandedPrefs] = useState<Set<string>>(new Set())
+  const [showStores, setShowStores] = useState(false)
   const supabase = createClient()
 
   const memberIdSet = selectedTeamId
@@ -215,34 +234,122 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
     <div className="p-4 space-y-3">
       {/* チームフィルタ */}
       {teams.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          <button
-            onClick={() => setSelectedTeamId(null)}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
-              selectedTeamId === null
-                ? 'bg-orange-500 text-white'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
-          >
-            すべて
-          </button>
-          {teams.map(team => (
+        <div className="space-y-2">
+          {/* すべて + チーム + 部署 */}
+          <div className="flex flex-wrap gap-1.5">
             <button
-              key={team.id}
-              onClick={() => setSelectedTeamId(prev => prev === team.id ? null : team.id)}
+              onClick={() => { setSelectedTeamId(null); setShowStores(false) }}
               className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
-                selectedTeamId === team.id
+                selectedTeamId === null
                   ? 'bg-orange-500 text-white'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
-              {team.type === 'store'
-                ? <Store className="w-3 h-3" />
-                : <FolderKanban className="w-3 h-3" />
-              }
-              {team.name}
+              すべて
             </button>
-          ))}
+            {projectTeams.map(team => (
+              <button
+                key={team.id}
+                onClick={() => { setSelectedTeamId(prev => prev === team.id ? null : team.id); setShowStores(false) }}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                  selectedTeamId === team.id
+                    ? 'bg-purple-500 text-white'
+                    : 'bg-purple-50 text-purple-700 hover:bg-purple-100'
+                }`}
+              >
+                <FolderKanban className="w-3 h-3" />
+                {team.name}
+              </button>
+            ))}
+            {departmentTeams.map(team => (
+              <button
+                key={team.id}
+                onClick={() => { setSelectedTeamId(prev => prev === team.id ? null : team.id); setShowStores(false) }}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                  selectedTeamId === team.id
+                    ? 'bg-teal-500 text-white'
+                    : 'bg-teal-50 text-teal-700 hover:bg-teal-100'
+                }`}
+              >
+                <Building2 className="w-3 h-3" />
+                {team.name}
+              </button>
+            ))}
+          </div>
+
+          {/* 店舗（折りたたみ） */}
+          {storeTeams.length > 0 && (
+            <div>
+              <button
+                onClick={() => setShowStores(prev => !prev)}
+                className="flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-800 transition-colors"
+              >
+                {showStores ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                <Store className="w-3.5 h-3.5" />
+                店舗で絞り込み
+                <span className="text-blue-400">({storeTeams.length})</span>
+              </button>
+              {showStores && (
+                <div className="mt-1.5 ml-1 space-y-1">
+                  {prefOrder.map(pref => {
+                    const stores = storePrefGrouped[pref]
+                    const isPrefExpanded = expandedPrefs.has(pref)
+                    return (
+                      <div key={pref}>
+                        <button
+                          onClick={() => setExpandedPrefs(prev => {
+                            const next = new Set(prev)
+                            next.has(pref) ? next.delete(pref) : next.add(pref)
+                            return next
+                          })}
+                          className="flex items-center gap-1.5 text-xs text-gray-600 hover:text-gray-800"
+                        >
+                          {isPrefExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                          <MapPin className="w-3 h-3 text-gray-400" />
+                          <span className="font-medium">{pref}</span>
+                          <span className="text-gray-400">{stores.length}</span>
+                        </button>
+                        {isPrefExpanded && (
+                          <div className="flex flex-wrap gap-1 mt-1 ml-5">
+                            {stores.map(team => (
+                              <button
+                                key={team.id}
+                                onClick={() => setSelectedTeamId(prev => prev === team.id ? null : team.id)}
+                                className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium transition-colors ${
+                                  selectedTeamId === team.id
+                                    ? 'bg-blue-500 text-white'
+                                    : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                                }`}
+                              >
+                                {team.name}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                  {storeNoPref.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1 ml-5">
+                      {storeNoPref.map(team => (
+                        <button
+                          key={team.id}
+                          onClick={() => setSelectedTeamId(prev => prev === team.id ? null : team.id)}
+                          className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium transition-colors ${
+                            selectedTeamId === team.id
+                              ? 'bg-blue-500 text-white'
+                              : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                          }`}
+                        >
+                          {team.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
       <p className="text-xs text-muted-foreground">
