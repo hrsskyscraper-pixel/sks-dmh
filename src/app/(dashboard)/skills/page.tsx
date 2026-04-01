@@ -23,7 +23,7 @@ export default async function SkillsPage({
   const canViewAs = ['store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'].includes(currentEmployee.role)
   const viewAsId = canViewAs ? (cookieStore.get(VIEW_AS_COOKIE)?.value ?? null) : null
 
-  const db = currentEmployee.role === 'testuser' ? createAdminClient() : supabase
+  const db = createAdminClient()
 
   // targetEmployee と searchParams を並列取得
   const [targetEmployeeResult, params] = await Promise.all([
