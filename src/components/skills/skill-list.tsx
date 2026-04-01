@@ -126,7 +126,7 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(allKeys))
   const [expandedStatusGroups, setExpandedStatusGroups] = useState<Set<string>>(new Set())
   const [isPending, startTransition] = useTransition()
-  const [view, setView] = useState<'skills' | 'history'>('skills')
+  const [view, setView] = useState<'skills' | 'pending' | 'certified'>('skills')
   const [applyDialogSkill, setApplyDialogSkill] = useState<Skill | null>(null)
   const [applyComment, setApplyComment] = useState('')
   const [reapplyDialogSkill, setReapplyDialogSkill] = useState<Skill | null>(null)
@@ -296,85 +296,122 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
   return (
     <div className="p-4 space-y-4">
       {/* ビュー切替 */}
-      <div className="flex rounded-lg overflow-hidden border border-gray-200 text-sm">
-        <button
-          className={cn('flex-1 py-1.5 font-medium transition-colors', view === 'skills' ? 'bg-orange-500 text-white' : 'bg-white text-gray-500 hover:bg-gray-50')}
-          onClick={() => setView('skills')}
-        >
-          チェックリスト
-        </button>
-        <button
-          className={cn('flex-1 py-1.5 font-medium transition-colors', view === 'history' ? 'bg-orange-500 text-white' : 'bg-white text-gray-500 hover:bg-gray-50')}
-          onClick={() => setView('history')}
-        >
-          申請履歴
-          {achievements.length > 0 && (
-            <span className={cn('ml-1 text-[10px]', view === 'history' ? 'text-orange-100' : 'text-gray-400')}>{achievements.length}</span>
-          )}
-        </button>
-      </div>
+      {(() => {
+        const pendingCount = achievements.filter(a => a.status === 'pending' || a.status === 'rejected').length
+        const certifiedCount = achievements.filter(a => a.status === 'certified').length
+        const tabs = [
+          { key: 'skills', label: '未申請' },
+          { key: 'pending', label: '申請中', count: pendingCount },
+          { key: 'certified', label: '承認済', count: certifiedCount },
+        ] as const
+        return (
+          <div className="flex rounded-lg overflow-hidden border border-gray-200 text-sm">
+            {tabs.map(t => (
+              <button
+                key={t.key}
+                className={cn('flex-1 py-1.5 font-medium transition-colors', view === t.key ? 'bg-orange-500 text-white' : 'bg-white text-gray-500 hover:bg-gray-50')}
+                onClick={() => setView(t.key as typeof view)}
+              >
+                {t.label}
+                {'count' in t && t.count > 0 && (
+                  <span className={cn('ml-1 text-[10px]', view === t.key ? 'text-orange-100' : 'text-gray-400')}>{t.count}</span>
+                )}
+              </button>
+            ))}
+          </div>
+        )
+      })()}
 
-      {/* 申請履歴ビュー */}
-      {view === 'history' && (
+      {/* 申請中ビュー（pending + rejected） */}
+      {view === 'pending' && (
         <div className="space-y-2">
-          {historyItems.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-8">申請履歴はありません</p>
-          ) : historyItems.map(ach => {
-            const skillName = ach.skills?.name ?? skills.find(s => s.id === ach.skill_id)?.name ?? '不明'
-            const skillCategory = (ach.skills?.category ?? skills.find(s => s.id === ach.skill_id)?.category ?? '') as Category | ''
-            const catColor = getCategoryColor(skillCategory ?? '', categories)
-            return (
-              <div key={ach.id} className={cn(
-                'flex items-start gap-3 py-2.5 px-3 rounded-lg border',
-                ach.status === 'certified' && 'bg-green-50 border-green-100',
-                ach.status === 'pending' && 'bg-amber-50 border-amber-100',
-                ach.status === 'rejected' && 'bg-red-50 border-red-100',
-              )}>
-                <div className="flex-shrink-0 mt-0.5">
-                  {ach.status === 'certified' ? (
-                    <CheckCircle2 className="w-4 h-4 text-green-500" />
-                  ) : ach.status === 'pending' ? (
-                    <Clock className="w-4 h-4 text-amber-500" />
-                  ) : (
-                    <XCircle className="w-4 h-4 text-red-400" />
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-800">{skillName}</p>
-                  <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                    {skillCategory && (
-                      <Badge className={cn('text-[10px] border-0', catColor)}>{skillCategory}</Badge>
-                    )}
-                    <span className="text-[10px] text-gray-400">{fmtDate(ach.achieved_at)} 申請</span>
+          {(() => {
+            const items = historyItems.filter(a => a.status === 'pending' || a.status === 'rejected')
+            if (items.length === 0) return <p className="text-sm text-gray-400 text-center py-8">申請中のスキルはありません</p>
+            return items.map(ach => {
+              const skillName = ach.skills?.name ?? skills.find(s => s.id === ach.skill_id)?.name ?? '不明'
+              const skillCategory = (ach.skills?.category ?? skills.find(s => s.id === ach.skill_id)?.category ?? '') as Category | ''
+              const catColor = getCategoryColor(skillCategory ?? '', categories)
+              const skill = skills.find(s => s.id === ach.skill_id)
+              return (
+                <div key={ach.id} className={cn(
+                  'flex items-start gap-3 py-2.5 px-3 rounded-lg border',
+                  ach.status === 'pending' && 'bg-amber-50 border-amber-100',
+                  ach.status === 'rejected' && 'bg-red-50 border-red-100',
+                )}>
+                  <div className="flex-shrink-0 mt-0.5">
+                    {ach.status === 'pending' ? <Clock className="w-4 h-4 text-amber-500" /> : <XCircle className="w-4 h-4 text-red-400" />}
                   </div>
-                  {ach.certify_comment && (
-                    <p className={cn(
-                      'text-[11px] mt-1 rounded px-1.5 py-0.5 border',
-                      ach.status === 'certified' ? 'text-green-700 bg-green-50 border-green-100' : 'text-red-600 bg-red-50 border-red-100'
-                    )}>
-                      {ach.certified_employee?.name && (
-                        <span className="font-medium">{ach.certified_employee.name}：</span>
-                      )}
-                      {ach.certify_comment}
-                    </p>
-                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-800">{skillName}</p>
+                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                      {skillCategory && <Badge className={cn('text-[10px] border-0', catColor)}>{skillCategory}</Badge>}
+                      <span className="text-[10px] text-gray-400">{fmtDate(ach.achieved_at)} 申請</span>
+                    </div>
+                    {ach.certify_comment && (
+                      <p className="text-[11px] mt-1 rounded px-1.5 py-0.5 border text-red-600 bg-red-50 border-red-100">
+                        {ach.certified_employee?.name && <span className="font-medium">{ach.certified_employee.name}：</span>}
+                        {ach.certify_comment}
+                      </p>
+                    )}
+                    {ach.status === 'rejected' && ach.certified_at && (
+                      <p className="text-[10px] text-red-400 mt-0.5">{fmtDate(ach.certified_at)} 差し戻し</p>
+                    )}
+                  </div>
+                  <div className="flex-shrink-0 text-right">
+                    <Badge className={cn('text-[10px] border-0', ach.status === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-600')}>
+                      {ach.status === 'pending' ? '申請中' : '差し戻し'}
+                    </Badge>
+                    {ach.status === 'rejected' && !readOnly && skill && (
+                      <button
+                        onClick={() => { setReapplyDialogSkill(skill); setReapplyComment('') }}
+                        className="block mt-1.5 text-[11px] text-orange-600 font-medium hover:underline"
+                      >
+                        再申請する
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <div className="flex-shrink-0 text-right">
-                  <Badge className={cn(
-                    'text-[10px] border-0',
-                    ach.status === 'certified' && 'bg-green-100 text-green-700',
-                    ach.status === 'pending' && 'bg-amber-100 text-amber-700',
-                    ach.status === 'rejected' && 'bg-red-100 text-red-600',
-                  )}>
-                    {ach.status === 'certified' ? '認定済み' : ach.status === 'pending' ? '申請中' : '差し戻し'}
-                  </Badge>
-                  {ach.status === 'certified' && ach.certified_at && (
-                    <p className="text-[10px] text-green-600 mt-0.5">{fmtDate(ach.certified_at)}</p>
-                  )}
+              )
+            })
+          })()}
+        </div>
+      )}
+
+      {/* 承認済ビュー */}
+      {view === 'certified' && (
+        <div className="space-y-2">
+          {(() => {
+            const items = historyItems.filter(a => a.status === 'certified')
+            if (items.length === 0) return <p className="text-sm text-gray-400 text-center py-8">承認済みのスキルはありません</p>
+            return items.map(ach => {
+              const skillName = ach.skills?.name ?? skills.find(s => s.id === ach.skill_id)?.name ?? '不明'
+              const skillCategory = (ach.skills?.category ?? skills.find(s => s.id === ach.skill_id)?.category ?? '') as Category | ''
+              const catColor = getCategoryColor(skillCategory ?? '', categories)
+              return (
+                <div key={ach.id} className="flex items-start gap-3 py-2.5 px-3 rounded-lg border bg-green-50 border-green-100">
+                  <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-800">{skillName}</p>
+                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                      {skillCategory && <Badge className={cn('text-[10px] border-0', catColor)}>{skillCategory}</Badge>}
+                      <span className="text-[10px] text-gray-400">{fmtDate(ach.achieved_at)} 申請</span>
+                    </div>
+                    {ach.certify_comment && (
+                      <p className="text-[11px] mt-1 rounded px-1.5 py-0.5 border text-green-700 bg-green-50 border-green-100">
+                        {ach.certified_employee?.name && <span className="font-medium">{ach.certified_employee.name}：</span>}
+                        {ach.certify_comment}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex-shrink-0 text-right">
+                    <Badge className="text-[10px] border-0 bg-green-100 text-green-700">認定済み</Badge>
+                    {ach.certified_at && <p className="text-[10px] text-green-600 mt-0.5">{fmtDate(ach.certified_at)} 認定</p>}
+                  </div>
                 </div>
-              </div>
-            )
-          })}
+              )
+            })
+          })()}
         </div>
       )}
 
