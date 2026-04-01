@@ -355,7 +355,9 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
                       </p>
                     )}
                     {ach.status === 'rejected' && ach.certified_at && (
-                      <p className="text-[10px] text-red-400 mt-0.5">{fmtDate(ach.certified_at)} 差し戻し</p>
+                      <p className="text-[10px] text-red-400 mt-0.5">
+                        {fmtDate(ach.certified_at)} {ach.certified_employee?.name ?? ''}が差し戻し
+                      </p>
                     )}
                   </div>
                   <div className="flex-shrink-0 text-right">
@@ -406,7 +408,11 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
                   </div>
                   <div className="flex-shrink-0 text-right">
                     <Badge className="text-[10px] border-0 bg-green-100 text-green-700">認定済み</Badge>
-                    {ach.certified_at && <p className="text-[10px] text-green-600 mt-0.5">{fmtDate(ach.certified_at)} 認定</p>}
+                    {ach.certified_at && (
+                      <p className="text-[10px] text-green-600 mt-0.5">
+                        {fmtDate(ach.certified_at)} {ach.certified_employee?.name ?? ''}が認定
+                      </p>
+                    )}
                   </div>
                 </div>
               )
