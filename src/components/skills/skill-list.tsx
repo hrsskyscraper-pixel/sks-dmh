@@ -182,6 +182,7 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
         setReapplyComment('')
         fetch('/api/skill-notification', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ employeeId, skillName: skill.name, isReapply: true, comment: comment.trim() || null }) }).catch(() => {})
         toast.success(`「${skill.name}」を再申請しました！`, { description: '認定者の確認をお待ちください' })
+        setTimeout(() => window.location.reload(), 500)
       } else {
         const { data, error } = await supabase
           .from('achievements')
