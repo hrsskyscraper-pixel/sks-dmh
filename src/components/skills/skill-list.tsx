@@ -397,8 +397,8 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
                       >
                         再申請する
                       </button>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
               )
             })
