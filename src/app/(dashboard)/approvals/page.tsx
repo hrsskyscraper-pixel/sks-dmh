@@ -39,6 +39,15 @@ export default async function ApprovalsPage() {
     ? (pendingAchievements ?? [])
     : (pendingAchievements ?? []).filter(a => managedMemberIds.includes(a.employee_id))
 
+  // 処理済みスキル認定（直近20件）
+  const { data: recentAchievements } = await db
+    .from('achievements')
+    .select('id, employee_id, skill_id, status, certified_by, certified_at, certify_comment, created_at, skills(name), employees!achievements_employee_id_fkey(name, avatar_url)')
+    .in('status', ['certified', 'rejected'])
+    .eq('certified_by', employee.id)
+    .order('certified_at', { ascending: false })
+    .limit(20)
+
   // 2. チーム変更承認待ち
   const { data: pendingTeamRequests } = await db
     .from('team_change_requests')
@@ -82,6 +91,7 @@ export default async function ApprovalsPage() {
         isSystemAdmin={isSystemAdmin}
         approverRole={role}
         storeDeptTeams={(allTeams ?? []).filter(t => t.type === 'store' || t.type === 'department') as any[]}
+        recentAchievements={(recentAchievements ?? []) as any[]}
       />
     </>
   )

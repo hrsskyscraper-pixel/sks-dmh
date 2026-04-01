@@ -16,7 +16,7 @@ import { StoreSelect } from '@/components/ui/store-select'
 import { CheckCircle, XCircle, UserPlus, GitPullRequest, Award, Inbox } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
-type Tab = 'all' | 'skill' | 'team' | 'join'
+type Tab = 'all' | 'skill' | 'team' | 'join' | 'done'
 
 const REQUEST_TYPE_LABELS: Record<string, string> = {
   create_team: 'チーム作成',
@@ -49,11 +49,12 @@ interface Props {
   isSystemAdmin: boolean
   approverRole: string
   storeDeptTeams: { id: string; name: string; type: 'store' | 'project' | 'department'; prefecture: string | null }[]
+  recentAchievements: any[]
 }
 
 export function ApprovalCenter({
   pendingAchievements, pendingTeamRequests, pendingJoins,
-  teamMap, projectTeams, currentEmployeeId, isSystemAdmin, approverRole, storeDeptTeams,
+  teamMap, projectTeams, currentEmployeeId, isSystemAdmin, approverRole, storeDeptTeams, recentAchievements,
 }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -91,7 +92,7 @@ export function ApprovalCenter({
       toast.success(certifyAction === 'certified' ? '認定しました' : '差し戻しました')
       setCertifyTarget(null)
       setCertifyComment('')
-      router.refresh()
+      window.location.reload()
     })
   }
 
@@ -105,7 +106,7 @@ export function ApprovalCenter({
       }).eq('id', requestId)
       if (error) { toast.error('更新に失敗しました'); return }
       toast.success(action === 'approved' ? '承認しました' : '差し戻しました')
-      router.refresh()
+      window.location.reload()
     })
   }
 
@@ -143,7 +144,7 @@ export function ApprovalCenter({
       if (res.ok) {
         toast.success(`${joinName} さんの参加を承認しました`)
         setJoinTarget(null)
-        router.refresh()
+        window.location.reload()
       } else {
         const data = await res.json().catch(() => ({}))
         toast.error(data.error ?? '承認に失敗しました')
@@ -188,6 +189,7 @@ export function ApprovalCenter({
     { key: 'skill', label: 'スキル認定', count: counts.skill },
     { key: 'team', label: 'チーム変更', count: counts.team },
     { key: 'join', label: '参加許諾', count: counts.join },
+    { key: 'done', label: '処理済み', count: recentAchievements.length },
   ]
 
   return (
@@ -212,8 +214,45 @@ export function ApprovalCenter({
         ))}
       </div>
 
-      {/* リスト */}
-      {filtered.length === 0 ? (
+      {/* 処理済みタブ */}
+      {tab === 'done' ? (
+        <div className="space-y-2">
+          {recentAchievements.length === 0 ? (
+            <div className="text-center py-16 text-gray-400">
+              <Inbox className="w-10 h-10 mx-auto mb-3 opacity-50" />
+              <p className="text-sm">処理済みの履歴はありません</p>
+            </div>
+          ) : recentAchievements.map((a: any) => {
+            const emp = a.employees
+            const skill = a.skills
+            const isCertified = a.status === 'certified'
+            return (
+              <Card key={a.id}>
+                <CardContent className="py-3 px-4">
+                  <div className="flex items-center gap-3">
+                    <Avatar className="w-9 h-9 flex-shrink-0">
+                      <AvatarImage src={emp?.avatar_url ?? undefined} />
+                      <AvatarFallback className="text-xs bg-gray-100 text-gray-600">{emp?.name?.charAt(0)}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <Badge className={`text-[9px] border-0 ${isCertified ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                          {isCertified ? '認定済み' : '差し戻し'}
+                        </Badge>
+                        <span className="text-xs text-gray-400">{fmtTime(a.certified_at)}</span>
+                      </div>
+                      <p className="text-sm font-medium text-gray-800 mt-0.5">
+                        {emp?.name} — <span className={isCertified ? 'text-green-600' : 'text-red-500'}>{skill?.name}</span>
+                      </p>
+                      {a.certify_comment && <p className="text-xs text-gray-500 mt-0.5">{a.certify_comment}</p>}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+      ) : filtered.length === 0 ? (
         <div className="text-center py-16 text-gray-400">
           <Inbox className="w-10 h-10 mx-auto mb-3 opacity-50" />
           <p className="text-sm">承認待ちはありません</p>
