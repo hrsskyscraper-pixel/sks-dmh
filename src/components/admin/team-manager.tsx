@@ -141,6 +141,7 @@ export function TeamManager({
 
   // ===== 都道府県折りたたみ =====
   const [expandedPrefs, setExpandedPrefs] = useState<Set<string>>(new Set())
+  const [showAllTeams, setShowAllTeams] = useState(false)
   const togglePref = (pref: string) => setExpandedPrefs(prev => {
     const next = new Set(prev)
     next.has(pref) ? next.delete(pref) : next.add(pref)
@@ -667,6 +668,9 @@ export function TeamManager({
   const getTeamSecondaryManagerIds = (teamId: string) =>
     teamManagers.filter(m => m.team_id === teamId && m.role === 'secondary').map(m => m.employee_id)
 
+  const hasMyTeams = teams.some(t => getTeamManagerIds(t.id).includes(effectiveEmployee.id) || getTeamMemberIds(t.id).includes(effectiveEmployee.id))
+  const shouldShowAll = showAllTeams || !hasMyTeams
+
   const toggleExpand = (teamId: string) => {
     setExpandedTeams(prev => {
       const next = new Set(prev)
@@ -705,7 +709,8 @@ export function TeamManager({
       {/* 自分の所属（チーム・部署・店舗すべて） */}
       {(() => {
         const isMine = (t: Team) => getTeamManagerIds(t.id).includes(effectiveEmployee.id) || getTeamMemberIds(t.id).includes(effectiveEmployee.id)
-        const myTeamsList = teams.filter(isMine)
+        const typeOrder: Record<string, number> = { project: 0, department: 1, store: 2 }
+        const myTeamsList = teams.filter(isMine).sort((a, b) => (typeOrder[a.type] ?? 9) - (typeOrder[b.type] ?? 9))
         if (myTeamsList.length === 0) return null
         return (
           <>
@@ -730,15 +735,19 @@ export function TeamManager({
                 </Card>
               )
             })}
-            <p className="text-xs font-semibold text-gray-400 mt-3 mb-1 flex items-center gap-1.5">
+            <button
+              onClick={() => setShowAllTeams(prev => !prev)}
+              className="w-full flex items-center gap-1.5 mt-3 mb-1 text-xs font-semibold text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              {showAllTeams ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
               すべてのチーム・部署・店舗
-            </p>
+            </button>
           </>
         )
       })()}
 
       {/* チーム (project) */}
-      {[...teams].filter(t => t.type === 'project').sort((a, b) => {
+      {shouldShowAll && [...teams].filter(t => t.type === 'project').sort((a, b) => {
         const aIsMine = getTeamManagerIds(a.id).includes(effectiveEmployee.id) || getTeamMemberIds(a.id).includes(effectiveEmployee.id)
         const bIsMine = getTeamManagerIds(b.id).includes(effectiveEmployee.id) || getTeamMemberIds(b.id).includes(effectiveEmployee.id)
         return aIsMine === bIsMine ? 0 : aIsMine ? -1 : 1
@@ -995,7 +1004,7 @@ export function TeamManager({
       })}
 
       {/* 部署 (department) */}
-      {[...teams].filter(t => t.type === 'department').sort((a, b) => a.name.localeCompare(b.name, 'ja')).map(team => {
+      {shouldShowAll && [...teams].filter(t => t.type === 'department').sort((a, b) => a.name.localeCompare(b.name, 'ja')).map(team => {
         const memberIds = getTeamMemberIds(team.id)
         const managerIds = getTeamManagerIds(team.id)
         const isExpanded = expandedTeams.has(team.id)
@@ -1103,7 +1112,7 @@ export function TeamManager({
       })}
 
       {/* 店舗 (store) — 都道府県別折りたたみ */}
-      {(() => {
+      {shouldShowAll && (() => {
         const storeTeams = teams.filter(t => t.type === 'store')
         const PREF_ORDER = ['秋田県','栃木県','群馬県','埼玉県','千葉県','東京都','神奈川県','新潟県','静岡県','茨城県']
         const grouped: Record<string, Team[]> = {}
