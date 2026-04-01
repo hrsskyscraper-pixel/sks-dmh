@@ -146,17 +146,17 @@ export default async function DashboardLayout({
   // BottomNav は viewAs 社員のロールで表示を切り替える
   const effectiveRole: Role = (viewAsEmployee?.role as Role | undefined) ?? role
 
-  // 参加許諾待ち人数（管理者ロールのみ）
+  // 承認待ち合計（スキル認定 + チーム変更 + 参加許諾）
   const approvalRoles: Role[] = ['store_manager', 'manager', 'admin', 'ops_manager', 'executive']
   let pendingApprovalCount = 0
   if (approvalRoles.includes(effectiveRole)) {
     const adminDb = createAdminClient()
-    const { count } = await adminDb
-      .from('employees')
-      .select('*', { count: 'exact', head: true })
-      .eq('status', 'pending')
-      .not('requested_team_id', 'is', null)
-    pendingApprovalCount = count ?? 0
+    const [skillCount, teamCount, joinCount] = await Promise.all([
+      adminDb.from('achievements').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+      adminDb.from('team_change_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+      adminDb.from('employees').select('*', { count: 'exact', head: true }).eq('status', 'pending').not('requested_team_id', 'is', null),
+    ])
+    pendingApprovalCount = (skillCount.count ?? 0) + (teamCount.count ?? 0) + (joinCount.count ?? 0)
   }
 
   return (

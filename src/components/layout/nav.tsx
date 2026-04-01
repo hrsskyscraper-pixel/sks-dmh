@@ -13,10 +13,9 @@ const navItems = [
   { href: '/',                 label: 'ダッシュボード', icon: LayoutDashboard,    roles: ['employee', 'store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'] },
   { href: '/skills',           label: 'スキル',         icon: CheckSquare,        roles: ['employee', 'store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'] },
   { href: '/timeline',         label: 'タイムライン',   icon: MessageSquare,      roles: ['employee', 'store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'] },
-  { href: '/team',             label: '認定',            icon: BadgeCheck,         roles: ['store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'] },
+  { href: '/approvals',        label: '承認',            icon: BadgeCheck,         roles: ['store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'] },
   { href: '/admin/teams',      label: 'チーム',          icon: Building2,          roles: ['employee', 'store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'] },
   { href: '/admin/employees',  label: 'メンバー',        icon: Users2,             roles: ['employee', 'store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'] },
-  { href: '/approval',         label: '参加許諾',          icon: UserPlus,           roles: ['store_manager', 'manager', 'admin', 'ops_manager', 'executive'] },
   { href: '/admin/settings',   label: '設定',             icon: Settings,           roles: ['admin', 'ops_manager', 'executive'] },
 ] as const
 
@@ -44,8 +43,8 @@ export function BottomNav({ role, unreadRequestCount = 0, pendingApprovalCount =
       <div className="flex justify-around items-center h-16 max-w-lg mx-auto">
         {visibleItems.map(({ href, label, icon: Icon }) => {
           const isActive = href === '/' ? pathname === '/' : pathname.startsWith(href)
-          const showBadge = (href === '/admin/teams' && unreadRequestCount > 0) || (href === '/approval' && pendingApprovalCount > 0)
-          const badgeCount = href === '/approval' ? pendingApprovalCount : unreadRequestCount
+          const showBadge = (href === '/admin/teams' && unreadRequestCount > 0) || (href === '/approvals' && pendingApprovalCount > 0)
+          const badgeCount = href === '/approvals' ? pendingApprovalCount : unreadRequestCount
           return (
             <Link
               key={href}
