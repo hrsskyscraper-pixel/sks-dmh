@@ -98,10 +98,10 @@ const DISPLAY_ROLE_ORDER: Record<DisplayRole, number> = {
   '社員':       0,
   'メイト':     1,
   '店長':       2,
-  'マネジャー': 2,
-  '運用管理者': 3,
-  '役員':       3.5,
-  '開発者':     4,
+  'マネジャー': 3,
+  '運用管理者': 4,
+  '役員':       5,
+  '開発者':     6,
 }
 
 export function EmployeeManager({ employees: initialEmployees, canEdit = true, isTeamManager = false, managedMemberIds = [], employeeStats = {}, teams = [], teamMembers = [], positionByEmployee = {}, certsByEmployee = {}, certMaster = [], teamManagersList = [], projectTeamIds = [], currentEmployeeId }: Props) {
