@@ -24,7 +24,7 @@ import { cn } from '@/lib/utils'
 import type { Skill, Achievement, Category, MilestoneMap, ProjectPhase } from '@/types/database'
 
 type AchievementWithCertifier = Achievement & {
-  certified_employee?: { name: string } | null
+  certified_employee?: { name: string; avatar_url?: string | null } | null
   skills?: Skill | null
 }
 

@@ -64,7 +64,7 @@ export default async function SkillsPage({
       : Promise.resolve({ data: null as { skill_id: string; project_phase_id: string | null }[] | null }),
     db.from('skills').select('id, name, phase, category, order_index, target_date_hint, standard_hours, is_checkpoint, created_at').order('order_index'),
     db.from('achievements')
-      .select('*, certified_employee:employees!achievements_certified_by_fkey(name), skills(*)')
+      .select('*, certified_employee:employees!achievements_certified_by_fkey(name, avatar_url), skills(*)')
       .eq('employee_id', employee.id),
     db.rpc('get_employee_cumulative_hours', {
       p_employee_id: employee.id,
