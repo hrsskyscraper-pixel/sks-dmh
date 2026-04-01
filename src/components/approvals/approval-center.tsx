@@ -76,6 +76,18 @@ export function ApprovalCenter({
         is_read: false,
       }).eq('id', certifyTarget.id)
       if (error) { toast.error('更新に失敗しました'); return }
+      // 申請者に通知
+      fetch('/api/skill-result-notification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          employeeId: certifyTarget.employee_id,
+          skillName: certifyTarget.skills?.name,
+          action: certifyAction,
+          comment: certifyComment.trim() || null,
+          certifierName: null,
+        }),
+      }).catch(() => {})
       toast.success(certifyAction === 'certified' ? '認定しました' : '差し戻しました')
       setCertifyTarget(null)
       setCertifyComment('')
