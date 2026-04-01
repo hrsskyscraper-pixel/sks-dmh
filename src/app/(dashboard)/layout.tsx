@@ -219,7 +219,7 @@ export default async function DashboardLayout({
         <main className="pb-20 max-w-2xl mx-auto">
           {children}
         </main>
-        <BottomNav role={effectiveRole} unreadRequestCount={unreadRequestCount} pendingApprovalCount={pendingApprovalCount} dashboardBadge={dashboardBadge} />
+        <BottomNav role={effectiveRole} unreadRequestCount={unreadRequestCount} pendingApprovalCount={pendingApprovalCount} dashboardBadge={dashboardBadge} avatarUrl={employee.avatar_url} employeeId={employee.id} employeeName={employee.name} />
         <Toaster position="top-center" richColors />
       </div>
     </NotificationCountProvider>

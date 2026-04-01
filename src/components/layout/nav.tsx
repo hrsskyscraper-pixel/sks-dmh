@@ -2,7 +2,8 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, CheckSquare, BadgeCheck, Upload, Users2, LogOut, Building2, FolderKanban, MessageSquare, UserPlus, Settings } from 'lucide-react'
+import { useState } from 'react'
+import { LayoutDashboard, CheckSquare, BadgeCheck, Upload, Users2, LogOut, Building2, FolderKanban, MessageSquare, UserPlus, Settings, User, FileText } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
@@ -24,9 +25,62 @@ interface NavProps {
   unreadRequestCount?: number
   pendingApprovalCount?: number
   dashboardBadge?: { count: number; color: 'red' | 'blue' } | null
+  avatarUrl?: string | null
+  employeeId?: string
+  employeeName?: string
 }
 
-export function BottomNav({ role, unreadRequestCount = 0, pendingApprovalCount = 0, dashboardBadge = null }: NavProps) {
+function AccountMenu({ avatarUrl, employeeId, employeeName, onLogout }: { avatarUrl?: string | null; employeeId?: string; employeeName?: string; onLogout: () => void }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen(prev => !prev)}
+        className="flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg transition-colors min-w-[56px]"
+      >
+        {avatarUrl ? (
+          <img src={avatarUrl} alt="" className="w-6 h-6 rounded-full object-cover border border-gray-200" />
+        ) : (
+          <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center">
+            <User className="w-3.5 h-3.5 text-gray-500" />
+          </div>
+        )}
+        <span className="text-[10px] font-medium text-gray-400">My</span>
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute bottom-full right-0 mb-2 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[160px] overflow-hidden">
+            {employeeName && (
+              <div className="px-3 py-2 border-b border-gray-100">
+                <p className="text-xs font-medium text-gray-700 truncate">{employeeName}</p>
+              </div>
+            )}
+            {employeeId && (
+              <Link
+                href={`/admin/employees/${employeeId}`}
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-2 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                <FileText className="w-4 h-4 text-gray-400" />
+                Myキャリア
+              </Link>
+            )}
+            <button
+              onClick={() => { setOpen(false); onLogout() }}
+              className="flex items-center gap-2 px-3 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors w-full text-left"
+            >
+              <LogOut className="w-4 h-4" />
+              ログアウト
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+export function BottomNav({ role, unreadRequestCount = 0, pendingApprovalCount = 0, dashboardBadge = null, avatarUrl, employeeId, employeeName }: NavProps) {
   const pathname = usePathname()
   const router = useRouter()
   const visibleItems = navItems.filter(item => (item.roles as readonly string[]).includes(role))
@@ -71,13 +125,12 @@ export function BottomNav({ role, unreadRequestCount = 0, pendingApprovalCount =
             </Link>
           )
         })}
-        <button
-          onClick={handleLogout}
-          className="flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg transition-colors min-w-[56px] text-gray-400 hover:text-red-500"
-        >
-          <LogOut className="w-5 h-5" />
-          <span className="text-[10px] font-medium">ログアウト</span>
-        </button>
+        <AccountMenu
+          avatarUrl={avatarUrl}
+          employeeId={employeeId}
+          employeeName={employeeName}
+          onLogout={handleLogout}
+        />
       </div>
     </nav>
   )
