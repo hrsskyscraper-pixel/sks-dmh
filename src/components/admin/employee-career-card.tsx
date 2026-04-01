@@ -94,7 +94,7 @@ function calcAge(birthDate: string | null): number | null {
 }
 
 interface Props {
-  employee: { id: string; name: string; name_kana: string | null; email: string; role: string; employment_type: string; hire_date: string | null; birth_date: string | null; avatar_url: string | null; instagram_url: string | null; line_url: string | null }
+  employee: { id: string; name: string; name_kana: string | null; email: string; role: string; employment_type: string; hire_date: string | null; birth_date: string | null; avatar_url: string | null; instagram_url: string | null; line_url: string | null; line_user_id: string | null }
   careerRecords: CareerRecord[]
   employeeMap: Record<string, EmployeeInfo>
   allEmployees: EmployeeInfo[]
@@ -369,6 +369,13 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
                   <a href={currentLineUrl} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-green-500 transition-colors">
                     <MessageCircle className="w-5 h-5" />
                   </a>
+                )}
+                {employee.line_user_id ? (
+                  <Badge className="text-[9px] bg-green-100 text-green-700 border-0 flex items-center gap-0.5">
+                    <MessageCircle className="w-3 h-3 fill-current" />LINE連携済
+                  </Badge>
+                ) : (
+                  <Badge className="text-[9px] bg-gray-100 text-gray-400 border-0">LINE未連携</Badge>
                 )}
               </div>
               <p className="text-sm text-gray-500">{employee.email}</p>

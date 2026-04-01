@@ -482,6 +482,9 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
                         <MessageCircle className="w-3.5 h-3.5" />
                       </a>
                     )}
+                    {employee.line_user_id && (
+                      <span title="LINE連携済み" className="text-green-500"><MessageCircle className="w-3 h-3 fill-current" /></span>
+                    )}
                     <Badge className={`${DISPLAY_ROLE_COLORS[displayRole]} text-xs border-0 flex items-center gap-1 flex-shrink-0`}>
                       {DISPLAY_ROLE_ICONS[displayRole]}
                       {displayRole}
