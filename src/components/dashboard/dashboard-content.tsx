@@ -391,14 +391,29 @@ export function DashboardContent({
               <p className="text-orange-100 text-xs">認定済み</p>
               <p className="text-2xl font-bold">{totalCertified}<span className="text-base text-orange-100">/{totalSkills}</span></p>
             </div>
-            <div className="ml-5">
-              <p className="text-orange-100 text-xs">申請中</p>
-              <p className="text-2xl font-bold">{pendingIds.size}</p>
-            </div>
-            <div>
-              <p className="text-orange-100 text-xs">未申請</p>
-              <p className="text-2xl font-bold">{totalSkills - totalCertified - pendingIds.size}</p>
-            </div>
+            {(() => {
+              const rejectedCount = achievementList.filter(a => a.status === 'rejected').length
+              const pendingOnly = pendingIds.size
+              const unapplied = totalSkills - totalCertified - pendingOnly - rejectedCount
+              return (
+                <>
+                  {rejectedCount > 0 && (
+                    <div className="ml-5">
+                      <p className="text-red-200 text-xs">差し戻し</p>
+                      <p className="text-2xl font-bold text-red-200">{rejectedCount}</p>
+                    </div>
+                  )}
+                  <div className={rejectedCount > 0 ? '' : 'ml-5'}>
+                    <p className="text-orange-100 text-xs">申請中</p>
+                    <p className="text-2xl font-bold">{pendingOnly}</p>
+                  </div>
+                  <div>
+                    <p className="text-orange-100 text-xs">未申請</p>
+                    <p className="text-2xl font-bold">{unapplied}</p>
+                  </div>
+                </>
+              )
+            })()}
           </div>
           <div className="mt-3 space-y-1.5">
             <div className="flex items-center gap-2">
