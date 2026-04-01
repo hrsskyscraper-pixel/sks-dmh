@@ -391,6 +391,13 @@ export function TeamManager({
         .from('team_managers')
         .insert(employeeIds.map(id => ({ team_id: teamId, employee_id: id, role })))
       if (error) { toast.error('追加に失敗しました'); return }
+      // リーダーに昇格した社員をメンバーから削除
+      for (const empId of employeeIds) {
+        if (teamMembers.some(m => m.team_id === teamId && m.employee_id === empId)) {
+          await supabase.from('team_members').delete().eq('team_id', teamId).eq('employee_id', empId)
+        }
+      }
+      setTeamMembers(prev => prev.filter(m => !(m.team_id === teamId && employeeIds.includes(m.employee_id))))
       setTeamManagers(prev => {
         const updated = existingPrimaryId
           ? prev.map(m => m.team_id === teamId && m.employee_id === existingPrimaryId ? { ...m, role: 'secondary' as const } : m)
@@ -646,8 +653,10 @@ export function TeamManager({
     return `${emp.name} / ${getDisplayRole(emp)} / ${storeNames || '—'}`
   }
 
-  const getTeamMemberIds = (teamId: string) =>
-    teamMembers.filter(m => m.team_id === teamId).map(m => m.employee_id)
+  const getTeamMemberIds = (teamId: string) => {
+    const mgrIds = new Set(teamManagers.filter(m => m.team_id === teamId).map(m => m.employee_id))
+    return teamMembers.filter(m => m.team_id === teamId && !mgrIds.has(m.employee_id)).map(m => m.employee_id)
+  }
 
   const getTeamManagerIds = (teamId: string) =>
     teamManagers.filter(m => m.team_id === teamId).map(m => m.employee_id)
