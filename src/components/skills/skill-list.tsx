@@ -746,6 +746,24 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
                   </div>
                 )
               })}
+              {/* 差し戻し状態なら再申請ボタン */}
+              {!readOnly && historyDialogAch?.status === 'rejected' && (() => {
+                const skill = skills.find(s => s.id === historyDialogAch.skill_id)
+                return skill ? (
+                  <div className="flex justify-center pt-3 border-t mt-3">
+                    <Button
+                      className="bg-orange-500 hover:bg-orange-600 text-white"
+                      onClick={() => {
+                        setHistoryDialogAch(null)
+                        setReapplyDialogSkill(skill)
+                        setReapplyComment('')
+                      }}
+                    >
+                      再申請する
+                    </Button>
+                  </div>
+                ) : null
+              })()}
             </div>
           )}
         </DialogContent>

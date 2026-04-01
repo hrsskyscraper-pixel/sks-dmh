@@ -508,6 +508,27 @@ export function ApprovalCenter({
                   </div>
                 )
               })}
+              {/* 最後が申請/再申請なら認定/戻すボタン */}
+              {chatHistory.length > 0 && (() => {
+                const last = chatHistory[chatHistory.length - 1]
+                if (last.action !== 'apply' && last.action !== 'reapply') return null
+                const ach = pendingAchievements.find((a: any) => a.id === chatAchId)
+                if (!ach) return null
+                return (
+                  <div className="flex justify-center gap-2 pt-3 border-t mt-3">
+                    <Button size="sm" className="bg-green-500 hover:bg-green-600 text-white"
+                      onClick={() => { setChatAchId(null); setCertifyTarget(ach); setCertifyAction('certified'); setCertifyComment('') }}
+                      disabled={isPending}>
+                      <CheckCircle className="w-3.5 h-3.5 mr-1" />認定
+                    </Button>
+                    <Button size="sm" variant="outline" className="text-red-500 border-red-200 hover:bg-red-50"
+                      onClick={() => { setChatAchId(null); setCertifyTarget(ach); setCertifyAction('rejected'); setCertifyComment('') }}
+                      disabled={isPending}>
+                      <XCircle className="w-3.5 h-3.5 mr-1" />戻す
+                    </Button>
+                  </div>
+                )
+              })()}
             </div>
           )}
         </DialogContent>
