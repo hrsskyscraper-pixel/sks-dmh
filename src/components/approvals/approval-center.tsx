@@ -69,26 +69,20 @@ export function ApprovalCenter({
   const handleCertify = () => {
     if (!certifyTarget) return
     startTransition(async () => {
-      const { error } = await supabase.from('achievements').update({
-        status: certifyAction,
-        certified_by: currentEmployeeId,
-        certified_at: new Date().toISOString(),
-        certify_comment: certifyComment.trim() || null,
-        is_read: false,
-      }).eq('id', certifyTarget.id)
-      if (error) { toast.error('更新に失敗しました'); return }
-      // 申請者に通知
-      fetch('/api/skill-result-notification', {
+      const res = await fetch('/api/certify-skill', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          employeeId: certifyTarget.employee_id,
-          skillName: certifyTarget.skills?.name,
+          achievementId: certifyTarget.id,
           action: certifyAction,
           comment: certifyComment.trim() || null,
-          certifierName: null,
         }),
-      }).catch(() => {})
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        toast.error(data.error ?? '更新に失敗しました')
+        return
+      }
       toast.success(certifyAction === 'certified' ? '認定しました' : '差し戻しました')
       setCertifyTarget(null)
       setCertifyComment('')
