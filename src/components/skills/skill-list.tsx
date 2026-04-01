@@ -355,39 +355,45 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
               const skill = skills.find(s => s.id === ach.skill_id)
               return (
                 <div key={ach.id} onClick={() => openChatHistory(ach)} className={cn(
-                  'flex items-start gap-3 py-2.5 px-3 rounded-lg border cursor-pointer hover:shadow-sm transition-shadow',
+                  'rounded-lg border cursor-pointer hover:shadow-sm transition-shadow py-2.5 px-3',
                   ach.status === 'pending' && 'bg-amber-50 border-amber-100',
                   ach.status === 'rejected' && 'bg-red-50 border-red-100',
                 )}>
-                  <div className="flex-shrink-0 mt-0.5">
-                    {ach.status === 'pending' ? <Clock className="w-4 h-4 text-amber-500" /> : <XCircle className="w-4 h-4 text-red-400" />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-800">{skillName}</p>
-                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                      {skillCategory && <Badge className={cn('text-[10px] border-0', catColor)}>{skillCategory}</Badge>}
-                      <span className="text-[10px] text-gray-400">{fmtDate(ach.achieved_at)} 申請</span>
+                  <div className="flex items-start gap-3">
+                    {ach.certified_employee?.avatar_url ? (
+                      <img src={ach.certified_employee.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0 mt-0.5" />
+                    ) : (
+                      <div className="flex-shrink-0 mt-0.5">
+                        {ach.status === 'pending' ? <Clock className="w-4 h-4 text-amber-500" /> : <XCircle className="w-4 h-4 text-red-400" />}
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-800">{skillName}</p>
+                      <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                        {skillCategory && <Badge className={cn('text-[10px] border-0', catColor)}>{skillCategory}</Badge>}
+                        <span className="text-[10px] text-gray-400">{fmtDate(ach.achieved_at)} 申請</span>
+                      </div>
+                      {ach.certify_comment && (
+                        <p className="text-[11px] mt-1 rounded px-1.5 py-0.5 border text-red-600 bg-red-50 border-red-100">
+                          {ach.certified_employee?.name && <span className="font-medium">{ach.certified_employee.name}：</span>}
+                          {ach.certify_comment}
+                        </p>
+                      )}
+                      {ach.status === 'rejected' && ach.certified_at && (
+                        <p className="text-[10px] text-red-400 mt-0.5">
+                          {fmtDate(ach.certified_at)} {ach.certified_employee?.name ?? ''}が差し戻し
+                        </p>
+                      )}
                     </div>
-                    {ach.certify_comment && (
-                      <p className="text-[11px] mt-1 rounded px-1.5 py-0.5 border text-red-600 bg-red-50 border-red-100">
-                        {ach.certified_employee?.name && <span className="font-medium">{ach.certified_employee.name}：</span>}
-                        {ach.certify_comment}
-                      </p>
-                    )}
-                    {ach.status === 'rejected' && ach.certified_at && (
-                      <p className="text-[10px] text-red-400 mt-0.5">
-                        {fmtDate(ach.certified_at)} {ach.certified_employee?.name ?? ''}が差し戻し
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex-shrink-0 text-right">
-                    <Badge className={cn('text-[10px] border-0', ach.status === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-600')}>
+                    <Badge className={cn('text-[10px] border-0 flex-shrink-0', ach.status === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-600')}>
                       {ach.status === 'pending' ? '申請中' : '差し戻し'}
                     </Badge>
-                    {ach.status === 'rejected' && !readOnly && skill && (
+                  </div>
+                  {ach.status === 'rejected' && !readOnly && skill && (
+                    <div className="flex justify-end mt-2">
                       <button
                         onClick={(e) => { e.stopPropagation(); setReapplyDialogSkill(skill); setReapplyComment('') }}
-                        className="block mt-1.5 text-[11px] text-orange-600 font-medium hover:underline"
+                        className="text-[11px] text-orange-600 font-medium bg-orange-100 hover:bg-orange-200 rounded-full px-3 py-1 transition-colors"
                       >
                         再申請する
                       </button>
