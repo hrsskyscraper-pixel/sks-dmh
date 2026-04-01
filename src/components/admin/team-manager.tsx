@@ -110,6 +110,7 @@ export function TeamManager({
   const [newTeamName, setNewTeamName] = useState('')
   const [newTeamType, setNewTeamType] = useState<Team['type'] | ''>('')
   const [newTeamManagerId, setNewTeamManagerId] = useState('')
+  const [newTeamSubManagerIds, setNewTeamSubManagerIds] = useState<string[]>([])
 
   // ===== Add Member/Manager Dialog =====
   const [addDialog, setAddDialog] = useState<{
@@ -295,18 +296,27 @@ export function TeamManager({
         .single()
       if (teamError) { toast.error('チームの作成に失敗しました'); return }
 
+      // 主担当
+      const managerInserts = [{ team_id: team.id, employee_id: newTeamManagerId, role: 'primary' as const }]
+      // 副担当
+      for (const subId of newTeamSubManagerIds) {
+        if (subId !== newTeamManagerId) {
+          managerInserts.push({ team_id: team.id, employee_id: subId, role: 'secondary' as const })
+        }
+      }
       const { error: managerError } = await supabase
         .from('team_managers')
-        .insert({ team_id: team.id, employee_id: newTeamManagerId, role: 'primary' })
+        .insert(managerInserts)
       if (managerError) { toast.error('マネジャー設定に失敗しました'); return }
 
       setTeams(prev => [...prev, team])
-      setTeamManagers(prev => [...prev, { team_id: team.id, employee_id: newTeamManagerId, role: 'primary' as const }])
-      await logDirectAction('create_team', team.id, { team_name: team.name, team_type: newTeamType, manager_id: newTeamManagerId, manager_name: getEmployeeName(newTeamManagerId) })
+      setTeamManagers(prev => [...prev, ...managerInserts])
+      await logDirectAction('create_team', team.id, { team_name: team.name, team_type: newTeamType, manager_id: newTeamManagerId, manager_name: getEmployeeName(newTeamManagerId), sub_managers: newTeamSubManagerIds.filter(id => id !== newTeamManagerId).map(id => getEmployeeName(id)) })
       setShowCreateTeam(false)
       setNewTeamName('')
       setNewTeamType('')
       setNewTeamManagerId('')
+      setNewTeamSubManagerIds([])
       toast.success(`チーム「${team.name}」を作成しました`)
     })
   }
@@ -1479,15 +1489,40 @@ export function TeamManager({
             </div>
             <div>
               <p className="text-xs font-medium text-gray-600 mb-1">
-                担当リーダー <span className="text-red-500">*</span>
+                主担当 <span className="text-red-500">*</span>
               </p>
               <select
                 value={newTeamManagerId}
-                onChange={e => setNewTeamManagerId(e.target.value)}
+                onChange={e => { setNewTeamManagerId(e.target.value); setNewTeamSubManagerIds(prev => prev.filter(id => id !== e.target.value)) }}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-orange-300"
               >
                 <option value="">選択してください</option>
                 {managerCandidates.map(emp => (
+                  <option key={emp.id} value={emp.id}>{emp.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-gray-600 mb-1">副担当</p>
+              {newTeamSubManagerIds.length > 0 && (
+                <div className="flex flex-wrap gap-1 mb-1.5">
+                  {newTeamSubManagerIds.map(id => (
+                    <span key={id} className="flex items-center gap-1 bg-blue-50 text-blue-700 rounded-full px-2 py-0.5 text-xs">
+                      {getEmployeeName(id)}
+                      <button onClick={() => setNewTeamSubManagerIds(prev => prev.filter(x => x !== id))} className="text-blue-400 hover:text-red-500">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <select
+                value=""
+                onChange={e => { if (e.target.value && !newTeamSubManagerIds.includes(e.target.value) && e.target.value !== newTeamManagerId) { setNewTeamSubManagerIds(prev => [...prev, e.target.value]) } e.target.value = '' }}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-300"
+              >
+                <option value="">追加する...</option>
+                {managerCandidates.filter(emp => emp.id !== newTeamManagerId && !newTeamSubManagerIds.includes(emp.id)).map(emp => (
                   <option key={emp.id} value={emp.id}>{emp.name}</option>
                 ))}
               </select>
