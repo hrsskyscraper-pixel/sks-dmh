@@ -722,16 +722,62 @@ export function TeamManager({
               const memberIds = getTeamMemberIds(team.id)
               const managerIds = getTeamManagerIds(team.id)
               const isManagedByMe = managerIds.includes(effectiveEmployee.id)
+              const isExpanded = expandedTeams.has(`my-${team.id}`)
               return (
                 <Card key={`my-${team.id}`} className="border-orange-200 bg-orange-50/50">
-                  <CardContent className="py-2.5 px-4">
+                  <CardHeader className="pb-2 pt-3 px-4">
                     <div className="flex items-center gap-2">
                       <Badge className={`${TEAM_TYPE_COLORS[team.type]} text-[9px] border-0 flex-shrink-0`}>{TEAM_TYPE_LABELS[team.type]}</Badge>
                       <p className="text-sm font-medium text-gray-800 truncate flex-1">{team.name}</p>
                       {isManagedByMe && <Badge className="bg-orange-100 text-orange-700 text-[9px] border-0">リーダー</Badge>}
-                      <span className="text-[10px] text-gray-400 flex-shrink-0">{memberIds.length + managerIds.length}名</span>
+                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-gray-400" onClick={() => toggleExpand(`my-${team.id}`)}>
+                        {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                      </Button>
                     </div>
-                  </CardContent>
+                    <p className="text-xs text-muted-foreground">メンバー {memberIds.length}名　担当リーダー {managerIds.length}名</p>
+                  </CardHeader>
+                  {isExpanded && (
+                    <CardContent className="px-4 pb-3 space-y-3">
+                      <div>
+                        <p className="text-xs font-medium text-gray-600 mb-1.5">メンバー</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {memberIds.length === 0 && <p className="text-xs text-muted-foreground">メンバーなし</p>}
+                          {memberIds.map(empId => {
+                            const emp = getEmployee(empId)
+                            return (
+                              <div key={empId} className="flex items-center gap-1 bg-gray-100 rounded-full pl-0.5 pr-2 py-0.5">
+                                <Avatar className="w-4 h-4 flex-shrink-0">
+                                  <AvatarImage src={emp?.avatar_url ?? undefined} />
+                                  <AvatarFallback className="text-[8px] bg-gray-300 text-gray-600">{emp?.name.charAt(0)}</AvatarFallback>
+                                </Avatar>
+                                <span className="text-xs text-gray-700">{getEmployeeName(empId)}</span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-xs font-medium text-gray-600 mb-1.5">担当リーダー</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {managerIds.length === 0 && <p className="text-xs text-muted-foreground">担当なし</p>}
+                          {teamManagers.filter(m => m.team_id === team.id).map(manager => {
+                            const emp = getEmployee(manager.employee_id)
+                            const isPrimary = manager.role === 'primary'
+                            return (
+                              <div key={manager.employee_id} className={`flex items-center gap-1 ${isPrimary ? 'bg-amber-100' : 'bg-blue-100'} rounded-full pl-1 pr-2 py-0.5`}>
+                                <span className={`text-[9px] font-bold ${isPrimary ? 'text-amber-600' : 'text-blue-500'}`}>{isPrimary ? '主' : '副'}</span>
+                                <Avatar className="w-4 h-4 flex-shrink-0">
+                                  <AvatarImage src={emp?.avatar_url ?? undefined} />
+                                  <AvatarFallback className={`text-[8px] ${isPrimary ? 'bg-amber-300 text-amber-700' : 'bg-blue-300 text-blue-700'}`}>{emp?.name.charAt(0)}</AvatarFallback>
+                                </Avatar>
+                                <span className={`text-xs ${isPrimary ? 'text-amber-700' : 'text-blue-700'}`}>{getEmployeeName(manager.employee_id)}</span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    </CardContent>
+                  )}
                 </Card>
               )
             })}
