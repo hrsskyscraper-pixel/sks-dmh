@@ -386,7 +386,7 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
                     </Badge>
                     {ach.status === 'rejected' && !readOnly && skill && (
                       <button
-                        onClick={() => { setReapplyDialogSkill(skill); setReapplyComment('') }}
+                        onClick={(e) => { e.stopPropagation(); setReapplyDialogSkill(skill); setReapplyComment('') }}
                         className="block mt-1.5 text-[11px] text-orange-600 font-medium hover:underline"
                       >
                         再申請する
