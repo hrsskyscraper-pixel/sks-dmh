@@ -27,7 +27,7 @@ export default async function ProjectsPage() {
     db.from('project_skills').select('project_id, skill_id, project_phase_id'),
     db.from('project_teams').select('project_id, team_id'),
     db.from('skills').select('id, name, phase, category, order_index, target_date_hint, standard_hours, is_checkpoint, created_at').order('order_index'),
-    db.from('teams').select('id, name, type').order('name'),
+    db.from('teams').select('id, name, type, prefecture').order('name'),
   ])
 
   return (

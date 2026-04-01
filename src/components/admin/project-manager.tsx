@@ -23,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Plus, Pencil, Archive, ArchiveRestore, Trash2, GripVertical, UserMinus, UserPlus } from 'lucide-react'
+import { Plus, Pencil, Archive, ArchiveRestore, Trash2, GripVertical, UserMinus, UserPlus, ChevronDown, ChevronRight, MapPin, Store, FolderKanban, Building2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { updateSkillCategory, updateSkillStandardHours, updateSkillName, toggleSkillCheckpoint, createSkill, deleteSkill, reorderSkills, updateSkillTargetDate } from '@/app/(dashboard)/actions'
 import { sortCategories } from '@/lib/category-order'
@@ -36,7 +36,7 @@ interface Props {
   projectSkills: ProjectSkill[]
   projectTeams: { project_id: string; team_id: string }[]
   allSkills: Skill[]
-  teams: Pick<Team, 'id' | 'name' | 'type'>[]
+  teams: Pick<Team, 'id' | 'name' | 'type' | 'prefecture'>[]
 }
 
 const CATEGORY_ROW_COLORS: Record<number, { checked: string; unchecked: string }> = {
@@ -62,6 +62,8 @@ export function ProjectManager({
 }: Props) {
   const supabase = createClient()
   const [isPending, startTransition] = useTransition()
+  const [expandedStorePrefs, setExpandedStorePrefs] = useState<Set<string>>(new Set())
+  const [showStoreTeams, setShowStoreTeams] = useState(false)
   const [skillsState, setSkillsState] = useState(allSkills)
   const categories = sortCategories([...new Set(skillsState.map(s => s.category))])
   const [newCategoryInput, setNewCategoryInput] = useState('')
@@ -675,38 +677,114 @@ export function ProjectManager({
               <p className="text-xs text-muted-foreground px-1">
                 紐づけチーム数: {linkedTeamIds.size}
               </p>
-              {teams.map(team => {
-                const isLinked = linkedTeamIds.has(team.id)
-                const TEAM_TYPE_LABELS: Record<string, string> = { store: '店舗', project: 'チーム', department: '部署' }
+
+              {/* チーム（project） */}
+              {(() => {
+                const projectTeamsList = teams.filter(t => t.type === 'project')
+                if (projectTeamsList.length === 0) return null
                 return (
-                  <div
-                    key={team.id}
-                    className={cn(
-                      'flex items-center gap-3 rounded-lg px-3 py-2.5 border',
-                      isLinked ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-100'
-                    )}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <Badge className="text-[9px] bg-gray-200 text-gray-600 border-0">{TEAM_TYPE_LABELS[team.type] ?? team.type}</Badge>
-                        <p className="text-sm font-medium text-gray-800">{team.name}</p>
-                      </div>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant={isLinked ? 'outline' : 'default'}
-                      className={cn('h-7 text-xs px-2', isLinked ? 'border-red-200 text-red-600 hover:bg-red-50' : 'bg-blue-500 hover:bg-blue-600 text-white')}
-                      onClick={() => handleToggleTeam(team.id, isLinked)}
-                      disabled={isPending}
-                    >
-                      {isLinked
-                        ? <><UserMinus className="w-3 h-3 mr-1" />外す</>
-                        : <><UserPlus className="w-3 h-3 mr-1" />追加</>
-                      }
-                    </Button>
+                  <div>
+                    <p className="text-xs font-medium text-purple-600 mb-1 flex items-center gap-1"><FolderKanban className="w-3 h-3" />チーム</p>
+                    {projectTeamsList.map(team => {
+                      const isLinked = linkedTeamIds.has(team.id)
+                      return (
+                        <div key={team.id} className={cn('flex items-center gap-3 rounded-lg px-3 py-2 border mb-1', isLinked ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-100')}>
+                          <p className="text-sm font-medium text-gray-800 flex-1 truncate">{team.name}</p>
+                          <Button size="sm" variant={isLinked ? 'outline' : 'default'} className={cn('h-7 text-xs px-2', isLinked ? 'border-red-200 text-red-600 hover:bg-red-50' : 'bg-blue-500 hover:bg-blue-600 text-white')} onClick={() => handleToggleTeam(team.id, isLinked)} disabled={isPending}>
+                            {isLinked ? <><UserMinus className="w-3 h-3 mr-1" />外す</> : <><UserPlus className="w-3 h-3 mr-1" />追加</>}
+                          </Button>
+                        </div>
+                      )
+                    })}
                   </div>
                 )
-              })}
+              })()}
+
+              {/* 部署（department） */}
+              {(() => {
+                const deptTeams = teams.filter(t => t.type === 'department')
+                if (deptTeams.length === 0) return null
+                return (
+                  <div>
+                    <p className="text-xs font-medium text-teal-600 mb-1 flex items-center gap-1"><Building2 className="w-3 h-3" />部署</p>
+                    {deptTeams.map(team => {
+                      const isLinked = linkedTeamIds.has(team.id)
+                      return (
+                        <div key={team.id} className={cn('flex items-center gap-3 rounded-lg px-3 py-2 border mb-1', isLinked ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-100')}>
+                          <p className="text-sm font-medium text-gray-800 flex-1 truncate">{team.name}</p>
+                          <Button size="sm" variant={isLinked ? 'outline' : 'default'} className={cn('h-7 text-xs px-2', isLinked ? 'border-red-200 text-red-600 hover:bg-red-50' : 'bg-blue-500 hover:bg-blue-600 text-white')} onClick={() => handleToggleTeam(team.id, isLinked)} disabled={isPending}>
+                            {isLinked ? <><UserMinus className="w-3 h-3 mr-1" />外す</> : <><UserPlus className="w-3 h-3 mr-1" />追加</>}
+                          </Button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              })()}
+
+              {/* 店舗（store）都道府県別折りたたみ */}
+              {(() => {
+                const storeTeams = teams.filter(t => t.type === 'store')
+                if (storeTeams.length === 0) return null
+                const PREF_ORDER = ['秋田県','栃木県','群馬県','埼玉県','千葉県','東京都','神奈川県','新潟県','静岡県','茨城県']
+                const grouped: Record<string, typeof storeTeams> = {}
+                const noPref: typeof storeTeams = []
+                for (const t of storeTeams) {
+                  if (t.prefecture) { if (!grouped[t.prefecture]) grouped[t.prefecture] = []; grouped[t.prefecture].push(t) }
+                  else noPref.push(t)
+                }
+                const prefOrder = PREF_ORDER.filter(p => grouped[p])
+                for (const p of Object.keys(grouped)) { if (!prefOrder.includes(p)) prefOrder.push(p) }
+
+                return (
+                  <div>
+                    <button onClick={() => setShowStoreTeams(prev => !prev)} className="flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-800 mb-1">
+                      {showStoreTeams ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                      <Store className="w-3.5 h-3.5" />店舗 ({storeTeams.length})
+                    </button>
+                    {showStoreTeams && (
+                      <div className="ml-1 space-y-0.5">
+                        {prefOrder.map(pref => {
+                          const stores = grouped[pref]
+                          const isExp = expandedStorePrefs.has(pref)
+                          return (
+                            <div key={pref}>
+                              <button onClick={() => setExpandedStorePrefs(prev => { const n = new Set(prev); n.has(pref) ? n.delete(pref) : n.add(pref); return n })} className="flex items-center gap-1.5 px-1 py-1 text-xs text-gray-600 hover:text-gray-800 w-full">
+                                {isExp ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                                <MapPin className="w-3 h-3 text-gray-400" />
+                                <span className="font-medium">{pref}</span>
+                                <span className="text-gray-400 ml-auto">{stores.length}</span>
+                              </button>
+                              {isExp && stores.map(team => {
+                                const isLinked = linkedTeamIds.has(team.id)
+                                return (
+                                  <div key={team.id} className={cn('flex items-center gap-3 rounded-lg px-3 py-2 border mb-1 ml-5', isLinked ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-100')}>
+                                    <p className="text-sm font-medium text-gray-800 flex-1 truncate">{team.name}</p>
+                                    <Button size="sm" variant={isLinked ? 'outline' : 'default'} className={cn('h-7 text-xs px-2', isLinked ? 'border-red-200 text-red-600 hover:bg-red-50' : 'bg-blue-500 hover:bg-blue-600 text-white')} onClick={() => handleToggleTeam(team.id, isLinked)} disabled={isPending}>
+                                      {isLinked ? <><UserMinus className="w-3 h-3 mr-1" />外す</> : <><UserPlus className="w-3 h-3 mr-1" />追加</>}
+                                    </Button>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )
+                        })}
+                        {noPref.map(team => {
+                          const isLinked = linkedTeamIds.has(team.id)
+                          return (
+                            <div key={team.id} className={cn('flex items-center gap-3 rounded-lg px-3 py-2 border mb-1', isLinked ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-100')}>
+                              <p className="text-sm font-medium text-gray-800 flex-1 truncate">{team.name}</p>
+                              <Button size="sm" variant={isLinked ? 'outline' : 'default'} className={cn('h-7 text-xs px-2', isLinked ? 'border-red-200 text-red-600 hover:bg-red-50' : 'bg-blue-500 hover:bg-blue-600 text-white')} onClick={() => handleToggleTeam(team.id, isLinked)} disabled={isPending}>
+                                {isLinked ? <><UserMinus className="w-3 h-3 mr-1" />外す</> : <><UserPlus className="w-3 h-3 mr-1" />追加</>}
+                              </Button>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
             </TabsContent>
           </Tabs>
         </>
