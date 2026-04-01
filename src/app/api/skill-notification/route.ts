@@ -48,7 +48,7 @@ export async function POST(request: Request) {
   if (lineUserIds.length > 0) {
     await sendLineMessages(
       lineUserIds,
-      `【スキル認定${actionLabel}】\n${applicant.name} さんが「${skillName}」の認定を${actionLabel}しました。\n${comment ? `コメント: ${comment}\n` : ''}\n確認: ${approvalUrl}`
+      `【スキル認定 ${actionLabel}】\n${applicant.name} さんが「${skillName}」の認定を${actionLabel}しました。\n${comment ? `コメント: ${comment}\n` : ''}\n確認: ${approvalUrl}\nGrowth Driver`
     ).catch(err => console.error('スキル申請LINE通知失敗:', err))
   }
 
