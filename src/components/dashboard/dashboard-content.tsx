@@ -472,36 +472,48 @@ export function DashboardContent({
             <Bell className="w-4 h-4 text-gray-500" />
             <p className="text-sm font-semibold text-gray-700">お知らせ</p>
           </div>
-          {notifications.map(notification => (
-            <Card key={notification.id} className={cn('border', notification.status === 'certified' ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50')}>
-              <CardContent className="py-3 px-4">
-                <div className="flex items-start gap-3">
-                  {(notification as any).certified_employee?.avatar_url ? (
-                    <img src={(notification as any).certified_employee.avatar_url} alt="" className="w-9 h-9 rounded-full object-cover flex-shrink-0" />
-                  ) : (
-                    <div className="flex-shrink-0 mt-0.5">
-                      {notification.status === 'certified' ? <CheckCircle2 className="w-5 h-5 text-green-500" /> : <XCircle className="w-5 h-5 text-red-400" />}
-                    </div>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className={cn('text-sm font-medium', notification.status === 'certified' ? 'text-green-700' : 'text-red-600')}>
-                      {notification.status === 'certified' ? '認定されました！' : '差し戻しがあります'}
-                    </p>
-                    <p className="text-sm text-gray-800">{notification.skills?.name}</p>
-                    {(notification as any).certified_employee?.name && (
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        {notification.status === 'certified' ? '認定者' : '差し戻し者'}: {(notification as any).certified_employee.name}
-                      </p>
+          {notifications.map(notification => {
+            const certEmp = (notification as any).certified_employee
+            const isRejected = notification.status === 'rejected'
+            const fmtCertDate = notification.certified_at ? new Date(notification.certified_at).toLocaleDateString('ja-JP') : ''
+            return (
+              <Card
+                key={notification.id}
+                className={cn('border cursor-pointer hover:shadow-sm transition-shadow', notification.status === 'certified' ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50')}
+                onClick={() => { window.location.href = `/skills?tab=${isRejected ? 'pending' : 'certified'}` }}
+              >
+                <CardContent className="py-3 px-4">
+                  <div className="flex items-start gap-3">
+                    {certEmp?.avatar_url ? (
+                      <img src={certEmp.avatar_url} alt="" className="w-9 h-9 rounded-full object-cover flex-shrink-0" />
+                    ) : (
+                      <div className="flex-shrink-0 mt-0.5">
+                        {notification.status === 'certified' ? <CheckCircle2 className="w-5 h-5 text-green-500" /> : <XCircle className="w-5 h-5 text-red-400" />}
+                      </div>
                     )}
-                    {notification.certify_comment && (
-                      <p className="text-xs text-gray-600 mt-1 bg-white/70 rounded px-2 py-1">💬 {notification.certify_comment}</p>
+                    <div className="flex-1 min-w-0">
+                      <p className={cn('text-sm font-medium', notification.status === 'certified' ? 'text-green-700' : 'text-red-600')}>
+                        {notification.status === 'certified' ? '認定されました！' : '差し戻しがあります'}
+                      </p>
+                      <p className="text-sm text-gray-800">{notification.skills?.name}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        {notification.status === 'certified' ? '認定者' : '差し戻し者'}: {certEmp?.name ?? '不明'}
+                        {fmtCertDate && ` (${fmtCertDate})`}
+                      </p>
+                      {notification.certify_comment && (
+                        <p className="text-xs text-gray-600 mt-1 bg-white/70 rounded px-2 py-1">💬 {notification.certify_comment}</p>
+                      )}
+                    </div>
+                    {isRejected ? (
+                      <Button size="sm" className="h-7 text-xs px-2 flex-shrink-0 bg-orange-500 hover:bg-orange-600 text-white" onClick={(e) => { e.stopPropagation(); handleMarkAsRead(notification.id); window.location.href = '/skills?tab=pending' }} disabled={isPending}>再申請</Button>
+                    ) : (
+                      <Button size="sm" variant="outline" className="h-7 text-xs px-2 flex-shrink-0" onClick={(e) => { e.stopPropagation(); handleMarkAsRead(notification.id) }} disabled={isPending}>既読</Button>
                     )}
                   </div>
-                  <Button size="sm" variant="outline" className="h-7 text-xs px-2 flex-shrink-0" onClick={() => handleMarkAsRead(notification.id)} disabled={isPending}>既読</Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            )
+          })}
         </div>
       )}
 
