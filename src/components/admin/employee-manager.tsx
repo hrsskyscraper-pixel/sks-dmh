@@ -55,6 +55,9 @@ interface Props {
   positionByEmployee?: Record<string, string>
   certsByEmployee?: Record<string, string[]>
   certMaster?: { name: string; icon: string; color: string }[]
+  teamManagersList?: { team_id: string; employee_id: string; role: string }[]
+  projectTeamIds?: string[]
+  currentEmployeeId?: string
 }
 
 const TEAM_MANAGER_ROLES: DisplayRole[] = ['メイト', '社員']
@@ -101,7 +104,7 @@ const DISPLAY_ROLE_ORDER: Record<DisplayRole, number> = {
   '開発者':     4,
 }
 
-export function EmployeeManager({ employees: initialEmployees, canEdit = true, isTeamManager = false, managedMemberIds = [], employeeStats = {}, teams = [], teamMembers = [], positionByEmployee = {}, certsByEmployee = {}, certMaster = [] }: Props) {
+export function EmployeeManager({ employees: initialEmployees, canEdit = true, isTeamManager = false, managedMemberIds = [], employeeStats = {}, teams = [], teamMembers = [], positionByEmployee = {}, certsByEmployee = {}, certMaster = [], teamManagersList = [], projectTeamIds = [], currentEmployeeId }: Props) {
   const [employees, setEmployees] = useState(initialEmployees)
   const [isPending, startTransition] = useTransition()
   const [uploadingId, setUploadingId] = useState<string | null>(null)
@@ -133,14 +136,49 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
   const prefOrder = PREF_ORDER.filter(p => storePrefGrouped[p])
   for (const p of Object.keys(storePrefGrouped)) { if (!prefOrder.includes(p)) prefOrder.push(p) }
 
-  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null)
+  // デフォルト選択: 自分が所属するチームのうちプロジェクト紐づきを優先
+  const projectTeamIdSet = new Set(projectTeamIds)
+  const defaultTeamId = (() => {
+    if (!currentEmployeeId) return null
+    const myTeamIdsAll = [
+      ...teamMembers.filter(m => m.employee_id === currentEmployeeId).map(m => m.team_id),
+      ...teamManagersList.filter(m => m.employee_id === currentEmployeeId).map(m => m.team_id),
+    ]
+    const myTeamIdsUnique = [...new Set(myTeamIdsAll)]
+    // プロジェクト紐づき優先、種別優先順: project > department > store
+    const typeOrder: Record<string, number> = { project: 0, department: 1, store: 2 }
+    const teamById = Object.fromEntries(teams.map(t => [t.id, t]))
+    const sorted = myTeamIdsUnique
+      .filter(id => teamById[id])
+      .sort((a, b) => {
+        const aPj = projectTeamIdSet.has(a) ? 0 : 1
+        const bPj = projectTeamIdSet.has(b) ? 0 : 1
+        if (aPj !== bPj) return aPj - bPj
+        return (typeOrder[teamById[a].type] ?? 9) - (typeOrder[teamById[b].type] ?? 9)
+      })
+    return sorted[0] ?? null
+  })()
+
+  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(defaultTeamId)
   const [expandedPrefs, setExpandedPrefs] = useState<Set<string>>(new Set())
   const [showStores, setShowStores] = useState(false)
   const supabase = createClient()
 
+  // リーダーもメンバーとして表示するために統合
   const memberIdSet = selectedTeamId
-    ? new Set(teamMembers.filter(tm => tm.team_id === selectedTeamId).map(tm => tm.employee_id))
+    ? new Set([
+        ...teamMembers.filter(tm => tm.team_id === selectedTeamId).map(tm => tm.employee_id),
+        ...teamManagersList.filter(tm => tm.team_id === selectedTeamId).map(tm => tm.employee_id),
+      ])
     : null
+
+  // リーダー情報マップ（employee_id → role）
+  const leaderRoleMap: Record<string, string> = {}
+  if (selectedTeamId) {
+    for (const m of teamManagersList.filter(tm => tm.team_id === selectedTeamId)) {
+      leaderRoleMap[m.employee_id] = m.role
+    }
+  }
 
   const handleDisplayRoleChange = (employeeId: string, displayRole: DisplayRole) => {
     if (!canEdit && !(isTeamManager && managedSet.has(employeeId))) return
@@ -227,9 +265,20 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
     }
   }
 
-  const sortedEmployees = [...employees].sort((a, b) =>
-    DISPLAY_ROLE_ORDER[getDisplayRole(a)] - DISPLAY_ROLE_ORDER[getDisplayRole(b)]
-  )
+  const sortedEmployees = [...employees].sort((a, b) => {
+    // 自分を最上位
+    if (currentEmployeeId) {
+      if (a.id === currentEmployeeId && b.id !== currentEmployeeId) return -1
+      if (b.id === currentEmployeeId && a.id !== currentEmployeeId) return 1
+    }
+    // リーダー → メンバー順
+    const aLeader = leaderRoleMap[a.id]
+    const bLeader = leaderRoleMap[b.id]
+    const aOrder = aLeader === 'primary' ? 0 : aLeader === 'secondary' ? 1 : 2
+    const bOrder = bLeader === 'primary' ? 0 : bLeader === 'secondary' ? 1 : 2
+    if (aOrder !== bOrder) return aOrder - bOrder
+    return DISPLAY_ROLE_ORDER[getDisplayRole(a)] - DISPLAY_ROLE_ORDER[getDisplayRole(b)]
+  })
   const filteredEmployees = memberIdSet
     ? sortedEmployees.filter(emp => memberIdSet.has(emp.id))
     : sortedEmployees
@@ -443,6 +492,11 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
                       {DISPLAY_ROLE_ICONS[displayRole]}
                       {displayRole}
                     </Badge>
+                    {leaderRoleMap[employee.id] && (
+                      <Badge className={`text-[9px] border-0 flex-shrink-0 ${leaderRoleMap[employee.id] === 'primary' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>
+                        {leaderRoleMap[employee.id] === 'primary' ? 'リーダー(主)' : 'リーダー(副)'}
+                      </Badge>
+                    )}
                     {positionByEmployee[employee.id] && (
                       <Badge className="text-[9px] bg-sky-100 text-sky-700 border-0 flex-shrink-0">{positionByEmployee[employee.id]}</Badge>
                     )}

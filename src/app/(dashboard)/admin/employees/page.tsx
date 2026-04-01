@@ -44,6 +44,8 @@ export default async function EmployeesPage() {
     { data: teamMembers },
     { data: careerRecordsRaw },
     { data: certMaster },
+    { data: allTeamManagers },
+    { data: projectTeamsData },
   ] = await Promise.all([
     db.from('employees').select('id, auth_user_id, name, name_kana, email, role, employment_type, hire_date, birth_date, avatar_url, instagram_url, line_url, status, requested_team_id, requested_project_team_id, line_user_id, notifications_read_at, created_at, updated_at').order('created_at'),
     db.from('achievements').select('employee_id, skill_id').eq('status', 'certified'),
@@ -59,6 +61,8 @@ export default async function EmployeesPage() {
     db.from('team_members').select('team_id, employee_id'),
     db.from('career_records').select('employee_id, record_type, department, occurred_at').in('record_type', ['役職', '資格']).order('occurred_at', { ascending: false }),
     db.from('certifications').select('name, icon, color').eq('is_active', true),
+    db.from('team_managers').select('team_id, employee_id, role'),
+    db.from('project_teams').select('team_id'),
   ])
 
   const certifiedByEmployee = (allCertified ?? []).reduce((acc, a) => {
@@ -174,6 +178,9 @@ export default async function EmployeesPage() {
         positionByEmployee={positionByEmployee}
         certsByEmployee={certsByEmployee}
         certMaster={(certMaster ?? []) as { name: string; icon: string; color: string }[]}
+        teamManagersList={(allTeamManagers ?? []) as { team_id: string; employee_id: string; role: string }[]}
+        projectTeamIds={[...new Set((projectTeamsData ?? []).map(pt => pt.team_id))]}
+        currentEmployeeId={effectiveEmployeeId}
       />
     </>
   )
