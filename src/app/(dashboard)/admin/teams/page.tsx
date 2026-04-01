@@ -13,7 +13,7 @@ export default async function AdminTeamsPage() {
   if (!currentEmployee) redirect('/login')
 
   const supabase = await createClient()
-  const db = currentEmployee.role === 'testuser' ? createAdminClient() : supabase
+  const db = createAdminClient()
 
   // view-as 中は表示ロールに合わせて権限を落とす
   const cookieStore = await cookies()
