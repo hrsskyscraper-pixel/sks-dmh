@@ -28,6 +28,7 @@ interface NavProps {
   avatarUrl?: string | null
   employeeId?: string
   employeeName?: string
+  rejectedSkillCount?: number
 }
 
 function AccountMenu({ avatarUrl, employeeId, employeeName, onLogout }: { avatarUrl?: string | null; employeeId?: string; employeeName?: string; onLogout: () => void }) {
@@ -80,7 +81,7 @@ function AccountMenu({ avatarUrl, employeeId, employeeName, onLogout }: { avatar
   )
 }
 
-export function BottomNav({ role, unreadRequestCount = 0, pendingApprovalCount = 0, dashboardBadge = null, avatarUrl, employeeId, employeeName }: NavProps) {
+export function BottomNav({ role, unreadRequestCount = 0, pendingApprovalCount = 0, dashboardBadge = null, avatarUrl, employeeId, employeeName, rejectedSkillCount = 0 }: NavProps) {
   const pathname = usePathname()
   const router = useRouter()
   const visibleItems = navItems.filter(item => (item.roles as readonly string[]).includes(role))
@@ -99,9 +100,10 @@ export function BottomNav({ role, unreadRequestCount = 0, pendingApprovalCount =
         {visibleItems.map(({ href, label, icon: Icon }) => {
           const isActive = href === '/' ? pathname === '/' : pathname.startsWith(href)
           const showDashBadge = href === '/' && dashboardBadge && dashboardBadge.count > 0
-          const showBadge = showDashBadge || (href === '/admin/teams' && unreadRequestCount > 0) || (href === '/approvals' && pendingApprovalCount > 0)
-          const badgeCount = showDashBadge ? dashboardBadge!.count : href === '/approvals' ? pendingApprovalCount : unreadRequestCount
-          const badgeBg = showDashBadge ? (dashboardBadge!.color === 'red' ? 'bg-red-500' : 'bg-blue-500') : 'bg-red-500'
+          const showSkillBadge = href === '/skills' && rejectedSkillCount > 0
+          const showBadge = showDashBadge || showSkillBadge || (href === '/admin/teams' && unreadRequestCount > 0) || (href === '/approvals' && pendingApprovalCount > 0)
+          const badgeCount = showDashBadge ? dashboardBadge!.count : showSkillBadge ? rejectedSkillCount : href === '/approvals' ? pendingApprovalCount : unreadRequestCount
+          const badgeBg = showDashBadge ? (dashboardBadge!.color === 'red' ? 'bg-red-500' : 'bg-blue-500') : showSkillBadge ? 'bg-red-500' : 'bg-red-500'
           return (
             <Link
               key={href}

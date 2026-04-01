@@ -128,10 +128,10 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
   const [isPending, startTransition] = useTransition()
   const initialTab = (() => {
     const t = searchParams.get('tab')
-    if (t === 'pending' || t === 'certified') return t
+    if (t === 'pending' || t === 'rejected' || t === 'certified') return t
     return 'skills' as const
   })()
-  const [view, setView] = useState<'skills' | 'pending' | 'certified'>(initialTab)
+  const [view, setView] = useState<'skills' | 'pending' | 'rejected' | 'certified'>(initialTab)
   const [historyDialogAch, setHistoryDialogAch] = useState<AchievementWithCertifier | null>(null)
   const [chatHistory, setChatHistory] = useState<{ id: string; action: string; actor_id: string; actor_name: string; actor_avatar: string | null; comment: string | null; created_at: string }[]>([])
   const [chatLoading, setChatLoading] = useState(false)
@@ -317,11 +317,13 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
     <div className="p-4 space-y-4">
       {/* ビュー切替 */}
       {(() => {
-        const pendingCount = achievements.filter(a => a.status === 'pending' || a.status === 'rejected').length
+        const pendingCount = achievements.filter(a => a.status === 'pending').length
+        const rejectedCount = achievements.filter(a => a.status === 'rejected').length
         const certifiedCount = achievements.filter(a => a.status === 'certified').length
         const tabs = [
           { key: 'skills', label: '未申請' },
           { key: 'pending', label: '申請中', count: pendingCount },
+          { key: 'rejected', label: '差し戻し', count: rejectedCount },
           { key: 'certified', label: '承認済', count: certifiedCount },
         ] as const
         return (
@@ -342,11 +344,11 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
         )
       })()}
 
-      {/* 申請中ビュー（pending + rejected） */}
+      {/* 申請中ビュー（pending のみ） */}
       {view === 'pending' && (
         <div className="space-y-2">
           {(() => {
-            const items = historyItems.filter(a => a.status === 'pending' || a.status === 'rejected')
+            const items = historyItems.filter(a => a.status === 'pending')
             if (items.length === 0) return <p className="text-sm text-gray-400 text-center py-8">申請中のスキルはありません</p>
             return items.map(ach => {
               const skillName = ach.skills?.name ?? skills.find(s => s.id === ach.skill_id)?.name ?? '不明'
@@ -354,18 +356,43 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
               const catColor = getCategoryColor(skillCategory ?? '', categories)
               const skill = skills.find(s => s.id === ach.skill_id)
               return (
-                <div key={ach.id} onClick={() => openChatHistory(ach)} className={cn(
-                  'rounded-lg border cursor-pointer hover:shadow-sm transition-shadow py-2.5 px-3',
-                  ach.status === 'pending' && 'bg-amber-50 border-amber-100',
-                  ach.status === 'rejected' && 'bg-red-50 border-red-100',
-                )}>
+                <div key={ach.id} onClick={() => openChatHistory(ach)} className="rounded-lg border cursor-pointer hover:shadow-sm transition-shadow py-2.5 px-3 bg-amber-50 border-amber-100">
+                  <div className="flex items-start gap-3">
+                    <Clock className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-800">{skillName}</p>
+                      <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                        {skillCategory && <Badge className={cn('text-[10px] border-0', catColor)}>{skillCategory}</Badge>}
+                        <span className="text-[10px] text-gray-400">{fmtDate(ach.achieved_at)} 申請</span>
+                      </div>
+                    </div>
+                    <Badge className="text-[10px] border-0 bg-amber-100 text-amber-700 flex-shrink-0">申請中</Badge>
+                  </div>
+                </div>
+              )
+            })
+          })()}
+        </div>
+      )}
+
+      {/* 差し戻しビュー */}
+      {view === 'rejected' && (
+        <div className="space-y-2">
+          {(() => {
+            const items = historyItems.filter(a => a.status === 'rejected')
+            if (items.length === 0) return <p className="text-sm text-gray-400 text-center py-8">差し戻しはありません</p>
+            return items.map(ach => {
+              const skillName = ach.skills?.name ?? skills.find(s => s.id === ach.skill_id)?.name ?? '不明'
+              const skillCategory = (ach.skills?.category ?? skills.find(s => s.id === ach.skill_id)?.category ?? '') as Category | ''
+              const catColor = getCategoryColor(skillCategory ?? '', categories)
+              const skill = skills.find(s => s.id === ach.skill_id)
+              return (
+                <div key={ach.id} onClick={() => openChatHistory(ach)} className="rounded-lg border cursor-pointer hover:shadow-sm transition-shadow py-2.5 px-3 bg-red-50 border-red-100">
                   <div className="flex items-start gap-3">
                     {ach.certified_employee?.avatar_url ? (
                       <img src={ach.certified_employee.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0 mt-0.5" />
                     ) : (
-                      <div className="flex-shrink-0 mt-0.5">
-                        {ach.status === 'pending' ? <Clock className="w-4 h-4 text-amber-500" /> : <XCircle className="w-4 h-4 text-red-400" />}
-                      </div>
+                      <XCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
                     )}
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-800">{skillName}</p>
@@ -379,17 +406,15 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
                           {ach.certify_comment}
                         </p>
                       )}
-                      {ach.status === 'rejected' && ach.certified_at && (
+                      {ach.certified_at && (
                         <p className="text-[10px] text-red-400 mt-0.5">
                           {fmtDate(ach.certified_at)} {ach.certified_employee?.name ?? ''}が差し戻し
                         </p>
                       )}
                     </div>
-                    <Badge className={cn('text-[10px] border-0 flex-shrink-0', ach.status === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-600')}>
-                      {ach.status === 'pending' ? '申請中' : '差し戻し'}
-                    </Badge>
+                    <Badge className="text-[10px] border-0 bg-red-100 text-red-600 flex-shrink-0">差し戻し</Badge>
                   </div>
-                  {ach.status === 'rejected' && !readOnly && skill && (
+                  {!readOnly && skill && (
                     <div className="flex justify-end mt-2">
                       <button
                         onClick={(e) => { e.stopPropagation(); setReapplyDialogSkill(skill); setReapplyComment('') }}

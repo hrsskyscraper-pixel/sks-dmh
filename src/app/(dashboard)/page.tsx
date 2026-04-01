@@ -71,7 +71,7 @@ export default async function DashboardPage({
   }
 
   // testuser はRLSを回避するため admin client でデータ取得
-  const db = currentEmployee.role === 'testuser' ? createAdminClient() : supabase
+  const db = createAdminClient()
 
   // targetEmployee と searchParams を並列取得
   const [targetEmployeeResult, params] = await Promise.all([

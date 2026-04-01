@@ -146,6 +146,14 @@ export default async function DashboardLayout({
   // BottomNav は viewAs 社員のロールで表示を切り替える
   const effectiveRole: Role = (viewAsEmployee?.role as Role | undefined) ?? role
 
+  // 差し戻しスキル件数
+  const targetEmpId = viewAsId ?? employee.id
+  const { count: rejectedSkillCount } = await createAdminClient()
+    .from('achievements')
+    .select('*', { count: 'exact', head: true })
+    .eq('employee_id', targetEmpId)
+    .eq('status', 'rejected')
+
   // 承認待ち合計（スキル認定 + チーム変更 + 参加許諾）
   const approvalRoles: Role[] = ['store_manager', 'manager', 'admin', 'ops_manager', 'executive']
   let pendingApprovalCount = 0
@@ -219,7 +227,7 @@ export default async function DashboardLayout({
         <main className="pb-20 max-w-2xl mx-auto">
           {children}
         </main>
-        <BottomNav role={effectiveRole} unreadRequestCount={unreadRequestCount} pendingApprovalCount={pendingApprovalCount} dashboardBadge={dashboardBadge} avatarUrl={employee.avatar_url} employeeId={employee.id} employeeName={employee.name} />
+        <BottomNav role={effectiveRole} unreadRequestCount={unreadRequestCount} pendingApprovalCount={pendingApprovalCount} dashboardBadge={dashboardBadge} avatarUrl={employee.avatar_url} employeeId={employee.id} employeeName={employee.name} rejectedSkillCount={rejectedSkillCount ?? 0} />
         <Toaster position="top-center" richColors />
       </div>
     </NotificationCountProvider>
