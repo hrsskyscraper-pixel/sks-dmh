@@ -14,7 +14,7 @@ export default async function EmployeesPage() {
   if (!currentEmployee) redirect('/login')
 
   const supabase = await createClient()
-  const db = currentEmployee.role === 'testuser' ? createAdminClient() : supabase
+  const db = createAdminClient()
 
   const cookieStore = await cookies()
   const viewAsId = cookieStore.get(VIEW_AS_COOKIE)?.value ?? null
