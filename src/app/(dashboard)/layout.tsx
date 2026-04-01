@@ -159,6 +159,59 @@ export default async function DashboardLayout({
     pendingApprovalCount = (skillCount.count ?? 0) + (teamCount.count ?? 0) + (joinCount.count ?? 0)
   }
 
+  // ダッシュボードバッジ: 遅れスキル / 次のステップ
+  let dashboardBadge: { count: number; color: 'red' | 'blue' } | null = null
+  {
+    const targetId = viewAsId ?? employee.id
+    const adminDb = createAdminClient()
+
+    // 社員が参加するプロジェクト取得（project_teams経由）
+    const { data: tRows } = await adminDb.from('team_members').select('team_id').eq('employee_id', targetId)
+    const { data: mRows } = await adminDb.from('team_managers').select('team_id').eq('employee_id', targetId)
+    const tIds = [...new Set([...(tRows ?? []).map(r => r.team_id), ...(mRows ?? []).map(r => r.team_id)])]
+    if (tIds.length > 0) {
+      const { data: ptRows } = await adminDb.from('project_teams').select('project_id').in('team_id', tIds)
+      const projIds = [...new Set((ptRows ?? []).map(r => r.project_id))]
+      if (projIds.length > 0) {
+        const firstProjId = projIds[0]
+        const [{ data: phases }, { data: pSkills }, { data: certAch }, whResult] = await Promise.all([
+          adminDb.from('project_phases').select('id, name, order_index, end_hours').eq('project_id', firstProjId).order('order_index'),
+          adminDb.from('project_skills').select('skill_id, project_phase_id').eq('project_id', firstProjId),
+          adminDb.from('achievements').select('skill_id').eq('employee_id', targetId).eq('status', 'certified'),
+          adminDb.rpc('get_employee_cumulative_hours', { p_employee_id: targetId, p_as_of_date: new Date().toISOString().split('T')[0] }),
+        ])
+        const cumHours = (whResult as { data: number | null }).data ?? 0
+        const certifiedSkillIds = new Set((certAch ?? []).map(a => a.skill_id))
+        const phaseById = Object.fromEntries((phases ?? []).map(p => [p.id, p]))
+
+        // 遅れスキル: フェーズ目標時間 <= 累計勤務 なのに未取得
+        let delayedCount = 0
+        let nextCount = 0
+        // 現在のフェーズ（累計勤務がまだ到達していないフェーズ）
+        const sortedPhases = [...(phases ?? [])].sort((a, b) => a.order_index - b.order_index)
+        const currentPhaseIdx = sortedPhases.findIndex(p => cumHours < p.end_hours)
+
+        for (const ps of pSkills ?? []) {
+          if (certifiedSkillIds.has(ps.skill_id)) continue
+          const phase = phaseById[ps.project_phase_id ?? '']
+          if (!phase) continue
+          const phaseIdx = sortedPhases.findIndex(p => p.id === phase.id)
+          if (cumHours >= phase.end_hours) {
+            delayedCount++
+          } else if (phaseIdx <= currentPhaseIdx) {
+            nextCount++
+          }
+        }
+
+        if (delayedCount > 0) {
+          dashboardBadge = { count: delayedCount, color: 'red' }
+        } else if (nextCount > 0) {
+          dashboardBadge = { count: nextCount, color: 'blue' }
+        }
+      }
+    }
+  }
+
   return (
     <NotificationCountProvider count={unreadNotifCount}>
       <div className="min-h-screen bg-gray-50" style={viewAsEmployee ? { '--banner-h': '2.5rem' } as React.CSSProperties : undefined}>
@@ -166,7 +219,7 @@ export default async function DashboardLayout({
         <main className="pb-20 max-w-2xl mx-auto">
           {children}
         </main>
-        <BottomNav role={effectiveRole} unreadRequestCount={unreadRequestCount} pendingApprovalCount={pendingApprovalCount} />
+        <BottomNav role={effectiveRole} unreadRequestCount={unreadRequestCount} pendingApprovalCount={pendingApprovalCount} dashboardBadge={dashboardBadge} />
         <Toaster position="top-center" richColors />
       </div>
     </NotificationCountProvider>

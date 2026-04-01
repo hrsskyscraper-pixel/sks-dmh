@@ -23,9 +23,10 @@ interface NavProps {
   role: Role
   unreadRequestCount?: number
   pendingApprovalCount?: number
+  dashboardBadge?: { count: number; color: 'red' | 'blue' } | null
 }
 
-export function BottomNav({ role, unreadRequestCount = 0, pendingApprovalCount = 0 }: NavProps) {
+export function BottomNav({ role, unreadRequestCount = 0, pendingApprovalCount = 0, dashboardBadge = null }: NavProps) {
   const pathname = usePathname()
   const router = useRouter()
   const visibleItems = navItems.filter(item => (item.roles as readonly string[]).includes(role))
@@ -43,8 +44,10 @@ export function BottomNav({ role, unreadRequestCount = 0, pendingApprovalCount =
       <div className="flex justify-around items-center h-16 max-w-lg mx-auto">
         {visibleItems.map(({ href, label, icon: Icon }) => {
           const isActive = href === '/' ? pathname === '/' : pathname.startsWith(href)
-          const showBadge = (href === '/admin/teams' && unreadRequestCount > 0) || (href === '/approvals' && pendingApprovalCount > 0)
-          const badgeCount = href === '/approvals' ? pendingApprovalCount : unreadRequestCount
+          const showDashBadge = href === '/' && dashboardBadge && dashboardBadge.count > 0
+          const showBadge = showDashBadge || (href === '/admin/teams' && unreadRequestCount > 0) || (href === '/approvals' && pendingApprovalCount > 0)
+          const badgeCount = showDashBadge ? dashboardBadge!.count : href === '/approvals' ? pendingApprovalCount : unreadRequestCount
+          const badgeBg = showDashBadge ? (dashboardBadge!.color === 'red' ? 'bg-red-500' : 'bg-blue-500') : 'bg-red-500'
           return (
             <Link
               key={href}
@@ -59,7 +62,7 @@ export function BottomNav({ role, unreadRequestCount = 0, pendingApprovalCount =
               <div className="relative">
                 <Icon className={cn('w-5 h-5', isActive && 'text-orange-500')} />
                 {showBadge && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold rounded-full min-w-[14px] h-[14px] flex items-center justify-center px-0.5 leading-none">
+                  <span className={`absolute -top-1 -right-1 ${badgeBg} text-white text-[9px] font-bold rounded-full min-w-[14px] h-[14px] flex items-center justify-center px-0.5 leading-none`}>
                     {badgeCount > 9 ? '9+' : badgeCount}
                   </span>
                 )}
