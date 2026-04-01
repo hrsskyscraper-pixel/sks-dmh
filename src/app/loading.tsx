@@ -1,7 +1,6 @@
-export default function DashboardLoading() {
+export default function RootLoading() {
   return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-      {/* スピナー */}
+    <div className="flex flex-col items-center justify-center min-h-screen gap-4">
       <div className="relative w-12 h-12">
         <div className="absolute inset-0 rounded-full border-4 border-gray-200" />
         <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-orange-500 animate-spin" />
