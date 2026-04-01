@@ -127,11 +127,27 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
   const [expandedStatusGroups, setExpandedStatusGroups] = useState<Set<string>>(new Set())
   const [isPending, startTransition] = useTransition()
   const [view, setView] = useState<'skills' | 'pending' | 'certified'>('skills')
+  const [historyDialogAch, setHistoryDialogAch] = useState<AchievementWithCertifier | null>(null)
+  const [chatHistory, setChatHistory] = useState<{ id: string; action: string; actor_id: string; actor_name?: string; comment: string | null; created_at: string }[]>([])
+  const [chatLoading, setChatLoading] = useState(false)
   const [applyDialogSkill, setApplyDialogSkill] = useState<Skill | null>(null)
   const [applyComment, setApplyComment] = useState('')
   const [reapplyDialogSkill, setReapplyDialogSkill] = useState<Skill | null>(null)
   const [reapplyComment, setReapplyComment] = useState('')
   const supabase = createClient()
+
+  const openChatHistory = async (ach: AchievementWithCertifier) => {
+    setHistoryDialogAch(ach)
+    setChatLoading(true)
+    setChatHistory([])
+    const { data } = await supabase
+      .from('achievement_history')
+      .select('id, action, actor_id, comment, created_at, employees:actor_id(name)')
+      .eq('achievement_id', ach.id)
+      .order('created_at')
+    setChatHistory((data ?? []).map((h: any) => ({ ...h, actor_name: h.employees?.name ?? '不明' })))
+    setChatLoading(false)
+  }
 
   const getStatus = (skillId: string) => {
     const a = achievements.find(a => a.skill_id === skillId)
@@ -159,6 +175,7 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
 
         if (error) { toast.error('再申請に失敗しました'); return }
         setAchievements(prev => prev.map(a => a.id === existing.id ? { ...a, ...(data as AchievementWithCertifier) } : a))
+        await supabase.from('achievement_history').insert({ achievement_id: existing.id, action: 'reapply', actor_id: employeeId, comment: comment.trim() || null })
         setReapplyDialogSkill(null)
         setReapplyComment('')
         fetch('/api/skill-notification', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ employeeId, skillName: skill.name }) }).catch(() => {})
@@ -172,6 +189,7 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
 
         if (error) { toast.error('申請に失敗しました'); return }
         setAchievements(prev => [...prev, data])
+        await supabase.from('achievement_history').insert({ achievement_id: data.id, action: 'apply', actor_id: employeeId, comment: comment.trim() || null })
         fetch('/api/skill-notification', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ employeeId, skillName: skill.name }) }).catch(() => {})
         setApplyDialogSkill(null)
         setApplyComment('')
@@ -334,8 +352,8 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
               const catColor = getCategoryColor(skillCategory ?? '', categories)
               const skill = skills.find(s => s.id === ach.skill_id)
               return (
-                <div key={ach.id} className={cn(
-                  'flex items-start gap-3 py-2.5 px-3 rounded-lg border',
+                <div key={ach.id} onClick={() => openChatHistory(ach)} className={cn(
+                  'flex items-start gap-3 py-2.5 px-3 rounded-lg border cursor-pointer hover:shadow-sm transition-shadow',
                   ach.status === 'pending' && 'bg-amber-50 border-amber-100',
                   ach.status === 'rejected' && 'bg-red-50 border-red-100',
                 )}>
@@ -391,7 +409,7 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
               const skillCategory = (ach.skills?.category ?? skills.find(s => s.id === ach.skill_id)?.category ?? '') as Category | ''
               const catColor = getCategoryColor(skillCategory ?? '', categories)
               return (
-                <div key={ach.id} className="flex items-start gap-3 py-2.5 px-3 rounded-lg border bg-green-50 border-green-100">
+                <div key={ach.id} onClick={() => openChatHistory(ach)} className="flex items-start gap-3 py-2.5 px-3 rounded-lg border bg-green-50 border-green-100 cursor-pointer hover:shadow-sm transition-shadow">
                   <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-800">{skillName}</p>
@@ -672,6 +690,53 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
               再申請する
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* チャット風履歴ダイアログ */}
+      <Dialog open={!!historyDialogAch} onOpenChange={() => setHistoryDialogAch(null)}>
+        <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-base">
+              {historyDialogAch?.skills?.name ?? ''}の履歴
+            </DialogTitle>
+          </DialogHeader>
+          {chatLoading ? (
+            <div className="flex justify-center py-8">
+              <div className="w-6 h-6 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : chatHistory.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-8">履歴はまだありません</p>
+          ) : (
+            <div className="space-y-3">
+              {chatHistory.map(h => {
+                const isApplicant = h.action === 'apply' || h.action === 'reapply'
+                const actionLabels: Record<string, string> = { apply: '申請', reapply: '再申請', reject: '差し戻し', certify: '認定' }
+                const actionColors: Record<string, string> = { apply: 'bg-orange-500', reapply: 'bg-orange-500', reject: 'bg-red-500', certify: 'bg-green-500' }
+                const fmtDt = (d: string) => new Date(d).toLocaleString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+                return (
+                  <div key={h.id} className={`flex flex-col ${isApplicant ? 'items-end' : 'items-start'}`}>
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <span className={`text-[9px] text-white px-1.5 py-0.5 rounded-full ${actionColors[h.action] ?? 'bg-gray-500'}`}>
+                        {actionLabels[h.action] ?? h.action}
+                      </span>
+                      <span className="text-[10px] text-gray-500">{h.actor_name}</span>
+                      <span className="text-[10px] text-gray-400">{fmtDt(h.created_at)}</span>
+                    </div>
+                    <div className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-sm ${
+                      isApplicant
+                        ? 'bg-orange-100 text-orange-900 rounded-tr-sm'
+                        : h.action === 'certify'
+                          ? 'bg-green-100 text-green-900 rounded-tl-sm'
+                          : 'bg-red-100 text-red-900 rounded-tl-sm'
+                    }`}>
+                      {h.comment || (isApplicant ? '申請しました' : h.action === 'certify' ? '認定しました' : '差し戻しました')}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

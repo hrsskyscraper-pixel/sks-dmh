@@ -45,6 +45,14 @@ export async function POST(request: Request) {
 
   if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
 
+  // 履歴記録
+  await db.from('achievement_history').insert({
+    achievement_id: achievementId,
+    action: action === 'certified' ? 'certify' : 'reject',
+    actor_id: certifier.id,
+    comment: comment?.trim() || null,
+  })
+
   // 通知
   const emp = achievement.employees as { name: string; email: string; line_user_id: string | null } | null
   const skill = achievement.skills as { name: string } | null

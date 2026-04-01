@@ -382,6 +382,33 @@ export type Database = {
           },
         ]
       }
+      achievement_history: {
+        Row: {
+          id: string
+          achievement_id: string
+          action: 'apply' | 'reject' | 'reapply' | 'certify'
+          actor_id: string
+          comment: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          achievement_id: string
+          action: 'apply' | 'reject' | 'reapply' | 'certify'
+          actor_id: string
+          comment?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          achievement_id?: string
+          action?: 'apply' | 'reject' | 'reapply' | 'certify'
+          actor_id?: string
+          comment?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
       project_teams: {
         Row: {
           project_id: string
@@ -729,6 +756,14 @@ export type AchievementComment = Database['public']['Tables']['achievement_comme
 export type CareerRecord = { id: string; employee_id: string; record_type: string; occurred_at: string | null; related_employee_ids: string[]; department: string | null; reason: string | null; notes: string | null; created_by: string | null; created_at: string }
 export type AchievementReaction = Database['public']['Tables']['achievement_reactions']['Row']
 export type Certification = Database['public']['Tables']['certifications']['Row']
+export type AchievementHistory = {
+  id: string
+  achievement_id: string
+  action: 'apply' | 'reject' | 'reapply' | 'certify'
+  actor_id: string
+  comment: string | null
+  created_at: string
+}
 
 // LegacyPhase: 旧来の固定フェーズ型（後方互換のため残す）
 export type LegacyPhase = '4月' | '5月〜6月' | '7月〜8月'
