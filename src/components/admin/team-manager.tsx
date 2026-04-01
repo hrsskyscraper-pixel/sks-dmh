@@ -297,7 +297,7 @@ export function TeamManager({
       if (teamError) { toast.error('チームの作成に失敗しました'); return }
 
       // 主担当
-      const managerInserts = [{ team_id: team.id, employee_id: newTeamManagerId, role: 'primary' as const }]
+      const managerInserts: { team_id: string; employee_id: string; role: 'primary' | 'secondary' }[] = [{ team_id: team.id, employee_id: newTeamManagerId, role: 'primary' }]
       // 副担当
       for (const subId of newTeamSubManagerIds) {
         if (subId !== newTeamManagerId) {
