@@ -48,7 +48,11 @@ export default async function EmployeesPage() {
     db.from('employees').select('id, auth_user_id, name, name_kana, email, role, employment_type, hire_date, birth_date, avatar_url, instagram_url, line_url, status, requested_team_id, requested_project_team_id, line_user_id, notifications_read_at, created_at, updated_at').order('created_at'),
     db.from('achievements').select('employee_id, skill_id').eq('status', 'certified'),
     db.from('work_hours').select('employee_id, hours'),
-    db.from('employee_projects').select('employee_id, project_id'),
+    // project_teams + team_members 経由で employee→project マッピング
+    (async () => {
+      const { getEmployeeProjectMapping } = await import('@/lib/project-members')
+      return { data: await getEmployeeProjectMapping(db) }
+    })(),
     db.from('project_phases').select('id, project_id, name, order_index, end_hours'),
     db.from('project_skills').select('project_id, skill_id, project_phase_id'),
     db.from('teams').select('id, name, type, prefecture').order('type').order('name'),

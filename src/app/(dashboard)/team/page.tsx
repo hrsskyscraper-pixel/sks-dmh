@@ -49,7 +49,10 @@ export default async function TeamPage() {
       .order('created_at', { ascending: false }),
     db.from('team_managers').select('team_id').eq('employee_id', effectiveEmployeeId),
     db.from('work_hours').select('employee_id, hours'),
-    db.from('employee_projects').select('employee_id, project_id'),
+    (async () => {
+      const { getEmployeeProjectMapping } = await import('@/lib/project-members')
+      return { data: await getEmployeeProjectMapping(db) }
+    })(),
     db.from('project_phases').select('id, project_id, name, order_index, end_hours'),
     db.from('project_skills').select('project_id, skill_id, project_phase_id'),
     db.from('teams').select('id, name, type'),

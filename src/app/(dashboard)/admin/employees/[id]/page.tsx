@@ -21,25 +21,15 @@ export default async function EmployeeDetailPage({ params, searchParams }: { par
 
   // マネジャー・店長: 自チーム/プロジェクトのメンバーのみ
   if (isTeamAccess && currentEmployee.id !== id) {
-    const [{ data: myTeams }, { data: myProjects }] = await Promise.all([
-      db.from('team_managers').select('team_id').eq('employee_id', currentEmployee.id),
-      db.from('employee_projects').select('project_id').eq('employee_id', currentEmployee.id),
-    ])
+    const { data: myTeams } = await db.from('team_managers').select('team_id').eq('employee_id', currentEmployee.id)
     const myTeamIds = (myTeams ?? []).map(t => t.team_id)
-    const myProjectIds = (myProjects ?? []).map(p => p.project_id)
 
-    const [{ data: teamMembers }, { data: projectMembers }] = await Promise.all([
-      myTeamIds.length > 0
-        ? db.from('team_members').select('employee_id').in('team_id', myTeamIds)
-        : Promise.resolve({ data: [] }),
-      myProjectIds.length > 0
-        ? db.from('employee_projects').select('employee_id').in('project_id', myProjectIds)
-        : Promise.resolve({ data: [] }),
-    ])
+    const { data: teamMembersAccess } = myTeamIds.length > 0
+      ? await db.from('team_members').select('employee_id').in('team_id', myTeamIds)
+      : { data: [] }
 
     const accessibleIds = new Set([
-      ...(teamMembers ?? []).map(m => m.employee_id),
-      ...(projectMembers ?? []).map(m => m.employee_id),
+      ...(teamMembersAccess ?? []).map(m => m.employee_id),
       currentEmployee.id,
     ])
     if (!accessibleIds.has(id)) redirect('/admin/employees')

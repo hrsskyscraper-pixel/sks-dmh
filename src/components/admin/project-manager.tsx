@@ -28,15 +28,15 @@ import { createClient } from '@/lib/supabase/client'
 import { updateSkillCategory, updateSkillStandardHours, updateSkillName, toggleSkillCheckpoint, createSkill, deleteSkill, reorderSkills, updateSkillTargetDate } from '@/app/(dashboard)/actions'
 import { sortCategories } from '@/lib/category-order'
 import { cn } from '@/lib/utils'
-import type { SkillProject, ProjectPhase, ProjectSkill, EmployeeProject, Skill, Employee } from '@/types/database'
+import type { SkillProject, ProjectPhase, ProjectSkill, Skill, Team } from '@/types/database'
 
 interface Props {
   projects: SkillProject[]
   phases: ProjectPhase[]
   projectSkills: ProjectSkill[]
-  employeeProjects: EmployeeProject[]
+  projectTeams: { project_id: string; team_id: string }[]
   allSkills: Skill[]
-  employees: Pick<Employee, 'id' | 'name' | 'employment_type' | 'hire_date'>[]
+  teams: Pick<Team, 'id' | 'name' | 'type'>[]
 }
 
 const CATEGORY_ROW_COLORS: Record<number, { checked: string; unchecked: string }> = {
@@ -56,9 +56,9 @@ export function ProjectManager({
   projects: initialProjects,
   phases: initialPhases,
   projectSkills: initialProjectSkills,
-  employeeProjects: initialEmployeeProjects,
+  projectTeams: initialProjectTeams,
   allSkills,
-  employees,
+  teams,
 }: Props) {
   const supabase = createClient()
   const [isPending, startTransition] = useTransition()
@@ -77,7 +77,7 @@ export function ProjectManager({
   const [projects, setProjects] = useState(initialProjects)
   const [phases, setPhases] = useState(initialPhases)
   const [projectSkills, setProjectSkills] = useState(initialProjectSkills)
-  const [employeeProjects, setEmployeeProjects] = useState(initialEmployeeProjects)
+  const [projectTeamsState, setProjectTeamsState] = useState(initialProjectTeams)
 
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
     initialProjects[0]?.id ?? null
@@ -108,8 +108,8 @@ export function ProjectManager({
   for (const ps of projectSkills.filter(ps => ps.project_id === selectedProjectId)) {
     skillPhaseMap[ps.skill_id] = ps.project_phase_id
   }
-  const memberIds = new Set(
-    employeeProjects.filter(ep => ep.project_id === selectedProjectId).map(ep => ep.employee_id)
+  const linkedTeamIds = new Set(
+    projectTeamsState.filter(pt => pt.project_id === selectedProjectId).map(pt => pt.team_id)
   )
 
   // ===== プロジェクト操作 =====
@@ -352,29 +352,25 @@ export function ProjectManager({
 
   // ===== メンバー操作 =====
 
-  function handleToggleMember(employeeId: string, isMember: boolean) {
+  function handleToggleTeam(teamId: string, isLinked: boolean) {
     if (!selectedProjectId) return
     startTransition(async () => {
-      if (isMember) {
-        // 削除
+      if (isLinked) {
         const { error } = await supabase
-          .from('employee_projects')
+          .from('project_teams')
           .delete()
           .eq('project_id', selectedProjectId)
-          .eq('employee_id', employeeId)
-        if (error) { toast.error('メンバーの削除に失敗しました'); return }
-        setEmployeeProjects(prev => prev.filter(ep => !(ep.project_id === selectedProjectId && ep.employee_id === employeeId)))
-        toast.success('メンバーを削除しました')
+          .eq('team_id', teamId)
+        if (error) { toast.error('チームの削除に失敗しました'); return }
+        setProjectTeamsState(prev => prev.filter(pt => !(pt.project_id === selectedProjectId && pt.team_id === teamId)))
+        toast.success('チームを外しました')
       } else {
-        // 追加
-        const { data, error } = await supabase
-          .from('employee_projects')
-          .insert({ project_id: selectedProjectId, employee_id: employeeId })
-          .select()
-          .single()
-        if (error) { toast.error('メンバーの追加に失敗しました'); return }
-        setEmployeeProjects(prev => [...prev, data])
-        toast.success('メンバーを追加しました')
+        const { error } = await supabase
+          .from('project_teams')
+          .insert({ project_id: selectedProjectId, team_id: teamId })
+        if (error) { toast.error('チームの追加に失敗しました'); return }
+        setProjectTeamsState(prev => [...prev, { project_id: selectedProjectId, team_id: teamId }])
+        toast.success('チームを追加しました')
       }
     })
   }
@@ -444,7 +440,7 @@ export function ProjectManager({
             <TabsList className="grid grid-cols-3 w-full">
               <TabsTrigger value="phases">フェーズ</TabsTrigger>
               <TabsTrigger value="skills">スキル</TabsTrigger>
-              <TabsTrigger value="members">メンバー</TabsTrigger>
+              <TabsTrigger value="members">チーム</TabsTrigger>
             </TabsList>
 
             {/* ===== フェーズタブ ===== */}
@@ -674,33 +670,36 @@ export function ProjectManager({
               </p>
             </TabsContent>
 
-            {/* ===== メンバータブ ===== */}
+            {/* ===== チームタブ ===== */}
             <TabsContent value="members" className="space-y-2 mt-3">
               <p className="text-xs text-muted-foreground px-1">
-                メンバー数: {memberIds.size}名
+                紐づけチーム数: {linkedTeamIds.size}
               </p>
-              {employees.map(emp => {
-                const isMember = memberIds.has(emp.id)
+              {teams.map(team => {
+                const isLinked = linkedTeamIds.has(team.id)
+                const TEAM_TYPE_LABELS: Record<string, string> = { store: '店舗', project: 'チーム', department: '部署' }
                 return (
                   <div
-                    key={emp.id}
+                    key={team.id}
                     className={cn(
                       'flex items-center gap-3 rounded-lg px-3 py-2.5 border',
-                      isMember ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-100'
+                      isLinked ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-100'
                     )}
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-800">{emp.name}</p>
-                      <p className="text-[10px] text-muted-foreground">{emp.employment_type}</p>
+                      <div className="flex items-center gap-1.5">
+                        <Badge className="text-[9px] bg-gray-200 text-gray-600 border-0">{TEAM_TYPE_LABELS[team.type] ?? team.type}</Badge>
+                        <p className="text-sm font-medium text-gray-800">{team.name}</p>
+                      </div>
                     </div>
                     <Button
                       size="sm"
-                      variant={isMember ? 'outline' : 'default'}
-                      className={cn('h-7 text-xs px-2', isMember ? 'border-red-200 text-red-600 hover:bg-red-50' : 'bg-blue-500 hover:bg-blue-600 text-white')}
-                      onClick={() => handleToggleMember(emp.id, isMember)}
+                      variant={isLinked ? 'outline' : 'default'}
+                      className={cn('h-7 text-xs px-2', isLinked ? 'border-red-200 text-red-600 hover:bg-red-50' : 'bg-blue-500 hover:bg-blue-600 text-white')}
+                      onClick={() => handleToggleTeam(team.id, isLinked)}
                       disabled={isPending}
                     >
-                      {isMember
+                      {isLinked
                         ? <><UserMinus className="w-3 h-3 mr-1" />外す</>
                         : <><UserPlus className="w-3 h-3 mr-1" />追加</>
                       }

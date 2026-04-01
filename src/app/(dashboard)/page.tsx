@@ -82,15 +82,18 @@ export default async function DashboardPage({
   ])
   const employee = (targetEmployeeResult as { data: typeof currentEmployee | null }).data ?? currentEmployee
 
-  // 参加プロジェクト一覧
-  const { data: employeeProjectRows } = await db
-    .from('employee_projects')
-    .select('project_id, skill_projects(id, name, is_active)')
-    .eq('employee_id', employee.id)
-
-  const employeeProjects = (employeeProjectRows ?? [])
-    .map(r => r.skill_projects)
-    .filter((p): p is NonNullable<typeof p> => p !== null && (p as { is_active: boolean }).is_active)
+  // 参加プロジェクト一覧（project_teams + team_members 経由）
+  const { data: myTeamRows } = await db.from('team_members').select('team_id').eq('employee_id', employee.id)
+  const { data: myManagerRows } = await db.from('team_managers').select('team_id').eq('employee_id', employee.id)
+  const myTeamIds = [...new Set([...(myTeamRows ?? []).map(r => r.team_id), ...(myManagerRows ?? []).map(r => r.team_id)])]
+  const { data: myProjectTeamRows } = myTeamIds.length > 0
+    ? await db.from('project_teams').select('project_id').in('team_id', myTeamIds)
+    : { data: [] }
+  const myProjectIds = [...new Set((myProjectTeamRows ?? []).map(r => r.project_id))]
+  const { data: myProjects } = myProjectIds.length > 0
+    ? await db.from('skill_projects').select('id, name, is_active').in('id', myProjectIds).eq('is_active', true)
+    : { data: [] }
+  const employeeProjects = myProjects ?? []
 
   const requestedProjectId = (params as { project_id?: string } | undefined)?.project_id
   const selectedProject = employeeProjects.find(p => p.id === requestedProjectId)

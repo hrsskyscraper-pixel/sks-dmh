@@ -382,6 +382,21 @@ export type Database = {
           },
         ]
       }
+      project_teams: {
+        Row: {
+          project_id: string
+          team_id: string
+        }
+        Insert: {
+          project_id: string
+          team_id: string
+        }
+        Update: {
+          project_id?: string
+          team_id?: string
+        }
+        Relationships: []
+      }
       skills: {
         Row: {
           id: string

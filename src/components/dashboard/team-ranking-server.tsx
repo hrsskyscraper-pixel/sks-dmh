@@ -26,7 +26,10 @@ export async function TeamRankingServer({ employeeId, employeeRole, selectedProj
     db.from('employees').select('id, name, avatar_url, employment_type, hire_date').eq('role', 'employee').order('name'),
     db.from('achievements').select('employee_id, skill_id').eq('status', 'certified'),
     db.from('work_hours').select('employee_id, hours'),
-    db.from('employee_projects').select('employee_id, project_id'),
+    (async () => {
+      const { getEmployeeProjectMapping } = await import('@/lib/project-members')
+      return { data: await getEmployeeProjectMapping(db) }
+    })(),
     db.from('project_phases').select('id, project_id, name, order_index, end_hours, created_at'),
     db.from('project_skills').select('project_id, skill_id, project_phase_id'),
     db.from('teams').select('id, name, type'),
