@@ -133,7 +133,7 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
   })()
   const [view, setView] = useState<'skills' | 'pending' | 'certified'>(initialTab)
   const [historyDialogAch, setHistoryDialogAch] = useState<AchievementWithCertifier | null>(null)
-  const [chatHistory, setChatHistory] = useState<{ id: string; action: string; actor_id: string; actor_name?: string; comment: string | null; created_at: string }[]>([])
+  const [chatHistory, setChatHistory] = useState<{ id: string; action: string; actor_id: string; actor_name: string; actor_avatar: string | null; comment: string | null; created_at: string }[]>([])
   const [chatLoading, setChatLoading] = useState(false)
   const [applyDialogSkill, setApplyDialogSkill] = useState<Skill | null>(null)
   const [applyComment, setApplyComment] = useState('')
@@ -145,12 +145,9 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
     setHistoryDialogAch(ach)
     setChatLoading(true)
     setChatHistory([])
-    const { data } = await supabase
-      .from('achievement_history')
-      .select('id, action, actor_id, comment, created_at, employees:actor_id(name)')
-      .eq('achievement_id', ach.id)
-      .order('created_at')
-    setChatHistory((data ?? []).map((h: any) => ({ ...h, actor_name: h.employees?.name ?? '不明' })))
+    const res = await fetch(`/api/achievement-history?id=${ach.id}`)
+    const data = await res.json()
+    setChatHistory(data)
     setChatLoading(false)
   }
 
@@ -720,22 +717,31 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
                 const actionColors: Record<string, string> = { apply: 'bg-orange-500', reapply: 'bg-orange-500', reject: 'bg-red-500', certify: 'bg-green-500' }
                 const fmtDt = (d: string) => new Date(d).toLocaleString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
                 return (
-                  <div key={h.id} className={`flex flex-col ${isApplicant ? 'items-end' : 'items-start'}`}>
-                    <div className="flex items-center gap-1.5 mb-0.5">
-                      <span className={`text-[9px] text-white px-1.5 py-0.5 rounded-full ${actionColors[h.action] ?? 'bg-gray-500'}`}>
-                        {actionLabels[h.action] ?? h.action}
-                      </span>
-                      <span className="text-[10px] text-gray-500">{h.actor_name}</span>
-                      <span className="text-[10px] text-gray-400">{fmtDt(h.created_at)}</span>
-                    </div>
-                    <div className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-sm ${
-                      isApplicant
-                        ? 'bg-orange-100 text-orange-900 rounded-tr-sm'
-                        : h.action === 'certify'
-                          ? 'bg-green-100 text-green-900 rounded-tl-sm'
-                          : 'bg-red-100 text-red-900 rounded-tl-sm'
-                    }`}>
-                      {h.comment || (isApplicant ? '申請しました' : h.action === 'certify' ? '認定しました' : '差し戻しました')}
+                  <div key={h.id} className={`flex gap-2 ${isApplicant ? 'flex-row-reverse' : 'flex-row'}`}>
+                    {h.actor_avatar ? (
+                      <img src={h.actor_avatar} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0 mt-4" />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0 mt-4">
+                        <span className="text-[10px] text-gray-500 font-bold">{h.actor_name?.charAt(0)}</span>
+                      </div>
+                    )}
+                    <div className={`flex flex-col ${isApplicant ? 'items-end' : 'items-start'} flex-1 min-w-0`}>
+                      <div className={`flex items-center gap-1.5 mb-0.5 ${isApplicant ? 'flex-row-reverse' : ''}`}>
+                        <span className={`text-[9px] text-white px-1.5 py-0.5 rounded-full ${actionColors[h.action] ?? 'bg-gray-500'}`}>
+                          {actionLabels[h.action] ?? h.action}
+                        </span>
+                        <span className="text-[10px] text-gray-500">{h.actor_name}</span>
+                        <span className="text-[10px] text-gray-400">{fmtDt(h.created_at)}</span>
+                      </div>
+                      <div className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-sm ${
+                        isApplicant
+                          ? 'bg-orange-100 text-orange-900 rounded-tr-sm'
+                          : h.action === 'certify'
+                            ? 'bg-green-100 text-green-900 rounded-tl-sm'
+                            : 'bg-red-100 text-red-900 rounded-tl-sm'
+                      }`}>
+                        {h.comment || (isApplicant ? '申請しました' : h.action === 'certify' ? '認定しました' : '差し戻しました')}
+                      </div>
                     </div>
                   </div>
                 )
