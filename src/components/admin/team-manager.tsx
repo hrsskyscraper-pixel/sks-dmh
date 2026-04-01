@@ -702,6 +702,41 @@ export function TeamManager({
         </Card>
       )}
 
+      {/* 自分の所属（チーム・部署・店舗すべて） */}
+      {(() => {
+        const isMine = (t: Team) => getTeamManagerIds(t.id).includes(effectiveEmployee.id) || getTeamMemberIds(t.id).includes(effectiveEmployee.id)
+        const myTeamsList = teams.filter(isMine)
+        if (myTeamsList.length === 0) return null
+        return (
+          <>
+            <p className="text-xs font-semibold text-orange-600 mt-1 mb-1 flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 bg-orange-500 rounded-full" />
+              自分の所属
+            </p>
+            {myTeamsList.map(team => {
+              const memberIds = getTeamMemberIds(team.id)
+              const managerIds = getTeamManagerIds(team.id)
+              const isManagedByMe = managerIds.includes(effectiveEmployee.id)
+              return (
+                <Card key={`my-${team.id}`} className="border-orange-200 bg-orange-50/50">
+                  <CardContent className="py-2.5 px-4">
+                    <div className="flex items-center gap-2">
+                      <Badge className={`${TEAM_TYPE_COLORS[team.type]} text-[9px] border-0 flex-shrink-0`}>{TEAM_TYPE_LABELS[team.type]}</Badge>
+                      <p className="text-sm font-medium text-gray-800 truncate flex-1">{team.name}</p>
+                      {isManagedByMe && <Badge className="bg-orange-100 text-orange-700 text-[9px] border-0">リーダー</Badge>}
+                      <span className="text-[10px] text-gray-400 flex-shrink-0">{memberIds.length + managerIds.length}名</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
+            <p className="text-xs font-semibold text-gray-400 mt-3 mb-1 flex items-center gap-1.5">
+              すべてのチーム・部署・店舗
+            </p>
+          </>
+        )
+      })()}
+
       {/* チーム (project) */}
       {[...teams].filter(t => t.type === 'project').sort((a, b) => {
         const aIsMine = getTeamManagerIds(a.id).includes(effectiveEmployee.id) || getTeamMemberIds(a.id).includes(effectiveEmployee.id)
