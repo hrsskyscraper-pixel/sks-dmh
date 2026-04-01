@@ -60,7 +60,7 @@ export async function POST(request: Request) {
   const statusText = isCertified ? '認定されました' : '差し戻されました'
   const systemUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://sks-dmh.vercel.app'
 
-  const skillsUrl = `${systemUrl}/skills?tab=${isCertified ? 'certified' : 'pending'}`
+  const skillsUrl = `${systemUrl}/skills?tab=${isCertified ? 'certified' : 'rejected'}`
 
   if (emp && skill) {
     // メール

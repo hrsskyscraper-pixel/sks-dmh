@@ -495,7 +495,7 @@ export function DashboardContent({
               <Card
                 key={notification.id}
                 className={cn('border cursor-pointer hover:shadow-sm transition-shadow', notification.status === 'certified' ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50')}
-                onClick={() => { window.location.href = `/skills?tab=${isRejected ? 'pending' : 'certified'}` }}
+                onClick={() => { window.location.href = `/skills?tab=${isRejected ? 'rejected' : 'certified'}` }}
               >
                 <CardContent className="py-3 px-4">
                   <div className="flex items-start gap-3">
@@ -520,7 +520,7 @@ export function DashboardContent({
                       )}
                     </div>
                     {isRejected ? (
-                      <Button size="sm" className="h-7 text-xs px-2 flex-shrink-0 bg-orange-500 hover:bg-orange-600 text-white" onClick={(e) => { e.stopPropagation(); handleMarkAsRead(notification.id); window.location.href = '/skills?tab=pending' }} disabled={isPending}>再申請</Button>
+                      <Button size="sm" className="h-7 text-xs px-2 flex-shrink-0 bg-orange-500 hover:bg-orange-600 text-white" onClick={(e) => { e.stopPropagation(); handleMarkAsRead(notification.id); window.location.href = '/skills?tab=rejected' }} disabled={isPending}>再申請</Button>
                     ) : (
                       <Button size="sm" variant="outline" className="h-7 text-xs px-2 flex-shrink-0" onClick={(e) => { e.stopPropagation(); handleMarkAsRead(notification.id) }} disabled={isPending}>既読</Button>
                     )}
