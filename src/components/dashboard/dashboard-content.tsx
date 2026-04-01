@@ -476,14 +476,23 @@ export function DashboardContent({
             <Card key={notification.id} className={cn('border', notification.status === 'certified' ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50')}>
               <CardContent className="py-3 px-4">
                 <div className="flex items-start gap-3">
-                  <div className="flex-shrink-0 mt-0.5">
-                    {notification.status === 'certified' ? <CheckCircle2 className="w-5 h-5 text-green-500" /> : <XCircle className="w-5 h-5 text-red-400" />}
-                  </div>
+                  {(notification as any).certified_employee?.avatar_url ? (
+                    <img src={(notification as any).certified_employee.avatar_url} alt="" className="w-9 h-9 rounded-full object-cover flex-shrink-0" />
+                  ) : (
+                    <div className="flex-shrink-0 mt-0.5">
+                      {notification.status === 'certified' ? <CheckCircle2 className="w-5 h-5 text-green-500" /> : <XCircle className="w-5 h-5 text-red-400" />}
+                    </div>
+                  )}
                   <div className="flex-1 min-w-0">
                     <p className={cn('text-sm font-medium', notification.status === 'certified' ? 'text-green-700' : 'text-red-600')}>
                       {notification.status === 'certified' ? '認定されました！' : '差し戻しがあります'}
                     </p>
                     <p className="text-sm text-gray-800">{notification.skills?.name}</p>
+                    {(notification as any).certified_employee?.name && (
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        {notification.status === 'certified' ? '認定者' : '差し戻し者'}: {(notification as any).certified_employee.name}
+                      </p>
+                    )}
                     {notification.certify_comment && (
                       <p className="text-xs text-gray-600 mt-1 bg-white/70 rounded px-2 py-1">💬 {notification.certify_comment}</p>
                     )}
