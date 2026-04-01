@@ -1139,6 +1139,12 @@ export function TeamManager({
                         <div>
                           <div className="flex items-center justify-between mb-1.5">
                             <p className="text-xs font-medium text-gray-600">メンバー</p>
+                            {isDirectEdit && (
+                              <Button variant="ghost" size="sm" className="h-6 text-xs text-blue-600 hover:text-blue-800 px-2"
+                                onClick={() => { setAddDialog({ type: 'member', teamId: storeTeam.id }); setSelectedEmployeeIds(new Set()) }} disabled={isPending}>
+                                <UserPlus className="w-3 h-3 mr-1" />追加
+                              </Button>
+                            )}
                           </div>
                           <div className="flex flex-wrap gap-1.5">
                             {memberIds.length === 0 && <p className="text-xs text-muted-foreground">メンバーなし</p>}
@@ -1151,13 +1157,24 @@ export function TeamManager({
                                     <AvatarFallback className="text-[8px] bg-gray-300 text-gray-600">{emp?.name.charAt(0)}</AvatarFallback>
                                   </Avatar>
                                   <span className="text-xs text-gray-700">{getEmployeeName(empId)}</span>
+                                  {isDirectEdit && (
+                                    <button onClick={() => setConfirmDialog({ title: 'メンバー削除', message: `${getEmployeeName(empId)} を「${storeTeam.name}」から削除しますか？`, confirmLabel: '削除', confirmClassName: 'flex-1 bg-red-500 hover:bg-red-600 text-white', onConfirm: () => handleRemoveMember(storeTeam.id, empId) })} className="text-gray-300 hover:text-red-500 ml-0.5"><X className="w-3 h-3" /></button>
+                                  )}
                                 </div>
                               )
                             })}
                           </div>
                         </div>
                         <div>
-                          <p className="text-xs font-medium text-gray-600 mb-1.5">担当リーダー</p>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <p className="text-xs font-medium text-gray-600">担当リーダー</p>
+                            {isDirectEdit && (
+                              <Button variant="ghost" size="sm" className="h-6 text-xs text-blue-600 hover:text-blue-800 px-2"
+                                onClick={() => { setAddDialog({ type: 'manager', teamId: storeTeam.id }); setSelectedEmployeeIds(new Set()) }} disabled={isPending}>
+                                <UserPlus className="w-3 h-3 mr-1" />追加
+                              </Button>
+                            )}
+                          </div>
                           <div className="flex flex-wrap gap-1.5">
                             {managerIds.length === 0 && <p className="text-xs text-muted-foreground">担当なし</p>}
                             {teamManagers.filter(m => m.team_id === storeTeam.id).map(manager => {
@@ -1171,6 +1188,9 @@ export function TeamManager({
                                     <AvatarFallback className={`text-[8px] ${isPrimary ? 'bg-amber-300 text-amber-700' : 'bg-blue-300 text-blue-700'}`}>{emp?.name.charAt(0)}</AvatarFallback>
                                   </Avatar>
                                   <span className={`text-xs ${isPrimary ? 'text-amber-700' : 'text-blue-700'}`}>{getEmployeeName(manager.employee_id)}</span>
+                                  {isDirectEdit && (
+                                    <button onClick={() => setConfirmDialog({ title: 'リーダー削除', message: `${getEmployeeName(manager.employee_id)} を「${storeTeam.name}」のリーダーから削除しますか？`, confirmLabel: '削除', confirmClassName: 'flex-1 bg-red-500 hover:bg-red-600 text-white', onConfirm: () => handleRemoveManager(storeTeam.id, manager.employee_id) })} className={`${isPrimary ? 'text-amber-400' : 'text-blue-400'} hover:text-red-500 ml-0.5`}><UserMinus className="w-3 h-3" /></button>
+                                  )}
                                 </div>
                               )
                             })}
