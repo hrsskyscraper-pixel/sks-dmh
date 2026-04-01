@@ -60,6 +60,8 @@ export async function POST(request: Request) {
   const statusText = isCertified ? '認定されました' : '差し戻されました'
   const systemUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://sks-dmh.vercel.app'
 
+  const skillsUrl = `${systemUrl}/skills?tab=${isCertified ? 'certified' : 'pending'}`
+
   if (emp && skill) {
     // メール
     await sendMail({
@@ -70,11 +72,11 @@ export async function POST(request: Request) {
         '',
         `スキル「${skill.name}」が${statusText}。`,
         '',
-        `認定者: ${certifier.name}`,
+        `${isCertified ? '認定者' : '差し戻し者'}: ${certifier.name}`,
         ...(comment?.trim() ? [`コメント: ${comment.trim()}`] : []),
         '',
         `詳細はこちらから確認できます。`,
-        systemUrl,
+        skillsUrl,
       ].join('\n'),
     }).catch(err => console.error('スキル結果メール送信失敗:', err))
 
@@ -82,7 +84,7 @@ export async function POST(request: Request) {
     if (emp.line_user_id) {
       await sendLineMessage(
         emp.line_user_id,
-        `【Growth Driver】\nスキル「${skill.name}」が${statusText}。\n${comment?.trim() ? `コメント: ${comment.trim()}\n` : ''}確認: ${systemUrl}`
+        `【Growth Driver】\nスキル「${skill.name}」が${statusText}。\n${isCertified ? '認定者' : '差し戻し者'}: ${certifier.name}\n${comment?.trim() ? `コメント: ${comment.trim()}\n` : ''}\n確認: ${skillsUrl}`
       ).catch(err => console.error('スキル結果LINE通知失敗:', err))
     }
   }

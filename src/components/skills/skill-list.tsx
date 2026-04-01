@@ -178,7 +178,7 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
         await supabase.from('achievement_history').insert({ achievement_id: existing.id, action: 'reapply', actor_id: employeeId, comment: comment.trim() || null })
         setReapplyDialogSkill(null)
         setReapplyComment('')
-        fetch('/api/skill-notification', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ employeeId, skillName: skill.name }) }).catch(() => {})
+        fetch('/api/skill-notification', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ employeeId, skillName: skill.name, isReapply: true, comment: comment.trim() || null }) }).catch(() => {})
         toast.success(`「${skill.name}」を再申請しました！`, { description: '認定者の確認をお待ちください' })
       } else {
         const { data, error } = await supabase
@@ -190,7 +190,7 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
         if (error) { toast.error('申請に失敗しました'); return }
         setAchievements(prev => [...prev, data])
         await supabase.from('achievement_history').insert({ achievement_id: data.id, action: 'apply', actor_id: employeeId, comment: comment.trim() || null })
-        fetch('/api/skill-notification', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ employeeId, skillName: skill.name }) }).catch(() => {})
+        fetch('/api/skill-notification', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ employeeId, skillName: skill.name, isReapply: false, comment: comment.trim() || null }) }).catch(() => {})
         setApplyDialogSkill(null)
         setApplyComment('')
         toast.success(`「${skill.name}」を申請しました！`, { description: '認定者の確認をお待ちください' })

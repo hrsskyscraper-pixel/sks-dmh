@@ -141,7 +141,7 @@ export function DashboardContent({
       if (error) { toast.error('申請に失敗しました'); return }
       setAchievementList(prev => [...prev, data])
       await supabase.from('achievement_history').insert({ achievement_id: data.id, action: 'apply' as const, actor_id: employee.id, comment: applyComment.trim() || null })
-      fetch('/api/skill-notification', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ employeeId: employee.id, skillName: skill.name }) }).catch(() => {})
+      fetch('/api/skill-notification', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ employeeId: employee.id, skillName: skill.name, isReapply: false, comment: applyComment.trim() || null }) }).catch(() => {})
       setApplyDialogSkill(null)
       setApplyComment('')
       toast.success(`「${skill.name}」を申請しました！`, { description: '認定者の確認をお待ちください' })
