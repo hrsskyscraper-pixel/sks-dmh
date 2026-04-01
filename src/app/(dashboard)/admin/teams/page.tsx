@@ -39,6 +39,8 @@ export default async function AdminTeamsPage() {
     { data: teamManagers },
     { data: employees },
     { data: changeRequests },
+    { data: projectTeamsData },
+    { data: projectsData },
   ] = await Promise.all([
     db.from('teams').select('id, name, type, prefecture, created_at, updated_at').order('name'),
     db.from('team_members').select('team_id, employee_id'),
@@ -47,7 +49,20 @@ export default async function AdminTeamsPage() {
     db.from('team_change_requests')
       .select('id, status, request_type, team_id, payload, requested_by, reviewed_by, reviewed_at, review_comment, applicant_read_at, created_at')
       .order('created_at', { ascending: false }),
+    db.from('project_teams').select('project_id, team_id'),
+    db.from('skill_projects').select('id, name').eq('is_active', true),
   ])
+
+  // チーム→プロジェクト名マップ
+  const projectNameMap = Object.fromEntries((projectsData ?? []).map(p => [p.id, p.name]))
+  const teamProjectNames: Record<string, string[]> = {}
+  for (const pt of projectTeamsData ?? []) {
+    const name = projectNameMap[pt.project_id]
+    if (name) {
+      if (!teamProjectNames[pt.team_id]) teamProjectNames[pt.team_id] = []
+      teamProjectNames[pt.team_id].push(name)
+    }
+  }
 
   return (
     <>
@@ -61,6 +76,7 @@ export default async function AdminTeamsPage() {
         teamManagers={teamManagers ?? []}
         employees={employees ?? []}
         changeRequests={changeRequests ?? []}
+        teamProjectNames={teamProjectNames}
       />
     </>
   )

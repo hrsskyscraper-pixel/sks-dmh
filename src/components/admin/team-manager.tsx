@@ -32,6 +32,7 @@ interface Props {
   teamManagers: TeamManager[]
   employees: Employee[]
   changeRequests: TeamChangeRequest[]
+  teamProjectNames?: Record<string, string[]>
 }
 
 type RequestType = TeamChangeRequest['request_type']
@@ -81,6 +82,7 @@ export function TeamManager({
   teamManagers: initialTeamManagers,
   employees,
   changeRequests: initialChangeRequests,
+  teamProjectNames = {},
 }: Props) {
   const searchParams = useSearchParams()
   const initialTab = searchParams.get('tab') === 'requests' ? 'requests' : 'teams'
@@ -735,6 +737,13 @@ export function TeamManager({
                       </Button>
                     </div>
                     <p className="text-xs text-muted-foreground">メンバー {memberIds.length}名　担当リーダー {managerIds.length}名</p>
+                    {teamProjectNames[team.id]?.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {teamProjectNames[team.id].map(pn => (
+                          <Badge key={pn} className="text-[9px] bg-violet-100 text-violet-700 border-0">{pn}</Badge>
+                        ))}
+                      </div>
+                    )}
                   </CardHeader>
                   {isExpanded && (
                     <CardContent className="px-4 pb-3 space-y-3">
@@ -858,6 +867,13 @@ export function TeamManager({
               <p className="text-xs text-muted-foreground">
                 メンバー {memberIds.length}名　担当リーダー {managerIds.length}名
               </p>
+              {teamProjectNames[team.id]?.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {teamProjectNames[team.id].map(pn => (
+                    <Badge key={pn} className="text-[9px] bg-violet-100 text-violet-700 border-0">{pn}</Badge>
+                  ))}
+                </div>
+              )}
             </CardHeader>
 
             {isExpanded && (
@@ -1090,6 +1106,13 @@ export function TeamManager({
                 </div>
               </div>
               <p className="text-xs text-muted-foreground">メンバー {memberIds.length}名　担当リーダー {managerIds.length}名</p>
+              {teamProjectNames[team.id]?.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {teamProjectNames[team.id].map(pn => (
+                    <Badge key={pn} className="text-[9px] bg-violet-100 text-violet-700 border-0">{pn}</Badge>
+                  ))}
+                </div>
+              )}
             </CardHeader>
             {isExpanded && (
               <CardContent className="px-4 pb-3 space-y-3">
@@ -1232,6 +1255,13 @@ export function TeamManager({
                         </div>
                       </div>
                       <p className="text-xs text-muted-foreground">メンバー {memberIds.length}名　担当リーダー {managerIds.length}名</p>
+                      {teamProjectNames[storeTeam.id]?.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {teamProjectNames[storeTeam.id].map(pn => (
+                            <Badge key={pn} className="text-[9px] bg-violet-100 text-violet-700 border-0">{pn}</Badge>
+                          ))}
+                        </div>
+                      )}
                     </CardHeader>
                     {isExpanded && (
                       <CardContent className="px-4 pb-3 space-y-3">
