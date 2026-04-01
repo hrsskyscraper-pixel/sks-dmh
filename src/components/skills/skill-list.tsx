@@ -126,7 +126,12 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(allKeys))
   const [expandedStatusGroups, setExpandedStatusGroups] = useState<Set<string>>(new Set())
   const [isPending, startTransition] = useTransition()
-  const [view, setView] = useState<'skills' | 'pending' | 'certified'>('skills')
+  const initialTab = (() => {
+    const t = searchParams.get('tab')
+    if (t === 'pending' || t === 'certified') return t
+    return 'skills' as const
+  })()
+  const [view, setView] = useState<'skills' | 'pending' | 'certified'>(initialTab)
   const [historyDialogAch, setHistoryDialogAch] = useState<AchievementWithCertifier | null>(null)
   const [chatHistory, setChatHistory] = useState<{ id: string; action: string; actor_id: string; actor_name?: string; comment: string | null; created_at: string }[]>([])
   const [chatLoading, setChatLoading] = useState(false)

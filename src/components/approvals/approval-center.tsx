@@ -61,6 +61,26 @@ export function ApprovalCenter({
   const [tab, setTab] = useState<Tab>('all')
   const supabase = createClient()
 
+  // チャット風履歴
+  const [chatAchId, setChatAchId] = useState<string | null>(null)
+  const [chatSkillName, setChatSkillName] = useState('')
+  const [chatHistory, setChatHistory] = useState<{ id: string; action: string; actor_name: string; comment: string | null; created_at: string }[]>([])
+  const [chatLoading, setChatLoading] = useState(false)
+
+  const openChat = async (achievementId: string, skillName: string) => {
+    setChatAchId(achievementId)
+    setChatSkillName(skillName)
+    setChatLoading(true)
+    setChatHistory([])
+    const { data } = await supabase
+      .from('achievement_history')
+      .select('id, action, actor_id, comment, created_at, employees:actor_id(name)')
+      .eq('achievement_id', achievementId)
+      .order('created_at')
+    setChatHistory((data ?? []).map((h: any) => ({ ...h, actor_name: h.employees?.name ?? '不明' })))
+    setChatLoading(false)
+  }
+
   // スキル認定
   const [certifyComment, setCertifyComment] = useState('')
   const [certifyTarget, setCertifyTarget] = useState<any>(null)
@@ -221,7 +241,7 @@ export function ApprovalCenter({
             const skill = a.skills
             const isCertified = a.status === 'certified'
             return (
-              <Card key={a.id}>
+              <Card key={a.id} className="cursor-pointer hover:shadow-sm transition-shadow" onClick={() => openChat(a.id, skill?.name ?? '')}>
                 <CardContent className="py-3 px-4">
                   <div className="flex items-center gap-3">
                     <Avatar className="w-9 h-9 flex-shrink-0">
@@ -259,7 +279,7 @@ export function ApprovalCenter({
               const emp = a.employees
               const skill = a.skills
               return (
-                <Card key={`skill-${a.id}`}>
+                <Card key={`skill-${a.id}`} className="cursor-pointer hover:shadow-sm transition-shadow" onClick={() => openChat(a.id, skill?.name ?? '')}>
                   <CardContent className="py-3 px-4">
                     <div className="flex items-center gap-3">
                       <Avatar className="w-9 h-9 flex-shrink-0">
@@ -278,12 +298,12 @@ export function ApprovalCenter({
                       </div>
                       <div className="flex gap-1 flex-shrink-0">
                         <Button size="sm" className="h-7 px-2 bg-green-500 hover:bg-green-600 text-[11px]"
-                          onClick={() => { setCertifyTarget(a); setCertifyAction('certified'); setCertifyComment('') }}
+                          onClick={(e) => { e.stopPropagation(); setCertifyTarget(a); setCertifyAction('certified'); setCertifyComment('') }}
                           disabled={isPending}>
                           <CheckCircle className="w-3 h-3 mr-0.5" />認定
                         </Button>
                         <Button size="sm" variant="outline" className="h-7 px-2 text-[11px] text-red-500 border-red-200 hover:bg-red-50"
-                          onClick={() => { setCertifyTarget(a); setCertifyAction('rejected'); setCertifyComment('') }}
+                          onClick={(e) => { e.stopPropagation(); setCertifyTarget(a); setCertifyAction('rejected'); setCertifyComment('') }}
                           disabled={isPending}>
                           <XCircle className="w-3 h-3 mr-0.5" />戻す
                         </Button>
@@ -439,6 +459,51 @@ export function ApprovalCenter({
               承認する
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* チャット風履歴ダイアログ */}
+      <Dialog open={!!chatAchId} onOpenChange={() => setChatAchId(null)}>
+        <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-base">{chatSkillName}の履歴</DialogTitle>
+          </DialogHeader>
+          {chatLoading ? (
+            <div className="flex justify-center py-8">
+              <div className="w-6 h-6 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : chatHistory.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-8">履歴はまだありません</p>
+          ) : (
+            <div className="space-y-3">
+              {chatHistory.map(h => {
+                const isApplicant = h.action === 'apply' || h.action === 'reapply'
+                const actionLabels: Record<string, string> = { apply: '申請', reapply: '再申請', reject: '差し戻し', certify: '認定' }
+                const actionColors: Record<string, string> = { apply: 'bg-orange-500', reapply: 'bg-orange-500', reject: 'bg-red-500', certify: 'bg-green-500' }
+                const fmtDt = (d: string) => new Date(d).toLocaleString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+                return (
+                  <div key={h.id} className={`flex flex-col ${isApplicant ? 'items-end' : 'items-start'}`}>
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <span className={`text-[9px] text-white px-1.5 py-0.5 rounded-full ${actionColors[h.action] ?? 'bg-gray-500'}`}>
+                        {actionLabels[h.action] ?? h.action}
+                      </span>
+                      <span className="text-[10px] text-gray-500">{h.actor_name}</span>
+                      <span className="text-[10px] text-gray-400">{fmtDt(h.created_at)}</span>
+                    </div>
+                    <div className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-sm ${
+                      isApplicant
+                        ? 'bg-orange-100 text-orange-900 rounded-tr-sm'
+                        : h.action === 'certify'
+                          ? 'bg-green-100 text-green-900 rounded-tl-sm'
+                          : 'bg-red-100 text-red-900 rounded-tl-sm'
+                    }`}>
+                      {h.comment || (isApplicant ? '申請しました' : h.action === 'certify' ? '認定しました' : '差し戻しました')}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
