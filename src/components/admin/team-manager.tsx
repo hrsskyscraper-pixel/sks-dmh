@@ -760,7 +760,7 @@ export function TeamManager({
                         <p className="text-xs font-medium text-gray-600 mb-1.5">担当リーダー</p>
                         <div className="flex flex-wrap gap-1.5">
                           {managerIds.length === 0 && <p className="text-xs text-muted-foreground">担当なし</p>}
-                          {teamManagers.filter(m => m.team_id === team.id).map(manager => {
+                          {teamManagers.filter(m => m.team_id === team.id).sort((a, b) => a.role === 'primary' ? -1 : b.role === 'primary' ? 1 : 0).map(manager => {
                             const emp = getEmployee(manager.employee_id)
                             const isPrimary = manager.role === 'primary'
                             return (
