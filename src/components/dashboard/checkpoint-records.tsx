@@ -59,7 +59,7 @@ export async function CheckpointRecords({ employeeId, employeeRole, projectSkill
   }
   const { data: holders } = await db
     .from('employees')
-    .select('id, name, avatar_url')
+    .select('id, name, last_name, avatar_url')
     .in('id', [...allHolderIds])
   const holderMap = Object.fromEntries((holders ?? []).map(e => [e.id, e]))
 
@@ -98,12 +98,12 @@ export async function CheckpointRecords({ employeeId, employeeRole, projectSkill
               const MEDALS = ['🥇', '🥈', '🥉']
               return (
                 <div key={skill.id} className={`rounded-lg px-3 py-2 ${isAchieved ? 'bg-green-50 border border-green-200' : 'bg-gray-50 border border-gray-100'}`}>
-                  <div className="flex items-center gap-1.5 mb-1 sm:mb-0 sm:inline-flex sm:w-[160px] sm:flex-shrink-0">
-                    <Badge className="text-[9px] bg-red-500 text-white border-0 px-1.5">CP</Badge>
+                  <div className="flex items-center gap-1.5 mb-1.5 sm:mb-0 sm:w-[140px] sm:flex-shrink-0">
+                    <Badge className="text-[9px] bg-red-500 text-white border-0 px-1.5 flex-shrink-0">CP</Badge>
                     <p className="text-sm font-semibold text-gray-800 truncate" title={skill.name}>{skill.name}</p>
                     {isAchieved && <span className="text-[10px] text-green-600 font-bold flex-shrink-0">達成済</span>}
                   </div>
-                  <div className="flex items-center gap-2 sm:inline-flex sm:flex-1 sm:min-w-0">
+                  <div className="flex items-center gap-3">
                     {[1, 2, 3].map(rank => {
                       const entry = top3.find(e => e.rank === rank)
                       const holder = entry ? holderMap[entry.employeeId] : null
@@ -122,7 +122,7 @@ export async function CheckpointRecords({ employeeId, employeeRole, projectSkill
                                 <AvatarImage src={holder?.avatar_url ?? undefined} />
                                 <AvatarFallback className={`text-[8px] font-bold ${isMe ? 'bg-orange-200 text-orange-700' : 'bg-gray-200 text-gray-600'}`}>{holder?.name?.charAt(0) ?? '?'}</AvatarFallback>
                               </Avatar>
-                              <span className={`text-[11px] truncate ${isMe ? 'font-bold text-orange-600' : 'text-gray-700'}`}>{holder?.name?.split(/\s/)[0] ?? '?'}</span>
+                              <span className={`text-[11px] flex-shrink-0 ${isMe ? 'font-bold text-orange-600' : 'text-gray-700'}`}>{holder?.last_name ?? '?'}</span>
                               <span className={`text-[11px] flex-shrink-0 ${isMe ? 'font-bold text-orange-500' : 'text-gray-400'}`}>{entry.hours}h</span>
                             </>
                           ) : (
