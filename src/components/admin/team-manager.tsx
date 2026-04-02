@@ -562,30 +562,37 @@ export function TeamManager({
     setPrimaryConflict(null)
     setPendingAddManager(null)
 
-    // まず既存主担当を処理
     startTransition(async () => {
+      // まず既存主担当を処理
       if (action === 'secondary') {
-        // 元主担当を副に降格
         await supabase.from('team_managers').update({ role: 'secondary' }).eq('team_id', teamId).eq('employee_id', existingPrimaryId)
         setTeamManagers(prev => prev.map(m =>
           m.team_id === teamId && m.employee_id === existingPrimaryId ? { ...m, role: 'secondary' as const } : m
         ))
       } else {
-        // 元主担当をメンバーに降格
         await supabase.from('team_managers').delete().eq('team_id', teamId).eq('employee_id', existingPrimaryId)
         await supabase.from('team_members').insert({ team_id: teamId, employee_id: existingPrimaryId, sort_order: 999 })
         setTeamManagers(prev => prev.filter(m => !(m.team_id === teamId && m.employee_id === existingPrimaryId)))
         setTeamMembers(prev => [...prev, { team_id: teamId, employee_id: existingPrimaryId, sort_order: 999 }])
       }
 
-      // 新しい人を主担当に（ダイアログ経由 or ドラッグ経由）
-      if (pending) {
-        // ダイアログ経由: doAddManager
-        doAddManager(teamId, pending.employeeIds, 'primary')
-      } else {
-        // ドラッグ経由: doPromote
-        doPromote(empId, teamId, 'primary')
+      // 新しい人を主担当に追加（同じtransition内で直接実行）
+      const newIds = pending ? pending.employeeIds : [empId]
+      const { error } = await supabase.from('team_managers').insert(newIds.map(id => ({ team_id: teamId, employee_id: id, role: 'primary' as const, sort_order: 0 })))
+      if (error) { toast.error('追加に失敗しました'); return }
+      // メンバーから削除
+      for (const id of newIds) {
+        if (teamMembers.some(m => m.team_id === teamId && m.employee_id === id)) {
+          await supabase.from('team_members').delete().eq('team_id', teamId).eq('employee_id', id)
+        }
       }
+      setTeamMembers(prev => prev.filter(m => !(m.team_id === teamId && newIds.includes(m.employee_id))))
+      setTeamManagers(prev => [...prev, ...newIds.map(id => ({ team_id: teamId, employee_id: id, role: 'primary' as const, sort_order: 0 }))])
+      const teamName = teams.find(t => t.id === teamId)?.name ?? ''
+      for (const id of newIds) {
+        await logDirectAction('add_manager', teamId, { team_name: teamName, employee_id: id, employee_name: getEmployeeName(id), role: 'primary' })
+      }
+      toast.success(`${getEmployeeName(newIds[0])}を主担当リーダーに変更しました`)
     })
   }
 
