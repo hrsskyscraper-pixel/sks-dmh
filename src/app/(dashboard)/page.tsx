@@ -199,22 +199,22 @@ export default async function DashboardPage({
       <TopBar
         title="Growth Driver"
         right={
-          <div className="flex items-end gap-3">
+          <div className="flex items-end gap-2 sm:gap-3">
             <div className="text-right">
-              <p className="text-xs text-muted-foreground">標準完了</p>
-              <p className="text-base font-bold text-gray-400">{standardEndHours}h</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground leading-tight">標準<br className="sm:hidden" />完了</p>
+              <p className="text-sm sm:text-base font-bold text-gray-400">{standardEndHours}h</p>
             </div>
             <div className="text-right">
-              <p className="text-xs text-muted-foreground">8h換算</p>
-              <p className="text-base font-bold text-gray-400">{Math.floor(standardEndHours / 8)}日</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground leading-tight">8h<br className="sm:hidden" />換算</p>
+              <p className="text-sm sm:text-base font-bold text-gray-400">{Math.floor(standardEndHours / 8)}日</p>
             </div>
             <div className="text-right">
-              <p className="text-xs text-muted-foreground">累計勤務</p>
-              <p className="text-base font-bold text-orange-500">{workHoursSum}h</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground leading-tight">累計<br className="sm:hidden" />勤務</p>
+              <p className="text-sm sm:text-base font-bold text-orange-500">{workHoursSum}h</p>
             </div>
             <div className="text-right">
-              <p className="text-xs text-muted-foreground">8h換算</p>
-              <p className="text-base font-bold text-gray-600">{Math.floor(workHoursSum / 8)}日</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground leading-tight">8h<br className="sm:hidden" />換算</p>
+              <p className="text-sm sm:text-base font-bold text-gray-600">{Math.floor(workHoursSum / 8)}日</p>
             </div>
           </div>
         }

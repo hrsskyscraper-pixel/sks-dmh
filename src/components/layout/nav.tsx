@@ -11,13 +11,12 @@ import { useNotificationCount } from '@/components/layout/notification-context'
 import type { Role } from '@/types/database'
 
 const navItems = [
-  { href: '/',                 label: 'ダッシュボード', icon: LayoutDashboard,    roles: ['employee', 'store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'] },
-  { href: '/skills',           label: 'スキル',         icon: CheckSquare,        roles: ['employee', 'store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'] },
-  { href: '/timeline',         label: 'タイムライン',   icon: MessageSquare,      roles: ['employee', 'store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'] },
-  { href: '/approvals',        label: '承認',            icon: BadgeCheck,         roles: ['store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'] },
-  { href: '/admin/teams',      label: 'チーム',          icon: Building2,          roles: ['employee', 'store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'] },
-  { href: '/admin/employees',  label: 'メンバー',        icon: Users2,             roles: ['employee', 'store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'] },
-  { href: '/admin/settings',   label: '設定',             icon: Settings,           roles: ['admin', 'ops_manager', 'executive'] },
+  { href: '/',                 label: 'ホーム',     icon: LayoutDashboard,    roles: ['employee', 'store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'] },
+  { href: '/skills',           label: 'スキル',     icon: CheckSquare,        roles: ['employee', 'store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'] },
+  { href: '/timeline',         label: 'TL',         icon: MessageSquare,      roles: ['employee', 'store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'] },
+  { href: '/approvals',        label: '承認',        icon: BadgeCheck,         roles: ['store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'] },
+  { href: '/admin/teams',      label: 'チーム',      icon: Building2,          roles: ['employee', 'store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'] },
+  { href: '/admin/employees',  label: '仲間',        icon: Users2,             roles: ['employee', 'store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'] },
 ] as const
 
 interface NavProps {
@@ -31,7 +30,7 @@ interface NavProps {
   rejectedSkillCount?: number
 }
 
-function AccountMenu({ avatarUrl, employeeId, employeeName, onLogout }: { avatarUrl?: string | null; employeeId?: string; employeeName?: string; onLogout: () => void }) {
+function AccountMenu({ avatarUrl, employeeId, employeeName, role, onLogout }: { avatarUrl?: string | null; employeeId?: string; employeeName?: string; role?: Role; onLogout: () => void }) {
   const [open, setOpen] = useState(false)
   return (
     <div className="relative">
@@ -75,6 +74,16 @@ function AccountMenu({ avatarUrl, employeeId, employeeName, onLogout }: { avatar
               <HelpCircle className="w-4 h-4 text-gray-400" />
               使い方ガイド
             </Link>
+            {role && ['admin', 'ops_manager', 'executive'].includes(role) && (
+              <Link
+                href="/admin/settings"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-2 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                <Settings className="w-4 h-4 text-gray-400" />
+                設定
+              </Link>
+            )}
             <button
               onClick={() => { setOpen(false); onLogout() }}
               className="flex items-center gap-2 px-3 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors w-full text-left"
@@ -139,6 +148,7 @@ export function BottomNav({ role, unreadRequestCount = 0, pendingApprovalCount =
           avatarUrl={avatarUrl}
           employeeId={employeeId}
           employeeName={employeeName}
+          role={role}
           onLogout={handleLogout}
         />
       </div>
