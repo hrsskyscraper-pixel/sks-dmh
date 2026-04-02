@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
+import { changeEmployeeRole } from '@/app/(dashboard)/actions'
 import { Plus, Trash2, ArrowLeft, Users, Briefcase, GraduationCap, MapPin, ArrowRightLeft, FileText, Pencil, Instagram, MessageCircle, X, Store, FolderKanban, Building2, Award, Star, UserCog, LogIn, Camera, Loader2, ChevronDown, ChevronRight, Target } from 'lucide-react'
 import { CertIcon as CertIconComponent, getCertColorClasses } from '@/components/admin/certification-manager'
 import { addCareerRecord, updateCareerRecord, deleteCareerRecord, updateEmployeeName } from '@/app/(dashboard)/actions'
@@ -158,12 +159,17 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
     const rm = ROLE_MAP.find(r => r.display === editRole)
     if (!rm || !editLastName.trim()) return
     startTransition(async () => {
+      // ロール変更があれば監査ログ付きサーバーアクションを使用
+      const roleChanged = rm.role !== employee.role || rm.employment_type !== employee.employment_type
+      if (roleChanged) {
+        const { error: roleErr } = await changeEmployeeRole(employee.id, rm.role, rm.employment_type)
+        if (roleErr) { toast.error(roleErr); return }
+      }
       const { error } = await supabase.from('employees').update({
         last_name: editLastName.trim(),
         first_name: editFirstName.trim(),
         name_kana: editNameKana.trim() || null,
-        role: rm.role,
-        employment_type: rm.employment_type,
+        ...(!roleChanged ? { role: rm.role, employment_type: rm.employment_type } : {}),
         birth_date: editBirthDate || null,
         instagram_url: editInstagram || null,
         line_url: editLineUrl || null,

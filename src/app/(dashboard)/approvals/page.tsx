@@ -76,6 +76,26 @@ export default async function ApprovalsPage() {
     : { data: [] }
   const reviewerMap = Object.fromEntries((reviewerEmployees ?? []).map(e => [e.id, e]))
 
+  // 監査ログ（ロール変更等）
+  const { data: auditLogs } = await db
+    .from('admin_audit_log')
+    .select('id, action, actor_id, target_id, details, created_at')
+    .order('created_at', { ascending: false })
+    .limit(50)
+
+  // 監査ログの関係者名を追加
+  const auditPersonIds = new Set<string>()
+  for (const log of auditLogs ?? []) {
+    auditPersonIds.add(log.actor_id)
+    if (log.target_id) auditPersonIds.add(log.target_id)
+  }
+  // reviewerMapに不足分を追加
+  const missingIds = [...auditPersonIds].filter(id => !reviewerMap[id])
+  if (missingIds.length > 0) {
+    const { data: extra } = await db.from('employees').select('id, name, avatar_url').in('id', missingIds)
+    for (const e of extra ?? []) reviewerMap[e.id] = e
+  }
+
   // 2. チーム変更承認待ち
   const { data: pendingTeamRequests } = await db
     .from('team_change_requests')
@@ -123,6 +143,7 @@ export default async function ApprovalsPage() {
         recentTeamRequests={(recentTeamRequests ?? []) as any[]}
         recentJoins={(recentJoins ?? []) as any[]}
         reviewerMap={reviewerMap as Record<string, { id: string; name: string; avatar_url: string | null }>}
+        auditLogs={(auditLogs ?? []) as any[]}
       />
     </>
   )

@@ -18,6 +18,7 @@ import { createClient } from '@/lib/supabase/client'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
 import { Store, FolderKanban, Building2, ChevronDown, ChevronRight, MapPin, Award, Star, Instagram, MessageCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { changeEmployeeRole } from '@/app/(dashboard)/actions'
 import type { Employee, Role, EmploymentType, Team, TeamMember } from '@/types/database'
 
 // UI上の表示役割
@@ -194,13 +195,9 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
     else                                  { role = 'employee';     employment_type = '社員' }
 
     startTransition(async () => {
-      const { error } = await supabase
-        .from('employees')
-        .update({ role, employment_type })
-        .eq('id', employeeId)
-
+      const { error } = await changeEmployeeRole(employeeId, role, employment_type)
       if (error) {
-        toast.error('更新に失敗しました')
+        toast.error(error)
         return
       }
 

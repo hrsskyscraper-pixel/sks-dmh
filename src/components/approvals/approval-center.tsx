@@ -53,17 +53,19 @@ interface Props {
   recentTeamRequests: any[]
   recentJoins: any[]
   reviewerMap: Record<string, { id: string; name: string; avatar_url: string | null }>
+  auditLogs: any[]
 }
 
 export function ApprovalCenter({
   pendingAchievements, pendingTeamRequests, pendingJoins,
   teamMap, projectTeams, currentEmployeeId, isSystemAdmin, approverRole, storeDeptTeams,
-  recentAchievements, recentTeamRequests, recentJoins, reviewerMap,
+  recentAchievements, recentTeamRequests, recentJoins, reviewerMap, auditLogs,
 }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [tab, setTab] = useState<Tab>('all')
-  const [doneFilter, setDoneFilter] = useState<'all' | 'skill' | 'team' | 'join'>('all')
+  const [doneFilter, setDoneFilter] = useState<'all' | 'skill' | 'team' | 'join' | 'audit'>('all')
+  const [donePersonFilter, setDonePersonFilter] = useState<'all' | 'actor' | 'target'>('all')
   const supabase = createClient()
 
   // チャット風履歴
@@ -201,13 +203,18 @@ export function ApprovalCenter({
   }
 
   // 処理済み統合リスト
-  type DoneItem = { type: 'skill' | 'team' | 'join'; date: string; data: any }
+  type DoneItem = { type: 'skill' | 'team' | 'join' | 'audit'; date: string; data: any; actorId?: string; targetId?: string }
   const doneItems: DoneItem[] = []
-  for (const a of recentAchievements) doneItems.push({ type: 'skill', date: a.certified_at, data: a })
-  for (const r of recentTeamRequests) doneItems.push({ type: 'team', date: r.reviewed_at, data: r })
-  for (const j of recentJoins) doneItems.push({ type: 'join', date: j.approved_at ?? j.updated_at, data: j })
+  for (const a of recentAchievements) doneItems.push({ type: 'skill', date: a.certified_at, data: a, actorId: a.certified_by, targetId: a.employee_id })
+  for (const r of recentTeamRequests) doneItems.push({ type: 'team', date: r.reviewed_at, data: r, actorId: r.reviewed_by, targetId: r.requested_by })
+  for (const j of recentJoins) doneItems.push({ type: 'join', date: j.approved_at ?? j.updated_at, data: j, actorId: j.approved_by, targetId: j.id })
+  for (const log of auditLogs.filter(l => l.action !== 'approve_join')) {
+    doneItems.push({ type: 'audit', date: log.created_at, data: log, actorId: log.actor_id, targetId: log.target_id })
+  }
   doneItems.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-  const filteredDone = doneFilter === 'all' ? doneItems : doneItems.filter(i => i.type === doneFilter)
+  let filteredDone = doneFilter === 'all' ? doneItems : doneItems.filter(i => i.type === doneFilter)
+  if (donePersonFilter === 'actor') filteredDone = filteredDone.filter(i => i.actorId === currentEmployeeId)
+  else if (donePersonFilter === 'target') filteredDone = filteredDone.filter(i => i.targetId === currentEmployeeId)
 
   const tabs: { key: Tab; label: string; count: number }[] = [
     { key: 'all', label: 'すべて', count: counts.all },
@@ -244,10 +251,19 @@ export function ApprovalCenter({
         <div className="space-y-2">
           {/* サブフィルタ */}
           <div className="flex gap-1 overflow-x-auto pb-1">
-            {([['all', 'すべて'], ['skill', 'スキル認定'], ['team', 'チーム変更'], ['join', '参加許諾']] as const).map(([key, label]) => (
+            {([['all', 'すべて'], ['skill', 'スキル認定'], ['team', 'チーム変更'], ['join', '参加許諾'], ['audit', '管理操作']] as const).map(([key, label]) => (
               <button key={key} onClick={() => setDoneFilter(key)}
                 className={`px-2.5 py-1 rounded-full text-[11px] font-medium whitespace-nowrap transition-colors ${
                   doneFilter === key ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                }`}>{label}</button>
+            ))}
+          </div>
+          {/* 承認者/申請者フィルタ */}
+          <div className="flex gap-1">
+            {([['all', '全員'], ['actor', '自分が処理'], ['target', '自分が対象']] as const).map(([key, label]) => (
+              <button key={key} onClick={() => setDonePersonFilter(key)}
+                className={`px-2.5 py-1 rounded-full text-[11px] font-medium whitespace-nowrap transition-colors ${
+                  donePersonFilter === key ? 'bg-orange-500 text-white' : 'bg-orange-50 text-orange-600 hover:bg-orange-100'
                 }`}>{label}</button>
             ))}
           </div>
@@ -351,6 +367,48 @@ export function ApprovalCenter({
                         </p>
                         {teamName && <p className="text-xs text-blue-500 mt-0.5">{teamName}</p>}
                         {approver && <p className="text-[11px] text-gray-400 mt-0.5">承認: {approver.name}</p>}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            }
+            if (item.type === 'audit') {
+              const log = item.data
+              const actor = reviewerMap[log.actor_id]
+              const target = reviewerMap[log.target_id]
+              const details = log.details as Record<string, any>
+              const AUDIT_LABELS: Record<string, string> = {
+                change_role: 'ロール変更',
+                approve_join: '参加承認',
+              }
+              const ROLE_LABELS: Record<string, string> = {
+                employee: '社員', store_manager: '店長', manager: 'マネジャー',
+                admin: '開発者', ops_manager: '運用管理者', executive: '役員',
+              }
+              const desc = log.action === 'change_role'
+                ? `${ROLE_LABELS[details.old_role] ?? details.old_role} → ${ROLE_LABELS[details.new_role] ?? details.new_role}`
+                : ''
+              return (
+                <Card key={`done-audit-${log.id}`}>
+                  <CardContent className="py-3 px-4">
+                    <div className="flex items-start gap-3">
+                      <Avatar className="w-9 h-9 flex-shrink-0">
+                        <AvatarImage src={target?.avatar_url ?? undefined} />
+                        <AvatarFallback className="text-xs bg-amber-100 text-amber-700">{target?.name?.charAt(0) ?? '?'}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <Badge className="text-[9px] bg-amber-100 text-amber-700 border-0">管理操作</Badge>
+                          <Badge className="text-[9px] bg-gray-100 text-gray-600 border-0">{AUDIT_LABELS[log.action] ?? log.action}</Badge>
+                          <span className="text-xs text-gray-400">{fmtTime(log.created_at)}</span>
+                        </div>
+                        <p className="text-sm font-medium text-gray-800 mt-0.5">
+                          {details.target_name ?? target?.name ?? '不明'} {desc && <span className="text-amber-600">{desc}</span>}
+                        </p>
+                        <p className="text-[11px] text-gray-400 mt-0.5">
+                          実行: {actor?.name ?? '不明'}
+                        </p>
                       </div>
                     </div>
                   </CardContent>

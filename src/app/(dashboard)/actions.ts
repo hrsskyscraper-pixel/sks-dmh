@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
+import { writeAuditLog } from '@/lib/audit'
 
 export async function setViewAs(employeeId: string) {
   const supabase = await createClient()
@@ -251,5 +252,41 @@ export async function toggleSkillCheckpoint(skillId: string, isCheckpoint: boole
   const adminDb = createAdminClient()
   const { error } = await adminDb.from('skills').update({ is_checkpoint: isCheckpoint }).eq('id', skillId)
   if (error) return { error: error.message }
+  return {}
+}
+
+export async function changeEmployeeRole(employeeId: string, newRole: string, newEmploymentType: string): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: '認証エラー' }
+
+  const { data: actor } = await supabase.from('employees').select('id, role').eq('auth_user_id', user.id).single()
+  if (!actor) return { error: '権限がありません' }
+
+  // 旧ロール取得
+  const adminDb = createAdminClient()
+  const { data: target } = await adminDb.from('employees').select('role, employment_type, name').eq('id', employeeId).single()
+  if (!target) return { error: '対象社員が見つかりません' }
+
+  const { error } = await adminDb.from('employees').update({
+    role: newRole as 'employee' | 'store_manager' | 'manager' | 'admin' | 'ops_manager' | 'executive',
+    employment_type: newEmploymentType as '社員' | 'メイト',
+  }).eq('id', employeeId)
+  if (error) return { error: error.message }
+
+  // 監査ログ
+  await writeAuditLog({
+    action: 'change_role',
+    actorId: actor.id,
+    targetId: employeeId,
+    details: {
+      old_role: target.role,
+      old_employment_type: target.employment_type,
+      new_role: newRole,
+      new_employment_type: newEmploymentType,
+      target_name: target.name,
+    },
+  })
+
   return {}
 }

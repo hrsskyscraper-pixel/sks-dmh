@@ -87,6 +87,33 @@ export type Database = {
         }
         Relationships: []
       }
+      admin_audit_log: {
+        Row: {
+          id: string
+          action: string
+          actor_id: string
+          target_id: string | null
+          details: Record<string, unknown>
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          action: string
+          actor_id: string
+          target_id?: string | null
+          details?: Record<string, unknown>
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          action?: string
+          actor_id?: string
+          target_id?: string | null
+          details?: Record<string, unknown>
+          created_at?: string
+        }
+        Relationships: []
+      }
       teams: {
         Row: {
           id: string

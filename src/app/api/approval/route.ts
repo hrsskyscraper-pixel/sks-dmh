@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { sendApprovalNotification } from '@/lib/notifications'
+import { writeAuditLog } from '@/lib/audit'
 import type { Role } from '@/types/database'
 
 const APPROVAL_ROLES: Role[] = ['store_manager', 'manager', 'admin', 'ops_manager', 'executive']
@@ -80,6 +81,14 @@ export async function POST(request: Request) {
     ...(lastName ? { last_name: lastName.trim(), first_name: (firstName || '').trim() } : {}),
   }).eq('id', employeeId)
   if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
+
+  // 監査ログ
+  await writeAuditLog({
+    action: 'approve_join',
+    actorId: approver.id,
+    targetId: employeeId,
+    details: { role: dbRole, employment_type: employmentType, team_id: effectiveTeamId, target_name: target.name },
+  })
 
   // 2. team_members に追加（設定されている場合のみ）
   if (effectiveTeamId) {
