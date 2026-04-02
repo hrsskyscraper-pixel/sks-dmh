@@ -109,8 +109,6 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
   const [employees, setEmployees] = useState(initialEmployees)
   const [isPending, startTransition] = useTransition()
   const [uploadingId, setUploadingId] = useState<string | null>(null)
-  const [editingNameId, setEditingNameId] = useState<string | null>(null)
-  const [editingNameValue, setEditingNameValue] = useState('')
   const managedSet = new Set(managedMemberIds)
 
   // 店舗マッピング
@@ -205,20 +203,6 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
         prev.map(e => e.id === employeeId ? { ...e, role, employment_type } : e)
       )
       toast.success(`${displayRole}に変更しました`)
-    })
-  }
-
-  const handleNameSave = (employeeId: string) => {
-    const trimmed = editingNameValue.trim()
-    if (!trimmed) { setEditingNameId(null); return }
-    const original = employees.find(e => e.id === employeeId)?.name
-    if (trimmed === original) { setEditingNameId(null); return }
-    startTransition(async () => {
-      const { error } = await supabase.from('employees').update({ name: trimmed }).eq('id', employeeId)
-      if (error) { toast.error('名前の更新に失敗しました'); return }
-      setEmployees(prev => prev.map(e => e.id === employeeId ? { ...e, name: trimmed } : e))
-      setEditingNameId(null)
-      toast.success('名前を更新しました')
     })
   }
 
@@ -454,21 +438,9 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
                 <div className="flex-1 min-w-0">
                   {/* 名前 + 役割バッジ */}
                   <div className="flex items-center gap-1.5 mb-1">
-                    {editingNameId === employee.id ? (
-                      <input
-                        className="text-sm font-medium text-gray-800 border-b-2 border-orange-400 outline-none bg-transparent min-w-0"
-                        value={editingNameValue}
-                        onChange={e => setEditingNameValue(e.target.value)}
-                        onBlur={() => handleNameSave(employee.id)}
-                        onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) handleNameSave(employee.id); if (e.key === 'Escape') setEditingNameId(null) }}
-                        autoFocus
-                        disabled={isPending}
-                      />
-                    ) : (
-                      <Link href={`/admin/employees/${employee.id}`} className="text-sm font-medium text-gray-800 hover:text-orange-600 hover:underline transition-colors">
-                        {employee.name}
-                      </Link>
-                    )}
+                    <Link href={`/admin/employees/${employee.id}`} className="text-sm font-medium text-gray-800 hover:text-orange-600 hover:underline transition-colors">
+                      {employee.name}
+                    </Link>
                     {employee.instagram_url && (
                       <a href={employee.instagram_url.startsWith('http') ? employee.instagram_url : `https://instagram.com/${employee.instagram_url.replace(/^@/, '')}`} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-pink-500 transition-colors" onClick={e => e.stopPropagation()}>
                         <Instagram className="w-3.5 h-3.5" />
@@ -570,12 +542,6 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
                             <FileText className="w-3.5 h-3.5" />
                             メンバーキャリア
                           </Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => { setEditingNameId(employee.id); setEditingNameValue(employee.name) }}
-                          className="text-sm"
-                        >
-                          名前を編集
                         </DropdownMenuItem>
                         {availableRoles
                           .filter(r => r !== displayRole)
