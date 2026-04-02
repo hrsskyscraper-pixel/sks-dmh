@@ -23,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Plus, Pencil, Archive, ArchiveRestore, Trash2, GripVertical, UserMinus, UserPlus, ChevronDown, ChevronRight, MapPin, Store, FolderKanban, Building2 } from 'lucide-react'
+import { Plus, Pencil, Archive, ArchiveRestore, Trash2, GripVertical, UserMinus, UserPlus, ChevronDown, ChevronRight, MapPin, Store, FolderKanban, Building2, Copy } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { updateSkillCategory, updateSkillStandardHours, updateSkillName, toggleSkillCheckpoint, createSkill, deleteSkill, reorderSkills, updateSkillTargetDate } from '@/app/(dashboard)/actions'
 import { sortCategories } from '@/lib/category-order'
@@ -167,6 +167,49 @@ export function ProjectManager({
       if (error) { toast.error('変更に失敗しました'); return }
       setProjects(prev => prev.map(p => p.id === data.id ? data : p))
       toast.success(data.is_active ? 'プロジェクトを有効化しました' : 'アーカイブしました')
+    })
+  }
+
+  function handleCopyProject(project: SkillProject) {
+    startTransition(async () => {
+      // 1. 新プロジェクト作成
+      const { data: newProject, error: pErr } = await supabase
+        .from('skill_projects')
+        .insert({ name: `${project.name}（コピー）`, description: project.description })
+        .select()
+        .single()
+      if (pErr || !newProject) { toast.error('コピーに失敗しました'); return }
+
+      // 2. フェーズをコピー（IDマッピング保持）
+      const srcPhases = phases.filter(p => p.project_id === project.id).sort((a, b) => a.order_index - b.order_index)
+      const phaseIdMap: Record<string, string> = {}
+      if (srcPhases.length > 0) {
+        const { data: newPhases, error: phErr } = await supabase
+          .from('project_phases')
+          .insert(srcPhases.map(p => ({ project_id: newProject.id, name: p.name, order_index: p.order_index, end_hours: p.end_hours })))
+          .select()
+        if (phErr || !newPhases) { toast.error('フェーズのコピーに失敗しました'); return }
+        const sortedNew = newPhases.sort((a, b) => a.order_index - b.order_index)
+        srcPhases.forEach((src, i) => { phaseIdMap[src.id] = sortedNew[i].id })
+        setPhases(prev => [...prev, ...sortedNew])
+      }
+
+      // 3. スキル割当をコピー（フェーズIDを新IDに変換）
+      const srcSkills = projectSkills.filter(ps => ps.project_id === project.id)
+      if (srcSkills.length > 0) {
+        const newSkillRows = srcSkills.map(ps => ({
+          project_id: newProject.id,
+          skill_id: ps.skill_id,
+          project_phase_id: ps.project_phase_id ? (phaseIdMap[ps.project_phase_id] ?? null) : null,
+        }))
+        const { error: sErr } = await supabase.from('project_skills').insert(newSkillRows)
+        if (sErr) { toast.error('スキル割当のコピーに失敗しました'); return }
+        setProjectSkills(prev => [...prev, ...newSkillRows])
+      }
+
+      setProjects(prev => [...prev, newProject])
+      setSelectedProjectId(newProject.id)
+      toast.success('プロジェクトをコピーしました')
     })
   }
 
@@ -425,6 +468,9 @@ export function ProjectManager({
                 <div className="flex gap-1.5 flex-shrink-0">
                   <Button size="sm" variant="outline" className="h-7 text-xs px-2" onClick={() => openEditProject(selectedProject)} disabled={isPending}>
                     <Pencil className="w-3.5 h-3.5 mr-1" />編集
+                  </Button>
+                  <Button size="sm" variant="outline" className="h-7 text-xs px-2" onClick={() => handleCopyProject(selectedProject)} disabled={isPending}>
+                    <Copy className="w-3.5 h-3.5 mr-1" />コピー
                   </Button>
                   <Button size="sm" variant="outline" className="h-7 text-xs px-2" onClick={() => handleToggleArchive(selectedProject)} disabled={isPending}>
                     {selectedProject.is_active
