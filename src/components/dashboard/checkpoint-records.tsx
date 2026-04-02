@@ -122,6 +122,7 @@ export async function CheckpointRecords({ employeeId, employeeRole, projectSkill
                                 <AvatarImage src={holder?.avatar_url ?? undefined} />
                                 <AvatarFallback className={`text-[8px] font-bold ${isMe ? 'bg-orange-200 text-orange-700' : 'bg-gray-200 text-gray-600'}`}>{holder?.name?.charAt(0) ?? '?'}</AvatarFallback>
                               </Avatar>
+                              <span className={`text-[11px] truncate ${isMe ? 'font-bold text-orange-600' : 'text-gray-700'}`}>{holder?.name?.split(/\s/)[0] ?? '?'}</span>
                               <span className={`text-[11px] flex-shrink-0 ${isMe ? 'font-bold text-orange-500' : 'text-gray-400'}`}>{entry.hours}h</span>
                             </>
                           ) : (
