@@ -39,14 +39,40 @@ export default async function ApprovalsPage() {
     ? (pendingAchievements ?? [])
     : (pendingAchievements ?? []).filter(a => managedMemberIds.includes(a.employee_id))
 
-  // 処理済みスキル認定（直近20件）
+  // 処理済みスキル認定（承認権限者全員が閲覧可能・直近30件）
   const { data: recentAchievements } = await db
     .from('achievements')
-    .select('id, employee_id, skill_id, status, certified_by, certified_at, certify_comment, created_at, skills(name), employees!achievements_employee_id_fkey(name, avatar_url)')
+    .select('id, employee_id, skill_id, status, certified_by, certified_at, certify_comment, created_at, skills(name), employees!achievements_employee_id_fkey(name, avatar_url), certifier:employees!achievements_certified_by_fkey(name, avatar_url)')
     .in('status', ['certified', 'rejected'])
-    .eq('certified_by', employee.id)
+    .not('certified_at', 'is', null)
     .order('certified_at', { ascending: false })
-    .limit(20)
+    .limit(30)
+
+  // 処理済みチーム変更（直近30件）
+  const { data: recentTeamRequests } = await db
+    .from('team_change_requests')
+    .select('id, requested_by, request_type, team_id, payload, status, reviewed_by, reviewed_at, review_comment, created_at, employees!team_change_requests_requested_by_fkey(name, avatar_url)')
+    .in('status', ['approved', 'rejected'])
+    .not('reviewed_at', 'is', null)
+    .order('reviewed_at', { ascending: false })
+    .limit(30)
+
+  // 処理済み参加許諾（承認済み社員・直近30件）
+  const { data: recentJoins } = await db
+    .from('employees')
+    .select('id, name, email, avatar_url, requested_team_id, status, created_at, updated_at')
+    .eq('status', 'approved')
+    .order('updated_at', { ascending: false })
+    .limit(30)
+
+  // 処理済み履歴の承認者名マップ
+  const reviewerIds = new Set<string>()
+  for (const a of recentAchievements ?? []) if (a.certified_by) reviewerIds.add(a.certified_by)
+  for (const r of recentTeamRequests ?? []) if (r.reviewed_by) reviewerIds.add(r.reviewed_by)
+  const { data: reviewerEmployees } = reviewerIds.size > 0
+    ? await db.from('employees').select('id, name, avatar_url').in('id', [...reviewerIds])
+    : { data: [] }
+  const reviewerMap = Object.fromEntries((reviewerEmployees ?? []).map(e => [e.id, e]))
 
   // 2. チーム変更承認待ち
   const { data: pendingTeamRequests } = await db
@@ -92,6 +118,9 @@ export default async function ApprovalsPage() {
         approverRole={role}
         storeDeptTeams={(allTeams ?? []).filter(t => t.type === 'store' || t.type === 'department') as any[]}
         recentAchievements={(recentAchievements ?? []) as any[]}
+        recentTeamRequests={(recentTeamRequests ?? []) as any[]}
+        recentJoins={(recentJoins ?? []) as any[]}
+        reviewerMap={reviewerMap as Record<string, { id: string; name: string; avatar_url: string | null }>}
       />
     </>
   )

@@ -50,15 +50,20 @@ interface Props {
   approverRole: string
   storeDeptTeams: { id: string; name: string; type: 'store' | 'project' | 'department'; prefecture: string | null }[]
   recentAchievements: any[]
+  recentTeamRequests: any[]
+  recentJoins: any[]
+  reviewerMap: Record<string, { id: string; name: string; avatar_url: string | null }>
 }
 
 export function ApprovalCenter({
   pendingAchievements, pendingTeamRequests, pendingJoins,
-  teamMap, projectTeams, currentEmployeeId, isSystemAdmin, approverRole, storeDeptTeams, recentAchievements,
+  teamMap, projectTeams, currentEmployeeId, isSystemAdmin, approverRole, storeDeptTeams,
+  recentAchievements, recentTeamRequests, recentJoins, reviewerMap,
 }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [tab, setTab] = useState<Tab>('all')
+  const [doneFilter, setDoneFilter] = useState<'all' | 'skill' | 'team' | 'join'>('all')
   const supabase = createClient()
 
   // チャット風履歴
@@ -195,12 +200,21 @@ export function ApprovalCenter({
     return `${Math.floor(diff / 86400000)}日前`
   }
 
+  // 処理済み統合リスト
+  type DoneItem = { type: 'skill' | 'team' | 'join'; date: string; data: any }
+  const doneItems: DoneItem[] = []
+  for (const a of recentAchievements) doneItems.push({ type: 'skill', date: a.certified_at, data: a })
+  for (const r of recentTeamRequests) doneItems.push({ type: 'team', date: r.reviewed_at, data: r })
+  for (const j of recentJoins) doneItems.push({ type: 'join', date: j.updated_at, data: j })
+  doneItems.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+  const filteredDone = doneFilter === 'all' ? doneItems : doneItems.filter(i => i.type === doneFilter)
+
   const tabs: { key: Tab; label: string; count: number }[] = [
     { key: 'all', label: 'すべて', count: counts.all },
     { key: 'skill', label: 'スキル認定', count: counts.skill },
     { key: 'team', label: 'チーム変更', count: counts.team },
     { key: 'join', label: '参加許諾', count: counts.join },
-    { key: 'done', label: '処理済み', count: recentAchievements.length },
+    { key: 'done', label: '処理済み', count: doneItems.length },
   ]
 
   return (
@@ -228,39 +242,120 @@ export function ApprovalCenter({
       {/* 処理済みタブ */}
       {tab === 'done' ? (
         <div className="space-y-2">
-          {recentAchievements.length === 0 ? (
+          {/* サブフィルタ */}
+          <div className="flex gap-1 overflow-x-auto pb-1">
+            {([['all', 'すべて'], ['skill', 'スキル認定'], ['team', 'チーム変更'], ['join', '参加許諾']] as const).map(([key, label]) => (
+              <button key={key} onClick={() => setDoneFilter(key)}
+                className={`px-2.5 py-1 rounded-full text-[11px] font-medium whitespace-nowrap transition-colors ${
+                  doneFilter === key ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                }`}>{label}</button>
+            ))}
+          </div>
+          {filteredDone.length === 0 ? (
             <div className="text-center py-16 text-gray-400">
               <Inbox className="w-10 h-10 mx-auto mb-3 opacity-50" />
               <p className="text-sm">処理済みの履歴はありません</p>
             </div>
-          ) : recentAchievements.map((a: any) => {
-            const emp = a.employees
-            const skill = a.skills
-            const isCertified = a.status === 'certified'
-            return (
-              <Card key={a.id} className="cursor-pointer hover:shadow-sm transition-shadow" onClick={() => openChat(a.id, skill?.name ?? '')}>
-                <CardContent className="py-3 px-4">
-                  <div className="flex items-center gap-3">
-                    <Avatar className="w-9 h-9 flex-shrink-0">
-                      <AvatarImage src={emp?.avatar_url ?? undefined} />
-                      <AvatarFallback className="text-xs bg-gray-100 text-gray-600">{emp?.name?.charAt(0)}</AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <Badge className={`text-[9px] border-0 ${isCertified ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                          {isCertified ? '認定済み' : '差し戻し'}
-                        </Badge>
-                        <span className="text-xs text-gray-400">{fmtTime(a.certified_at)}</span>
+          ) : filteredDone.map((item, idx) => {
+            if (item.type === 'skill') {
+              const a = item.data
+              const emp = a.employees
+              const skill = a.skills
+              const certifier = a.certifier ?? reviewerMap[a.certified_by]
+              const isCertified = a.status === 'certified'
+              return (
+                <Card key={`done-skill-${a.id}`} className="cursor-pointer hover:shadow-sm transition-shadow" onClick={() => openChat(a.id, skill?.name ?? '')}>
+                  <CardContent className="py-3 px-4">
+                    <div className="flex items-start gap-3">
+                      <Avatar className="w-9 h-9 flex-shrink-0">
+                        <AvatarImage src={emp?.avatar_url ?? undefined} />
+                        <AvatarFallback className="text-xs bg-green-100 text-green-700">{emp?.name?.charAt(0)}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <Badge className="text-[9px] bg-green-100 text-green-700 border-0">スキル認定</Badge>
+                          <Badge className={`text-[9px] border-0 ${isCertified ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                            {isCertified ? '認定' : '差し戻し'}
+                          </Badge>
+                          <span className="text-xs text-gray-400">{fmtTime(a.certified_at)}</span>
+                        </div>
+                        <p className="text-sm font-medium text-gray-800 mt-0.5">
+                          {emp?.name} — <span className={isCertified ? 'text-green-600' : 'text-red-500'}>{skill?.name}</span>
+                        </p>
+                        {a.certify_comment && <p className="text-xs text-gray-500 mt-0.5">{a.certify_comment}</p>}
+                        <p className="text-[11px] text-gray-400 mt-0.5">
+                          {isCertified ? '認定' : '差戻'}: {certifier?.name ?? '不明'}
+                        </p>
                       </div>
-                      <p className="text-sm font-medium text-gray-800 mt-0.5">
-                        {emp?.name} — <span className={isCertified ? 'text-green-600' : 'text-red-500'}>{skill?.name}</span>
-                      </p>
-                      {a.certify_comment && <p className="text-xs text-gray-500 mt-0.5">{a.certify_comment}</p>}
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )
+                  </CardContent>
+                </Card>
+              )
+            }
+            if (item.type === 'team') {
+              const r = item.data
+              const emp = r.employees
+              const reviewer = reviewerMap[r.reviewed_by]
+              const payload = r.payload as Record<string, any>
+              const isApproved = r.status === 'approved'
+              return (
+                <Card key={`done-team-${r.id}`}>
+                  <CardContent className="py-3 px-4">
+                    <div className="flex items-start gap-3">
+                      <Avatar className="w-9 h-9 flex-shrink-0">
+                        <AvatarImage src={emp?.avatar_url ?? undefined} />
+                        <AvatarFallback className="text-xs bg-purple-100 text-purple-700">{emp?.name?.charAt(0)}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <Badge className="text-[9px] bg-purple-100 text-purple-700 border-0">チーム変更</Badge>
+                          <Badge className={`text-[9px] border-0 ${isApproved ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                            {isApproved ? '承認' : '却下'}
+                          </Badge>
+                          <Badge className="text-[9px] bg-gray-100 text-gray-600 border-0">{REQUEST_TYPE_LABELS[r.request_type] ?? r.request_type}</Badge>
+                          <span className="text-xs text-gray-400">{fmtTime(r.reviewed_at)}</span>
+                        </div>
+                        <p className="text-sm font-medium text-gray-800 mt-0.5">
+                          {emp?.name} — {payload?.team_name ?? teamMap[r.team_id]?.name ?? ''}
+                        </p>
+                        {r.review_comment && <p className="text-xs text-gray-500 mt-0.5">{r.review_comment}</p>}
+                        <p className="text-[11px] text-gray-400 mt-0.5">
+                          {isApproved ? '承認' : '却下'}: {reviewer?.name ?? '不明'}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            }
+            if (item.type === 'join') {
+              const j = item.data
+              const teamName = teamMap[j.requested_team_id]?.name ?? ''
+              return (
+                <Card key={`done-join-${j.id}`}>
+                  <CardContent className="py-3 px-4">
+                    <div className="flex items-start gap-3">
+                      <Avatar className="w-9 h-9 flex-shrink-0">
+                        <AvatarImage src={j.avatar_url ?? undefined} />
+                        <AvatarFallback className="text-xs bg-blue-100 text-blue-700">{j.name?.charAt(0)}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <Badge className="text-[9px] bg-blue-100 text-blue-700 border-0">参加許諾</Badge>
+                          <Badge className="text-[9px] bg-emerald-100 text-emerald-700 border-0">承認済</Badge>
+                          <span className="text-xs text-gray-400">{fmtTime(j.updated_at)}</span>
+                        </div>
+                        <p className="text-sm font-medium text-gray-800 mt-0.5">
+                          {j.name} <span className="text-xs text-gray-500">({j.email})</span>
+                        </p>
+                        {teamName && <p className="text-xs text-blue-500 mt-0.5">{teamName}</p>}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            }
+            return null
           })}
         </div>
       ) : filtered.length === 0 ? (
