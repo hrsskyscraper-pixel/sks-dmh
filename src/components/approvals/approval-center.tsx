@@ -65,7 +65,11 @@ export function ApprovalCenter({
   const [isPending, startTransition] = useTransition()
   const [tab, setTab] = useState<Tab>('all')
   const [doneFilter, setDoneFilter] = useState<'all' | 'skill' | 'team' | 'join' | 'audit'>('all')
-  const [donePersonFilter, setDonePersonFilter] = useState<'all' | 'actor' | 'target'>('all')
+  const [donePersonFilter, setDonePersonFilter] = useState<'all' | 'actor' | 'target' | 'member'>('all')
+  const [memberFilterId, setMemberFilterId] = useState<string | null>(null)
+  const [memberFilterRole, setMemberFilterRole] = useState<'both' | 'actor' | 'target'>('both')
+  const [memberPickerOpen, setMemberPickerOpen] = useState(false)
+  const [memberSearch, setMemberSearch] = useState('')
   const supabase = createClient()
 
   // チャット風履歴
@@ -215,6 +219,17 @@ export function ApprovalCenter({
   let filteredDone = doneFilter === 'all' ? doneItems : doneItems.filter(i => i.type === doneFilter)
   if (donePersonFilter === 'actor') filteredDone = filteredDone.filter(i => i.actorId === currentEmployeeId)
   else if (donePersonFilter === 'target') filteredDone = filteredDone.filter(i => i.targetId === currentEmployeeId)
+  else if (donePersonFilter === 'member' && memberFilterId) {
+    if (memberFilterRole === 'actor') filteredDone = filteredDone.filter(i => i.actorId === memberFilterId)
+    else if (memberFilterRole === 'target') filteredDone = filteredDone.filter(i => i.targetId === memberFilterId)
+    else filteredDone = filteredDone.filter(i => i.actorId === memberFilterId || i.targetId === memberFilterId)
+  }
+
+  // メンバー一覧（reviewerMapから取得）
+  const memberList = Object.values(reviewerMap).sort((a, b) => a.name.localeCompare(b.name))
+  const filteredMembers = memberSearch
+    ? memberList.filter(m => m.name.includes(memberSearch))
+    : memberList
 
   const tabs: { key: Tab; label: string; count: number }[] = [
     { key: 'all', label: 'すべて', count: counts.all },
@@ -259,14 +274,69 @@ export function ApprovalCenter({
             ))}
           </div>
           {/* 承認者/申請者フィルタ */}
-          <div className="flex gap-1">
+          <div className="flex gap-1 flex-wrap">
             {([['all', '全員'], ['actor', '自分が処理'], ['target', '自分が対象']] as const).map(([key, label]) => (
-              <button key={key} onClick={() => setDonePersonFilter(key)}
+              <button key={key} onClick={() => { setDonePersonFilter(key); setMemberFilterId(null); setMemberPickerOpen(false) }}
                 className={`px-2.5 py-1 rounded-full text-[11px] font-medium whitespace-nowrap transition-colors ${
                   donePersonFilter === key ? 'bg-orange-500 text-white' : 'bg-orange-50 text-orange-600 hover:bg-orange-100'
                 }`}>{label}</button>
             ))}
+            <button
+              onClick={() => { setDonePersonFilter('member'); setMemberPickerOpen(true); setMemberSearch('') }}
+              className={`px-2.5 py-1 rounded-full text-[11px] font-medium whitespace-nowrap transition-colors ${
+                donePersonFilter === 'member' ? 'bg-orange-500 text-white' : 'bg-orange-50 text-orange-600 hover:bg-orange-100'
+              }`}
+            >
+              {donePersonFilter === 'member' && memberFilterId
+                ? `${reviewerMap[memberFilterId]?.name ?? 'メンバー'}`
+                : 'メンバーで絞込'}
+            </button>
           </div>
+          {/* メンバー選択パネル */}
+          {donePersonFilter === 'member' && memberPickerOpen && (
+            <Card className="border border-orange-200">
+              <CardContent className="py-3 px-3 space-y-2">
+                <Input
+                  placeholder="名前で検索..."
+                  value={memberSearch}
+                  onChange={e => setMemberSearch(e.target.value)}
+                  className="h-8 text-sm"
+                  autoFocus
+                />
+                <div className="max-h-40 overflow-y-auto space-y-0.5">
+                  {filteredMembers.map(m => (
+                    <button
+                      key={m.id}
+                      onClick={() => { setMemberFilterId(m.id); setMemberPickerOpen(false) }}
+                      className={`flex items-center gap-2 w-full px-2 py-1.5 rounded text-left text-sm hover:bg-orange-50 transition-colors ${
+                        memberFilterId === m.id ? 'bg-orange-100 font-medium' : ''
+                      }`}
+                    >
+                      <Avatar className="w-6 h-6 flex-shrink-0">
+                        <AvatarImage src={m.avatar_url ?? undefined} />
+                        <AvatarFallback className="text-[9px] bg-gray-100 text-gray-600">{m.name.charAt(0)}</AvatarFallback>
+                      </Avatar>
+                      <span className="truncate">{m.name}</span>
+                    </button>
+                  ))}
+                  {filteredMembers.length === 0 && (
+                    <p className="text-xs text-gray-400 text-center py-2">該当なし</p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          {/* メンバー絞込時のサブフィルタ */}
+          {donePersonFilter === 'member' && memberFilterId && (
+            <div className="flex gap-1">
+              {([['both', '両方'], ['actor', '処理者として'], ['target', '対象者として']] as const).map(([key, label]) => (
+                <button key={key} onClick={() => setMemberFilterRole(key)}
+                  className={`px-2.5 py-1 rounded-full text-[11px] font-medium whitespace-nowrap transition-colors ${
+                    memberFilterRole === key ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                  }`}>{label}</button>
+              ))}
+            </div>
+          )}
           {filteredDone.length === 0 ? (
             <div className="text-center py-16 text-gray-400">
               <Inbox className="w-10 h-10 mx-auto mb-3 opacity-50" />
