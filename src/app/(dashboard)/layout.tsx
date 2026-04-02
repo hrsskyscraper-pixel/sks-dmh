@@ -106,7 +106,7 @@ export default async function DashboardLayout({
   const viewAsId = canViewAs ? (cookieStore.get(VIEW_AS_COOKIE)?.value ?? null) : null
 
   // viewAs社員取得
-  const db = role === 'testuser' ? createAdminClient() : supabase
+  const db = createAdminClient()
   const { data: viewAsEmployee } = viewAsId
     ? await db.from('employees').select('name, role, notifications_read_at').eq('id', viewAsId).single()
     : { data: null }
