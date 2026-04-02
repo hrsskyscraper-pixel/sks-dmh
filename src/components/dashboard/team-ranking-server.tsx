@@ -1,4 +1,3 @@
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { TeamRanking } from '@/components/dashboard/team-ranking'
 import { buildMilestoneMap, calcStandardPct } from '@/lib/milestone'
@@ -11,7 +10,7 @@ interface Props {
 }
 
 export async function TeamRankingServer({ employeeId, employeeRole, selectedProjectId }: Props) {
-  const db = employeeRole === 'testuser' ? createAdminClient() : await createClient()
+  const db = createAdminClient()
 
   const [
     { data: allEmployees },

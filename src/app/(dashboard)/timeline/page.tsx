@@ -1,5 +1,4 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
 import { TopBar } from '@/components/layout/nav'
@@ -9,7 +8,7 @@ export default async function TimelinePage() {
   const currentEmployee = await getCurrentEmployee()
   if (!currentEmployee) redirect('/login')
 
-  const db = currentEmployee.role === 'testuser' ? createAdminClient() : await createClient()
+  const db = createAdminClient()
 
   const [
     { data: certifiedAchievements },
