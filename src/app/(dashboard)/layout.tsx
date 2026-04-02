@@ -155,16 +155,38 @@ export default async function DashboardLayout({
     .eq('status', 'rejected')
 
   // 承認待ち合計（スキル認定 + チーム変更 + 参加許諾）
+  // store_manager/manager は自分の管理チームのみ、admin以上は全件
   const approvalRoles: Role[] = ['store_manager', 'manager', 'admin', 'ops_manager', 'executive']
   let pendingApprovalCount = 0
   if (approvalRoles.includes(effectiveRole)) {
     const adminDb = createAdminClient()
-    const [skillCount, teamCount, joinCount] = await Promise.all([
-      adminDb.from('achievements').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-      adminDb.from('team_change_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-      adminDb.from('employees').select('*', { count: 'exact', head: true }).eq('status', 'pending').not('requested_team_id', 'is', null),
-    ])
-    pendingApprovalCount = (skillCount.count ?? 0) + (teamCount.count ?? 0) + (joinCount.count ?? 0)
+    const isSystemAdmin = ['admin', 'ops_manager', 'executive'].includes(effectiveRole)
+    const effectiveEmpId = viewAsId ?? employee.id
+
+    if (isSystemAdmin) {
+      const [skillCount, teamCount, joinCount] = await Promise.all([
+        adminDb.from('achievements').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+        adminDb.from('team_change_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+        adminDb.from('employees').select('*', { count: 'exact', head: true }).eq('status', 'pending').not('requested_team_id', 'is', null),
+      ])
+      pendingApprovalCount = (skillCount.count ?? 0) + (teamCount.count ?? 0) + (joinCount.count ?? 0)
+    } else {
+      // store_manager / manager: 管理チームのメンバーのみ
+      const { data: managed } = await adminDb.from('team_managers').select('team_id').eq('employee_id', effectiveEmpId)
+      const managedTeamIds = (managed ?? []).map(m => m.team_id)
+      if (managedTeamIds.length > 0) {
+        const { data: members } = await adminDb.from('team_members').select('employee_id').in('team_id', managedTeamIds)
+        const managedMemberIds = [...new Set((members ?? []).map(m => m.employee_id))]
+        if (managedMemberIds.length > 0) {
+          const [skillCount, teamCount, joinCount] = await Promise.all([
+            adminDb.from('achievements').select('*', { count: 'exact', head: true }).eq('status', 'pending').in('employee_id', managedMemberIds),
+            adminDb.from('team_change_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending').in('team_id', managedTeamIds),
+            adminDb.from('employees').select('*', { count: 'exact', head: true }).eq('status', 'pending').not('requested_team_id', 'is', null).in('requested_team_id', managedTeamIds),
+          ])
+          pendingApprovalCount = (skillCount.count ?? 0) + (teamCount.count ?? 0) + (joinCount.count ?? 0)
+        }
+      }
+    }
   }
 
   // ダッシュボードバッジ: 遅れスキル / 次のステップ
