@@ -144,6 +144,7 @@ export function TeamManager({
   // ===== ドラッグ＆ドロップ =====
   const [dragEmp, setDragEmp] = useState<{ id: string; teamId: string; from: 'member' | 'manager' } | null>(null)
   const [dropTarget, setDropTarget] = useState<'member' | 'manager' | null>(null)
+  const [dropBeforeId, setDropBeforeId] = useState<string | null>(null)
   // メンバー→リーダー昇格ダイアログ
   const [promoteDialog, setPromoteDialog] = useState<{ empId: string; teamId: string } | null>(null)
   // 主担当競合ダイアログ
@@ -324,11 +325,11 @@ export function TeamManager({
       // メンバー登録
       if (newTeamMemberIds.length > 0) {
         await supabase.from('team_members').insert(newTeamMemberIds.map(id => ({ team_id: team.id, employee_id: id })))
-        setTeamMembers(prev => [...prev, ...newTeamMemberIds.map(id => ({ team_id: team.id, employee_id: id }))])
+        setTeamMembers(prev => [...prev, ...newTeamMemberIds.map((id, i) => ({ team_id: team.id, employee_id: id, sort_order: i }))])
       }
 
       setTeams(prev => [...prev, team])
-      setTeamManagers(prev => [...prev, ...managerInserts])
+      setTeamManagers(prev => [...prev, ...managerInserts.map((m, i) => ({ ...m, sort_order: i }))])
       await logDirectAction('create_team', team.id, { team_name: team.name, team_type: newTeamType, manager_id: newTeamManagerId, manager_name: getEmployeeName(newTeamManagerId), sub_managers: newTeamSubManagerIds.filter(id => id !== newTeamManagerId).map(id => getEmployeeName(id)), members: newTeamMemberIds.map(id => getEmployeeName(id)) })
       setShowCreateTeam(false)
       setNewTeamName('')
@@ -357,9 +358,9 @@ export function TeamManager({
     startTransition(async () => {
       const { error } = await supabase
         .from('team_members')
-        .insert(employeeIds.map(id => ({ team_id: teamId, employee_id: id })))
+        .insert(employeeIds.map(id => ({ team_id: teamId, employee_id: id, sort_order: 999 })))
       if (error) { toast.error('追加に失敗しました'); return }
-      setTeamMembers(prev => [...prev, ...employeeIds.map(id => ({ team_id: teamId, employee_id: id }))])
+      setTeamMembers(prev => [...prev, ...employeeIds.map(id => ({ team_id: teamId, employee_id: id, sort_order: 999 }))])
       const teamName = teams.find(t => t.id === teamId)?.name ?? ''
       for (const empId of employeeIds) {
         await logDirectAction('add_member', teamId, { team_name: teamName, employee_id: empId, employee_name: getEmployeeName(empId) })
@@ -400,7 +401,7 @@ export function TeamManager({
       }
       const { error } = await supabase
         .from('team_managers')
-        .insert(employeeIds.map(id => ({ team_id: teamId, employee_id: id, role })))
+        .insert(employeeIds.map(id => ({ team_id: teamId, employee_id: id, role, sort_order: 999 })))
       if (error) { toast.error('追加に失敗しました'); return }
       // リーダーに昇格した社員をメンバーから削除
       for (const empId of employeeIds) {
@@ -413,7 +414,7 @@ export function TeamManager({
         const updated = existingPrimaryId
           ? prev.map(m => m.team_id === teamId && m.employee_id === existingPrimaryId ? { ...m, role: 'secondary' as const } : m)
           : prev
-        return [...updated, ...employeeIds.map(id => ({ team_id: teamId, employee_id: id, role }))]
+        return [...updated, ...employeeIds.map(id => ({ team_id: teamId, employee_id: id, role, sort_order: 999 }))]
       })
       const teamName = teams.find(t => t.id === teamId)?.name ?? ''
       for (const empId of employeeIds) {
@@ -446,26 +447,64 @@ export function TeamManager({
   // ドラッグ＆ドロップ処理
   // -------------------------------------------------------
 
-  const handleDrop = (teamId: string, target: 'member' | 'manager') => {
-    if (!dragEmp || dragEmp.teamId !== teamId) { setDragEmp(null); setDropTarget(null); return }
+  const handleDrop = (teamId: string, target: 'member' | 'manager', beforeId?: string | null) => {
+    if (!dragEmp || dragEmp.teamId !== teamId) { setDragEmp(null); setDropTarget(null); setDropBeforeId(null); return }
     setDropTarget(null)
+    setDropBeforeId(null)
+
+    if (dragEmp.from === target) {
+      // 同一リスト内の並び替え
+      reorderInList(teamId, target, dragEmp.id, beforeId ?? null)
+      setDragEmp(null)
+      return
+    }
 
     if (dragEmp.from === 'member' && target === 'manager') {
-      // メンバー → リーダー: 昇格ダイアログを開く
       setPromoteDialog({ empId: dragEmp.id, teamId })
     } else if (dragEmp.from === 'manager' && target === 'member') {
-      // リーダー → メンバー: リーダー解除してメンバーに戻す
       startTransition(async () => {
         const { error: delErr } = await supabase.from('team_managers').delete().eq('team_id', teamId).eq('employee_id', dragEmp.id)
         if (delErr) { toast.error('変更に失敗しました'); return }
-        // メンバーに追加
-        await supabase.from('team_members').insert({ team_id: teamId, employee_id: dragEmp.id })
+        await supabase.from('team_members').insert({ team_id: teamId, employee_id: dragEmp.id, sort_order: 999 })
         setTeamManagers(prev => prev.filter(m => !(m.team_id === teamId && m.employee_id === dragEmp.id)))
-        setTeamMembers(prev => [...prev, { team_id: teamId, employee_id: dragEmp.id }])
+        setTeamMembers(prev => [...prev, { team_id: teamId, employee_id: dragEmp.id, sort_order: 999 }])
         toast.success(`${getEmployeeName(dragEmp.id)}をメンバーに変更しました`)
       })
     }
     setDragEmp(null)
+  }
+
+  const reorderInList = (teamId: string, listType: 'member' | 'manager', draggedId: string, beforeId: string | null) => {
+    if (listType === 'member') {
+      const ids = getTeamMemberIds(teamId)
+      const reordered = ids.filter(id => id !== draggedId)
+      const insertIdx = beforeId ? reordered.indexOf(beforeId) : reordered.length
+      reordered.splice(insertIdx === -1 ? reordered.length : insertIdx, 0, draggedId)
+      // ローカル更新
+      setTeamMembers(prev => prev.map(m => {
+        if (m.team_id !== teamId) return m
+        const idx = reordered.indexOf(m.employee_id)
+        return idx >= 0 ? { ...m, sort_order: idx } : m
+      }))
+      // DB更新
+      Promise.all(reordered.map((id, i) =>
+        supabase.from('team_members').update({ sort_order: i }).eq('team_id', teamId).eq('employee_id', id)
+      ))
+    } else {
+      const mgrs = teamManagers.filter(m => m.team_id === teamId).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+      const ids = mgrs.map(m => m.employee_id)
+      const reordered = ids.filter(id => id !== draggedId)
+      const insertIdx = beforeId ? reordered.indexOf(beforeId) : reordered.length
+      reordered.splice(insertIdx === -1 ? reordered.length : insertIdx, 0, draggedId)
+      setTeamManagers(prev => prev.map(m => {
+        if (m.team_id !== teamId) return m
+        const idx = reordered.indexOf(m.employee_id)
+        return idx >= 0 ? { ...m, sort_order: idx } : m
+      }))
+      Promise.all(reordered.map((id, i) =>
+        supabase.from('team_managers').update({ sort_order: i }).eq('team_id', teamId).eq('employee_id', id)
+      ))
+    }
   }
 
   const handlePromote = (role: 'primary' | 'secondary') => {
@@ -499,10 +538,10 @@ export function TeamManager({
       // メンバーから削除
       await supabase.from('team_members').delete().eq('team_id', teamId).eq('employee_id', empId)
       // マネジャーに追加
-      const { error } = await supabase.from('team_managers').insert({ team_id: teamId, employee_id: empId, role })
+      const { error } = await supabase.from('team_managers').insert({ team_id: teamId, employee_id: empId, role, sort_order: 999 })
       if (error) { toast.error('変更に失敗しました'); return }
       setTeamMembers(prev => prev.filter(m => !(m.team_id === teamId && m.employee_id === empId)))
-      setTeamManagers(prev => [...prev, { team_id: teamId, employee_id: empId, role }])
+      setTeamManagers(prev => [...prev, { team_id: teamId, employee_id: empId, role, sort_order: 999 }])
       const teamName = teams.find(t => t.id === teamId)?.name ?? ''
       await logDirectAction('add_manager', teamId, { team_name: teamName, employee_id: empId, employee_name: getEmployeeName(empId), role })
       toast.success(`${getEmployeeName(empId)}を${role === 'primary' ? '主' : '副'}担当リーダーに変更しました`)
@@ -523,16 +562,16 @@ export function TeamManager({
         // 元主担当をマネジャーから削除
         await supabase.from('team_managers').delete().eq('team_id', teamId).eq('employee_id', existingPrimaryId)
         // 元主担当をメンバーに追加
-        await supabase.from('team_members').insert({ team_id: teamId, employee_id: existingPrimaryId })
+        await supabase.from('team_members').insert({ team_id: teamId, employee_id: existingPrimaryId, sort_order: 999 })
         setTeamManagers(prev => prev.filter(m => !(m.team_id === teamId && m.employee_id === existingPrimaryId)))
-        setTeamMembers(prev => [...prev, { team_id: teamId, employee_id: existingPrimaryId }])
+        setTeamMembers(prev => [...prev, { team_id: teamId, employee_id: existingPrimaryId, sort_order: 999 }])
 
         // 新しい人を主担当に
         await supabase.from('team_members').delete().eq('team_id', teamId).eq('employee_id', empId)
-        const { error } = await supabase.from('team_managers').insert({ team_id: teamId, employee_id: empId, role: 'primary' })
+        const { error } = await supabase.from('team_managers').insert({ team_id: teamId, employee_id: empId, role: 'primary', sort_order: 0 })
         if (error) { toast.error('変更に失敗しました'); return }
         setTeamMembers(prev => prev.filter(m => !(m.team_id === teamId && m.employee_id === empId)))
-        setTeamManagers(prev => [...prev, { team_id: teamId, employee_id: empId, role: 'primary' }])
+        setTeamManagers(prev => [...prev, { team_id: teamId, employee_id: empId, role: 'primary', sort_order: 0 }])
         toast.success(`${getEmployeeName(empId)}を主担当リーダーに変更しました`)
       })
     }
@@ -597,7 +636,7 @@ export function TeamManager({
             .insert({ team_id: newTeam.id, employee_id: managerId, role: 'primary' })
           if (mgrError) { applyError = mgrError }
           else {
-            setTeamManagers(prev => [...prev, { team_id: newTeam.id, employee_id: managerId, role: 'primary' as const }])
+            setTeamManagers(prev => [...prev, { team_id: newTeam.id, employee_id: managerId, role: 'primary' as const, sort_order: 0 }])
           }
         }
 
@@ -607,7 +646,7 @@ export function TeamManager({
           .insert({ team_id: req.team_id, employee_id: payload.employee_id as string })
         if (error) { applyError = error }
         else {
-          setTeamMembers(prev => [...prev, { team_id: req.team_id!, employee_id: payload.employee_id as string }])
+          setTeamMembers(prev => [...prev, { team_id: req.team_id!, employee_id: payload.employee_id as string, sort_order: 999 }])
         }
 
       } else if (req.request_type === 'remove_member' && req.team_id) {
@@ -628,7 +667,7 @@ export function TeamManager({
           .insert({ team_id: req.team_id, employee_id: payload.employee_id as string, role })
         if (error) { applyError = error }
         else {
-          setTeamManagers(prev => [...prev, { team_id: req.team_id!, employee_id: payload.employee_id as string, role }])
+          setTeamManagers(prev => [...prev, { team_id: req.team_id!, employee_id: payload.employee_id as string, role, sort_order: 999 }])
         }
 
       } else if (req.request_type === 'remove_manager' && req.team_id) {
@@ -762,11 +801,14 @@ export function TeamManager({
 
   const getTeamMemberIds = (teamId: string) => {
     const mgrIds = new Set(teamManagers.filter(m => m.team_id === teamId).map(m => m.employee_id))
-    return teamMembers.filter(m => m.team_id === teamId && !mgrIds.has(m.employee_id)).map(m => m.employee_id)
+    return teamMembers
+      .filter(m => m.team_id === teamId && !mgrIds.has(m.employee_id))
+      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+      .map(m => m.employee_id)
   }
 
   const getTeamManagerIds = (teamId: string) =>
-    teamManagers.filter(m => m.team_id === teamId).map(m => m.employee_id)
+    teamManagers.filter(m => m.team_id === teamId).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)).map(m => m.employee_id)
 
   const getTeamPrimaryManagerId = (teamId: string) =>
     teamManagers.find(m => m.team_id === teamId && m.role === 'primary')?.employee_id ?? null
@@ -873,7 +915,7 @@ export function TeamManager({
                         <p className="text-xs font-medium text-gray-600 mb-1.5">担当リーダー</p>
                         <div className="flex flex-wrap gap-1.5">
                           {managerIds.length === 0 && <p className="text-xs text-muted-foreground">担当なし</p>}
-                          {teamManagers.filter(m => m.team_id === team.id).sort((a, b) => a.role === 'primary' ? -1 : b.role === 'primary' ? 1 : 0).map(manager => {
+                          {teamManagers.filter(m => m.team_id === team.id).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)).map(manager => {
                             const emp = getEmployee(manager.employee_id)
                             const isPrimary = manager.role === 'primary'
                             return (
@@ -1020,9 +1062,9 @@ export function TeamManager({
                   </div>
                   <div
                     className={`flex flex-wrap gap-1.5 min-h-[28px] rounded-lg p-1 -m-1 transition-colors ${dropTarget === 'member' && dragEmp?.teamId === team.id ? 'bg-gray-200 ring-2 ring-gray-400 ring-dashed' : ''}`}
-                    onDragOver={e => { e.preventDefault(); if (dragEmp?.teamId === team.id && dragEmp.from === 'manager') setDropTarget('member') }}
-                    onDragLeave={() => setDropTarget(null)}
-                    onDrop={() => handleDrop(team.id, 'member')}
+                    onDragOver={e => { e.preventDefault(); if (dragEmp?.teamId === team.id) setDropTarget('member') }}
+                    onDragLeave={() => { setDropTarget(null); setDropBeforeId(null) }}
+                    onDrop={() => handleDrop(team.id, 'member', dropBeforeId)}
                   >
                     {memberIds.length === 0 && (
                       <p className="text-xs text-muted-foreground">メンバーなし</p>
@@ -1033,8 +1075,9 @@ export function TeamManager({
                       <div key={empId}
                         draggable={isDirectEdit}
                         onDragStart={() => isDirectEdit && setDragEmp({ id: empId, teamId: team.id, from: 'member' })}
-                        onDragEnd={() => { setDragEmp(null); setDropTarget(null) }}
-                        className={`flex items-center gap-1 bg-gray-100 rounded-full pl-0.5 pr-2 py-0.5 ${isDirectEdit ? 'cursor-grab active:cursor-grabbing' : ''}`}
+                        onDragEnd={() => { setDragEmp(null); setDropTarget(null); setDropBeforeId(null) }}
+                        onDragOver={e => { e.preventDefault(); e.stopPropagation(); if (dragEmp?.teamId === team.id) { setDropTarget('member'); setDropBeforeId(empId) } }}
+                        className={`flex items-center gap-1 bg-gray-100 rounded-full pl-0.5 pr-2 py-0.5 transition-all ${isDirectEdit ? 'cursor-grab active:cursor-grabbing' : ''} ${dropBeforeId === empId && dragEmp?.from === 'member' && dragEmp?.id !== empId ? 'ring-2 ring-orange-400' : ''}`}
                       >
                         <Avatar className="w-4 h-4 flex-shrink-0">
                           <AvatarImage src={emp?.avatar_url ?? undefined} />
@@ -1118,16 +1161,16 @@ export function TeamManager({
                   </div>
                   <div
                     className={`flex flex-wrap gap-1.5 min-h-[28px] rounded-lg p-1 -m-1 transition-colors ${dropTarget === 'manager' && dragEmp?.teamId === team.id ? 'bg-amber-100 ring-2 ring-amber-400 ring-dashed' : ''}`}
-                    onDragOver={e => { e.preventDefault(); if (dragEmp?.teamId === team.id && dragEmp.from === 'member') setDropTarget('manager') }}
-                    onDragLeave={() => setDropTarget(null)}
-                    onDrop={() => handleDrop(team.id, 'manager')}
+                    onDragOver={e => { e.preventDefault(); if (dragEmp?.teamId === team.id) setDropTarget('manager') }}
+                    onDragLeave={() => { setDropTarget(null); setDropBeforeId(null) }}
+                    onDrop={() => handleDrop(team.id, 'manager', dropBeforeId)}
                   >
                     {managerIds.length === 0 && (
                       <p className="text-xs text-muted-foreground">担当なし</p>
                     )}
                     {teamManagers
                       .filter(m => m.team_id === team.id)
-                      .sort((a, b) => a.role === 'primary' ? -1 : b.role === 'primary' ? 1 : 0)
+                      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
                       .map(manager => {
                         const emp = getEmployee(manager.employee_id)
                         const isPrimary = manager.role === 'primary'
@@ -1135,8 +1178,9 @@ export function TeamManager({
                         <div key={manager.employee_id}
                           draggable={isDirectEdit}
                           onDragStart={() => isDirectEdit && setDragEmp({ id: manager.employee_id, teamId: team.id, from: 'manager' })}
-                          onDragEnd={() => { setDragEmp(null); setDropTarget(null) }}
-                          className={`flex items-center gap-1 ${isPrimary ? 'bg-amber-100' : 'bg-blue-100'} rounded-full pl-1 pr-2 py-0.5 ${isDirectEdit ? 'cursor-grab active:cursor-grabbing' : ''}`}
+                          onDragEnd={() => { setDragEmp(null); setDropTarget(null); setDropBeforeId(null) }}
+                          onDragOver={e => { e.preventDefault(); e.stopPropagation(); if (dragEmp?.teamId === team.id) { setDropTarget('manager'); setDropBeforeId(manager.employee_id) } }}
+                          className={`flex items-center gap-1 ${isPrimary ? 'bg-amber-100' : 'bg-blue-100'} rounded-full pl-1 pr-2 py-0.5 transition-all ${isDirectEdit ? 'cursor-grab active:cursor-grabbing' : ''} ${dropBeforeId === manager.employee_id && dragEmp?.from === 'manager' && dragEmp?.id !== manager.employee_id ? 'ring-2 ring-orange-400' : ''}`}
                         >
                           <span className={`text-[9px] font-bold ${isPrimary ? 'text-amber-600' : 'text-blue-500'}`}>{isPrimary ? '主' : '副'}</span>
                           <Avatar className="w-4 h-4 flex-shrink-0">

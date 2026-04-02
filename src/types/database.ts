@@ -145,14 +145,17 @@ export type Database = {
         Row: {
           team_id: string
           employee_id: string
+          sort_order: number
         }
         Insert: {
           team_id: string
           employee_id: string
+          sort_order?: number
         }
         Update: {
           team_id?: string
           employee_id?: string
+          sort_order?: number
         }
         Relationships: [
           {
@@ -176,16 +179,19 @@ export type Database = {
           team_id: string
           employee_id: string
           role: 'primary' | 'secondary'
+          sort_order: number
         }
         Insert: {
           team_id: string
           employee_id: string
           role?: 'primary' | 'secondary'
+          sort_order?: number
         }
         Update: {
           team_id?: string
           employee_id?: string
           role?: 'primary' | 'secondary'
+          sort_order?: number
         }
         Relationships: [
           {
