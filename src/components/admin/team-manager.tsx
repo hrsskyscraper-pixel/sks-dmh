@@ -141,6 +141,14 @@ export function TeamManager({
   // ===== Expanded teams =====
   const [expandedTeams, setExpandedTeams] = useState<Set<string>>(new Set())
 
+  // ===== ドラッグ＆ドロップ =====
+  const [dragEmp, setDragEmp] = useState<{ id: string; teamId: string; from: 'member' | 'manager' } | null>(null)
+  const [dropTarget, setDropTarget] = useState<'member' | 'manager' | null>(null)
+  // メンバー→リーダー昇格ダイアログ
+  const [promoteDialog, setPromoteDialog] = useState<{ empId: string; teamId: string } | null>(null)
+  // 主担当競合ダイアログ
+  const [primaryConflict, setPrimaryConflict] = useState<{ empId: string; teamId: string; existingPrimaryId: string } | null>(null)
+
   // ===== 都道府県折りたたみ =====
   const [expandedPrefs, setExpandedPrefs] = useState<Set<string>>(new Set())
   const [showAllTeams, setShowAllTeams] = useState(false)
@@ -432,6 +440,102 @@ export function TeamManager({
       await logDirectAction('remove_manager', teamId, { team_name: teamName, employee_id: employeeId, employee_name: getEmployeeName(employeeId) })
       toast.success('マネジャーを削除しました')
     })
+  }
+
+  // -------------------------------------------------------
+  // ドラッグ＆ドロップ処理
+  // -------------------------------------------------------
+
+  const handleDrop = (teamId: string, target: 'member' | 'manager') => {
+    if (!dragEmp || dragEmp.teamId !== teamId) { setDragEmp(null); setDropTarget(null); return }
+    setDropTarget(null)
+
+    if (dragEmp.from === 'member' && target === 'manager') {
+      // メンバー → リーダー: 昇格ダイアログを開く
+      setPromoteDialog({ empId: dragEmp.id, teamId })
+    } else if (dragEmp.from === 'manager' && target === 'member') {
+      // リーダー → メンバー: リーダー解除してメンバーに戻す
+      startTransition(async () => {
+        const { error: delErr } = await supabase.from('team_managers').delete().eq('team_id', teamId).eq('employee_id', dragEmp.id)
+        if (delErr) { toast.error('変更に失敗しました'); return }
+        // メンバーに追加
+        await supabase.from('team_members').insert({ team_id: teamId, employee_id: dragEmp.id })
+        setTeamManagers(prev => prev.filter(m => !(m.team_id === teamId && m.employee_id === dragEmp.id)))
+        setTeamMembers(prev => [...prev, { team_id: teamId, employee_id: dragEmp.id }])
+        toast.success(`${getEmployeeName(dragEmp.id)}をメンバーに変更しました`)
+      })
+    }
+    setDragEmp(null)
+  }
+
+  const handlePromote = (role: 'primary' | 'secondary') => {
+    if (!promoteDialog) return
+    const { empId, teamId } = promoteDialog
+    const existingPrimary = teamManagers.find(m => m.team_id === teamId && m.role === 'primary')
+
+    if (role === 'primary' && existingPrimary) {
+      // 主担当が既にいる → 競合ダイアログ
+      setPrimaryConflict({ empId, teamId, existingPrimaryId: existingPrimary.employee_id })
+      setPromoteDialog(null)
+      return
+    }
+
+    doPromote(empId, teamId, role)
+    setPromoteDialog(null)
+  }
+
+  const doPromote = (empId: string, teamId: string, role: 'primary' | 'secondary') => {
+    startTransition(async () => {
+      // 主担当入替: 既存主担当を副に降格
+      if (role === 'primary') {
+        const existingPrimary = teamManagers.find(m => m.team_id === teamId && m.role === 'primary')
+        if (existingPrimary) {
+          await supabase.from('team_managers').update({ role: 'secondary' }).eq('team_id', teamId).eq('employee_id', existingPrimary.employee_id)
+          setTeamManagers(prev => prev.map(m =>
+            m.team_id === teamId && m.employee_id === existingPrimary.employee_id ? { ...m, role: 'secondary' as const } : m
+          ))
+        }
+      }
+      // メンバーから削除
+      await supabase.from('team_members').delete().eq('team_id', teamId).eq('employee_id', empId)
+      // マネジャーに追加
+      const { error } = await supabase.from('team_managers').insert({ team_id: teamId, employee_id: empId, role })
+      if (error) { toast.error('変更に失敗しました'); return }
+      setTeamMembers(prev => prev.filter(m => !(m.team_id === teamId && m.employee_id === empId)))
+      setTeamManagers(prev => [...prev, { team_id: teamId, employee_id: empId, role }])
+      const teamName = teams.find(t => t.id === teamId)?.name ?? ''
+      await logDirectAction('add_manager', teamId, { team_name: teamName, employee_id: empId, employee_name: getEmployeeName(empId), role })
+      toast.success(`${getEmployeeName(empId)}を${role === 'primary' ? '主' : '副'}担当リーダーに変更しました`)
+    })
+  }
+
+  const handlePrimaryConflictResolve = (action: 'secondary' | 'member') => {
+    if (!primaryConflict) return
+    const { empId, teamId, existingPrimaryId } = primaryConflict
+    setPrimaryConflict(null)
+
+    if (action === 'secondary') {
+      // 元主担当を副に、新しい人を主担当に
+      doPromote(empId, teamId, 'primary')
+    } else {
+      // 元主担当をメンバーに降格、新しい人を主担当に
+      startTransition(async () => {
+        // 元主担当をマネジャーから削除
+        await supabase.from('team_managers').delete().eq('team_id', teamId).eq('employee_id', existingPrimaryId)
+        // 元主担当をメンバーに追加
+        await supabase.from('team_members').insert({ team_id: teamId, employee_id: existingPrimaryId })
+        setTeamManagers(prev => prev.filter(m => !(m.team_id === teamId && m.employee_id === existingPrimaryId)))
+        setTeamMembers(prev => [...prev, { team_id: teamId, employee_id: existingPrimaryId }])
+
+        // 新しい人を主担当に
+        await supabase.from('team_members').delete().eq('team_id', teamId).eq('employee_id', empId)
+        const { error } = await supabase.from('team_managers').insert({ team_id: teamId, employee_id: empId, role: 'primary' })
+        if (error) { toast.error('変更に失敗しました'); return }
+        setTeamMembers(prev => prev.filter(m => !(m.team_id === teamId && m.employee_id === empId)))
+        setTeamManagers(prev => [...prev, { team_id: teamId, employee_id: empId, role: 'primary' }])
+        toast.success(`${getEmployeeName(empId)}を主担当リーダーに変更しました`)
+      })
+    }
   }
 
   // -------------------------------------------------------
@@ -914,14 +1018,24 @@ export function TeamManager({
                       )
                     )}
                   </div>
-                  <div className="flex flex-wrap gap-1.5">
+                  <div
+                    className={`flex flex-wrap gap-1.5 min-h-[28px] rounded-lg p-1 -m-1 transition-colors ${dropTarget === 'member' && dragEmp?.teamId === team.id ? 'bg-gray-200 ring-2 ring-gray-400 ring-dashed' : ''}`}
+                    onDragOver={e => { e.preventDefault(); if (dragEmp?.teamId === team.id && dragEmp.from === 'manager') setDropTarget('member') }}
+                    onDragLeave={() => setDropTarget(null)}
+                    onDrop={() => handleDrop(team.id, 'member')}
+                  >
                     {memberIds.length === 0 && (
                       <p className="text-xs text-muted-foreground">メンバーなし</p>
                     )}
                     {memberIds.map(empId => {
                       const emp = getEmployee(empId)
                       return (
-                      <div key={empId} className="flex items-center gap-1 bg-gray-100 rounded-full pl-0.5 pr-2 py-0.5">
+                      <div key={empId}
+                        draggable={isDirectEdit}
+                        onDragStart={() => isDirectEdit && setDragEmp({ id: empId, teamId: team.id, from: 'member' })}
+                        onDragEnd={() => { setDragEmp(null); setDropTarget(null) }}
+                        className={`flex items-center gap-1 bg-gray-100 rounded-full pl-0.5 pr-2 py-0.5 ${isDirectEdit ? 'cursor-grab active:cursor-grabbing' : ''}`}
+                      >
                         <Avatar className="w-4 h-4 flex-shrink-0">
                           <AvatarImage src={emp?.avatar_url ?? undefined} />
                           <AvatarFallback className="text-[8px] bg-gray-300 text-gray-600">{emp?.name.charAt(0)}</AvatarFallback>
@@ -1002,7 +1116,12 @@ export function TeamManager({
                       )
                     )}
                   </div>
-                  <div className="flex flex-wrap gap-1.5">
+                  <div
+                    className={`flex flex-wrap gap-1.5 min-h-[28px] rounded-lg p-1 -m-1 transition-colors ${dropTarget === 'manager' && dragEmp?.teamId === team.id ? 'bg-amber-100 ring-2 ring-amber-400 ring-dashed' : ''}`}
+                    onDragOver={e => { e.preventDefault(); if (dragEmp?.teamId === team.id && dragEmp.from === 'member') setDropTarget('manager') }}
+                    onDragLeave={() => setDropTarget(null)}
+                    onDrop={() => handleDrop(team.id, 'manager')}
+                  >
                     {managerIds.length === 0 && (
                       <p className="text-xs text-muted-foreground">担当なし</p>
                     )}
@@ -1013,7 +1132,12 @@ export function TeamManager({
                         const emp = getEmployee(manager.employee_id)
                         const isPrimary = manager.role === 'primary'
                         return (
-                        <div key={manager.employee_id} className={`flex items-center gap-1 ${isPrimary ? 'bg-amber-100' : 'bg-blue-100'} rounded-full pl-1 pr-2 py-0.5`}>
+                        <div key={manager.employee_id}
+                          draggable={isDirectEdit}
+                          onDragStart={() => isDirectEdit && setDragEmp({ id: manager.employee_id, teamId: team.id, from: 'manager' })}
+                          onDragEnd={() => { setDragEmp(null); setDropTarget(null) }}
+                          className={`flex items-center gap-1 ${isPrimary ? 'bg-amber-100' : 'bg-blue-100'} rounded-full pl-1 pr-2 py-0.5 ${isDirectEdit ? 'cursor-grab active:cursor-grabbing' : ''}`}
+                        >
                           <span className={`text-[9px] font-bold ${isPrimary ? 'text-amber-600' : 'text-blue-500'}`}>{isPrimary ? '主' : '副'}</span>
                           <Avatar className="w-4 h-4 flex-shrink-0">
                             <AvatarImage src={emp?.avatar_url ?? undefined} />
@@ -2166,6 +2290,50 @@ export function TeamManager({
               </Button>
             </div>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* メンバー→リーダー昇格ダイアログ */}
+      <Dialog open={!!promoteDialog} onOpenChange={open => { if (!open) setPromoteDialog(null) }}>
+        <DialogContent className="max-w-xs">
+          <DialogHeader>
+            <DialogTitle className="text-base">リーダーに変更</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-gray-600">
+            <strong>{promoteDialog ? getEmployeeName(promoteDialog.empId) : ''}</strong> をリーダーに変更します。役割を選択してください。
+          </p>
+          <div className="flex gap-2">
+            <Button className="flex-1 bg-amber-500 hover:bg-amber-600 text-white" onClick={() => handlePromote('primary')} disabled={isPending}>
+              リーダー（主）
+            </Button>
+            <Button className="flex-1 bg-blue-500 hover:bg-blue-600 text-white" onClick={() => handlePromote('secondary')} disabled={isPending}>
+              リーダー（副）
+            </Button>
+          </div>
+          <Button variant="outline" onClick={() => setPromoteDialog(null)} className="w-full">キャンセル</Button>
+        </DialogContent>
+      </Dialog>
+
+      {/* 主担当競合ダイアログ */}
+      <Dialog open={!!primaryConflict} onOpenChange={open => { if (!open) setPrimaryConflict(null) }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-base">主担当の変更</DialogTitle>
+          </DialogHeader>
+          <div className="text-sm text-gray-600 space-y-2">
+            <p>現在のチームリーダー 主担当は <strong>{primaryConflict ? getEmployeeName(primaryConflict.existingPrimaryId) : ''}</strong> さんです。</p>
+            <p>主担当はチームに一人のみ設定できます。</p>
+            <p><strong>{primaryConflict ? getEmployeeName(primaryConflict.existingPrimaryId) : ''}</strong> さんの役割を選択してください。</p>
+          </div>
+          <div className="flex gap-2">
+            <Button className="flex-1 bg-blue-500 hover:bg-blue-600 text-white" onClick={() => handlePrimaryConflictResolve('secondary')} disabled={isPending}>
+              リーダー（副）
+            </Button>
+            <Button className="flex-1" variant="outline" onClick={() => handlePrimaryConflictResolve('member')} disabled={isPending}>
+              メンバー
+            </Button>
+          </div>
+          <Button variant="outline" onClick={() => setPrimaryConflict(null)} className="w-full">キャンセル</Button>
         </DialogContent>
       </Dialog>
     </div>
