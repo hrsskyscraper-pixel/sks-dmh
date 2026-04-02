@@ -90,6 +90,9 @@ export function ProjectManager({
   const [projectName, setProjectName] = useState('')
   const [projectDesc, setProjectDesc] = useState('')
 
+  // コピー確認ダイアログ
+  const [copyConfirmProject, setCopyConfirmProject] = useState<SkillProject | null>(null)
+
   // フェーズ追加ダイアログ
   const [phaseDialog, setPhaseDialog] = useState(false)
   const [phaseName, setPhaseName] = useState('')
@@ -469,7 +472,7 @@ export function ProjectManager({
                   <Button size="sm" variant="outline" className="h-7 text-xs px-2" onClick={() => openEditProject(selectedProject)} disabled={isPending}>
                     <Pencil className="w-3.5 h-3.5 mr-1" />編集
                   </Button>
-                  <Button size="sm" variant="outline" className="h-7 text-xs px-2" onClick={() => handleCopyProject(selectedProject)} disabled={isPending}>
+                  <Button size="sm" variant="outline" className="h-7 text-xs px-2" onClick={() => setCopyConfirmProject(selectedProject)} disabled={isPending}>
                     <Copy className="w-3.5 h-3.5 mr-1" />コピー
                   </Button>
                   <Button size="sm" variant="outline" className="h-7 text-xs px-2" onClick={() => handleToggleArchive(selectedProject)} disabled={isPending}>
@@ -847,6 +850,32 @@ export function ProjectManager({
           </CardContent>
         </Card>
       )}
+
+      {/* ===== プロジェクトコピー確認ダイアログ ===== */}
+      <Dialog open={!!copyConfirmProject} onOpenChange={open => { if (!open) setCopyConfirmProject(null) }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>プロジェクトをコピーしますか？</DialogTitle>
+          </DialogHeader>
+          <div className="text-sm text-gray-600 space-y-2">
+            <p>「<strong>{copyConfirmProject?.name}</strong>」を元に新しいプロジェクトを作成します。</p>
+            <ul className="list-disc pl-5 space-y-1 text-xs text-gray-500">
+              <li>フェーズ構成とスキル割当がコピーされます</li>
+              <li>チーム紐付けはコピーされません</li>
+              <li>社員の実績データはコピーされません</li>
+            </ul>
+            <p className="text-xs text-amber-600 bg-amber-50 rounded px-3 py-2">
+              作成後のプロジェクトは削除できません（アーカイブのみ）。コピー後に名前や内容を編集してください。
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCopyConfirmProject(null)}>キャンセル</Button>
+            <Button onClick={() => { if (copyConfirmProject) { handleCopyProject(copyConfirmProject); setCopyConfirmProject(null) } }} disabled={isPending}>
+              コピーして作成
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ===== プロジェクト作成・編集ダイアログ ===== */}
       <Dialog open={projectDialog.open} onOpenChange={open => { if (!open) setProjectDialog({ open: false, editing: null }) }}>
