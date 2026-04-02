@@ -8,8 +8,8 @@ export async function POST(request: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: '未認証' }, { status: 401 })
 
-  const { employeeId, name, teamId, projectTeamId } = await request.json()
-  if (!employeeId || !name || !teamId) {
+  const { employeeId, lastName, firstName, teamId, projectTeamId } = await request.json()
+  if (!employeeId || !lastName || !teamId) {
     return NextResponse.json({ error: '必須項目が不足しています' }, { status: 400 })
   }
 
@@ -30,7 +30,8 @@ export async function POST(request: Request) {
 
   // employee 更新
   const { error: updateError } = await db.from('employees').update({
-    name,
+    last_name: lastName,
+    first_name: firstName || '',
     requested_team_id: teamId,
     requested_project_team_id: projectTeamId || null,
   }).eq('id', employeeId)

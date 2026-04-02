@@ -134,7 +134,8 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
 
   // プロフィール編集
   const [profileDialogOpen, setProfileDialogOpen] = useState(false)
-  const [editName, setEditName] = useState(employee.name)
+  const [editLastName, setEditLastName] = useState(employee.name.split(' ')[0] || '')
+  const [editFirstName, setEditFirstName] = useState(employee.name.split(' ').slice(1).join(' ') || '')
   const [editNameKana, setEditNameKana] = useState(employee.name_kana ?? '')
   const [currentNameKana, setCurrentNameKana] = useState(employee.name_kana)
   const [editRole, setEditRole] = useState(getDisplayRole(employee.role, employee.employment_type))
@@ -155,10 +156,11 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
 
   const handleProfileSave = () => {
     const rm = ROLE_MAP.find(r => r.display === editRole)
-    if (!rm || !editName.trim()) return
+    if (!rm || !editLastName.trim()) return
     startTransition(async () => {
       const { error } = await supabase.from('employees').update({
-        name: editName.trim(),
+        last_name: editLastName.trim(),
+        first_name: editFirstName.trim(),
         name_kana: editNameKana.trim() || null,
         role: rm.role,
         employment_type: rm.employment_type,
@@ -167,7 +169,7 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
         line_url: editLineUrl || null,
       }).eq('id', employee.id)
       if (error) { toast.error('更新に失敗しました'); return }
-      setEmployeeName(editName.trim())
+      setEmployeeName(`${editLastName.trim()} ${editFirstName.trim()}`.trim())
       setCurrentNameKana(editNameKana.trim() || null)
       setCurrentRole(editRole)
       setCurrentBirthDate(editBirthDate || null)
@@ -446,7 +448,9 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
               {canEdit && (
                 <button
                   onClick={() => {
-                    setEditName(employeeName)
+                    const parts = employeeName.split(' ')
+                    setEditLastName(parts[0] || '')
+                    setEditFirstName(parts.slice(1).join(' ') || '')
                     setEditNameKana(currentNameKana ?? '')
                     setEditRole(currentRole)
                     setEditBirthDate(currentBirthDate ?? '')
@@ -472,9 +476,15 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
             <DialogTitle className="text-base">プロフィール編集</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <div>
-              <label className="text-xs font-medium text-gray-600">氏名</label>
-              <Input value={editName} onChange={e => setEditName(e.target.value)} className="mt-1" />
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-xs font-medium text-gray-600">姓</label>
+                <Input value={editLastName} onChange={e => setEditLastName(e.target.value)} className="mt-1" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-600">名</label>
+                <Input value={editFirstName} onChange={e => setEditFirstName(e.target.value)} className="mt-1" />
+              </div>
             </div>
             <div>
               <label className="text-xs font-medium text-gray-600">ふりがな</label>

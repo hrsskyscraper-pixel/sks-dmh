@@ -56,15 +56,18 @@ export function ApprovalManager({ pendingEmployees, teams, projectTeams, current
 
   // 承認設定の状態
   const [settings, setSettings] = useState<Record<string, {
-    name: string
+    lastName: string
+    firstName: string
     teamId: string
     projectTeamId: string
     role: string
   }>>({})
 
   const getSettings = (emp: PendingEmployee) => {
+    const nameParts = emp.name.split(' ')
     return settings[emp.id] ?? {
-      name: emp.name,
+      lastName: nameParts[0] || '',
+      firstName: nameParts.slice(1).join(' ') || '',
       teamId: emp.requested_team_id ?? '',
       projectTeamId: emp.requested_project_team_id ?? '',
       role: '',
@@ -85,7 +88,8 @@ export function ApprovalManager({ pendingEmployees, teams, projectTeams, current
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         employeeId: emp.id,
-        name: s.name.trim(),
+        lastName: s.lastName.trim(),
+        firstName: s.firstName.trim(),
         teamId: s.teamId || null,
         projectTeamId: s.projectTeamId || null,
         role: s.role,
@@ -149,13 +153,23 @@ export function ApprovalManager({ pendingEmployees, teams, projectTeams, current
                 {/* 展開時の設定 */}
                 {isExpanded && (
                   <div className="mt-4 pt-4 border-t space-y-3">
-                    <div>
-                      <Label className="text-xs text-gray-500">氏名</Label>
-                      <Input
-                        value={s.name}
-                        onChange={e => updateSetting(emp, 'name', e.target.value)}
-                        className="mt-1"
-                      />
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label className="text-xs text-gray-500">姓</Label>
+                        <Input
+                          value={s.lastName}
+                          onChange={e => updateSetting(emp, 'lastName', e.target.value)}
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-gray-500">名</Label>
+                        <Input
+                          value={s.firstName}
+                          onChange={e => updateSetting(emp, 'firstName', e.target.value)}
+                          className="mt-1"
+                        />
+                      </div>
                     </div>
 
                     <div>
@@ -204,7 +218,7 @@ export function ApprovalManager({ pendingEmployees, teams, projectTeams, current
                       <Button
                         className="flex-1 bg-green-500 hover:bg-green-600"
                         onClick={() => setConfirmTarget(emp)}
-                        disabled={!s.role || !s.name.trim()}
+                        disabled={!s.role || !s.lastName.trim()}
                       >
                         <CheckCircle className="w-4 h-4 mr-1.5" />
                         承認

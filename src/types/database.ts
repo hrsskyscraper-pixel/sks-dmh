@@ -14,6 +14,8 @@ export type Database = {
           id: string
           auth_user_id: string | null
           name: string
+          last_name: string
+          first_name: string
           name_kana: string | null
           email: string
           hire_date: string | null
@@ -34,7 +36,9 @@ export type Database = {
         Insert: {
           id?: string
           auth_user_id?: string | null
-          name: string
+          name?: string
+          last_name: string
+          first_name?: string
           name_kana?: string | null
           email: string
           hire_date?: string | null
@@ -56,6 +60,8 @@ export type Database = {
           id?: string
           auth_user_id?: string | null
           name?: string
+          last_name?: string
+          first_name?: string
           name_kana?: string | null
           email?: string
           hire_date?: string | null

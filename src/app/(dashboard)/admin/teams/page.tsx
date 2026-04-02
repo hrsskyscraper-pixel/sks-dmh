@@ -24,7 +24,7 @@ export default async function AdminTeamsPage() {
   if (viewAsId) {
     const { data: viewAsEmp } = await db
       .from('employees')
-      .select('id, auth_user_id, name, name_kana, email, role, employment_type, hire_date, birth_date, avatar_url, instagram_url, line_url, status, requested_team_id, requested_project_team_id, line_user_id, notifications_read_at, created_at, updated_at')
+      .select('id, auth_user_id, name, last_name, first_name, name_kana, email, role, employment_type, hire_date, birth_date, avatar_url, instagram_url, line_url, status, requested_team_id, requested_project_team_id, line_user_id, notifications_read_at, created_at, updated_at')
       .eq('id', viewAsId)
       .single()
     if (viewAsEmp) {
@@ -45,7 +45,7 @@ export default async function AdminTeamsPage() {
     db.from('teams').select('id, name, type, prefecture, created_at, updated_at').order('name'),
     db.from('team_members').select('team_id, employee_id'),
     db.from('team_managers').select('team_id, employee_id, role'),
-    db.from('employees').select('id, auth_user_id, name, name_kana, email, role, employment_type, hire_date, birth_date, avatar_url, instagram_url, line_url, status, requested_team_id, requested_project_team_id, line_user_id, notifications_read_at, created_at, updated_at').order('name'),
+    db.from('employees').select('id, auth_user_id, name, last_name, first_name, name_kana, email, role, employment_type, hire_date, birth_date, avatar_url, instagram_url, line_url, status, requested_team_id, requested_project_team_id, line_user_id, notifications_read_at, created_at, updated_at').order('name'),
     db.from('team_change_requests')
       .select('id, status, request_type, team_id, payload, requested_by, reviewed_by, reviewed_at, review_comment, applicant_read_at, created_at')
       .order('created_at', { ascending: false }),

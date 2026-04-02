@@ -25,7 +25,9 @@ interface Props {
 
 export function OnboardingDialog({ employeeId, email, defaultName, teams }: Props) {
   const router = useRouter()
-  const [name, setName] = useState(defaultName)
+  const defaultParts = defaultName.split(' ')
+  const [lastName, setLastName] = useState(defaultParts[0] || '')
+  const [firstName, setFirstName] = useState(defaultParts.slice(1).join(' ') || '')
   const [teamId, setTeamId] = useState('')
   const [projectTeamId, setProjectTeamId] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -35,7 +37,8 @@ export function OnboardingDialog({ employeeId, email, defaultName, teams }: Prop
   const projectTeams = teams.filter(t => t.type === 'project')
 
   const handleSubmit = async () => {
-    if (!name.trim()) { setError('氏名を入力してください'); return }
+    if (!lastName.trim()) { setError('姓を入力してください'); return }
+    if (!firstName.trim()) { setError('名を入力してください'); return }
     if (!teamId || teamId === '__none__') { setError('店舗／部署を選択してください'); return }
     setSubmitting(true)
     setError('')
@@ -45,7 +48,8 @@ export function OnboardingDialog({ employeeId, email, defaultName, teams }: Prop
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         employeeId,
-        name: name.trim(),
+        lastName: lastName.trim(),
+        firstName: firstName.trim(),
         teamId,
         projectTeamId: projectTeamId && projectTeamId !== '__none__' ? projectTeamId : null,
       }),
@@ -79,15 +83,27 @@ export function OnboardingDialog({ employeeId, email, defaultName, teams }: Prop
               <Input id="email" value={email} disabled className="mt-1 bg-gray-100" />
             </div>
 
-            <div>
-              <Label htmlFor="name">氏名</Label>
-              <Input
-                id="name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="氏名を入力"
-                className="mt-1"
-              />
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label htmlFor="lastName">姓</Label>
+                <Input
+                  id="lastName"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  placeholder="須貝"
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label htmlFor="firstName">名</Label>
+                <Input
+                  id="firstName"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  placeholder="裕保"
+                  className="mt-1"
+                />
+              </div>
             </div>
 
             <div>

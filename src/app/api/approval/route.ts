@@ -30,7 +30,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: '権限がありません' }, { status: 403 })
   }
 
-  const { employeeId, name, teamId, projectTeamId, role, approvedBy } = await request.json()
+  const { employeeId, lastName, firstName, teamId, projectTeamId, role, approvedBy } = await request.json()
   if (!employeeId || !role) {
     return NextResponse.json({ error: '必須項目が不足しています' }, { status: 400 })
   }
@@ -75,7 +75,7 @@ export async function POST(request: Request) {
     status: 'approved' as const,
     role: dbRole as 'employee' | 'store_manager' | 'manager' | 'admin' | 'ops_manager' | 'executive',
     employment_type: employmentType,
-    ...(name ? { name: name.trim() } : {}),
+    ...(lastName ? { last_name: lastName.trim(), first_name: (firstName || '').trim() } : {}),
   }).eq('id', employeeId)
   if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
 
