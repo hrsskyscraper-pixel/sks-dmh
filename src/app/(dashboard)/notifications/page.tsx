@@ -12,12 +12,13 @@ export default async function NotificationsPage() {
   const currentEmployee = await getCurrentEmployee()
   if (!currentEmployee) redirect('/login')
 
-  const db = currentEmployee.role === 'testuser' ? createAdminClient() : await createClient()
-
   // view-as対応: 対象社員を特定
   const cookieStore = await cookies()
-  const canViewAs = ['store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'].includes(currentEmployee.role)
+  const canViewAs = true // 全ロールでView-as可能（閲覧のみ）
   const viewAsId = canViewAs ? (cookieStore.get(VIEW_AS_COOKIE)?.value ?? null) : null
+
+  // view-as中またはtestuserはRLS回避のためadmin clientを使用
+  const db = (viewAsId || currentEmployee.role === 'testuser') ? createAdminClient() : await createClient()
 
   let targetEmployee = currentEmployee
   if (viewAsId) {

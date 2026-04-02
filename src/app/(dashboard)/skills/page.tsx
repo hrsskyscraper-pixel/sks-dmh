@@ -20,7 +20,7 @@ export default async function SkillsPage({
   const supabase = await createClient()
 
   const cookieStore = await cookies()
-  const canViewAs = ['store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'].includes(currentEmployee.role)
+  const canViewAs = true // 全ロールでView-as可能（閲覧のみ）
   const viewAsId = canViewAs ? (cookieStore.get(VIEW_AS_COOKIE)?.value ?? null) : null
 
   const db = createAdminClient()

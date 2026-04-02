@@ -51,7 +51,7 @@ export default async function DashboardPage({
   const supabase = await createClient()
 
   const cookieStore = await cookies()
-  const canViewAs = ['store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'].includes(currentEmployee.role)
+  const canViewAs = true // 全ロールでView-as可能（閲覧のみ）
   const viewAsId = canViewAs ? (cookieStore.get(VIEW_AS_COOKIE)?.value ?? null) : null
 
   // testuser で view-as 未設定 → ガイド画面を表示
