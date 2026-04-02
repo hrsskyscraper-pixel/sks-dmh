@@ -28,6 +28,8 @@ export function OnboardingDialog({ employeeId, email, defaultName, teams }: Prop
   const defaultParts = defaultName.split(' ')
   const [lastName, setLastName] = useState(defaultParts[0] || '')
   const [firstName, setFirstName] = useState(defaultParts.slice(1).join(' ') || '')
+  const [lastNameKana, setLastNameKana] = useState('')
+  const [firstNameKana, setFirstNameKana] = useState('')
   const [teamId, setTeamId] = useState('')
   const [projectTeamId, setProjectTeamId] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -50,6 +52,8 @@ export function OnboardingDialog({ employeeId, email, defaultName, teams }: Prop
         employeeId,
         lastName: lastName.trim(),
         firstName: firstName.trim(),
+        lastNameKana: lastNameKana.trim(),
+        firstNameKana: firstNameKana.trim(),
         teamId,
         projectTeamId: projectTeamId && projectTeamId !== '__none__' ? projectTeamId : null,
       }),
@@ -90,7 +94,7 @@ export function OnboardingDialog({ employeeId, email, defaultName, teams }: Prop
                   id="lastName"
                   value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
-                  placeholder="須貝"
+                  placeholder="山田"
                   className="mt-1"
                 />
               </div>
@@ -100,7 +104,30 @@ export function OnboardingDialog({ employeeId, email, defaultName, teams }: Prop
                   id="firstName"
                   value={firstName}
                   onChange={(e) => setFirstName(e.target.value)}
-                  placeholder="裕保"
+                  placeholder="太郎"
+                  className="mt-1"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label htmlFor="lastNameKana">ふりがな（姓）</Label>
+                <Input
+                  id="lastNameKana"
+                  value={lastNameKana}
+                  onChange={(e) => setLastNameKana(e.target.value)}
+                  placeholder="やまだ"
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label htmlFor="firstNameKana">ふりがな（名）</Label>
+                <Input
+                  id="firstNameKana"
+                  value={firstNameKana}
+                  onChange={(e) => setFirstNameKana(e.target.value)}
+                  placeholder="たろう"
                   className="mt-1"
                 />
               </div>
