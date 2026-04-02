@@ -15,7 +15,7 @@ import {
 import { MoreVertical, Shield, User, Crown, Eye, Camera, Loader2, FileText } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { setViewAs } from '@/app/(dashboard)/actions'
+import { VIEW_AS_COOKIE } from '@/lib/view-as'
 import { Store, FolderKanban, Building2, ChevronDown, ChevronRight, MapPin, Award, Star, Instagram, MessageCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Employee, Role, EmploymentType, Team, TeamMember } from '@/types/database'
@@ -548,17 +548,18 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
                 </div>
 
                 <div className="flex items-center gap-1">
-                    <form action={setViewAs.bind(null, employee.id)}>
-                      <Button
-                        type="submit"
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 w-7 p-0 text-blue-500 hover:text-blue-700 hover:bg-blue-50"
-                          title="この社員として表示"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </Button>
-                      </form>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0 text-blue-500 hover:text-blue-700 hover:bg-blue-50"
+                      title="この社員として表示"
+                      onClick={() => {
+                        document.cookie = `${VIEW_AS_COOKIE}=${employee.id}; path=/`
+                        window.location.href = '/'
+                      }}
+                    >
+                      <Eye className="w-4 h-4" />
+                    </Button>
                     {canEditThis && (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>

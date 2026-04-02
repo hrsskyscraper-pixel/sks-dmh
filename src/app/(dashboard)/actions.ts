@@ -12,14 +12,6 @@ export async function setViewAs(employeeId: string) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return
 
-  const { data: currentEmployee } = await supabase
-    .from('employees')
-    .select('role')
-    .eq('auth_user_id', user.id)
-    .single()
-
-  if (!currentEmployee || !['store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'].includes(currentEmployee.role)) return
-
   const cookieStore = await cookies()
   cookieStore.set(VIEW_AS_COOKIE, employeeId, { path: '/' })
   revalidatePath('/', 'layout')
