@@ -576,18 +576,31 @@ export function TeamManager({
         setTeamMembers(prev => [...prev, { team_id: teamId, employee_id: existingPrimaryId, sort_order: 999 }])
       }
 
-      // 新しい人を主担当に追加（同じtransition内で直接実行）
+      // 新しい人を主担当に追加（既にマネジャーならupdate、でなければinsert）
       const newIds = pending ? pending.employeeIds : [empId]
-      const { error } = await supabase.from('team_managers').insert(newIds.map(id => ({ team_id: teamId, employee_id: id, role: 'primary' as const, sort_order: 0 })))
-      if (error) { toast.error('追加に失敗しました'); return }
-      // メンバーから削除
       for (const id of newIds) {
-        if (teamMembers.some(m => m.team_id === teamId && m.employee_id === id)) {
-          await supabase.from('team_members').delete().eq('team_id', teamId).eq('employee_id', id)
+        const existingMgr = teamManagers.find(m => m.team_id === teamId && m.employee_id === id)
+        if (existingMgr) {
+          // 既に副リーダー → 主に変更
+          await supabase.from('team_managers').update({ role: 'primary', sort_order: 0 }).eq('team_id', teamId).eq('employee_id', id)
+        } else {
+          // 新規追加
+          const { error } = await supabase.from('team_managers').insert({ team_id: teamId, employee_id: id, role: 'primary' as const, sort_order: 0 })
+          if (error) { toast.error('追加に失敗しました'); return }
+          // メンバーから削除
+          if (teamMembers.some(m => m.team_id === teamId && m.employee_id === id)) {
+            await supabase.from('team_members').delete().eq('team_id', teamId).eq('employee_id', id)
+          }
         }
       }
       setTeamMembers(prev => prev.filter(m => !(m.team_id === teamId && newIds.includes(m.employee_id))))
-      setTeamManagers(prev => [...prev, ...newIds.map(id => ({ team_id: teamId, employee_id: id, role: 'primary' as const, sort_order: 0 }))])
+      setTeamManagers(prev => {
+        // 既存マネジャーはrole更新、新規は追加
+        const existingIds = new Set(prev.filter(m => m.team_id === teamId).map(m => m.employee_id))
+        const updated = prev.map(m => m.team_id === teamId && newIds.includes(m.employee_id) ? { ...m, role: 'primary' as const, sort_order: 0 } : m)
+        const newEntries = newIds.filter(id => !existingIds.has(id)).map(id => ({ team_id: teamId, employee_id: id, role: 'primary' as const, sort_order: 0 }))
+        return [...updated, ...newEntries]
+      })
       const teamName = teams.find(t => t.id === teamId)?.name ?? ''
       for (const id of newIds) {
         await logDirectAction('add_manager', teamId, { team_name: teamName, employee_id: id, employee_name: getEmployeeName(id), role: 'primary' })
