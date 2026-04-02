@@ -387,18 +387,30 @@ export function TeamManager({
     })
   }
 
+  // ダイアログ経由の主担当追加で既存主担当がいる場合の一時保存
+  const [pendingAddManager, setPendingAddManager] = useState<{ teamId: string; employeeIds: string[] } | null>(null)
+
   const handleAddManager = (teamId: string, employeeIds: string[], role: 'primary' | 'secondary') => {
     if (!isDirectEdit || employeeIds.length === 0) return
-    const existingPrimaryId = role === 'primary'
-      ? teamManagers.find(m => m.team_id === teamId && m.role === 'primary')?.employee_id ?? null
-      : null
-    startTransition(async () => {
-      if (existingPrimaryId) {
-        const { error } = await supabase.from('team_managers')
-          .update({ role: 'secondary' })
-          .eq('team_id', teamId).eq('employee_id', existingPrimaryId)
-        if (error) { toast.error('追加に失敗しました'); return }
+
+    // 主担当追加で既存主担当がいる場合 → 競合ダイアログを表示
+    if (role === 'primary') {
+      const existingPrimary = teamManagers.find(m => m.team_id === teamId && m.role === 'primary')
+      if (existingPrimary) {
+        setPendingAddManager({ teamId, employeeIds })
+        setPrimaryConflict({ empId: employeeIds[0], teamId, existingPrimaryId: existingPrimary.employee_id })
+        setAddDialog(null)
+        setSelectedEmployeeIds(new Set())
+        setNewManagerRole('secondary')
+        return
       }
+    }
+
+    doAddManager(teamId, employeeIds, role)
+  }
+
+  const doAddManager = (teamId: string, employeeIds: string[], role: 'primary' | 'secondary') => {
+    startTransition(async () => {
       const { error } = await supabase
         .from('team_managers')
         .insert(employeeIds.map(id => ({ team_id: teamId, employee_id: id, role, sort_order: 999 })))
@@ -410,12 +422,7 @@ export function TeamManager({
         }
       }
       setTeamMembers(prev => prev.filter(m => !(m.team_id === teamId && employeeIds.includes(m.employee_id))))
-      setTeamManagers(prev => {
-        const updated = existingPrimaryId
-          ? prev.map(m => m.team_id === teamId && m.employee_id === existingPrimaryId ? { ...m, role: 'secondary' as const } : m)
-          : prev
-        return [...updated, ...employeeIds.map(id => ({ team_id: teamId, employee_id: id, role, sort_order: 999 }))]
-      })
+      setTeamManagers(prev => [...prev, ...employeeIds.map(id => ({ team_id: teamId, employee_id: id, role, sort_order: 999 }))])
       const teamName = teams.find(t => t.id === teamId)?.name ?? ''
       for (const empId of employeeIds) {
         await logDirectAction('add_manager', teamId, { team_name: teamName, employee_id: empId, employee_name: getEmployeeName(empId), role })
@@ -551,30 +558,35 @@ export function TeamManager({
   const handlePrimaryConflictResolve = (action: 'secondary' | 'member') => {
     if (!primaryConflict) return
     const { empId, teamId, existingPrimaryId } = primaryConflict
+    const pending = pendingAddManager
     setPrimaryConflict(null)
+    setPendingAddManager(null)
 
-    if (action === 'secondary') {
-      // 元主担当を副に、新しい人を主担当に
-      doPromote(empId, teamId, 'primary')
-    } else {
-      // 元主担当をメンバーに降格、新しい人を主担当に
-      startTransition(async () => {
-        // 元主担当をマネジャーから削除
+    // まず既存主担当を処理
+    startTransition(async () => {
+      if (action === 'secondary') {
+        // 元主担当を副に降格
+        await supabase.from('team_managers').update({ role: 'secondary' }).eq('team_id', teamId).eq('employee_id', existingPrimaryId)
+        setTeamManagers(prev => prev.map(m =>
+          m.team_id === teamId && m.employee_id === existingPrimaryId ? { ...m, role: 'secondary' as const } : m
+        ))
+      } else {
+        // 元主担当をメンバーに降格
         await supabase.from('team_managers').delete().eq('team_id', teamId).eq('employee_id', existingPrimaryId)
-        // 元主担当をメンバーに追加
         await supabase.from('team_members').insert({ team_id: teamId, employee_id: existingPrimaryId, sort_order: 999 })
         setTeamManagers(prev => prev.filter(m => !(m.team_id === teamId && m.employee_id === existingPrimaryId)))
         setTeamMembers(prev => [...prev, { team_id: teamId, employee_id: existingPrimaryId, sort_order: 999 }])
+      }
 
-        // 新しい人を主担当に
-        await supabase.from('team_members').delete().eq('team_id', teamId).eq('employee_id', empId)
-        const { error } = await supabase.from('team_managers').insert({ team_id: teamId, employee_id: empId, role: 'primary', sort_order: 0 })
-        if (error) { toast.error('変更に失敗しました'); return }
-        setTeamMembers(prev => prev.filter(m => !(m.team_id === teamId && m.employee_id === empId)))
-        setTeamManagers(prev => [...prev, { team_id: teamId, employee_id: empId, role: 'primary', sort_order: 0 }])
-        toast.success(`${getEmployeeName(empId)}を主担当リーダーに変更しました`)
-      })
-    }
+      // 新しい人を主担当に（ダイアログ経由 or ドラッグ経由）
+      if (pending) {
+        // ダイアログ経由: doAddManager
+        doAddManager(teamId, pending.employeeIds, 'primary')
+      } else {
+        // ドラッグ経由: doPromote
+        doPromote(empId, teamId, 'primary')
+      }
+    })
   }
 
   // -------------------------------------------------------
