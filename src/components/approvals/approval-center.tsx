@@ -198,6 +198,8 @@ export function ApprovalCenter({
     join: pendingJoins.length,
   }
 
+  const fmtDate = (d: string) => new Date(d).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+
   const fmtTime = (d: string) => {
     const diff = Date.now() - new Date(d).getTime()
     if (diff < 60000) return 'たった今'
@@ -369,9 +371,10 @@ export function ApprovalCenter({
                           {emp?.name} — <span className={isCertified ? 'text-green-600' : 'text-red-500'}>{skill?.name}</span>
                         </p>
                         {a.certify_comment && <p className="text-xs text-gray-500 mt-0.5">{a.certify_comment}</p>}
-                        <p className="text-[11px] text-gray-400 mt-0.5">
-                          {isCertified ? '認定' : '差戻'}: {certifier?.name ?? '不明'}
-                        </p>
+                        <div className="flex items-center gap-3 mt-0.5 text-[11px] text-gray-400">
+                          <span>申請: {fmtDate(a.created_at)}</span>
+                          <span>{isCertified ? '認定' : '差戻'}: {fmtDate(a.certified_at)} ({certifier?.name ?? '不明'})</span>
+                        </div>
                       </div>
                     </div>
                   </CardContent>
@@ -405,9 +408,10 @@ export function ApprovalCenter({
                           {emp?.name} — {payload?.team_name ?? teamMap[r.team_id]?.name ?? ''}
                         </p>
                         {r.review_comment && <p className="text-xs text-gray-500 mt-0.5">{r.review_comment}</p>}
-                        <p className="text-[11px] text-gray-400 mt-0.5">
-                          {isApproved ? '承認' : '差し戻し'}: {reviewer?.name ?? '不明'}
-                        </p>
+                        <div className="flex items-center gap-3 mt-0.5 text-[11px] text-gray-400">
+                          <span>申請: {fmtDate(r.created_at)}</span>
+                          <span>{isApproved ? '承認' : '差戻'}: {fmtDate(r.reviewed_at)} ({reviewer?.name ?? '不明'})</span>
+                        </div>
                       </div>
                     </div>
                   </CardContent>
@@ -436,7 +440,10 @@ export function ApprovalCenter({
                           {j.name} <span className="text-xs text-gray-500">({j.email})</span>
                         </p>
                         {teamName && <p className="text-xs text-blue-500 mt-0.5">{teamName}</p>}
-                        {approver && <p className="text-[11px] text-gray-400 mt-0.5">承認: {approver.name}</p>}
+                        <div className="flex items-center gap-3 mt-0.5 text-[11px] text-gray-400">
+                          <span>申請: {fmtDate(j.created_at)}</span>
+                          {j.approved_at && <span>承認: {fmtDate(j.approved_at)}{approver ? ` (${approver.name})` : ''}</span>}
+                        </div>
                       </div>
                     </div>
                   </CardContent>
