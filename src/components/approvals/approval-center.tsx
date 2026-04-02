@@ -326,7 +326,7 @@ export function ApprovalCenter({
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <Badge className="text-[9px] bg-purple-100 text-purple-700 border-0">チーム変更</Badge>
                           <Badge className={`text-[9px] border-0 ${isApproved ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
-                            {isApproved ? '承認' : '却下'}
+                            {isApproved ? '承認' : '差し戻し'}
                           </Badge>
                           <Badge className="text-[9px] bg-gray-100 text-gray-600 border-0">{REQUEST_TYPE_LABELS[r.request_type] ?? r.request_type}</Badge>
                           <span className="text-xs text-gray-400">{fmtTime(r.reviewed_at)}</span>
@@ -336,7 +336,7 @@ export function ApprovalCenter({
                         </p>
                         {r.review_comment && <p className="text-xs text-gray-500 mt-0.5">{r.review_comment}</p>}
                         <p className="text-[11px] text-gray-400 mt-0.5">
-                          {isApproved ? '承認' : '却下'}: {reviewer?.name ?? '不明'}
+                          {isApproved ? '承認' : '差し戻し'}: {reviewer?.name ?? '不明'}
                         </p>
                       </div>
                     </div>
@@ -495,7 +495,7 @@ export function ApprovalCenter({
                         </Button>
                         <Button size="sm" variant="outline" className="h-7 px-2 text-[11px] text-red-500 border-red-200 hover:bg-red-50"
                           onClick={() => handleTeamRequest(r.id, 'rejected')} disabled={isPending}>
-                          <XCircle className="w-3 h-3 mr-0.5" />却下
+                          <XCircle className="w-3 h-3 mr-0.5" />差し戻し
                         </Button>
                       </div>
                     </div>
