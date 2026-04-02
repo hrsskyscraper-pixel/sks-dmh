@@ -547,21 +547,19 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
                   )}
                 </div>
 
-                {canEditThis && (
-                  <div className="flex items-center gap-1">
-                    {canEdit && (
-                      <form action={setViewAs.bind(null, employee.id)}>
-                        <Button
-                          type="submit"
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 w-7 p-0 text-blue-500 hover:text-blue-700 hover:bg-blue-50"
+                <div className="flex items-center gap-1">
+                    <form action={setViewAs.bind(null, employee.id)}>
+                      <Button
+                        type="submit"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0 text-blue-500 hover:text-blue-700 hover:bg-blue-50"
                           title="この社員として表示"
                         >
                           <Eye className="w-4 h-4" />
                         </Button>
                       </form>
-                    )}
+                    {canEditThis && (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="sm" className="h-7 w-7 p-0" disabled={isPending}>
@@ -594,8 +592,8 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
                           ))}
                       </DropdownMenuContent>
                     </DropdownMenu>
-                  </div>
-                )}
+                    )}
+                </div>
 
               </div>
 
