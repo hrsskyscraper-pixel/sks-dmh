@@ -29,6 +29,8 @@ export type Database = {
           requested_team_id: string | null
           requested_project_team_id: string | null
           line_user_id: string | null
+          approved_by: string | null
+          approved_at: string | null
           notifications_read_at: string | null
           created_at: string
           updated_at: string
@@ -52,6 +54,8 @@ export type Database = {
           requested_team_id?: string | null
           requested_project_team_id?: string | null
           line_user_id?: string | null
+          approved_by?: string | null
+          approved_at?: string | null
           notifications_read_at?: string | null
           created_at?: string
           updated_at?: string
@@ -75,6 +79,8 @@ export type Database = {
           requested_team_id?: string | null
           requested_project_team_id?: string | null
           line_user_id?: string | null
+          approved_by?: string | null
+          approved_at?: string | null
           notifications_read_at?: string | null
           created_at?: string
           updated_at?: string

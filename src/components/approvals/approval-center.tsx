@@ -205,7 +205,7 @@ export function ApprovalCenter({
   const doneItems: DoneItem[] = []
   for (const a of recentAchievements) doneItems.push({ type: 'skill', date: a.certified_at, data: a })
   for (const r of recentTeamRequests) doneItems.push({ type: 'team', date: r.reviewed_at, data: r })
-  for (const j of recentJoins) doneItems.push({ type: 'join', date: j.updated_at, data: j })
+  for (const j of recentJoins) doneItems.push({ type: 'join', date: j.approved_at ?? j.updated_at, data: j })
   doneItems.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
   const filteredDone = doneFilter === 'all' ? doneItems : doneItems.filter(i => i.type === doneFilter)
 
@@ -331,6 +331,7 @@ export function ApprovalCenter({
             if (item.type === 'join') {
               const j = item.data
               const teamName = teamMap[j.requested_team_id]?.name ?? ''
+              const approver = j.approved_by ? reviewerMap[j.approved_by] : null
               return (
                 <Card key={`done-join-${j.id}`}>
                   <CardContent className="py-3 px-4">
@@ -343,12 +344,13 @@ export function ApprovalCenter({
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <Badge className="text-[9px] bg-blue-100 text-blue-700 border-0">参加許諾</Badge>
                           <Badge className="text-[9px] bg-emerald-100 text-emerald-700 border-0">承認済</Badge>
-                          <span className="text-xs text-gray-400">{fmtTime(j.updated_at)}</span>
+                          <span className="text-xs text-gray-400">{j.approved_at ? fmtTime(j.approved_at) : fmtTime(j.updated_at)}</span>
                         </div>
                         <p className="text-sm font-medium text-gray-800 mt-0.5">
                           {j.name} <span className="text-xs text-gray-500">({j.email})</span>
                         </p>
                         {teamName && <p className="text-xs text-blue-500 mt-0.5">{teamName}</p>}
+                        {approver && <p className="text-[11px] text-gray-400 mt-0.5">承認: {approver.name}</p>}
                       </div>
                     </div>
                   </CardContent>

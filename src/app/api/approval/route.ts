@@ -75,6 +75,8 @@ export async function POST(request: Request) {
     status: 'approved' as const,
     role: dbRole as 'employee' | 'store_manager' | 'manager' | 'admin' | 'ops_manager' | 'executive',
     employment_type: employmentType,
+    approved_by: approver.id,
+    approved_at: new Date().toISOString(),
     ...(lastName ? { last_name: lastName.trim(), first_name: (firstName || '').trim() } : {}),
   }).eq('id', employeeId)
   if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })

@@ -57,18 +57,20 @@ export default async function ApprovalsPage() {
     .order('reviewed_at', { ascending: false })
     .limit(30)
 
-  // 処理済み参加許諾（承認済み社員・直近30件）
+  // 処理済み参加許諾（approved_atがある社員・直近30件）
   const { data: recentJoins } = await db
     .from('employees')
-    .select('id, name, email, avatar_url, requested_team_id, status, created_at, updated_at')
+    .select('id, name, email, avatar_url, requested_team_id, status, approved_by, approved_at, created_at, updated_at')
     .eq('status', 'approved')
-    .order('updated_at', { ascending: false })
+    .not('approved_at', 'is', null)
+    .order('approved_at', { ascending: false })
     .limit(30)
 
   // 処理済み履歴の承認者名マップ
   const reviewerIds = new Set<string>()
   for (const a of recentAchievements ?? []) if (a.certified_by) reviewerIds.add(a.certified_by)
   for (const r of recentTeamRequests ?? []) if (r.reviewed_by) reviewerIds.add(r.reviewed_by)
+  for (const j of recentJoins ?? []) if (j.approved_by) reviewerIds.add(j.approved_by)
   const { data: reviewerEmployees } = reviewerIds.size > 0
     ? await db.from('employees').select('id, name, avatar_url').in('id', [...reviewerIds])
     : { data: [] }
