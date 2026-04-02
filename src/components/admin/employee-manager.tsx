@@ -109,6 +109,7 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
   const [employees, setEmployees] = useState(initialEmployees)
   const [isPending, startTransition] = useTransition()
   const [uploadingId, setUploadingId] = useState<string | null>(null)
+  const [avatarPreview, setAvatarPreview] = useState<{ id: string; url: string | null; name: string; canEdit: boolean } | null>(null)
   const managedSet = new Set(managedMemberIds)
 
   // 店舗マッピング
@@ -393,46 +394,36 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
               <div className="flex items-center gap-3">
 
 
-                {/* アバター（編集可能時のみクリックで写真アップロード） */}
+                {/* アバター（クリックで拡大表示） */}
                 {canEditThis ? (
-                  <>
-                    <label
-                      htmlFor={`avatar-${employee.id}`}
-                      className="relative cursor-pointer group flex-shrink-0"
-                      title="写真を変更"
-                    >
-                      <Avatar className="w-10 h-10">
-                        <AvatarImage src={employee.avatar_url ?? undefined} />
-                        <AvatarFallback className="text-sm bg-orange-200 text-orange-700">
-                          {employee.name.charAt(0)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                        {uploadingId === employee.id
-                          ? <Loader2 className="w-3.5 h-3.5 text-white animate-spin" />
-                          : <Camera className="w-3.5 h-3.5 text-white" />
-                        }
+                  <button
+                    onClick={() => setAvatarPreview({ id: employee.id, url: employee.avatar_url, name: employee.name, canEdit: true })}
+                    className="relative group flex-shrink-0"
+                  >
+                    <Avatar className="w-10 h-10">
+                      <AvatarImage src={employee.avatar_url ?? undefined} />
+                      <AvatarFallback className="text-sm bg-orange-200 text-orange-700">
+                        {employee.name.charAt(0)}
+                      </AvatarFallback>
+                    </Avatar>
+                    {uploadingId === employee.id && (
+                      <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center">
+                        <Loader2 className="w-3.5 h-3.5 text-white animate-spin" />
                       </div>
-                    </label>
-                    <input
-                      id={`avatar-${employee.id}`}
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={e => {
-                        const file = e.target.files?.[0]
-                        if (file) handleAvatarUpload(employee.id, file)
-                        e.target.value = ''
-                      }}
-                    />
-                  </>
+                    )}
+                  </button>
                 ) : (
-                  <Avatar className="w-10 h-10 flex-shrink-0">
-                    <AvatarImage src={employee.avatar_url ?? undefined} />
-                    <AvatarFallback className="text-sm bg-orange-200 text-orange-700">
-                      {employee.name.charAt(0)}
-                    </AvatarFallback>
-                  </Avatar>
+                  <button
+                    onClick={() => setAvatarPreview({ id: employee.id, url: employee.avatar_url, name: employee.name, canEdit: false })}
+                    className="flex-shrink-0"
+                  >
+                    <Avatar className="w-10 h-10">
+                      <AvatarImage src={employee.avatar_url ?? undefined} />
+                      <AvatarFallback className="text-sm bg-orange-200 text-orange-700">
+                        {employee.name.charAt(0)}
+                      </AvatarFallback>
+                    </Avatar>
+                  </button>
                 )}
 
                 <div className="flex-1 min-w-0">
@@ -614,6 +605,59 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
           </Card>
         )
       })}
+
+      {/* アバター拡大プレビューダイアログ */}
+      {avatarPreview && (
+        <>
+          <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={() => setAvatarPreview(null)}>
+            <div className="relative max-w-xs w-full" onClick={e => e.stopPropagation()}>
+              <div className="bg-white rounded-2xl overflow-hidden shadow-xl">
+                <div className="aspect-square bg-gray-100 flex items-center justify-center">
+                  {avatarPreview.url ? (
+                    <img src={avatarPreview.url} alt={avatarPreview.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-6xl font-bold text-gray-300">{avatarPreview.name.charAt(0)}</span>
+                  )}
+                </div>
+                <div className="px-4 py-3 text-center">
+                  <p className="text-sm font-medium text-gray-800">{avatarPreview.name}</p>
+                </div>
+                {avatarPreview.canEdit && (
+                  <div className="px-4 pb-4">
+                    <label
+                      htmlFor="avatar-preview-upload"
+                      className="flex items-center justify-center gap-1.5 w-full py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium cursor-pointer transition-colors"
+                    >
+                      <Camera className="w-4 h-4" />
+                      画像を変更する
+                    </label>
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={() => setAvatarPreview(null)}
+                className="absolute -top-2 -right-2 w-8 h-8 rounded-full bg-white shadow-md flex items-center justify-center text-gray-500 hover:text-gray-700"
+              >
+                &times;
+              </button>
+            </div>
+          </div>
+          <input
+            id="avatar-preview-upload"
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={e => {
+              const file = e.target.files?.[0]
+              if (file && avatarPreview) {
+                handleAvatarUpload(avatarPreview.id, file)
+                setAvatarPreview(null)
+              }
+              e.target.value = ''
+            }}
+          />
+        </>
+      )}
     </div>
   )
 }
