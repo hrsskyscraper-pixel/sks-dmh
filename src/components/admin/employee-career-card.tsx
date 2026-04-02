@@ -137,7 +137,10 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
   const [profileDialogOpen, setProfileDialogOpen] = useState(false)
   const [editLastName, setEditLastName] = useState(employee.name.split(' ')[0] || '')
   const [editFirstName, setEditFirstName] = useState(employee.name.split(' ').slice(1).join(' ') || '')
-  const [editNameKana, setEditNameKana] = useState(employee.name_kana ?? '')
+  const kanaDefault = employee.name_kana ?? ''
+  const [editLastNameKana, setEditLastNameKana] = useState(kanaDefault.split(/[\s\u3000]/)[0] || '')
+  const [editFirstNameKana, setEditFirstNameKana] = useState(kanaDefault.split(/[\s\u3000]/).slice(1).join(' ') || '')
+  const [avatarPreviewOpen, setAvatarPreviewOpen] = useState(false)
   const [currentNameKana, setCurrentNameKana] = useState(employee.name_kana)
   const [editRole, setEditRole] = useState(getDisplayRole(employee.role, employee.employment_type))
   const [editBirthDate, setEditBirthDate] = useState(employee.birth_date ?? '')
@@ -168,7 +171,7 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
       const { error } = await supabase.from('employees').update({
         last_name: editLastName.trim(),
         first_name: editFirstName.trim(),
-        name_kana: editNameKana.trim() || null,
+        name_kana: `${editLastNameKana.trim()} ${editFirstNameKana.trim()}`.trim() || null,
         ...(!roleChanged ? { role: rm.role, employment_type: rm.employment_type } : {}),
         birth_date: editBirthDate || null,
         instagram_url: editInstagram || null,
@@ -176,7 +179,7 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
       }).eq('id', employee.id)
       if (error) { toast.error('更新に失敗しました'); return }
       setEmployeeName(`${editLastName.trim()} ${editFirstName.trim()}`.trim())
-      setCurrentNameKana(editNameKana.trim() || null)
+      setCurrentNameKana(`${editLastNameKana.trim()} ${editFirstNameKana.trim()}`.trim() || null)
       setCurrentRole(editRole)
       setCurrentBirthDate(editBirthDate || null)
       setCurrentInstagram(editInstagram || null)
@@ -345,23 +348,17 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
       <Card>
         <CardContent className="pt-5 pb-5">
           <div className="flex items-start gap-4">
-            {canEdit ? (
-              <label htmlFor="career-avatar" className="relative cursor-pointer group flex-shrink-0">
-                <Avatar className="w-16 h-16">
-                  <AvatarImage src={avatarUrl ?? undefined} />
-                  <AvatarFallback className="bg-orange-100 text-orange-700 text-xl font-bold">{employee.name.charAt(0)}</AvatarFallback>
-                </Avatar>
-                <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                  {uploadingAvatar ? <Loader2 className="w-5 h-5 text-white animate-spin" /> : <Camera className="w-5 h-5 text-white" />}
-                </div>
-                <input id="career-avatar" type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) handleAvatarUpload(f); e.target.value = '' }} />
-              </label>
-            ) : (
-              <Avatar className="w-16 h-16 flex-shrink-0">
+            <button onClick={() => setAvatarPreviewOpen(true)} className="relative flex-shrink-0">
+              <Avatar className="w-16 h-16">
                 <AvatarImage src={avatarUrl ?? undefined} />
                 <AvatarFallback className="bg-orange-100 text-orange-700 text-xl font-bold">{employee.name.charAt(0)}</AvatarFallback>
               </Avatar>
-            )}
+              {uploadingAvatar && (
+                <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center">
+                  <Loader2 className="w-5 h-5 text-white animate-spin" />
+                </div>
+              )}
+            </button>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5 flex-wrap">
                 <h2 className="text-xl font-bold text-gray-800">{employeeName}</h2>
@@ -457,7 +454,9 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
                     const parts = employeeName.split(' ')
                     setEditLastName(parts[0] || '')
                     setEditFirstName(parts.slice(1).join(' ') || '')
-                    setEditNameKana(currentNameKana ?? '')
+                    const kp = (currentNameKana ?? '').split(/[\s\u3000]/)
+                    setEditLastNameKana(kp[0] || '')
+                    setEditFirstNameKana(kp.slice(1).join(' ') || '')
                     setEditRole(currentRole)
                     setEditBirthDate(currentBirthDate ?? '')
                     setEditInstagram(currentInstagram ?? '')
@@ -492,9 +491,15 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
                 <Input value={editFirstName} onChange={e => setEditFirstName(e.target.value)} className="mt-1" />
               </div>
             </div>
-            <div>
-              <label className="text-xs font-medium text-gray-600">ふりがな</label>
-              <Input value={editNameKana} onChange={e => setEditNameKana(e.target.value)} placeholder="すがい ひろやす" className="mt-1" />
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-xs font-medium text-gray-600">ふりがな（姓）</label>
+                <Input value={editLastNameKana} onChange={e => setEditLastNameKana(e.target.value)} placeholder="やまだ" className="mt-1" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-600">ふりがな（名）</label>
+                <Input value={editFirstNameKana} onChange={e => setEditFirstNameKana(e.target.value)} placeholder="たろう" className="mt-1" />
+              </div>
             </div>
             <div>
               <label className="text-xs font-medium text-gray-600">ロール</label>
@@ -886,6 +891,57 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* アバター拡大プレビュー */}
+      {avatarPreviewOpen && (
+        <>
+          <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={() => setAvatarPreviewOpen(false)}>
+            <div className="relative max-w-xs w-full" onClick={e => e.stopPropagation()}>
+              <div className="bg-white rounded-2xl overflow-hidden shadow-xl">
+                <div className="aspect-square bg-gray-100 flex items-center justify-center">
+                  {avatarUrl ? (
+                    <img src={avatarUrl} alt={employeeName} className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-6xl font-bold text-gray-300">{employeeName.charAt(0)}</span>
+                  )}
+                </div>
+                <div className="px-4 py-3 text-center">
+                  <p className="text-sm font-medium text-gray-800">{employeeName}</p>
+                </div>
+                {canEdit && (
+                  <div className="px-4 pb-4">
+                    <label
+                      htmlFor="career-avatar-preview"
+                      className="flex items-center justify-center gap-1.5 w-full py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium cursor-pointer transition-colors"
+                    >
+                      <Camera className="w-4 h-4" />
+                      画像を変更する
+                    </label>
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={() => setAvatarPreviewOpen(false)}
+                className="absolute -top-2 -right-2 w-8 h-8 rounded-full bg-white shadow-md flex items-center justify-center text-gray-500 hover:text-gray-700"
+              >
+                &times;
+              </button>
+            </div>
+          </div>
+          <input
+            id="career-avatar-preview"
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={e => {
+              const f = e.target.files?.[0]
+              if (f) handleAvatarUpload(f)
+              setAvatarPreviewOpen(false)
+              e.target.value = ''
+            }}
+          />
+        </>
+      )}
     </div>
   )
 }
