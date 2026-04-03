@@ -411,18 +411,19 @@ export function TeamManager({
 
   const doAddManager = (teamId: string, employeeIds: string[], role: 'primary' | 'secondary') => {
     startTransition(async () => {
-      const { error } = await supabase
-        .from('team_managers')
-        .insert(employeeIds.map(id => ({ team_id: teamId, employee_id: id, role, sort_order: 999 })))
-      if (error) { toast.error('追加に失敗しました'); return }
-      // リーダーに昇格した社員をメンバーから削除
-      for (const empId of employeeIds) {
-        if (teamMembers.some(m => m.team_id === teamId && m.employee_id === empId)) {
-          await supabase.from('team_members').delete().eq('team_id', teamId).eq('employee_id', empId)
-        }
+      for (const id of employeeIds) {
+        const { error } = await supabase.from('team_managers')
+          .upsert({ team_id: teamId, employee_id: id, role, sort_order: 999 }, { onConflict: 'team_id,employee_id' })
+        if (error) { toast.error('追加に失敗しました: ' + error.message); return }
+        await supabase.from('team_members').delete().eq('team_id', teamId).eq('employee_id', id)
       }
       setTeamMembers(prev => prev.filter(m => !(m.team_id === teamId && employeeIds.includes(m.employee_id))))
-      setTeamManagers(prev => [...prev, ...employeeIds.map(id => ({ team_id: teamId, employee_id: id, role, sort_order: 999 }))])
+      setTeamManagers(prev => {
+        const existingIds = new Set(prev.filter(m => m.team_id === teamId).map(m => m.employee_id))
+        const updated = prev.map(m => m.team_id === teamId && employeeIds.includes(m.employee_id) ? { ...m, role, sort_order: 999 } : m)
+        const newEntries = employeeIds.filter(id => !existingIds.has(id)).map(id => ({ team_id: teamId, employee_id: id, role, sort_order: 999 }))
+        return [...updated, ...newEntries]
+      })
       const teamName = teams.find(t => t.id === teamId)?.name ?? ''
       for (const empId of employeeIds) {
         await logDirectAction('add_manager', teamId, { team_name: teamName, employee_id: empId, employee_name: getEmployeeName(empId), role })
@@ -563,35 +564,33 @@ export function TeamManager({
     setPendingAddManager(null)
 
     startTransition(async () => {
-      // まず既存主担当を処理
+      // まず既存主担当を処理（DB更新完了を確実に待つ）
       if (action === 'secondary') {
-        await supabase.from('team_managers').update({ role: 'secondary' }).eq('team_id', teamId).eq('employee_id', existingPrimaryId)
+        const { error: demoteErr } = await supabase.from('team_managers').update({ role: 'secondary' }).eq('team_id', teamId).eq('employee_id', existingPrimaryId)
+        if (demoteErr) { toast.error('降格に失敗しました'); return }
+      } else {
+        const { error: delErr } = await supabase.from('team_managers').delete().eq('team_id', teamId).eq('employee_id', existingPrimaryId)
+        if (delErr) { toast.error('削除に失敗しました'); return }
+        await supabase.from('team_members').insert({ team_id: teamId, employee_id: existingPrimaryId, sort_order: 999 })
+      }
+
+      // 新しい人を主担当に追加（既存主担当の降格完了後に実行）
+      const newIds = pending ? pending.employeeIds : [empId]
+      for (const id of newIds) {
+        const { error } = await supabase.from('team_managers')
+          .upsert({ team_id: teamId, employee_id: id, role: 'primary' as const, sort_order: 0 }, { onConflict: 'team_id,employee_id' })
+        if (error) { toast.error('追加に失敗しました: ' + error.message); return }
+        await supabase.from('team_members').delete().eq('team_id', teamId).eq('employee_id', id)
+      }
+
+      // ローカルstate更新（全部まとめて）
+      if (action === 'secondary') {
         setTeamManagers(prev => prev.map(m =>
           m.team_id === teamId && m.employee_id === existingPrimaryId ? { ...m, role: 'secondary' as const } : m
         ))
       } else {
-        await supabase.from('team_managers').delete().eq('team_id', teamId).eq('employee_id', existingPrimaryId)
-        await supabase.from('team_members').insert({ team_id: teamId, employee_id: existingPrimaryId, sort_order: 999 })
         setTeamManagers(prev => prev.filter(m => !(m.team_id === teamId && m.employee_id === existingPrimaryId)))
         setTeamMembers(prev => [...prev, { team_id: teamId, employee_id: existingPrimaryId, sort_order: 999 }])
-      }
-
-      // 新しい人を主担当に追加（既にマネジャーならupdate、でなければinsert）
-      const newIds = pending ? pending.employeeIds : [empId]
-      for (const id of newIds) {
-        const existingMgr = teamManagers.find(m => m.team_id === teamId && m.employee_id === id)
-        if (existingMgr) {
-          // 既に副リーダー → 主に変更
-          await supabase.from('team_managers').update({ role: 'primary', sort_order: 0 }).eq('team_id', teamId).eq('employee_id', id)
-        } else {
-          // 新規追加
-          const { error } = await supabase.from('team_managers').insert({ team_id: teamId, employee_id: id, role: 'primary' as const, sort_order: 0 })
-          if (error) { toast.error('追加に失敗しました'); return }
-          // メンバーから削除
-          if (teamMembers.some(m => m.team_id === teamId && m.employee_id === id)) {
-            await supabase.from('team_members').delete().eq('team_id', teamId).eq('employee_id', id)
-          }
-        }
       }
       setTeamMembers(prev => prev.filter(m => !(m.team_id === teamId && newIds.includes(m.employee_id))))
       setTeamManagers(prev => {
