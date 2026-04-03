@@ -1945,7 +1945,11 @@ export function TeamManager({
                         checked={newManagerRole === role}
                         onChange={() => {
                           setNewManagerRole(role)
-                          setSelectedEmployeeIds(new Set())
+                          if (role === 'primary' && selectedEmployeeIds.size > 1) {
+                            // 主担当は1名のみ: 最初の1名だけ残す
+                            const first = [...selectedEmployeeIds][0]
+                            setSelectedEmployeeIds(new Set([first]))
+                          }
                         }}
                         className="accent-orange-500"
                       />
