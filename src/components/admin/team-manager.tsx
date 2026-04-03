@@ -499,7 +499,7 @@ export function TeamManager({
         supabase.from('team_members').update({ sort_order: i }).eq('team_id', teamId).eq('employee_id', id)
       ))
     } else {
-      const mgrs = teamManagers.filter(m => m.team_id === teamId).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+      const mgrs = teamManagers.filter(m => m.team_id === teamId).sort((a, b) => (a.role === 'primary' ? -1 : b.role === 'primary' ? 1 : 0) || (a.sort_order ?? 0) - (b.sort_order ?? 0))
       const ids = mgrs.map(m => m.employee_id)
       const reordered = ids.filter(id => id !== draggedId)
       const insertIdx = beforeId ? reordered.indexOf(beforeId) : reordered.length
@@ -839,7 +839,7 @@ export function TeamManager({
   }
 
   const getTeamManagerIds = (teamId: string) =>
-    teamManagers.filter(m => m.team_id === teamId).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)).map(m => m.employee_id)
+    teamManagers.filter(m => m.team_id === teamId).sort((a, b) => (a.role === 'primary' ? -1 : b.role === 'primary' ? 1 : 0) || (a.sort_order ?? 0) - (b.sort_order ?? 0)).map(m => m.employee_id)
 
   const getTeamPrimaryManagerId = (teamId: string) =>
     teamManagers.find(m => m.team_id === teamId && m.role === 'primary')?.employee_id ?? null
@@ -946,7 +946,7 @@ export function TeamManager({
                         <p className="text-xs font-medium text-gray-600 mb-1.5">担当リーダー</p>
                         <div className="flex flex-wrap gap-1.5">
                           {managerIds.length === 0 && <p className="text-xs text-muted-foreground">担当なし</p>}
-                          {teamManagers.filter(m => m.team_id === team.id).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)).map(manager => {
+                          {teamManagers.filter(m => m.team_id === team.id).sort((a, b) => (a.role === 'primary' ? -1 : b.role === 'primary' ? 1 : 0) || (a.sort_order ?? 0) - (b.sort_order ?? 0)).map(manager => {
                             const emp = getEmployee(manager.employee_id)
                             const isPrimary = manager.role === 'primary'
                             return (
@@ -1201,7 +1201,7 @@ export function TeamManager({
                     )}
                     {teamManagers
                       .filter(m => m.team_id === team.id)
-                      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+                      .sort((a, b) => (a.role === 'primary' ? -1 : b.role === 'primary' ? 1 : 0) || (a.sort_order ?? 0) - (b.sort_order ?? 0))
                       .map(manager => {
                         const emp = getEmployee(manager.employee_id)
                         const isPrimary = manager.role === 'primary'
