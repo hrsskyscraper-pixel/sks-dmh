@@ -1,15 +1,24 @@
 'use client'
 
 import { useSearchParams } from 'next/navigation'
-import { Suspense } from 'react'
+import { useRouter } from 'next/navigation'
+import { Suspense, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 
 function LoginContent() {
   const supabase = createClient()
   const searchParams = useSearchParams()
+  const router = useRouter()
   const error = searchParams.get('error')
+
+  const [showEmailLogin, setShowEmailLogin] = useState(false)
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [emailError, setEmailError] = useState('')
+  const [loading, setLoading] = useState(false)
 
   const handleGoogleLogin = async () => {
     await supabase.auth.signInWithOAuth({
@@ -18,6 +27,23 @@ function LoginContent() {
         redirectTo: `${window.location.origin}/auth/callback`,
       },
     })
+  }
+
+  const handleEmailLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setEmailError('')
+    setLoading(true)
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      if (error) {
+        setEmailError(error.message)
+      } else {
+        router.push('/')
+        router.refresh()
+      }
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -58,14 +84,65 @@ function LoginContent() {
             </svg>
             Googleでログイン
           </Button>
+
+          {!showEmailLogin ? (
+            <button
+              onClick={() => setShowEmailLogin(true)}
+              className="w-full text-center text-xs text-muted-foreground mt-4 hover:text-gray-600 underline underline-offset-2"
+            >
+              メールアドレスでログイン
+            </button>
+          ) : (
+            <form onSubmit={handleEmailLogin} className="mt-4 space-y-3">
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-white px-2 text-muted-foreground">または</span>
+                </div>
+              </div>
+              <Input
+                type="email"
+                placeholder="メールアドレス"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                autoComplete="email"
+              />
+              <Input
+                type="password"
+                placeholder="パスワード"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                autoComplete="current-password"
+              />
+              <Button
+                type="submit"
+                className="w-full h-11"
+                disabled={loading}
+              >
+                {loading ? 'ログイン中...' : 'ログイン'}
+              </Button>
+              {emailError && (
+                <p className="text-center text-xs text-red-500 break-all">
+                  {emailError}
+                </p>
+              )}
+            </form>
+          )}
+
           {error && (
             <p className="text-center text-xs text-red-500 mt-4 break-all">
               エラー: {decodeURIComponent(error)}
             </p>
           )}
-          <p className="text-center text-xs text-muted-foreground mt-4">
-            Googleアカウントでログインしてください
-          </p>
+          {!showEmailLogin && (
+            <p className="text-center text-xs text-muted-foreground mt-4">
+              Googleアカウントでログインしてください
+            </p>
+          )}
         </CardContent>
       </Card>
     </div>
