@@ -212,15 +212,60 @@ const sections = [
     id: 'roles',
     title: 'ロールと権限',
     icon: Award,
-    content: `| ロール | 権限 |
-|--------|------|
-| メイト | スキル申請、自分の情報閲覧 |
-| 社員 | メイトと同じ |
-| 店長 | 自店舗メンバーの認定・編集、参加許諾（メイト/社員のみ） |
-| マネジャー | 自チームメンバーの認定・編集、参加許諾（メイト/社員のみ） |
-| 運用管理者 | 全メンバーの認定・編集、チーム管理、設定、参加許諾（全ロール） |
-| 役員 | 運用管理者と同じ |
-| 開発者 | 全権限 + テストユーザーモード |`,
+    content: `以下の表で、各ロールができること・できないことを確認できます。
+
+**記号の意味**
+- ◯：できる
+- △：自チーム・自店舗のメンバーのみなど限定的にできる
+- ✕：できない
+
+**スキル**
+| 機能 | メイト | 社員 | 店長 | マネ | 運管 | 役員 | 開発 |
+|---|---|---|---|---|---|---|---|
+| 自分のスキル閲覧・申請 | ◯ | ◯ | ◯ | ◯ | ◯ | ◯ | ◯ |
+| 他メンバーのスキル閲覧 | ✕ | ✕ | △ | △ | ◯ | ◯ | ◯ |
+| スキル認定・差し戻し | ✕ | ✕ | △ | △ | ◯ | ◯ | ◯ |
+
+**参加承認・チーム変更**
+| 機能 | メイト | 社員 | 店長 | マネ | 運管 | 役員 | 開発 |
+|---|---|---|---|---|---|---|---|
+| 参加申請の承認 | ✕ | ✕ | △ | △ | ◯ | ◯ | ◯ |
+| チーム変更の申請 | ✕ | ✕ | ◯ | ◯ | ◯ | ◯ | ◯ |
+| チーム変更の承認 | ✕ | ✕ | △ | △ | ◯ | ◯ | ◯ |
+| 承認センターの利用 | ✕ | ✕ | ◯ | ◯ | ◯ | ◯ | ◯ |
+
+※店長・マネジャーによる参加承認は、自チーム向け、かつメイト/社員ロールへのみ可能
+
+**メンバー・チーム管理**
+| 機能 | メイト | 社員 | 店長 | マネ | 運管 | 役員 | 開発 |
+|---|---|---|---|---|---|---|---|
+| 自分のプロフィール編集 | ◯ | ◯ | ◯ | ◯ | ◯ | ◯ | ◯ |
+| 他メンバーのプロフィール編集 | ✕ | ✕ | △ | △ | ◯ | ◯ | ◯ |
+| メンバー名編集 | ✕ | ✕ | ✕ | ✕ | ◯ | ◯ | ◯ |
+| メンバーのロール変更 | ✕ | ✕ | △ | △ | ◯ | ◯ | ◯ |
+| チーム作成・編集・削除 | ✕ | ✕ | 申請 | 申請 | ◯ | ◯ | ◯ |
+
+※店長・マネジャーによるロール変更はメイト⇔社員の範囲のみ
+※「申請」＝変更申請を作成でき、運用管理者以上が承認
+
+**キャリア記録**
+| 機能 | メイト | 社員 | 店長 | マネ | 運管 | 役員 | 開発 |
+|---|---|---|---|---|---|---|---|
+| 自分のキャリア記録閲覧 | ◯ | ◯ | ◯ | ◯ | ◯ | ◯ | ◯ |
+| 他メンバーのキャリア記録閲覧 | ✕ | ✕ | △ | △ | ◯ | ◯ | ◯ |
+| キャリア記録の追加 | ✕ | ✕ | ◯ | ◯ | ◯ | ◯ | ◯ |
+| キャリア記録の編集・削除 | ✕ | ✕ | ✕ | ✕ | ◯ | ◯ | ◯ |
+
+**設定・その他**
+| 機能 | メイト | 社員 | 店長 | マネ | 運管 | 役員 | 開発 |
+|---|---|---|---|---|---|---|---|
+| 設定画面へのアクセス | ✕ | ✕ | ✕ | ✕ | ◯ | ◯ | ◯ |
+| プロジェクト管理 | ✕ | ✕ | ✕ | ✕ | ◯ | ◯ | ◯ |
+| 勤務時間CSV取込 | ✕ | ✕ | ◯ | ◯ | ◯ | ◯ | ◯ |
+| 社内資格マスタ管理 | ✕ | ✕ | ✕ | ✕ | ◯ | ◯ | ◯ |
+| プロトタイプ閲覧モード | ✕ | ✕ | ✕ | ✕ | ✕ | ✕ | ◯ |
+
+※「マネ」＝マネジャー、「運管」＝運用管理者、「開発」＝開発者`,
   },
   {
     id: 'notifications',
@@ -241,6 +286,97 @@ const sections = [
 - 通知ベル（ヘッダー右上）`,
   },
 ]
+
+function renderContent(content: string): React.ReactNode[] {
+  const lines = content.split('\n')
+  const elements: React.ReactNode[] = []
+  let i = 0
+  let key = 0
+  while (i < lines.length) {
+    const trimmed = lines[i].trim()
+
+    // テーブル: 連続する | 行をまとめて <table> として描画
+    if (trimmed.startsWith('|')) {
+      const rows: string[][] = []
+      while (i < lines.length && lines[i].trim().startsWith('|')) {
+        const cells = lines[i].trim().split('|').filter(c => c.trim() !== '').map(c => c.trim())
+        if (cells.length > 0 && !cells.every(c => /^-+$/.test(c))) {
+          rows.push(cells)
+        }
+        i++
+      }
+      if (rows.length > 0) {
+        const [header, ...body] = rows
+        elements.push(
+          <div key={`t${key++}`} className="my-2 overflow-x-auto">
+            <table className="w-full text-xs border-collapse">
+              <thead>
+                <tr>
+                  {header.map((cell, j) => (
+                    <th
+                      key={j}
+                      className={`bg-gray-50 px-2 py-1.5 font-medium text-gray-700 border border-gray-200 ${j === 0 ? 'text-left' : 'text-center whitespace-nowrap'}`}
+                    >
+                      {cell}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {body.map((row, r) => (
+                  <tr key={r}>
+                    {row.map((cell, j) => (
+                      <td
+                        key={j}
+                        className={`px-2 py-1.5 border border-gray-200 ${
+                          j === 0
+                            ? 'font-medium text-gray-700 bg-gray-50/50'
+                            : 'text-center text-gray-600 whitespace-nowrap'
+                        } ${
+                          cell === '◯' ? 'text-green-600 font-semibold' :
+                          cell === '✕' ? 'text-gray-300' :
+                          cell === '△' ? 'text-amber-600 font-semibold' : ''
+                        }`}
+                      >
+                        {cell}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      }
+      continue
+    }
+
+    if (trimmed.startsWith('**') && trimmed.endsWith('**')) {
+      elements.push(
+        <p key={key++} className="font-semibold text-gray-800 mt-3 mb-1">
+          {trimmed.replace(/\*\*/g, '')}
+        </p>
+      )
+    } else if (trimmed.startsWith('- ')) {
+      elements.push(
+        <p
+          key={key++}
+          className="pl-3 relative before:content-['•'] before:absolute before:left-0 before:text-orange-400"
+        >
+          {trimmed.slice(2)}
+        </p>
+      )
+    } else if (/^\d+\./.test(trimmed)) {
+      elements.push(<p key={key++} className="pl-4">{trimmed}</p>)
+    } else if (!trimmed) {
+      elements.push(<div key={key++} className="h-1" />)
+    } else {
+      elements.push(<p key={key++}>{trimmed}</p>)
+    }
+    i++
+  }
+  return elements
+}
 
 export default function HelpPage() {
   return (
@@ -275,34 +411,8 @@ export default function HelpPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="px-4 pb-4">
-              <div className="prose prose-sm max-w-none text-gray-600 [&_table]:w-full [&_table]:text-xs [&_th]:bg-gray-50 [&_th]:px-2 [&_th]:py-1 [&_td]:px-2 [&_td]:py-1 [&_th]:border [&_td]:border [&_th]:text-left [&_strong]:text-gray-800 [&_h2]:text-sm [&_h2]:mt-3 [&_h2]:mb-1 whitespace-pre-line">
-                {s.content.split('\n').map((line, i) => {
-                  const trimmed = line.trim()
-                  if (trimmed.startsWith('**') && trimmed.endsWith('**')) {
-                    return <p key={i} className="font-semibold text-gray-800 mt-3 mb-1">{trimmed.replace(/\*\*/g, '')}</p>
-                  }
-                  if (trimmed.startsWith('|')) {
-                    // テーブル行
-                    const cells = trimmed.split('|').filter(c => c.trim()).map(c => c.trim())
-                    if (cells.every(c => c.match(/^-+$/))) return null // セパレータ行
-                    const isHeader = i > 0 && sections.find(sec => sec.content.split('\n')[sections.find(sec2 => sec2.content.includes(trimmed))?.content.split('\n').indexOf(trimmed) ?? -1 + 1]?.trim().startsWith('|--'))
-                    return (
-                      <div key={i} className="flex border-b border-gray-200 text-xs">
-                        {cells.map((cell, j) => (
-                          <div key={j} className={`flex-1 px-2 py-1.5 ${j === 0 ? 'font-medium text-gray-700 bg-gray-50' : 'text-gray-600'}`}>{cell}</div>
-                        ))}
-                      </div>
-                    )
-                  }
-                  if (trimmed.startsWith('- ')) {
-                    return <p key={i} className="pl-3 relative before:content-['•'] before:absolute before:left-0 before:text-orange-400">{trimmed.slice(2)}</p>
-                  }
-                  if (trimmed.match(/^\d+\./)) {
-                    return <p key={i} className="pl-4">{trimmed}</p>
-                  }
-                  if (!trimmed) return <div key={i} className="h-1" />
-                  return <p key={i}>{trimmed}</p>
-                })}
+              <div className="prose prose-sm max-w-none text-gray-600 [&_strong]:text-gray-800 whitespace-pre-line">
+                {renderContent(s.content)}
               </div>
             </CardContent>
           </Card>
