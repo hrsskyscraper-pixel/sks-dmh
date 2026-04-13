@@ -747,7 +747,7 @@ function HelpContent() {
   }
   return (
     <>
-      <TopBar title="使い方ガイド" />
+      <TopBar title="使い方ガイド" hideNotificationBell />
       <div className="p-4 max-w-2xl mx-auto">
         <Tabs value={tab} onValueChange={handleTabChange} className="mb-4">
           <TabsList className="grid grid-cols-3 w-full">
