@@ -25,9 +25,12 @@ interface Props {
   teamName: string
   inviterName: string
   candidates: Employee[]
+  /** true: リーダー（副）として招待 / false: メンバーとして招待 */
+  asManager?: boolean
 }
 
-export function InviteMemberDialog({ open, onOpenChange, teamId, teamName, inviterName, candidates }: Props) {
+export function InviteMemberDialog({ open, onOpenChange, teamId, teamName, inviterName, candidates, asManager = false }: Props) {
+  const joinLabel = asManager ? 'リーダー（副）' : 'メンバー'
   const [mode, setMode] = useState<'member' | 'link'>('member')
 
   // 共通
@@ -68,6 +71,7 @@ export function InviteMemberDialog({ open, onOpenChange, teamId, teamName, invit
         teamId,
         targetEmployeeId: selectedId,
         customMessage: message.trim() || undefined,
+        asManager,
       })
       if (res.error) {
         toast.error(res.error)
@@ -84,6 +88,7 @@ export function InviteMemberDialog({ open, onOpenChange, teamId, teamName, invit
       const res = await createInvitationLink({
         teamId,
         customMessage: message.trim() || undefined,
+        asManager,
       })
       if (res.error) {
         toast.error(res.error)
@@ -113,10 +118,10 @@ export function InviteMemberDialog({ open, onOpenChange, teamId, teamName, invit
   const buildShareText = (url: string) => {
     const externalUrl = appendLineOpenExternal(url)
     const lines = [
-      `${inviterName}さんから、以下のチームへの参加依頼です。`,
+      `${inviterName}さんから、以下のチームへの${asManager ? 'リーダー（副）' : 'メンバー'}参加依頼です。`,
       '内容をご確認の上、下記の招待リンクから参加手続きをお願いします。',
       '',
-      `■ 参加先: ${teamName}`,
+      `■ 参加先: ${teamName}（${joinLabel}として参加）`,
       '',
     ]
     if (message.trim()) {
@@ -132,7 +137,7 @@ export function InviteMemberDialog({ open, onOpenChange, teamId, teamName, invit
         <DialogHeader>
           <DialogTitle className="text-base flex items-center gap-2">
             <Mail className="w-4 h-4 text-orange-500" />
-            「{teamName}」に招待
+            「{teamName}」に{joinLabel}として招待
           </DialogTitle>
         </DialogHeader>
 

@@ -14,6 +14,7 @@ const INVITER_ROLES = ['store_manager', 'manager', 'admin', 'ops_manager', 'exec
 export async function createInvitationLink(params: {
   teamId: string
   customMessage?: string
+  asManager?: boolean
 }): Promise<{ error?: string; invitationId?: string }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -40,6 +41,7 @@ export async function createInvitationLink(params: {
       team_id: params.teamId,
       invited_by: inviter.id,
       custom_message: params.customMessage?.trim() || null,
+      as_manager: !!params.asManager,
     })
     .select('id')
     .single()
@@ -55,6 +57,7 @@ export async function createInvitation(params: {
   teamId: string
   targetEmployeeId: string
   customMessage?: string
+  asManager?: boolean
 }): Promise<{ error?: string; invitationId?: string }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -112,6 +115,7 @@ export async function createInvitation(params: {
       target_employee_id: target.id,
       target_email: target.email,
       custom_message: params.customMessage?.trim() || null,
+      as_manager: !!params.asManager,
     })
     .select('id')
     .single()
@@ -152,7 +156,7 @@ export async function acceptInvitation(invitationId: string): Promise<{ error?: 
   // 招待取得
   const { data: inv } = await db
     .from('team_invitations')
-    .select('id, team_id, project_team_id, target_employee_id, expires_at, used_at')
+    .select('id, team_id, project_team_id, target_employee_id, expires_at, used_at, as_manager')
     .eq('id', invitationId)
     .single()
   if (!inv) return { error: '招待が見つかりません' }
@@ -180,11 +184,30 @@ export async function acceptInvitation(invitationId: string): Promise<{ error?: 
     .eq('employee_id', me.id)
     .maybeSingle()
 
-  if (!existingMember && !existingManager) {
-    const { error: memberError } = await db
-      .from('team_members')
-      .insert({ team_id: inv.team_id, employee_id: me.id, sort_order: 999 })
-    if (memberError) return { error: memberError.message }
+  // リーダー招待: team_managers に secondary として追加（既にメンバーなら移動）
+  // メンバー招待: team_members に追加
+  if (inv.as_manager) {
+    if (!existingManager) {
+      const { error: mgrError } = await db
+        .from('team_managers')
+        .insert({ team_id: inv.team_id, employee_id: me.id, role: 'secondary', sort_order: 999 })
+      if (mgrError) return { error: mgrError.message }
+      // 既にメンバーだった場合はメンバーから外す（リーダーに昇格の意図）
+      if (existingMember) {
+        await db
+          .from('team_members')
+          .delete()
+          .eq('team_id', inv.team_id)
+          .eq('employee_id', me.id)
+      }
+    }
+  } else {
+    if (!existingMember && !existingManager) {
+      const { error: memberError } = await db
+        .from('team_members')
+        .insert({ team_id: inv.team_id, employee_id: me.id, sort_order: 999 })
+      if (memberError) return { error: memberError.message }
+    }
   }
 
   // 招待を使用済みにする

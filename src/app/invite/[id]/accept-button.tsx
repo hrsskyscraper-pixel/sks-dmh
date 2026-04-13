@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button'
 import { UserPlus, CheckCircle } from 'lucide-react'
 import { acceptInvitation } from '../actions'
 
-export function AcceptInvitationButton({ invitationId }: { invitationId: string }) {
+export function AcceptInvitationButton({ invitationId, asManager = false }: { invitationId: string; asManager?: boolean }) {
+  const joinLabel = asManager ? 'リーダー（副）として参加' : 'このチームに参加'
   const [isPending, startTransition] = useTransition()
   const [joined, setJoined] = useState<string | null>(null)
   const router = useRouter()
@@ -29,7 +30,7 @@ export function AcceptInvitationButton({ invitationId }: { invitationId: string 
     return (
       <div className="flex items-center gap-2 bg-emerald-50 text-emerald-700 rounded-lg px-3 py-2">
         <CheckCircle className="w-4 h-4" />
-        <span className="text-sm">「{joined}」に参加しました</span>
+        <span className="text-sm">「{joined}」に{asManager ? 'リーダー（副）として' : ''}参加しました</span>
       </div>
     )
   }
@@ -41,7 +42,7 @@ export function AcceptInvitationButton({ invitationId }: { invitationId: string 
       className="w-full h-11 bg-orange-500 hover:bg-orange-600"
     >
       <UserPlus className="w-4 h-4 mr-2" />
-      {isPending ? '参加処理中...' : 'このチームに参加する'}
+      {isPending ? '参加処理中...' : `${joinLabel}する`}
     </Button>
   )
 }

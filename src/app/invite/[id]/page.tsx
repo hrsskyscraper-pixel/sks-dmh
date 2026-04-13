@@ -24,7 +24,7 @@ export default async function InvitePage({ params }: { params: Promise<{ id: str
   // 招待取得
   const { data: inv } = await db
     .from('team_invitations')
-    .select('id, team_id, project_team_id, invited_by, target_employee_id, custom_message, expires_at, used_at')
+    .select('id, team_id, project_team_id, invited_by, target_employee_id, custom_message, expires_at, used_at, as_manager')
     .eq('id', id)
     .maybeSingle()
 
@@ -130,7 +130,11 @@ export default async function InvitePage({ params }: { params: Promise<{ id: str
     db.from('team_members').select('team_id').eq('team_id', inv.team_id).eq('employee_id', me.id).maybeSingle(),
     db.from('team_managers').select('team_id').eq('team_id', inv.team_id).eq('employee_id', me.id).maybeSingle(),
   ])
-  const alreadyJoined = !!(existingMember || existingManager)
+  // リーダー招待: 既にリーダー登録済みなら「既に所属」。メンバーに留まっている場合は昇格できるので false
+  // メンバー招待: メンバーでもリーダーでも「既に所属」扱い
+  const alreadyJoined = inv.as_manager
+    ? !!existingManager
+    : !!(existingMember || existingManager)
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 to-red-50 flex items-center justify-center p-4">
@@ -140,18 +144,26 @@ export default async function InvitePage({ params }: { params: Promise<{ id: str
           <div className="mx-auto w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
             <Mail className="w-6 h-6 text-orange-500" />
           </div>
-          <CardTitle className="text-lg">チーム参加の招待</CardTitle>
+          <CardTitle className="text-lg">
+            チーム{inv.as_manager ? 'リーダー' : '参加'}の招待
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="text-sm text-gray-700 space-y-2">
             <p>
               <span className="font-medium">{inviter?.name ?? '管理者'}</span>さんから、
-              以下のチームへの参加依頼が届いています。
+              以下のチームへの
+              <span className="font-medium text-orange-600">
+                {inv.as_manager ? 'リーダー（副）' : 'メンバー'}
+              </span>
+              参加依頼が届いています。
             </p>
           </div>
 
           <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 space-y-1">
-            <p className="text-[10px] text-orange-600 font-medium">参加先</p>
+            <p className="text-[10px] text-orange-600 font-medium">
+              参加先（{inv.as_manager ? 'リーダー（副）' : 'メンバー'}として）
+            </p>
             <p className="text-sm font-semibold text-gray-800">
               {team.type === 'store' ? '🏢' : team.type === 'department' ? '🏛️' : '👥'} {team.name}
             </p>
@@ -173,7 +185,7 @@ export default async function InvitePage({ params }: { params: Promise<{ id: str
               <span className="text-sm">既にこのチームに所属しています</span>
             </div>
           ) : (
-            <AcceptInvitationButton invitationId={id} />
+            <AcceptInvitationButton invitationId={id} asManager={inv.as_manager} />
           )}
 
           <Link href="/">

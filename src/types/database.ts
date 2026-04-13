@@ -287,6 +287,7 @@ export type Database = {
           expires_at: string
           used_at: string | null
           used_by: string | null
+          as_manager: boolean
           created_at: string
         }
         Insert: {
@@ -301,6 +302,7 @@ export type Database = {
           expires_at?: string
           used_at?: string | null
           used_by?: string | null
+          as_manager?: boolean
           created_at?: string
         }
         Update: {
@@ -315,6 +317,7 @@ export type Database = {
           expires_at?: string
           used_at?: string | null
           used_by?: string | null
+          as_manager?: boolean
           created_at?: string
         }
         Relationships: []
