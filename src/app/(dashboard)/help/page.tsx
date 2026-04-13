@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { TopBar } from '@/components/layout/nav'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -731,13 +732,24 @@ function SectionList({ sections }: { sections: Section[] }) {
   )
 }
 
-export default function HelpPage() {
-  const [tab, setTab] = useState<'member' | 'leader' | 'all'>('member')
+function HelpContent() {
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const initialTab = (searchParams.get('tab') as 'member' | 'leader' | 'all' | null) ?? 'member'
+  const [tab, setTab] = useState<'member' | 'leader' | 'all'>(
+    ['member', 'leader', 'all'].includes(initialTab as string) ? initialTab as 'member' | 'leader' | 'all' : 'member'
+  )
+  const handleTabChange = (v: string) => {
+    const next = v as 'member' | 'leader' | 'all'
+    setTab(next)
+    // URLを書き換え（履歴は残さない）
+    router.replace(`/help?tab=${next}`, { scroll: false })
+  }
   return (
     <>
       <TopBar title="使い方ガイド" />
       <div className="p-4 max-w-2xl mx-auto">
-        <Tabs value={tab} onValueChange={v => setTab(v as 'member' | 'leader' | 'all')} className="mb-4">
+        <Tabs value={tab} onValueChange={handleTabChange} className="mb-4">
           <TabsList className="grid grid-cols-3 w-full">
             <TabsTrigger value="member" className="text-xs">
               <Sparkles className="w-3 h-3 mr-1" />メンバー向け
@@ -761,5 +773,13 @@ export default function HelpPage() {
         </Tabs>
       </div>
     </>
+  )
+}
+
+export default function HelpPage() {
+  return (
+    <Suspense>
+      <HelpContent />
+    </Suspense>
   )
 }
