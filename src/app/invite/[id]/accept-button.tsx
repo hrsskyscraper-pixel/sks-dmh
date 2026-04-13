@@ -65,16 +65,16 @@ export function AcceptInvitationButton({ invitationId, asManager = false, initia
   const firstNameHasAlphabet = HAS_ALPHABET.test(firstName)
   const lastNameInvalid = !lastName.trim() || lastNameHasAlphabet || !isJapaneseName(lastName)
   const firstNameInvalid = !firstName.trim() || firstNameHasAlphabet || !isJapaneseName(firstName)
-  // ふりがなは任意入力。入力されていれば日本語（主にひらがな/カタカナ）のみ許可
+  // ふりがなも必須・日本語のみ
   const lastNameKanaHasAlphabet = HAS_ALPHABET.test(lastNameKana)
   const firstNameKanaHasAlphabet = HAS_ALPHABET.test(firstNameKana)
-  const lastNameKanaInvalid = lastNameKana.trim() !== '' && (lastNameKanaHasAlphabet || !isJapaneseName(lastNameKana))
-  const firstNameKanaInvalid = firstNameKana.trim() !== '' && (firstNameKanaHasAlphabet || !isJapaneseName(firstNameKana))
+  const lastNameKanaInvalid = !lastNameKana.trim() || lastNameKanaHasAlphabet || !isJapaneseName(lastNameKana)
+  const firstNameKanaInvalid = !firstNameKana.trim() || firstNameKanaHasAlphabet || !isJapaneseName(firstNameKana)
   const canSubmit = !lastNameInvalid && !firstNameInvalid && !lastNameKanaInvalid && !firstNameKanaInvalid
 
   const handleAccept = () => {
     if (!canSubmit) {
-      toast.error('氏名を漢字・ひらがな・カタカナで入力してください')
+      toast.error('氏名・ふりがなを漢字・ひらがな・カタカナで入力してください')
       return
     }
     if (previewMode) {
