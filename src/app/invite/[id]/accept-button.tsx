@@ -15,11 +15,25 @@ export function AcceptInvitationButton({ invitationId, asManager = false }: { in
 
   const handleAccept = () => {
     startTransition(async () => {
-      const res = await acceptInvitation(invitationId)
+      // welcome画面で入力されたプロフィール情報を localStorage から読み取る
+      let profile: {
+        birthDate?: string | null
+        hireDate?: string | null
+        instagramUrl?: string | null
+        lineUrl?: string | null
+      } | undefined
+      try {
+        const raw = localStorage.getItem(`invite-profile-${invitationId}`)
+        if (raw) profile = JSON.parse(raw)
+      } catch { /* ignore */ }
+
+      const res = await acceptInvitation(invitationId, profile)
       if (res.error) {
         toast.error(res.error)
         return
       }
+      // 使い終わった localStorage をクリア
+      try { localStorage.removeItem(`invite-profile-${invitationId}`) } catch { /* ignore */ }
       setJoined(res.teamName ?? '')
       toast.success('チームに参加しました')
       setTimeout(() => router.push('/'), 1500)

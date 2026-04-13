@@ -16,7 +16,9 @@ import {
   ExternalLink,
   ChevronDown,
   Mail,
+  UserCircle,
 } from 'lucide-react'
+import { Input } from '@/components/ui/input'
 
 interface Props {
   invitationId: string
@@ -37,9 +39,26 @@ export function WelcomeContent({
 }: Props) {
   const [loading, setLoading] = useState(false)
   const [showGoogleHelp, setShowGoogleHelp] = useState(false)
+  const [showProfile, setShowProfile] = useState(false)
+  const [birthDate, setBirthDate] = useState('')
+  const [hireDate, setHireDate] = useState('')
+  const [instagramUrl, setInstagramUrl] = useState('')
+  const [lineUrl, setLineUrl] = useState('')
 
   const handleGoogleLogin = async () => {
     setLoading(true)
+    // 入力されたプロフィール情報を localStorage に保存（OAuthリダイレクト後に利用）
+    const profile = {
+      birthDate: birthDate || null,
+      hireDate: hireDate || null,
+      instagramUrl: instagramUrl.trim() || null,
+      lineUrl: lineUrl.trim() || null,
+    }
+    if (profile.birthDate || profile.hireDate || profile.instagramUrl || profile.lineUrl) {
+      try {
+        localStorage.setItem(`invite-profile-${invitationId}`, JSON.stringify(profile))
+      } catch { /* localStorage 使用不可な環境は無視 */ }
+    }
     const supabase = createClient()
     const callbackUrl = new URL(`${window.location.origin}/auth/callback`)
     callbackUrl.searchParams.set('next', `/invite/${invitationId}`)
@@ -164,6 +183,69 @@ export function WelcomeContent({
                 <li>💬 タイムラインへのリアクション・コメント</li>
                 <li>🎉 チームからの招待・お知らせ</li>
               </ul>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* プロフィール情報（任意・折りたたみ） */}
+        <Card>
+          <CardContent className="py-3 px-4 space-y-2">
+            <button
+              onClick={() => setShowProfile(!showProfile)}
+              className="w-full flex items-center justify-between text-left"
+            >
+              <div className="flex items-center gap-1.5">
+                <UserCircle className="w-4 h-4 text-orange-500" />
+                <span className="text-sm font-bold text-gray-800">プロフィール情報（任意）</span>
+              </div>
+              <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${showProfile ? 'rotate-180' : ''}`} />
+            </button>
+            <p className="text-[11px] text-gray-500 leading-relaxed">
+              今ここで入力いただくと、参加後すぐにキャリア情報に反映されます。
+              後からでも Myページで編集できます。
+            </p>
+            {showProfile && (
+              <div className="space-y-2.5 pt-2">
+                <div>
+                  <label className="text-[11px] text-gray-600 font-medium mb-1 block">生年月日</label>
+                  <Input
+                    type="date"
+                    value={birthDate}
+                    onChange={e => setBirthDate(e.target.value)}
+                    className="h-9 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] text-gray-600 font-medium mb-1 block">入社年月日</label>
+                  <Input
+                    type="date"
+                    value={hireDate}
+                    onChange={e => setHireDate(e.target.value)}
+                    className="h-9 text-sm"
+                  />
+                  <p className="text-[10px] text-gray-400 mt-0.5">キャリア記録の「入社」に登録されます</p>
+                </div>
+                <div>
+                  <label className="text-[11px] text-gray-600 font-medium mb-1 block">Instagram URL</label>
+                  <Input
+                    type="url"
+                    placeholder="https://instagram.com/..."
+                    value={instagramUrl}
+                    onChange={e => setInstagramUrl(e.target.value)}
+                    className="h-9 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] text-gray-600 font-medium mb-1 block">LINE URL</label>
+                  <Input
+                    type="url"
+                    placeholder="https://line.me/ti/p/..."
+                    value={lineUrl}
+                    onChange={e => setLineUrl(e.target.value)}
+                    className="h-9 text-sm"
+                  />
+                </div>
+              </div>
             )}
           </CardContent>
         </Card>

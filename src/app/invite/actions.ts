@@ -134,10 +134,20 @@ export async function createInvitation(params: {
   return { invitationId: inv.id }
 }
 
+export interface AcceptInvitationProfile {
+  birthDate?: string | null
+  hireDate?: string | null
+  instagramUrl?: string | null
+  lineUrl?: string | null
+}
+
 /**
  * 招待を受諾してチームに参加する
  */
-export async function acceptInvitation(invitationId: string): Promise<{ error?: string; teamName?: string }> {
+export async function acceptInvitation(
+  invitationId: string,
+  profile?: AcceptInvitationProfile
+): Promise<{ error?: string; teamName?: string }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '認証エラー' }
@@ -215,6 +225,35 @@ export async function acceptInvitation(invitationId: string): Promise<{ error?: 
     .from('team_invitations')
     .update({ used_at: new Date().toISOString(), used_by: me.id })
     .eq('id', invitationId)
+
+  // プロフィール情報を employees に反映 + 入社キャリア記録を作成
+  if (profile && (profile.birthDate || profile.hireDate || profile.instagramUrl || profile.lineUrl)) {
+    const update: Record<string, string | null> = {}
+    if (profile.birthDate) update.birth_date = profile.birthDate
+    if (profile.hireDate) update.hire_date = profile.hireDate
+    if (profile.instagramUrl) update.instagram_url = profile.instagramUrl
+    if (profile.lineUrl) update.line_url = profile.lineUrl
+    if (Object.keys(update).length > 0) {
+      await db.from('employees').update(update).eq('id', me.id)
+    }
+    // 入社日はキャリア記録にも「入社」として登録
+    if (profile.hireDate) {
+      const { data: existingHire } = await db
+        .from('career_records')
+        .select('id')
+        .eq('employee_id', me.id)
+        .eq('record_type', '入社')
+        .maybeSingle()
+      if (!existingHire) {
+        await db.from('career_records').insert({
+          employee_id: me.id,
+          record_type: '入社',
+          occurred_at: profile.hireDate,
+          created_by: me.id,
+        })
+      }
+    }
+  }
 
   revalidatePath('/admin/teams')
   revalidatePath('/team')
