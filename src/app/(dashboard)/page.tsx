@@ -13,6 +13,7 @@ import { TeamRankingServer } from '@/components/dashboard/team-ranking-server'
 import { CheckpointRecords } from '@/components/dashboard/checkpoint-records'
 import { TimelineServer } from '@/components/timeline/timeline-server'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
+import { SELECTED_PROJECT_COOKIE } from '@/lib/selected-project'
 import { buildMilestoneMap } from '@/lib/milestone'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { LineLinkBanner } from '@/components/layout/line-link-banner'
@@ -96,7 +97,10 @@ export default async function DashboardPage({
   const employeeProjects = myProjects ?? []
 
   const requestedProjectId = (params as { project_id?: string } | undefined)?.project_id
+  const cookieStore2 = await cookies()
+  const cookieProjectId = cookieStore2.get(SELECTED_PROJECT_COOKIE)?.value ?? null
   const selectedProject = employeeProjects.find(p => p.id === requestedProjectId)
+    ?? employeeProjects.find(p => p.id === cookieProjectId)
     ?? employeeProjects[0]
     ?? null
 
@@ -186,6 +190,8 @@ export default async function DashboardPage({
 
   const projectSkillIds = new Set(Object.keys(skillPhaseMap))
   const skills = (allSkills ?? []).filter(s => projectSkillIds.has(s.id))
+  // 選択中プロジェクトのスキルに絞った認定履歴（件数表示用）
+  const projectAchievements = (achievements ?? []).filter(a => projectSkillIds.has(a.skill_id))
 
   const projectPhases = projectPhaseRows ?? []
   const milestones = buildMilestoneMap(projectPhases)
@@ -223,7 +229,7 @@ export default async function DashboardPage({
       <DashboardContent
         employee={employee}
         skills={skills}
-        achievements={achievements ?? []}
+        achievements={projectAchievements}
         cumulativeHours={workHoursSum}
         milestones={milestones}
         projectPhases={projectPhases}

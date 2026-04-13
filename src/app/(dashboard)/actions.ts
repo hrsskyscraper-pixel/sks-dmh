@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
+import { SELECTED_PROJECT_COOKIE } from '@/lib/selected-project'
 import { writeAuditLog } from '@/lib/audit'
 
 export async function setViewAs(employeeId: string) {
@@ -17,6 +18,16 @@ export async function setViewAs(employeeId: string) {
   cookieStore.set(VIEW_AS_COOKIE, employeeId, { path: '/' })
   revalidatePath('/', 'layout')
   redirect('/')
+}
+
+export async function setSelectedProject(projectId: string) {
+  const cookieStore = await cookies()
+  cookieStore.set(SELECTED_PROJECT_COOKIE, projectId, {
+    path: '/',
+    maxAge: 60 * 60 * 24 * 365,
+    sameSite: 'lax',
+  })
+  revalidatePath('/', 'layout')
 }
 
 export async function clearViewAs() {

@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils'
 import { AlertTriangle, ChevronDown, ChevronUp, Camera, Loader2, CheckCircle2, XCircle, Bell, ClipboardList, Users, Instagram, Target, CalendarDays, Pencil } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { setSelectedProject } from '@/app/(dashboard)/actions'
 import { Textarea } from '@/components/ui/textarea'
 import {
   Dialog,
@@ -368,7 +369,11 @@ export function DashboardContent({
               {employeeProjects.map(pj => (
                 <button
                   key={pj.id}
-                  onClick={() => router.push(`/?project_id=${pj.id}`)}
+                  onClick={async () => {
+                    await setSelectedProject(pj.id)
+                    router.push(`/?project_id=${pj.id}`)
+                    router.refresh()
+                  }}
                   className={cn(
                     'text-[11px] rounded-full px-3 py-0.5 transition-colors',
                     pj.id === currentProject?.id

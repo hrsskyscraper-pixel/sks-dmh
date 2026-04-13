@@ -6,6 +6,7 @@ import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
 import { TopBar } from '@/components/layout/nav'
 import { SkillList } from '@/components/skills/skill-list'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
+import { SELECTED_PROJECT_COOKIE } from '@/lib/selected-project'
 import { buildMilestoneMap } from '@/lib/milestone'
 import type { ProjectPhase } from '@/types/database'
 
@@ -44,7 +45,9 @@ export default async function SkillsPage({
   const employeeProjects = sProjects ?? []
 
   const requestedProjectId = (params as { project_id?: string } | undefined)?.project_id
+  const cookieProjectId = cookieStore.get(SELECTED_PROJECT_COOKIE)?.value ?? null
   const selectedProject = employeeProjects.find(p => p.id === requestedProjectId)
+    ?? employeeProjects.find(p => p.id === cookieProjectId)
     ?? employeeProjects[0]
     ?? null
 
