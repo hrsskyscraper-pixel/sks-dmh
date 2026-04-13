@@ -1,4 +1,3 @@
-import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -7,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Mail, AlertCircle, CheckCircle } from 'lucide-react'
 import { AcceptInvitationButton } from './accept-button'
 import { InAppBrowserWarning } from '@/components/layout/in-app-browser-warning'
+import { WelcomeContent } from './welcome-content'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,9 +15,6 @@ export default async function InvitePage({ params }: { params: Promise<{ id: str
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    redirect(`/login?next=${encodeURIComponent(`/invite/${id}`)}`)
-  }
 
   const db = createAdminClient()
 
@@ -28,12 +25,17 @@ export default async function InvitePage({ params }: { params: Promise<{ id: str
     .eq('id', id)
     .maybeSingle()
 
-  // 自分のemployeeレコード取得
-  let { data: me } = await db
-    .from('employees')
-    .select('id, name, status')
-    .eq('auth_user_id', user.id)
-    .maybeSingle()
+  // 自分のemployeeレコード取得（未ログイン時は null）
+  type MeRow = { id: string; name: string; status: 'pending' | 'approved' }
+  let me: MeRow | null = null
+  if (user) {
+    const { data } = await db
+      .from('employees')
+      .select('id, name, status')
+      .eq('auth_user_id', user.id)
+      .maybeSingle()
+    me = (data ?? null) as MeRow | null
+  }
 
   const errorScreen = (message: string) => (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 to-red-50 flex items-center justify-center p-4">
@@ -57,6 +59,32 @@ export default async function InvitePage({ params }: { params: Promise<{ id: str
   if (!inv) return errorScreen('招待が見つかりません。URLをご確認ください。')
   if (inv.used_at) return errorScreen('この招待は既に使用済みです。')
   if (new Date(inv.expires_at) < new Date()) return errorScreen('この招待は期限切れです。')
+
+  // 未ログイン: ウェルカムページを表示
+  if (!user) {
+    const [welcomeTeamRes, welcomeProjectTeamRes, welcomeInviterRes] = await Promise.all([
+      db.from('teams').select('id, name, type').eq('id', inv.team_id).single(),
+      inv.project_team_id
+        ? db.from('teams').select('name').eq('id', inv.project_team_id).single()
+        : Promise.resolve({ data: null }),
+      db.from('employees').select('name').eq('id', inv.invited_by).single(),
+    ])
+    const welcomeTeam = welcomeTeamRes.data
+    if (!welcomeTeam) return errorScreen('招待先のチーム情報が取得できませんでした。')
+    return (
+      <>
+        <InAppBrowserWarning />
+        <WelcomeContent
+          invitationId={id}
+          inviterName={welcomeInviterRes.data?.name ?? '管理者'}
+          teamName={welcomeTeam.name}
+          projectTeamName={welcomeProjectTeamRes.data?.name ?? undefined}
+          customMessage={inv.custom_message ?? undefined}
+          asManager={inv.as_manager}
+        />
+      </>
+    )
+  }
 
   // フェーズ1（特定メンバー宛）: 他人が開いた場合は拒否
   if (inv.target_employee_id && me && inv.target_employee_id !== me.id) {

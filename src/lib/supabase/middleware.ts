@@ -33,20 +33,17 @@ export async function updateSession(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // 未認証ユーザーをログインページへリダイレクト
-  // 公開ページ（/privacy, /terms）は除外
+  // 公開ページ（/privacy, /terms, /invite）は除外
   if (
     !user &&
     !pathname.startsWith('/login') &&
     !pathname.startsWith('/auth') &&
     !pathname.startsWith('/privacy') &&
-    !pathname.startsWith('/terms')
+    !pathname.startsWith('/terms') &&
+    !pathname.startsWith('/invite/')
   ) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
-    // 招待URL等、ログイン後に戻したいページは next で引き継ぐ
-    if (pathname.startsWith('/invite/')) {
-      url.searchParams.set('next', pathname + request.nextUrl.search)
-    }
     return NextResponse.redirect(url)
   }
 
