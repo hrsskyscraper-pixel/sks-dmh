@@ -441,7 +441,7 @@ export function ApprovalCenter({
                           {j.name} <span className="text-xs text-gray-500">({j.email})</span>
                         </p>
                         {teamName && <p className="text-xs text-blue-500 mt-0.5">店舗: {teamName}</p>}
-                        {projectTeamName && <p className="text-xs text-blue-500">チーム: {projectTeamName}</p>}
+                        <p className="text-xs text-blue-500">チーム: {projectTeamName || '設定なし'}</p>
                         <div className="flex items-center gap-3 mt-0.5 text-[11px] text-gray-400">
                           <span>申請: {fmtDate(j.created_at)}</span>
                           {j.approved_at && <span>承認: {fmtDate(j.approved_at)}{approver ? ` (${approver.name})` : ''}</span>}
@@ -604,7 +604,7 @@ export function ApprovalCenter({
                           {j.name} <span className="text-xs text-gray-500">({j.email})</span>
                         </p>
                         {teamName && <p className="text-xs text-orange-500">店舗: {teamName}</p>}
-                        {projectTeamName && <p className="text-xs text-orange-500">チーム: {projectTeamName}</p>}
+                        <p className="text-xs text-orange-500">チーム: {projectTeamName || '設定なし'}</p>
                       </div>
                       <Button size="sm" className="h-7 px-2 bg-blue-500 hover:bg-blue-600 text-[11px] flex-shrink-0"
                         onClick={() => openJoinApproval(j)} disabled={isPending}>
