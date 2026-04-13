@@ -26,12 +26,12 @@ export default async function InvitePage({ params }: { params: Promise<{ id: str
     .maybeSingle()
 
   // 自分のemployeeレコード取得（未ログイン時は null）
-  type MeRow = { id: string; name: string; status: 'pending' | 'approved' }
+  type MeRow = { id: string; name: string; last_name: string; first_name: string; status: 'pending' | 'approved' }
   let me: MeRow | null = null
   if (user) {
     const { data } = await db
       .from('employees')
-      .select('id, name, status')
+      .select('id, name, last_name, first_name, status')
       .eq('auth_user_id', user.id)
       .maybeSingle()
     me = (data ?? null) as MeRow | null
@@ -116,7 +116,7 @@ export default async function InvitePage({ params }: { params: Promise<{ id: str
         approved_by: inv.invited_by,
         approved_at: new Date().toISOString(),
       })
-      .select('id, name, status')
+      .select('id, name, last_name, first_name, status')
       .single()
     if (createError || !created) return errorScreen('アカウント作成に失敗しました: ' + (createError?.message ?? ''))
     me = created
@@ -132,7 +132,7 @@ export default async function InvitePage({ params }: { params: Promise<{ id: str
         approved_at: new Date().toISOString(),
       })
       .eq('id', me.id)
-      .select('id, name, status')
+      .select('id, name, last_name, first_name, status')
       .single()
     if (updated) me = updated
   }
@@ -213,7 +213,12 @@ export default async function InvitePage({ params }: { params: Promise<{ id: str
               <span className="text-sm">既にこのチームに所属しています</span>
             </div>
           ) : (
-            <AcceptInvitationButton invitationId={id} asManager={inv.as_manager} />
+            <AcceptInvitationButton
+              invitationId={id}
+              asManager={inv.as_manager}
+              initialLastName={me.last_name}
+              initialFirstName={me.first_name}
+            />
           )}
 
           <Link href="/">

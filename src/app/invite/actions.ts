@@ -135,6 +135,8 @@ export async function createInvitation(params: {
 }
 
 export interface AcceptInvitationProfile {
+  lastName?: string
+  firstName?: string
   instagramUrl?: string | null
   lineUrl?: string | null
 }
@@ -224,9 +226,11 @@ export async function acceptInvitation(
     .update({ used_at: new Date().toISOString(), used_by: me.id })
     .eq('id', invitationId)
 
-  // プロフィール情報を employees に反映
-  if (profile && (profile.instagramUrl || profile.lineUrl)) {
+  // 氏名・プロフィール情報を employees に反映
+  if (profile) {
     const update: Record<string, string | null> = {}
+    if (profile.lastName && profile.lastName.trim()) update.last_name = profile.lastName.trim()
+    if (profile.firstName && profile.firstName.trim()) update.first_name = profile.firstName.trim()
     if (profile.instagramUrl) update.instagram_url = profile.instagramUrl
     if (profile.lineUrl) update.line_url = profile.lineUrl
     if (Object.keys(update).length > 0) {

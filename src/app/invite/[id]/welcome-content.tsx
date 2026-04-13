@@ -16,16 +16,7 @@ import {
   ExternalLink,
   ChevronDown,
   Mail,
-  UserCircle,
-  HelpCircle,
 } from 'lucide-react'
-import { Input } from '@/components/ui/input'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 
 interface Props {
   invitationId: string
@@ -46,22 +37,9 @@ export function WelcomeContent({
 }: Props) {
   const [loading, setLoading] = useState(false)
   const [showGoogleHelp, setShowGoogleHelp] = useState(false)
-  const [instagramUrl, setInstagramUrl] = useState('')
-  const [lineUrl, setLineUrl] = useState('')
-  const [helpDialog, setHelpDialog] = useState<'instagram' | 'line' | null>(null)
 
   const handleGoogleLogin = async () => {
     setLoading(true)
-    // 入力されたプロフィール情報を localStorage に保存（OAuthリダイレクト後に利用）
-    const profile = {
-      instagramUrl: instagramUrl.trim() || null,
-      lineUrl: lineUrl.trim() || null,
-    }
-    if (profile.instagramUrl || profile.lineUrl) {
-      try {
-        localStorage.setItem(`invite-profile-${invitationId}`, JSON.stringify(profile))
-      } catch { /* localStorage 使用不可な環境は無視 */ }
-    }
     const supabase = createClient()
     const callbackUrl = new URL(`${window.location.origin}/auth/callback`)
     callbackUrl.searchParams.set('next', `/invite/${invitationId}`)
@@ -168,10 +146,10 @@ export function WelcomeContent({
           <CardContent className="py-4 px-4 space-y-2">
             <h2 className="text-sm font-bold text-gray-800 flex items-center gap-1.5">
               <MessageCircle className="w-4 h-4 text-emerald-500" />
-              LINE連携すると（任意・推奨）
+              LINE連携がおすすめです
             </h2>
             <p className="text-xs text-gray-600 leading-relaxed">
-              参加後に LINE を連携すると、大事なお知らせが LINE に届きます。
+              参加後に LINE を連携すると、大事なお知らせが LINE に届くので、進捗がすぐにわかるようになります。
             </p>
             {asManager ? (
               <ul className="space-y-1 text-xs text-gray-700">
@@ -191,108 +169,6 @@ export function WelcomeContent({
           </CardContent>
         </Card>
 
-        {/* プロフィール情報（任意・推奨） */}
-        <Card>
-          <CardContent className="py-3 px-4 space-y-2.5">
-            <div className="flex items-center gap-1.5">
-              <UserCircle className="w-4 h-4 text-orange-500" />
-              <span className="text-sm font-bold text-gray-800">プロフィール情報（任意・推奨）</span>
-            </div>
-            <p className="text-[11px] text-gray-500 leading-relaxed">
-              今ここで入力いただくと、参加後すぐにプロフィールに反映されます。
-              後からでも Myページで編集できます。
-            </p>
-            <div className="space-y-2.5 pt-1">
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-[11px] text-gray-600 font-medium">Instagram URL</label>
-                  <button
-                    type="button"
-                    onClick={() => setHelpDialog('instagram')}
-                    className="text-[10px] text-orange-600 hover:underline flex items-center gap-0.5"
-                  >
-                    <HelpCircle className="w-3 h-3" />確認方法
-                  </button>
-                </div>
-                <Input
-                  type="url"
-                  placeholder="https://instagram.com/..."
-                  value={instagramUrl}
-                  onChange={e => setInstagramUrl(e.target.value)}
-                  className="h-9 text-sm"
-                />
-              </div>
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-[11px] text-gray-600 font-medium">LINE URL</label>
-                  <button
-                    type="button"
-                    onClick={() => setHelpDialog('line')}
-                    className="text-[10px] text-orange-600 hover:underline flex items-center gap-0.5"
-                  >
-                    <HelpCircle className="w-3 h-3" />確認方法
-                  </button>
-                </div>
-                <Input
-                  type="url"
-                  placeholder="https://line.me/ti/p/..."
-                  value={lineUrl}
-                  onChange={e => setLineUrl(e.target.value)}
-                  className="h-9 text-sm"
-                />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* 確認方法ダイアログ */}
-        <Dialog open={helpDialog !== null} onOpenChange={v => { if (!v) setHelpDialog(null) }}>
-          <DialogContent className="max-w-sm">
-            <DialogHeader>
-              <DialogTitle className="text-base flex items-center gap-2">
-                <HelpCircle className="w-4 h-4 text-orange-500" />
-                {helpDialog === 'instagram' ? 'Instagram URL の確認方法' : 'LINE URL の確認方法'}
-              </DialogTitle>
-            </DialogHeader>
-            {helpDialog === 'instagram' && (
-              <div className="text-sm text-gray-700 space-y-3 leading-relaxed">
-                <div>
-                  <p className="font-semibold text-gray-800 mb-1">📱 Instagramアプリから</p>
-                  <ol className="list-decimal pl-5 space-y-1 text-[13px]">
-                    <li>Instagramアプリを開く</li>
-                    <li>右下のプロフィールアイコンをタップ</li>
-                    <li>右上のメニュー（≡）→「QRコード」</li>
-                    <li>下部の「シェア」→「リンクをコピー」</li>
-                  </ol>
-                </div>
-                <div>
-                  <p className="font-semibold text-gray-800 mb-1">💻 Webブラウザから</p>
-                  <p className="text-[13px]">
-                    <code className="bg-gray-100 px-1 py-0.5 rounded text-[11px]">https://instagram.com/ユーザー名</code>
-                    <br />
-                    例：<code className="bg-gray-100 px-1 py-0.5 rounded text-[11px]">https://instagram.com/growth_driver</code>
-                  </p>
-                </div>
-              </div>
-            )}
-            {helpDialog === 'line' && (
-              <div className="text-sm text-gray-700 space-y-3 leading-relaxed">
-                <div>
-                  <p className="font-semibold text-gray-800 mb-1">📱 LINEアプリから（自分のプロフィール共有URL）</p>
-                  <ol className="list-decimal pl-5 space-y-1 text-[13px]">
-                    <li>LINEアプリを開く</li>
-                    <li>ホーム → 自分のプロフィール画像をタップ</li>
-                    <li>右上の「シェア」アイコン</li>
-                    <li>「URLをコピー」または「ほかのアプリで開く」</li>
-                  </ol>
-                </div>
-                <div className="bg-gray-50 rounded-lg p-2 text-[12px] text-gray-600">
-                  コピーしたURLは <code className="bg-white px-1 rounded text-[10px]">https://line.me/ti/p/...</code> の形式です
-                </div>
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
 
         {/* 参加方法 */}
         <Card className="border-orange-200 bg-orange-50/50">
