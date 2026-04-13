@@ -421,6 +421,7 @@ export function ApprovalCenter({
             if (item.type === 'join') {
               const j = item.data
               const teamName = teamMap[j.requested_team_id]?.name ?? ''
+              const projectTeamName = j.requested_project_team_id ? teamMap[j.requested_project_team_id]?.name ?? '' : ''
               const approver = j.approved_by ? reviewerMap[j.approved_by] : null
               return (
                 <Card key={`done-join-${j.id}`}>
@@ -439,7 +440,8 @@ export function ApprovalCenter({
                         <p className="text-sm font-medium text-gray-800 mt-0.5">
                           {j.name} <span className="text-xs text-gray-500">({j.email})</span>
                         </p>
-                        {teamName && <p className="text-xs text-blue-500 mt-0.5">{teamName}</p>}
+                        {teamName && <p className="text-xs text-blue-500 mt-0.5">店舗: {teamName}</p>}
+                        {projectTeamName && <p className="text-xs text-blue-500">チーム: {projectTeamName}</p>}
                         <div className="flex items-center gap-3 mt-0.5 text-[11px] text-gray-400">
                           <span>申請: {fmtDate(j.created_at)}</span>
                           {j.approved_at && <span>承認: {fmtDate(j.approved_at)}{approver ? ` (${approver.name})` : ''}</span>}
@@ -584,6 +586,7 @@ export function ApprovalCenter({
             if (item.type === 'join') {
               const j = item.data
               const teamName = teamMap[j.requested_team_id]?.name ?? ''
+              const projectTeamName = j.requested_project_team_id ? teamMap[j.requested_project_team_id]?.name ?? '' : ''
               return (
                 <Card key={`join-${j.id}`}>
                   <CardContent className="py-3 px-4">
@@ -600,7 +603,8 @@ export function ApprovalCenter({
                         <p className="text-sm font-medium text-gray-800 mt-0.5">
                           {j.name} <span className="text-xs text-gray-500">({j.email})</span>
                         </p>
-                        {teamName && <p className="text-xs text-orange-500">{teamName}</p>}
+                        {teamName && <p className="text-xs text-orange-500">店舗: {teamName}</p>}
+                        {projectTeamName && <p className="text-xs text-orange-500">チーム: {projectTeamName}</p>}
                       </div>
                       <Button size="sm" className="h-7 px-2 bg-blue-500 hover:bg-blue-600 text-[11px] flex-shrink-0"
                         onClick={() => openJoinApproval(j)} disabled={isPending}>

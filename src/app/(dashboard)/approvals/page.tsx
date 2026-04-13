@@ -60,7 +60,7 @@ export default async function ApprovalsPage() {
   // 処理済み参加許諾（approved_atがある社員・直近30件）
   const { data: recentJoins } = await db
     .from('employees')
-    .select('id, name, email, avatar_url, requested_team_id, status, approved_by, approved_at, created_at, updated_at')
+    .select('id, name, email, avatar_url, requested_team_id, requested_project_team_id, status, approved_by, approved_at, created_at, updated_at')
     .eq('status', 'approved')
     .not('approved_at', 'is', null)
     .order('approved_at', { ascending: false })
@@ -110,7 +110,7 @@ export default async function ApprovalsPage() {
   // 3. 参加許諾待ち
   const { data: pendingJoins } = await db
     .from('employees')
-    .select('id, name, email, avatar_url, requested_team_id, created_at')
+    .select('id, name, email, avatar_url, requested_team_id, requested_project_team_id, created_at')
     .eq('status', 'pending')
     .not('requested_team_id', 'is', null)
     .order('created_at')
