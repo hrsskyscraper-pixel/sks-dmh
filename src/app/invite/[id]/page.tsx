@@ -28,7 +28,7 @@ export default async function InvitePage({ params }: { params: Promise<{ id: str
     .maybeSingle()
 
   // 自分のemployeeレコード取得
-  const { data: me } = await db
+  let { data: me } = await db
     .from('employees')
     .select('id, name, status')
     .eq('auth_user_id', user.id)
@@ -54,15 +54,61 @@ export default async function InvitePage({ params }: { params: Promise<{ id: str
   )
 
   if (!inv) return errorScreen('招待が見つかりません。URLをご確認ください。')
-  if (!me) return errorScreen('ユーザー情報が取得できません。')
   if (inv.used_at) return errorScreen('この招待は既に使用済みです。')
   if (new Date(inv.expires_at) < new Date()) return errorScreen('この招待は期限切れです。')
-  if (inv.target_employee_id && inv.target_employee_id !== me.id) {
+
+  // フェーズ1（特定メンバー宛）: 他人が開いた場合は拒否
+  if (inv.target_employee_id && me && inv.target_employee_id !== me.id) {
     return errorScreen('この招待はあなた宛ではありません。')
   }
-  if (me.status !== 'approved') {
-    return errorScreen('アカウントがまだ承認されていません。管理者の承認をお待ちください。')
+  // target_employee_id 付き招待は未登録者のリンク流用を防ぐため、employees レコード必須
+  if (inv.target_employee_id && !me) {
+    return errorScreen('この招待はあなた宛ではありません。')
   }
+
+  // 未アプリ参加者 or pending ユーザーを自動承認（フェーズ2: target_employee_id なしの招待）
+  if (!me) {
+    // employees レコード未作成 → Googleメタデータから自動作成（status=approved）
+    const fullName = (user.user_metadata.full_name as string | undefined) ?? user.email ?? '未設定'
+    const nameParts = fullName.split(' ')
+    const { data: created, error: createError } = await db
+      .from('employees')
+      .insert({
+        auth_user_id: user.id,
+        last_name: nameParts[0],
+        first_name: nameParts.slice(1).join(' ') || '',
+        email: user.email ?? '',
+        role: 'employee',
+        employment_type: '社員',
+        avatar_url: (user.user_metadata.avatar_url as string | undefined) ?? null,
+        status: 'approved',
+        requested_team_id: inv.team_id,
+        requested_project_team_id: inv.project_team_id,
+        approved_by: inv.invited_by,
+        approved_at: new Date().toISOString(),
+      })
+      .select('id, name, status')
+      .single()
+    if (createError || !created) return errorScreen('アカウント作成に失敗しました: ' + (createError?.message ?? ''))
+    me = created
+  } else if (me.status === 'pending') {
+    // 既にレコードあるが pending → 自動承認
+    const { data: updated } = await db
+      .from('employees')
+      .update({
+        status: 'approved',
+        requested_team_id: inv.team_id,
+        requested_project_team_id: inv.project_team_id,
+        approved_by: inv.invited_by,
+        approved_at: new Date().toISOString(),
+      })
+      .eq('id', me.id)
+      .select('id, name, status')
+      .single()
+    if (updated) me = updated
+  }
+
+  if (!me) return errorScreen('ユーザー情報の取得・作成に失敗しました')
 
   // チーム・招待者情報
   const [teamRes, projectTeamRes, inviterRes] = await Promise.all([

@@ -8,6 +8,47 @@ import { sendInvitationNotification } from '@/lib/notifications'
 const INVITER_ROLES = ['store_manager', 'manager', 'admin', 'ops_manager', 'executive']
 
 /**
+ * 招待リンク発行（フェーズ2: 未アプリ参加者 or 誰でも受諾可能）
+ * target_employee_id なしで作成。通知は送らず、URL を返すだけ。
+ */
+export async function createInvitationLink(params: {
+  teamId: string
+  customMessage?: string
+}): Promise<{ error?: string; invitationId?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: '認証エラー' }
+
+  const db = createAdminClient()
+
+  const { data: inviter } = await db
+    .from('employees')
+    .select('id, role')
+    .eq('auth_user_id', user.id)
+    .eq('status', 'approved')
+    .single()
+  if (!inviter || !INVITER_ROLES.includes(inviter.role)) {
+    return { error: '招待権限がありません' }
+  }
+
+  const { data: team } = await db.from('teams').select('id, name').eq('id', params.teamId).single()
+  if (!team) return { error: 'チームが見つかりません' }
+
+  const { data: inv, error: insertError } = await db
+    .from('team_invitations')
+    .insert({
+      team_id: params.teamId,
+      invited_by: inviter.id,
+      custom_message: params.customMessage?.trim() || null,
+    })
+    .select('id')
+    .single()
+  if (insertError || !inv) return { error: insertError?.message ?? '招待作成に失敗しました' }
+
+  return { invitationId: inv.id }
+}
+
+/**
  * 既存メンバーへのチーム招待を作成（フェーズ1）
  */
 export async function createInvitation(params: {

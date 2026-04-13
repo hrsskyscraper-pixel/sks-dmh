@@ -2451,6 +2451,7 @@ export function TeamManager({
           onOpenChange={v => { if (!v) setInviteDialog(null) }}
           teamId={inviteDialog.teamId}
           teamName={inviteDialog.teamName}
+          inviterName={currentEmployee.name}
           candidates={(() => {
             const memberIds = new Set(teamMembers.filter(m => m.team_id === inviteDialog.teamId).map(m => m.employee_id))
             const managerIds = new Set(teamManagers.filter(m => m.team_id === inviteDialog.teamId).map(m => m.employee_id))
