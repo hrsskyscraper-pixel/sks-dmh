@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { UserPlus, CheckCircle, AlertCircle, HelpCircle, UserCircle } from 'lucide-react'
+import { UserPlus, CheckCircle, AlertCircle, HelpCircle, UserCircle, MessageCircle } from 'lucide-react'
 import { acceptInvitation } from '../actions'
 
 interface Props {
@@ -82,15 +82,58 @@ export function AcceptInvitationButton({ invitationId, asManager = false, initia
       }
       setJoined(res.teamName ?? '')
       toast.success('チームに参加しました')
-      setTimeout(() => router.push('/'), 1500)
     })
+  }
+
+  const handleLineLink = () => {
+    const baseUrl = window.location.origin
+    const channelId = process.env.NEXT_PUBLIC_LINE_LOGIN_CHANNEL_ID
+    if (!channelId) {
+      toast.error('LINE Login が設定されていません')
+      router.push('/')
+      return
+    }
+    const redirectUri = encodeURIComponent(`${baseUrl}/auth/line/callback`)
+    const state = crypto.randomUUID()
+    window.location.href = `https://access.line.me/oauth2/v2.1/authorize?response_type=code&client_id=${channelId}&redirect_uri=${redirectUri}&state=${state}&scope=profile`
   }
 
   if (joined) {
     return (
-      <div className="flex items-center gap-2 bg-emerald-50 text-emerald-700 rounded-lg px-3 py-2">
-        <CheckCircle className="w-4 h-4" />
-        <span className="text-sm">「{joined}」に{asManager ? 'リーダー（副）として' : ''}参加しました</span>
+      <div className="space-y-3">
+        <div className="flex items-center gap-2 bg-emerald-50 text-emerald-700 rounded-lg px-3 py-2">
+          <CheckCircle className="w-4 h-4" />
+          <span className="text-sm">「{joined}」に{asManager ? 'リーダー（副）として' : ''}参加しました！</span>
+        </div>
+
+        {/* LINE連携の案内（参加直後・最終ステップ） */}
+        <div className="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 rounded-xl p-4 space-y-3">
+          <div className="flex items-start gap-2">
+            <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
+              <MessageCircle className="w-4 h-4 text-white" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-bold text-gray-800">最後に、LINE連携をおすすめします</p>
+              <p className="text-xs text-gray-600 mt-1 leading-relaxed">
+                スキル認定の結果やリアクションが、LINEですぐ届くので、
+                進捗がすぐにわかるようになります。約10秒で完了します。
+              </p>
+            </div>
+          </div>
+          <Button
+            onClick={handleLineLink}
+            className="w-full h-11 bg-green-500 hover:bg-green-600 font-medium"
+          >
+            <MessageCircle className="w-4 h-4 mr-2" />
+            LINE連携する（推奨）
+          </Button>
+          <button
+            onClick={() => router.push('/')}
+            className="w-full text-center text-xs text-gray-500 hover:text-gray-700 py-1"
+          >
+            あとで設定する（ダッシュボードへ）
+          </button>
+        </div>
       </div>
     )
   }

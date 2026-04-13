@@ -12,6 +12,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { NotificationCountProvider } from '@/components/layout/notification-context'
 import { OnboardingDialog } from '@/components/onboarding/onboarding-dialog'
 import { PendingScreen } from '@/components/onboarding/pending-screen'
+import { LineLinkFloatingButton } from '@/components/layout/line-link-floating-button'
 import type { Database, Role } from '@/types/database'
 
 export default async function DashboardLayout({
@@ -252,6 +253,7 @@ export default async function DashboardLayout({
         <main className="pb-20 max-w-2xl mx-auto">
           {children}
         </main>
+        <LineLinkFloatingButton isLinked={!!employee.line_user_id} />
         <BottomNav role={effectiveRole} unreadRequestCount={unreadRequestCount} pendingApprovalCount={pendingApprovalCount} dashboardBadge={dashboardBadge} avatarUrl={employee.avatar_url} employeeId={employee.id} employeeName={employee.name} rejectedSkillCount={rejectedSkillCount ?? 0} />
         <Toaster position="top-center" richColors />
       </div>
