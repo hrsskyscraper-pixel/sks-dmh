@@ -13,6 +13,7 @@ function LoginContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const error = searchParams.get('error')
+  const next = searchParams.get('next')
 
   const [showEmailLogin, setShowEmailLogin] = useState(false)
   const [email, setEmail] = useState('')
@@ -21,10 +22,12 @@ function LoginContent() {
   const [loading, setLoading] = useState(false)
 
   const handleGoogleLogin = async () => {
+    const callbackUrl = new URL(`${window.location.origin}/auth/callback`)
+    if (next) callbackUrl.searchParams.set('next', next)
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: callbackUrl.toString(),
       },
     })
   }
@@ -38,7 +41,7 @@ function LoginContent() {
       if (error) {
         setEmailError(error.message)
       } else {
-        router.push('/')
+        router.push(next || '/')
         router.refresh()
       }
     } finally {

@@ -36,6 +36,10 @@ export async function updateSession(request: NextRequest) {
   if (!user && !pathname.startsWith('/login') && !pathname.startsWith('/auth')) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
+    // 招待URL等、ログイン後に戻したいページは next で引き継ぐ
+    if (pathname.startsWith('/invite/')) {
+      url.searchParams.set('next', pathname + request.nextUrl.search)
+    }
     return NextResponse.redirect(url)
   }
 

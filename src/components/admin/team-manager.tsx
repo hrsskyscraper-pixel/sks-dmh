@@ -3,7 +3,8 @@
 import { useState, useTransition, useEffect, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
-import { Plus, Trash2, UserPlus, UserMinus, ClipboardList, Check, X, ChevronDown, ChevronUp, ChevronRight, Pencil, MapPin } from 'lucide-react'
+import { Plus, Trash2, UserPlus, UserMinus, ClipboardList, Check, X, ChevronDown, ChevronUp, ChevronRight, Pencil, MapPin, Mail } from 'lucide-react'
+import { InviteMemberDialog } from './invite-member-dialog'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -114,6 +115,9 @@ export function TeamManager({
   const [newTeamManagerId, setNewTeamManagerId] = useState('')
   const [newTeamSubManagerIds, setNewTeamSubManagerIds] = useState<string[]>([])
   const [newTeamMemberIds, setNewTeamMemberIds] = useState<string[]>([])
+
+  // ===== 招待ダイアログ =====
+  const [inviteDialog, setInviteDialog] = useState<{ teamId: string; teamName: string } | null>(null)
 
   // ===== Add Member/Manager Dialog =====
   const [addDialog, setAddDialog] = useState<{
@@ -1060,35 +1064,46 @@ export function TeamManager({
                   <div className="flex items-center justify-between mb-1.5">
                     <p className="text-xs font-medium text-gray-600">メンバー</p>
                     {!isReadOnly && (
-                      isDirectEdit ? (
+                      <div className="flex items-center gap-1">
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-6 text-xs text-blue-600 hover:text-blue-800 px-2"
-                          onClick={() => { setAddDialog({ type: 'member', teamId: team.id }); setSelectedEmployeeIds(new Set()) }}
+                          className="h-6 text-xs text-orange-600 hover:text-orange-800 px-2"
+                          onClick={() => setInviteDialog({ teamId: team.id, teamName: team.name })}
                           disabled={isPending}
                         >
-                          <UserPlus className="w-3 h-3 mr-1" />追加
+                          <Mail className="w-3 h-3 mr-1" />招待
                         </Button>
-                      ) : (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 text-xs text-blue-600 hover:text-blue-800 px-2"
-                          onClick={() => {
-                            setRequestDialog({
-                              requestType: 'add_member',
-                              teamId: team.id,
-                              payload: { team_name: team.name },
-                              label: `「${team.name}」へのメンバー追加を申請`,
-                            })
-                            setRequestComment('')
-                          }}
-                          disabled={isPending}
-                        >
-                          <ClipboardList className="w-3 h-3 mr-1" />申請
-                        </Button>
-                      )
+                        {isDirectEdit ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 text-xs text-blue-600 hover:text-blue-800 px-2"
+                            onClick={() => { setAddDialog({ type: 'member', teamId: team.id }); setSelectedEmployeeIds(new Set()) }}
+                            disabled={isPending}
+                          >
+                            <UserPlus className="w-3 h-3 mr-1" />追加
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 text-xs text-blue-600 hover:text-blue-800 px-2"
+                            onClick={() => {
+                              setRequestDialog({
+                                requestType: 'add_member',
+                                teamId: team.id,
+                                payload: { team_name: team.name },
+                                label: `「${team.name}」へのメンバー追加を申請`,
+                              })
+                              setRequestComment('')
+                            }}
+                            disabled={isPending}
+                          >
+                            <ClipboardList className="w-3 h-3 mr-1" />申請
+                          </Button>
+                        )}
+                      </div>
                     )}
                   </div>
                   <div
@@ -2415,6 +2430,25 @@ export function TeamManager({
           <Button variant="outline" onClick={() => setPrimaryConflict(null)} className="w-full">キャンセル</Button>
         </DialogContent>
       </Dialog>
+
+      {/* ===== 招待ダイアログ ===== */}
+      {inviteDialog && (
+        <InviteMemberDialog
+          open={!!inviteDialog}
+          onOpenChange={v => { if (!v) setInviteDialog(null) }}
+          teamId={inviteDialog.teamId}
+          teamName={inviteDialog.teamName}
+          candidates={(() => {
+            const memberIds = new Set(teamMembers.filter(m => m.team_id === inviteDialog.teamId).map(m => m.employee_id))
+            const managerIds = new Set(teamManagers.filter(m => m.team_id === inviteDialog.teamId).map(m => m.employee_id))
+            return employees.filter(e =>
+              e.status === 'approved' &&
+              !memberIds.has(e.id) &&
+              !managerIds.has(e.id)
+            )
+          })()}
+        />
+      )}
     </div>
   )
 }

@@ -105,6 +105,69 @@ export async function sendJoinRequestNotification({ applicant, team, projectTeam
   }
 }
 
+interface InvitationParams {
+  invitationId: string
+  inviter: { name: string }
+  target: { name: string; email: string; line_user_id: string | null }
+  teamName: string
+  projectTeamName?: string
+  customMessage?: string
+}
+
+/**
+ * チーム招待の通知（既存メンバー宛）
+ * - 宛先本人にメール送信
+ * - 宛先本人にLINE通知（連携済みの場合）
+ */
+export async function sendInvitationNotification({
+  invitationId,
+  inviter,
+  target,
+  teamName,
+  projectTeamName,
+  customMessage,
+}: InvitationParams) {
+  const systemUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://sks-dmh.vercel.app'
+  const inviteUrl = `${systemUrl}/invite/${invitationId}`
+
+  const bodyLines = [
+    `${target.name} 様`,
+    '',
+    `${inviter.name}さんから、以下のチームへの参加依頼が届いています。`,
+    '内容をご確認の上、下記の招待リンクから参加手続きをお願いします。',
+    '',
+    `  店舗・部署: ${teamName}`,
+    ...(projectTeamName ? [`  チーム: ${projectTeamName}`] : []),
+    '',
+  ]
+  if (customMessage && customMessage.trim()) {
+    bodyLines.push('-- メッセージ --', customMessage.trim(), '')
+  }
+  bodyLines.push('▼参加する', inviteUrl)
+
+  await sendMail({
+    to: target.email,
+    subject: `【Growth Driver】${inviter.name}さんから参加依頼が届いています`,
+    body: bodyLines.join('\n'),
+  }).catch(err => console.error('招待メール送信失敗:', err))
+
+  if (target.line_user_id) {
+    const lineLines = [
+      `【チーム参加依頼】`,
+      `${inviter.name}さんから参加依頼が届いています。`,
+      '',
+      `店舗・部署: ${teamName}`,
+      ...(projectTeamName ? [`チーム: ${projectTeamName}`] : []),
+    ]
+    if (customMessage && customMessage.trim()) {
+      lineLines.push('', customMessage.trim())
+    }
+    lineLines.push('', `▼参加する\n${inviteUrl}`)
+    await sendLineMessage(target.line_user_id, lineLines.join('\n'))
+      .catch(err => console.error('招待LINE通知失敗:', err))
+  }
+}
+
 /**
  * 参加承認時の通知
  * - 承認された本人にメール送信（CC: 管理者）

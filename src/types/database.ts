@@ -274,6 +274,51 @@ export type Database = {
           },
         ]
       }
+      team_invitations: {
+        Row: {
+          id: string
+          team_id: string
+          project_team_id: string | null
+          suggested_role: 'mate' | 'employee' | 'store_manager' | 'manager' | null
+          invited_by: string
+          target_employee_id: string | null
+          target_email: string | null
+          custom_message: string | null
+          expires_at: string
+          used_at: string | null
+          used_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          team_id: string
+          project_team_id?: string | null
+          suggested_role?: 'mate' | 'employee' | 'store_manager' | 'manager' | null
+          invited_by: string
+          target_employee_id?: string | null
+          target_email?: string | null
+          custom_message?: string | null
+          expires_at?: string
+          used_at?: string | null
+          used_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          team_id?: string
+          project_team_id?: string | null
+          suggested_role?: 'mate' | 'employee' | 'store_manager' | 'manager' | null
+          invited_by?: string
+          target_employee_id?: string | null
+          target_email?: string | null
+          custom_message?: string | null
+          expires_at?: string
+          used_at?: string | null
+          used_by?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
       phase_milestones: {
         Row: {
           phase: string
@@ -792,6 +837,7 @@ export type WorkHour = Database['public']['Tables']['work_hours']['Row']
 export type Team = Database['public']['Tables']['teams']['Row']
 export type TeamMember = Database['public']['Tables']['team_members']['Row']
 export type TeamChangeRequest = Database['public']['Tables']['team_change_requests']['Row']
+export type TeamInvitation = Database['public']['Tables']['team_invitations']['Row']
 export type SkillProject = Database['public']['Tables']['skill_projects']['Row']
 export type ProjectPhase = Database['public']['Tables']['project_phases']['Row']
 export type ProjectSkill = Database['public']['Tables']['project_skills']['Row']
