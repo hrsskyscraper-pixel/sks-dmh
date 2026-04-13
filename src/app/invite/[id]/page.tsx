@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Mail, AlertCircle, CheckCircle } from 'lucide-react'
 import { AcceptInvitationButton } from './accept-button'
+import { InAppBrowserWarning } from '@/components/layout/in-app-browser-warning'
 
 export const dynamic = 'force-dynamic'
 
@@ -133,6 +134,7 @@ export default async function InvitePage({ params }: { params: Promise<{ id: str
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 to-red-50 flex items-center justify-center p-4">
+      <InAppBrowserWarning />
       <Card className="w-full max-w-sm shadow-xl">
         <CardHeader className="text-center space-y-2">
           <div className="mx-auto w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">

@@ -105,7 +105,13 @@ export function InviteMemberDialog({ open, onOpenChange, teamId, teamName, invit
   }
 
   // LINE等にコピペするための案内文
+  // URLに ?openExternalBrowser=1 を付けると、LINE等で開かれても外部ブラウザ（Safari/Chrome）で開く
+  const appendLineOpenExternal = (url: string) => {
+    const separator = url.includes('?') ? '&' : '?'
+    return `${url}${separator}openExternalBrowser=1`
+  }
   const buildShareText = (url: string) => {
+    const externalUrl = appendLineOpenExternal(url)
     const lines = [
       `${inviterName}さんから、以下のチームへの参加依頼です。`,
       '内容をご確認の上、下記の招待リンクから参加手続きをお願いします。',
@@ -116,7 +122,7 @@ export function InviteMemberDialog({ open, onOpenChange, teamId, teamName, invit
     if (message.trim()) {
       lines.push('■ メッセージ', message.trim(), '')
     }
-    lines.push('■ 参加方法', '下記のリンクを開き、Googleアカウントでログインしてください。', '初めての方は自動的にアカウントが作成されます。', '', '▼ 参加する', url)
+    lines.push('■ 参加方法', '下記のリンクを開き、Googleアカウントでログインしてください。', '初めての方は自動的にアカウントが作成されます。', '', '▼ 参加する', externalUrl)
     return lines.join('\n')
   }
 
