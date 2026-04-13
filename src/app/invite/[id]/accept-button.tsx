@@ -17,8 +17,6 @@ export function AcceptInvitationButton({ invitationId, asManager = false }: { in
     startTransition(async () => {
       // welcome画面で入力されたプロフィール情報を localStorage から読み取る
       let profile: {
-        birthDate?: string | null
-        hireDate?: string | null
         instagramUrl?: string | null
         lineUrl?: string | null
       } | undefined

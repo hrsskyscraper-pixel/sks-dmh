@@ -17,8 +17,15 @@ import {
   ChevronDown,
   Mail,
   UserCircle,
+  HelpCircle,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 interface Props {
   invitationId: string
@@ -39,22 +46,18 @@ export function WelcomeContent({
 }: Props) {
   const [loading, setLoading] = useState(false)
   const [showGoogleHelp, setShowGoogleHelp] = useState(false)
-  const [showProfile, setShowProfile] = useState(false)
-  const [birthDate, setBirthDate] = useState('')
-  const [hireDate, setHireDate] = useState('')
   const [instagramUrl, setInstagramUrl] = useState('')
   const [lineUrl, setLineUrl] = useState('')
+  const [helpDialog, setHelpDialog] = useState<'instagram' | 'line' | null>(null)
 
   const handleGoogleLogin = async () => {
     setLoading(true)
     // 入力されたプロフィール情報を localStorage に保存（OAuthリダイレクト後に利用）
     const profile = {
-      birthDate: birthDate || null,
-      hireDate: hireDate || null,
       instagramUrl: instagramUrl.trim() || null,
       lineUrl: lineUrl.trim() || null,
     }
-    if (profile.birthDate || profile.hireDate || profile.instagramUrl || profile.lineUrl) {
+    if (profile.instagramUrl || profile.lineUrl) {
       try {
         localStorage.setItem(`invite-profile-${invitationId}`, JSON.stringify(profile))
       } catch { /* localStorage 使用不可な環境は無視 */ }
@@ -146,14 +149,15 @@ export function WelcomeContent({
                 <li className="flex items-start gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0 mt-0.5" /><span>チームメンバーのスキル認定・差し戻し</span></li>
                 <li className="flex items-start gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0 mt-0.5" /><span>チーム全体の進捗ランキング閲覧</span></li>
                 <li className="flex items-start gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0 mt-0.5" /><span>メンバーへの招待発行</span></li>
-                <li className="flex items-start gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0 mt-0.5" /><span>タイムラインでの交流</span></li>
+                <li className="flex items-start gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0 mt-0.5" /><span>タイムラインで応援・祝福・感謝を交換</span></li>
               </ul>
             ) : (
               <ul className="space-y-1.5 text-sm text-gray-700">
                 <li className="flex items-start gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0 mt-0.5" /><span>自分のスキル習得を申請</span></li>
                 <li className="flex items-start gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0 mt-0.5" /><span>認定結果をタイムラインで確認</span></li>
-                <li className="flex items-start gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0 mt-0.5" /><span>自分の進捗を"見える化"で把握</span></li>
-                <li className="flex items-start gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0 mt-0.5" /><span>チームメンバーとのタイムラインで交流</span></li>
+                <li className="flex items-start gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0 mt-0.5" /><span>自分の進捗の&quot;順調？遅れてる？&quot;がわかる</span></li>
+                <li className="flex items-start gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0 mt-0.5" /><span>仲間の頑張り・進捗が見える</span></li>
+                <li className="flex items-start gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0 mt-0.5" /><span>タイムラインで応援・祝福・感謝を交換</span></li>
               </ul>
             )}
           </CardContent>
@@ -187,68 +191,108 @@ export function WelcomeContent({
           </CardContent>
         </Card>
 
-        {/* プロフィール情報（任意・折りたたみ） */}
+        {/* プロフィール情報（任意・推奨） */}
         <Card>
-          <CardContent className="py-3 px-4 space-y-2">
-            <button
-              onClick={() => setShowProfile(!showProfile)}
-              className="w-full flex items-center justify-between text-left"
-            >
-              <div className="flex items-center gap-1.5">
-                <UserCircle className="w-4 h-4 text-orange-500" />
-                <span className="text-sm font-bold text-gray-800">プロフィール情報（任意）</span>
-              </div>
-              <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${showProfile ? 'rotate-180' : ''}`} />
-            </button>
+          <CardContent className="py-3 px-4 space-y-2.5">
+            <div className="flex items-center gap-1.5">
+              <UserCircle className="w-4 h-4 text-orange-500" />
+              <span className="text-sm font-bold text-gray-800">プロフィール情報（任意・推奨）</span>
+            </div>
             <p className="text-[11px] text-gray-500 leading-relaxed">
-              今ここで入力いただくと、参加後すぐにキャリア情報に反映されます。
+              今ここで入力いただくと、参加後すぐにプロフィールに反映されます。
               後からでも Myページで編集できます。
             </p>
-            {showProfile && (
-              <div className="space-y-2.5 pt-2">
+            <div className="space-y-2.5 pt-1">
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[11px] text-gray-600 font-medium">Instagram URL</label>
+                  <button
+                    type="button"
+                    onClick={() => setHelpDialog('instagram')}
+                    className="text-[10px] text-orange-600 hover:underline flex items-center gap-0.5"
+                  >
+                    <HelpCircle className="w-3 h-3" />確認方法
+                  </button>
+                </div>
+                <Input
+                  type="url"
+                  placeholder="https://instagram.com/..."
+                  value={instagramUrl}
+                  onChange={e => setInstagramUrl(e.target.value)}
+                  className="h-9 text-sm"
+                />
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[11px] text-gray-600 font-medium">LINE URL</label>
+                  <button
+                    type="button"
+                    onClick={() => setHelpDialog('line')}
+                    className="text-[10px] text-orange-600 hover:underline flex items-center gap-0.5"
+                  >
+                    <HelpCircle className="w-3 h-3" />確認方法
+                  </button>
+                </div>
+                <Input
+                  type="url"
+                  placeholder="https://line.me/ti/p/..."
+                  value={lineUrl}
+                  onChange={e => setLineUrl(e.target.value)}
+                  className="h-9 text-sm"
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* 確認方法ダイアログ */}
+        <Dialog open={helpDialog !== null} onOpenChange={v => { if (!v) setHelpDialog(null) }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="text-base flex items-center gap-2">
+                <HelpCircle className="w-4 h-4 text-orange-500" />
+                {helpDialog === 'instagram' ? 'Instagram URL の確認方法' : 'LINE URL の確認方法'}
+              </DialogTitle>
+            </DialogHeader>
+            {helpDialog === 'instagram' && (
+              <div className="text-sm text-gray-700 space-y-3 leading-relaxed">
                 <div>
-                  <label className="text-[11px] text-gray-600 font-medium mb-1 block">生年月日</label>
-                  <Input
-                    type="date"
-                    value={birthDate}
-                    onChange={e => setBirthDate(e.target.value)}
-                    className="h-9 text-sm"
-                  />
+                  <p className="font-semibold text-gray-800 mb-1">📱 Instagramアプリから</p>
+                  <ol className="list-decimal pl-5 space-y-1 text-[13px]">
+                    <li>Instagramアプリを開く</li>
+                    <li>右下のプロフィールアイコンをタップ</li>
+                    <li>右上のメニュー（≡）→「QRコード」</li>
+                    <li>下部の「シェア」→「リンクをコピー」</li>
+                  </ol>
                 </div>
                 <div>
-                  <label className="text-[11px] text-gray-600 font-medium mb-1 block">入社年月日</label>
-                  <Input
-                    type="date"
-                    value={hireDate}
-                    onChange={e => setHireDate(e.target.value)}
-                    className="h-9 text-sm"
-                  />
-                  <p className="text-[10px] text-gray-400 mt-0.5">キャリア記録の「入社」に登録されます</p>
-                </div>
-                <div>
-                  <label className="text-[11px] text-gray-600 font-medium mb-1 block">Instagram URL</label>
-                  <Input
-                    type="url"
-                    placeholder="https://instagram.com/..."
-                    value={instagramUrl}
-                    onChange={e => setInstagramUrl(e.target.value)}
-                    className="h-9 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="text-[11px] text-gray-600 font-medium mb-1 block">LINE URL</label>
-                  <Input
-                    type="url"
-                    placeholder="https://line.me/ti/p/..."
-                    value={lineUrl}
-                    onChange={e => setLineUrl(e.target.value)}
-                    className="h-9 text-sm"
-                  />
+                  <p className="font-semibold text-gray-800 mb-1">💻 Webブラウザから</p>
+                  <p className="text-[13px]">
+                    <code className="bg-gray-100 px-1 py-0.5 rounded text-[11px]">https://instagram.com/ユーザー名</code>
+                    <br />
+                    例：<code className="bg-gray-100 px-1 py-0.5 rounded text-[11px]">https://instagram.com/growth_driver</code>
+                  </p>
                 </div>
               </div>
             )}
-          </CardContent>
-        </Card>
+            {helpDialog === 'line' && (
+              <div className="text-sm text-gray-700 space-y-3 leading-relaxed">
+                <div>
+                  <p className="font-semibold text-gray-800 mb-1">📱 LINEアプリから（自分のプロフィール共有URL）</p>
+                  <ol className="list-decimal pl-5 space-y-1 text-[13px]">
+                    <li>LINEアプリを開く</li>
+                    <li>ホーム → 自分のプロフィール画像をタップ</li>
+                    <li>右上の「シェア」アイコン</li>
+                    <li>「URLをコピー」または「ほかのアプリで開く」</li>
+                  </ol>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-2 text-[12px] text-gray-600">
+                  コピーしたURLは <code className="bg-white px-1 rounded text-[10px]">https://line.me/ti/p/...</code> の形式です
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
 
         {/* 参加方法 */}
         <Card className="border-orange-200 bg-orange-50/50">
