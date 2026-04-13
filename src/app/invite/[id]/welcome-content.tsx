@@ -58,7 +58,7 @@ export function WelcomeContent({
     })
   }
 
-  const joinLabel = asManager ? 'リーダー（副）' : 'メンバー'
+  const joinLabel = asManager ? 'リーダー' : 'メンバー'
   const accentColor = asManager ? 'from-amber-400 to-orange-500' : 'from-orange-400 to-red-500'
 
   return (

@@ -45,7 +45,7 @@ export function AcceptInvitationButton({ invitationId, asManager = false, initia
   const [isPending, startTransition] = useTransition()
   const [joined, setJoined] = useState<string | null>(null)
   const router = useRouter()
-  const joinLabel = asManager ? 'リーダー（副）として参加' : 'このチームに参加'
+  const joinLabel = asManager ? 'リーダーとして参加' : 'このチームに参加'
 
   // 氏名（Google登録値で初期化）
   const [lastName, setLastName] = useState(initialLastName ?? '')
@@ -113,7 +113,7 @@ export function AcceptInvitationButton({ invitationId, asManager = false, initia
       <div className="space-y-3">
         <div className="flex items-center gap-2 bg-emerald-50 text-emerald-700 rounded-lg px-3 py-2">
           <CheckCircle className="w-4 h-4" />
-          <span className="text-sm">「{joined}」に{asManager ? 'リーダー（副）として' : ''}参加しました！</span>
+          <span className="text-sm">「{joined}」に{asManager ? 'リーダーとして' : ''}参加しました！</span>
         </div>
 
         {/* LINE連携の案内（参加直後・最終ステップ） */}

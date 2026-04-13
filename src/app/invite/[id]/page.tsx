@@ -198,7 +198,7 @@ export default async function InvitePage({
               <span className="font-medium">{inviter?.name ?? '管理者'}</span>さんから、
               以下のチームへの
               <span className="font-medium text-orange-600">
-                {inv.as_manager ? 'リーダー（副）' : 'メンバー'}
+                {inv.as_manager ? 'リーダー' : 'メンバー'}
               </span>
               参加依頼が届いています。
             </p>
@@ -206,7 +206,7 @@ export default async function InvitePage({
 
           <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 space-y-1">
             <p className="text-[10px] text-orange-600 font-medium">
-              参加先（{inv.as_manager ? 'リーダー（副）' : 'メンバー'}として）
+              参加先（{inv.as_manager ? 'リーダー' : 'メンバー'}として）
             </p>
             <p className="text-sm font-semibold text-gray-800">
               {team.type === 'store' ? '🏢' : team.type === 'department' ? '🏛️' : '👥'} {team.name}
