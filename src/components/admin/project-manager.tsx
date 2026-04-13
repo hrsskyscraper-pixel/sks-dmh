@@ -730,11 +730,14 @@ export function ProjectManager({
                 }
 
                 // グループ分け
+                // - 現プロジェクトで有効化（チェック済み）なら、他プロジェクトにあっても常時表示グループへ
+                // - 無効なスキルのみ、他プロジェクトごとに折りたたみ
                 const groupTrulyUnassigned: Skill[] = []
                 const groupByProject: Record<string, Skill[]> = {}
                 for (const s of unassignedSkills) {
                   const others = skillToOtherProjects[s.id] ?? []
-                  if (others.length === 0) {
+                  const isCheckedInCurrent = selectedProjectSkillIds.has(s.id)
+                  if (isCheckedInCurrent || others.length === 0) {
                     groupTrulyUnassigned.push(s)
                   } else {
                     for (const pid of others) {
@@ -765,7 +768,7 @@ export function ProjectManager({
                     {groupTrulyUnassigned.length > 0 && (
                       <div>
                         <h3 className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">
-                          未割当（どのプロジェクトにも未登録）
+                          未割当
                         </h3>
                         <div className="space-y-1.5">
                           {groupTrulyUnassigned.map(skill => renderSkillRow(skill, '__unassigned__'))}
