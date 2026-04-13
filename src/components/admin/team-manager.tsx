@@ -929,7 +929,20 @@ export function TeamManager({
                   {isExpanded && (
                     <CardContent className="px-4 pb-3 space-y-3">
                       <div>
-                        <p className="text-xs font-medium text-gray-600 mb-1.5">メンバー</p>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <p className="text-xs font-medium text-gray-600">メンバー</p>
+                          {!isReadOnly && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 text-xs text-orange-600 hover:text-orange-800 px-2"
+                              onClick={() => setInviteDialog({ teamId: team.id, teamName: team.name })}
+                              disabled={isPending}
+                            >
+                              <Mail className="w-3 h-3 mr-1" />招待
+                            </Button>
+                          )}
+                        </div>
                         <div className="flex flex-wrap gap-1.5">
                           {memberIds.length === 0 && <p className="text-xs text-muted-foreground">メンバーなし</p>}
                           {memberIds.map(empId => {
