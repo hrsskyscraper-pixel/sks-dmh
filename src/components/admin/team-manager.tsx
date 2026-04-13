@@ -927,10 +927,12 @@ export function TeamManager({
                     )}
                   </CardHeader>
                   {isExpanded && (
-                    <CardContent className="px-4 pb-3 space-y-3">
-                      <div>
+                    <CardContent className="px-4 pb-3 space-y-2">
+                      <div className="bg-white/70 border border-gray-200 rounded-lg px-3 py-2">
                         <div className="flex items-center justify-between mb-1.5">
-                          <p className="text-xs font-medium text-gray-600">メンバー</p>
+                          <p className="text-xs font-semibold text-gray-600 flex items-center gap-1">
+                            <span className="w-1 h-3 bg-gray-400 rounded-full" />メンバー
+                          </p>
                           {!isReadOnly && (
                             <Button
                               variant="ghost"
@@ -959,9 +961,11 @@ export function TeamManager({
                           })}
                         </div>
                       </div>
-                      <div>
+                      <div className="bg-amber-50/60 border border-amber-200 rounded-lg px-3 py-2">
                         <div className="flex items-center justify-between mb-1.5">
-                          <p className="text-xs font-medium text-gray-600">担当リーダー</p>
+                          <p className="text-xs font-semibold text-amber-700 flex items-center gap-1">
+                            <span className="w-1 h-3 bg-amber-400 rounded-full" />担当リーダー
+                          </p>
                           {!isReadOnly && (
                             <Button
                               variant="ghost"
@@ -1084,11 +1088,13 @@ export function TeamManager({
             </CardHeader>
 
             {isExpanded && (
-              <CardContent className="px-4 pb-3 space-y-3">
+              <CardContent className="px-4 pb-3 space-y-2">
                 {/* メンバー */}
-                <div>
+                <div className="bg-white/70 border border-gray-200 rounded-lg px-3 py-2">
                   <div className="flex items-center justify-between mb-1.5">
-                    <p className="text-xs font-medium text-gray-600">メンバー</p>
+                    <p className="text-xs font-semibold text-gray-600 flex items-center gap-1">
+                      <span className="w-1 h-3 bg-gray-400 rounded-full" />メンバー
+                    </p>
                     {!isReadOnly && (
                       <div className="flex items-center gap-1">
                         <Button
@@ -1196,9 +1202,11 @@ export function TeamManager({
                 </div>
 
                 {/* 担当リーダー */}
-                <div>
+                <div className="bg-amber-50/60 border border-amber-200 rounded-lg px-3 py-2">
                   <div className="flex items-center justify-between mb-1.5">
-                    <p className="text-xs font-medium text-gray-600">担当リーダー</p>
+                    <p className="text-xs font-semibold text-amber-700 flex items-center gap-1">
+                      <span className="w-1 h-3 bg-amber-400 rounded-full" />担当リーダー
+                    </p>
                     {!isReadOnly && (
                       <div className="flex items-center gap-1">
                         <Button
