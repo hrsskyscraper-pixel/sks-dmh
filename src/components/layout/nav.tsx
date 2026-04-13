@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState } from 'react'
-import { LayoutDashboard, CheckSquare, BadgeCheck, Upload, Users2, LogOut, Building2, FolderKanban, MessageSquare, UserPlus, Settings, User, FileText, HelpCircle } from 'lucide-react'
+import { LayoutDashboard, CheckSquare, BadgeCheck, Upload, Users2, LogOut, Building2, FolderKanban, MessageSquare, UserPlus, Settings, User, FileText, HelpCircle, Shield, ScrollText } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
@@ -84,9 +84,27 @@ function AccountMenu({ avatarUrl, employeeId, employeeName, role, onLogout }: { 
                 設定
               </Link>
             )}
+            <div className="border-t border-gray-100 mt-1">
+              <Link
+                href="/privacy"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-2 px-3 py-2 text-xs text-gray-500 hover:bg-gray-50 transition-colors"
+              >
+                <Shield className="w-3.5 h-3.5 text-gray-400" />
+                プライバシーポリシー
+              </Link>
+              <Link
+                href="/terms"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-2 px-3 py-2 text-xs text-gray-500 hover:bg-gray-50 transition-colors"
+              >
+                <ScrollText className="w-3.5 h-3.5 text-gray-400" />
+                利用規約
+              </Link>
+            </div>
             <button
               onClick={() => { setOpen(false); onLogout() }}
-              className="flex items-center gap-2 px-3 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors w-full text-left"
+              className="flex items-center gap-2 px-3 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors w-full text-left border-t border-gray-100"
             >
               <LogOut className="w-4 h-4" />
               ログアウト

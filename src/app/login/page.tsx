@@ -2,6 +2,7 @@
 
 import { useSearchParams } from 'next/navigation'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { Suspense, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
@@ -50,7 +51,7 @@ function LoginContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 to-red-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-orange-50 to-red-50 flex flex-col items-center justify-center p-4">
       <Card className="w-full max-w-sm shadow-xl">
         <CardHeader className="text-center space-y-2 pb-0">
           <div className="mx-auto w-16 h-16 bg-gradient-to-br from-orange-400 to-red-500 rounded-2xl flex items-center justify-center mb-2">
@@ -148,6 +149,11 @@ function LoginContent() {
           )}
         </CardContent>
       </Card>
+      <div className="mt-4 flex items-center justify-center gap-4 text-[11px] text-gray-500">
+        <Link href="/privacy" className="hover:text-gray-700 hover:underline">プライバシーポリシー</Link>
+        <span className="text-gray-300">|</span>
+        <Link href="/terms" className="hover:text-gray-700 hover:underline">利用規約</Link>
+      </div>
     </div>
   )
 }
