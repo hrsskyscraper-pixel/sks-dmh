@@ -19,6 +19,7 @@ interface Props {
   asManager?: boolean
   initialLastName: string
   initialFirstName: string
+  previewMode?: boolean
 }
 
 // 日本語（漢字・ひらがな・カタカナ・半角/全角スペース・々・ー）のみ許可
@@ -40,7 +41,7 @@ function isJapaneseName(s: string): boolean {
   return JP_NAME_REGEX.test(t)
 }
 
-export function AcceptInvitationButton({ invitationId, asManager = false, initialLastName, initialFirstName }: Props) {
+export function AcceptInvitationButton({ invitationId, asManager = false, initialLastName, initialFirstName, previewMode = false }: Props) {
   const [isPending, startTransition] = useTransition()
   const [joined, setJoined] = useState<string | null>(null)
   const router = useRouter()
@@ -69,6 +70,11 @@ export function AcceptInvitationButton({ invitationId, asManager = false, initia
       toast.error('氏名を漢字・ひらがな・カタカナで入力してください')
       return
     }
+    if (previewMode) {
+      // プレビューモード: 実際には参加せず joined UI を表示
+      setJoined('（プレビュー）このチーム')
+      return
+    }
     startTransition(async () => {
       const res = await acceptInvitation(invitationId, {
         lastName: lastName.trim(),
@@ -86,6 +92,10 @@ export function AcceptInvitationButton({ invitationId, asManager = false, initia
   }
 
   const handleLineLink = () => {
+    if (previewMode) {
+      alert('プレビューモードです。実際の招待からだと、ここでLINE連携画面に遷移します。')
+      return
+    }
     const baseUrl = window.location.origin
     const channelId = process.env.NEXT_PUBLIC_LINE_LOGIN_CHANNEL_ID
     if (!channelId) {
@@ -128,7 +138,13 @@ export function AcceptInvitationButton({ invitationId, asManager = false, initia
             LINE連携する（推奨）
           </Button>
           <button
-            onClick={() => router.push('/')}
+            onClick={() => {
+              if (previewMode) {
+                alert('プレビューモードです。実際の招待からだと、ここでダッシュボードに遷移します。')
+                return
+              }
+              router.push('/')
+            }}
             className="w-full text-center text-xs text-gray-500 hover:text-gray-700 py-1"
           >
             あとで設定する（ダッシュボードへ）

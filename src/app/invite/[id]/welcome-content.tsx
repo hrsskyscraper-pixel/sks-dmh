@@ -42,7 +42,8 @@ export function WelcomeContent({
 
   const handleGoogleLogin = async () => {
     if (previewMode) {
-      alert('プレビューモードです。実際の招待リンクをタップすると、このボタンからGoogleログインが始まります。')
+      // プレビュー継続: 次のステップ（氏名確認・参加画面）を表示
+      window.location.href = `/invite/${invitationId}?preview=1&step=accept`
       return
     }
     setLoading(true)

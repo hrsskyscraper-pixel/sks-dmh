@@ -15,11 +15,12 @@ export default async function InvitePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>
-  searchParams?: Promise<{ preview?: string }>
+  searchParams?: Promise<{ preview?: string; step?: string }>
 }) {
   const { id } = await params
   const sp = searchParams ? await searchParams : undefined
   const isPreview = sp?.preview === '1'
+  const previewStep = sp?.step // 'accept' などでフェーズを指定
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -68,8 +69,8 @@ export default async function InvitePage({
   if (inv.used_at) return errorScreen('この招待は既に使用済みです。')
   if (new Date(inv.expires_at) < new Date()) return errorScreen('この招待は期限切れです。')
 
-  // 未ログイン または プレビューモード: ウェルカムページを表示
-  if (!user || isPreview) {
+  // 未ログイン または プレビュー(step未指定): ウェルカムページを表示
+  if (!user || (isPreview && previewStep !== 'accept')) {
     const [welcomeTeamRes, welcomeProjectTeamRes, welcomeInviterRes] = await Promise.all([
       db.from('teams').select('id, name, type').eq('id', inv.team_id).single(),
       inv.project_team_id
@@ -169,13 +170,19 @@ export default async function InvitePage({
   ])
   // リーダー招待: 既にリーダー登録済みなら「既に所属」。メンバーに留まっている場合は昇格できるので false
   // メンバー招待: メンバーでもリーダーでも「既に所属」扱い
-  const alreadyJoined = inv.as_manager
+  // プレビューモードでは「既に所属」を無視して accept UI を見せる
+  const alreadyJoined = isPreview ? false : (inv.as_manager
     ? !!existingManager
-    : !!(existingMember || existingManager)
+    : !!(existingMember || existingManager))
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 to-red-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-orange-50 to-red-50 flex flex-col items-center justify-center p-4">
       <InAppBrowserWarning />
+      {isPreview && (
+        <div className="w-full max-w-sm mb-2 bg-yellow-400 text-yellow-900 text-center py-1.5 text-xs font-semibold rounded-md">
+          🔍 プレビューモード — 参加後の方に見える画面です
+        </div>
+      )}
       <Card className="w-full max-w-sm shadow-xl">
         <CardHeader className="text-center space-y-2">
           <div className="mx-auto w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
@@ -225,8 +232,9 @@ export default async function InvitePage({
             <AcceptInvitationButton
               invitationId={id}
               asManager={inv.as_manager}
-              initialLastName={me.last_name}
-              initialFirstName={me.first_name}
+              initialLastName={isPreview ? '' : me.last_name}
+              initialFirstName={isPreview ? '' : me.first_name}
+              previewMode={isPreview}
             />
           )}
 
