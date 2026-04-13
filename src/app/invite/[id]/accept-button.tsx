@@ -50,6 +50,8 @@ export function AcceptInvitationButton({ invitationId, asManager = false, initia
   // 氏名（Google登録値で初期化）
   const [lastName, setLastName] = useState(initialLastName ?? '')
   const [firstName, setFirstName] = useState(initialFirstName ?? '')
+  const [lastNameKana, setLastNameKana] = useState('')
+  const [firstNameKana, setFirstNameKana] = useState('')
 
   // プロフィール情報
   const [instagramUrl, setInstagramUrl] = useState('')
@@ -63,7 +65,12 @@ export function AcceptInvitationButton({ invitationId, asManager = false, initia
   const firstNameHasAlphabet = HAS_ALPHABET.test(firstName)
   const lastNameInvalid = !lastName.trim() || lastNameHasAlphabet || !isJapaneseName(lastName)
   const firstNameInvalid = !firstName.trim() || firstNameHasAlphabet || !isJapaneseName(firstName)
-  const canSubmit = !lastNameInvalid && !firstNameInvalid
+  // ふりがなは任意入力。入力されていれば日本語（主にひらがな/カタカナ）のみ許可
+  const lastNameKanaHasAlphabet = HAS_ALPHABET.test(lastNameKana)
+  const firstNameKanaHasAlphabet = HAS_ALPHABET.test(firstNameKana)
+  const lastNameKanaInvalid = lastNameKana.trim() !== '' && (lastNameKanaHasAlphabet || !isJapaneseName(lastNameKana))
+  const firstNameKanaInvalid = firstNameKana.trim() !== '' && (firstNameKanaHasAlphabet || !isJapaneseName(firstNameKana))
+  const canSubmit = !lastNameInvalid && !firstNameInvalid && !lastNameKanaInvalid && !firstNameKanaInvalid
 
   const handleAccept = () => {
     if (!canSubmit) {
@@ -76,9 +83,11 @@ export function AcceptInvitationButton({ invitationId, asManager = false, initia
       return
     }
     startTransition(async () => {
+      const kana = [lastNameKana.trim(), firstNameKana.trim()].filter(Boolean).join(' ')
       const res = await acceptInvitation(invitationId, {
         lastName: lastName.trim(),
         firstName: firstName.trim(),
+        nameKana: kana || null,
         instagramUrl: instagramUrl.trim() || null,
         lineUrl: lineUrl.trim() || null,
       })
@@ -186,7 +195,27 @@ export function AcceptInvitationButton({ invitationId, asManager = false, initia
             />
           </div>
         </div>
-        {(lastNameHasAlphabet || firstNameHasAlphabet) && (
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="text-[10px] text-gray-500 font-medium block mb-0.5">せい（ふりがな）</label>
+            <Input
+              value={lastNameKana}
+              onChange={e => setLastNameKana(e.target.value)}
+              className={`h-9 text-sm ${lastNameKanaInvalid ? 'border-red-400' : ''}`}
+              placeholder="やまだ"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-gray-500 font-medium block mb-0.5">めい（ふりがな）</label>
+            <Input
+              value={firstNameKana}
+              onChange={e => setFirstNameKana(e.target.value)}
+              className={`h-9 text-sm ${firstNameKanaInvalid ? 'border-red-400' : ''}`}
+              placeholder="たろう"
+            />
+          </div>
+        </div>
+        {(lastNameHasAlphabet || firstNameHasAlphabet || lastNameKanaHasAlphabet || firstNameKanaHasAlphabet) && (
           <div className="flex items-start gap-1.5 text-[11px] text-red-600 bg-red-50 rounded px-2 py-1.5">
             <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
             <span>アルファベットが含まれています。漢字・ひらがな・カタカナで入力してください。</span>
@@ -194,13 +223,17 @@ export function AcceptInvitationButton({ invitationId, asManager = false, initia
         )}
       </div>
 
-      {/* プロフィール情報（任意・推奨） */}
+      {/* SNSリンク */}
       <div className="space-y-2 border border-gray-200 rounded-lg p-3 bg-white/70">
         <div className="flex items-center gap-1.5">
           <UserCircle className="w-4 h-4 text-gray-500" />
-          <p className="text-xs font-bold text-gray-800">プロフィール情報（任意・推奨）</p>
+          <p className="text-xs font-bold text-gray-800">SNSリンク</p>
         </div>
-        <p className="text-[10px] text-gray-500">後からMyページでも編集できます</p>
+        <p className="text-[10px] text-gray-500 leading-relaxed">
+          チームメンバーとの相互理解に役立てましょう。<br />
+          プロフィールにSNSアイコンが表示されるようになります。<br />
+          後からMyページでも編集できます。
+        </p>
 
         <div>
           <div className="flex items-center justify-between mb-0.5">
