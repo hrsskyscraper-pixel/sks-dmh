@@ -108,6 +108,8 @@ function LoginContent() {
               </div>
               <Input
                 type="email"
+                name="email"
+                id="login-email"
                 placeholder="メールアドレス"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -116,6 +118,8 @@ function LoginContent() {
               />
               <Input
                 type="password"
+                name="password"
+                id="login-password"
                 placeholder="パスワード"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
