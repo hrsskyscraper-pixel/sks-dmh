@@ -25,6 +25,7 @@ interface Props {
   projectTeamName?: string
   customMessage?: string
   asManager: boolean
+  previewMode?: boolean
 }
 
 export function WelcomeContent({
@@ -34,11 +35,16 @@ export function WelcomeContent({
   projectTeamName,
   customMessage,
   asManager,
+  previewMode = false,
 }: Props) {
   const [loading, setLoading] = useState(false)
   const [showGoogleHelp, setShowGoogleHelp] = useState(false)
 
   const handleGoogleLogin = async () => {
+    if (previewMode) {
+      alert('プレビューモードです。実際の招待リンクをタップすると、このボタンからGoogleログインが始まります。')
+      return
+    }
     setLoading(true)
     const supabase = createClient()
     const callbackUrl = new URL(`${window.location.origin}/auth/callback`)
@@ -56,6 +62,11 @@ export function WelcomeContent({
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 to-red-50">
+      {previewMode && (
+        <div className="bg-yellow-400 text-yellow-900 text-center py-1.5 text-xs font-semibold">
+          🔍 プレビューモード — 招待先の方に見えるページです（ログインは動作しません）
+        </div>
+      )}
       <div className="max-w-md mx-auto p-4 space-y-4 pb-8">
         {/* ヘッダー */}
         <div className={`bg-gradient-to-br ${accentColor} rounded-2xl p-5 text-white shadow-lg`}>

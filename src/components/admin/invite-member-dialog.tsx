@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useTransition } from 'react'
 import { toast } from 'sonner'
-import { Mail, Check, Copy, Link as LinkIcon, Send } from 'lucide-react'
+import { Mail, Check, Copy, Link as LinkIcon, Send, Eye } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import {
@@ -133,7 +133,7 @@ export function InviteMemberDialog({ open, onOpenChange, teamId, teamName, invit
     if (message.trim()) {
       lines.push('■ メッセージ', message.trim(), '')
     }
-    lines.push('■ 参加方法', '下記のリンクを開き、Googleアカウントでログインしてください。', '初めての方は自動的にアカウントが作成されます。', '', '▼ 参加する', externalUrl)
+    lines.push('■ 参加方法', '下記のリンクを開き、Googleアカウントでログインしてください。', '初めての方は自動的にアカウントが作成されます。', '', '▼ 参加する（ウェルカムページ）', externalUrl)
     return lines.join('\n')
   }
 
@@ -305,7 +305,21 @@ export function InviteMemberDialog({ open, onOpenChange, teamId, teamName, invit
 
         <DialogFooter>
           {sentInviteUrl || generatedUrl ? (
-            <Button onClick={() => onOpenChange(false)} className="w-full">閉じる</Button>
+            <div className="w-full space-y-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  const base = sentInviteUrl || generatedUrl!
+                  const previewUrl = `${base}${base.includes('?') ? '&' : '?'}preview=1`
+                  window.open(previewUrl, '_blank', 'noopener,noreferrer')
+                }}
+                className="w-full border-blue-200 text-blue-600 hover:bg-blue-50"
+              >
+                <Eye className="w-4 h-4 mr-1" />
+                ウェルカムページを確認する
+              </Button>
+              <Button onClick={() => onOpenChange(false)} className="w-full">閉じる</Button>
+            </div>
           ) : (
             <>
               <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>

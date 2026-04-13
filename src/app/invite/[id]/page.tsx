@@ -10,8 +10,16 @@ import { WelcomeContent } from './welcome-content'
 
 export const dynamic = 'force-dynamic'
 
-export default async function InvitePage({ params }: { params: Promise<{ id: string }> }) {
+export default async function InvitePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>
+  searchParams?: Promise<{ preview?: string }>
+}) {
   const { id } = await params
+  const sp = searchParams ? await searchParams : undefined
+  const isPreview = sp?.preview === '1'
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -60,8 +68,8 @@ export default async function InvitePage({ params }: { params: Promise<{ id: str
   if (inv.used_at) return errorScreen('この招待は既に使用済みです。')
   if (new Date(inv.expires_at) < new Date()) return errorScreen('この招待は期限切れです。')
 
-  // 未ログイン: ウェルカムページを表示
-  if (!user) {
+  // 未ログイン または プレビューモード: ウェルカムページを表示
+  if (!user || isPreview) {
     const [welcomeTeamRes, welcomeProjectTeamRes, welcomeInviterRes] = await Promise.all([
       db.from('teams').select('id, name, type').eq('id', inv.team_id).single(),
       inv.project_team_id
@@ -81,6 +89,7 @@ export default async function InvitePage({ params }: { params: Promise<{ id: str
           projectTeamName={welcomeProjectTeamRes.data?.name ?? undefined}
           customMessage={inv.custom_message ?? undefined}
           asManager={inv.as_manager}
+          previewMode={isPreview}
         />
       </>
     )
