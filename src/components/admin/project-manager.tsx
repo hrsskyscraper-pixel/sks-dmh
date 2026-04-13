@@ -23,7 +23,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Plus, Pencil, Archive, ArchiveRestore, Trash2, GripVertical, UserMinus, UserPlus, ChevronDown, ChevronRight, MapPin, Store, FolderKanban, Building2, Copy } from 'lucide-react'
+import { Plus, Pencil, Archive, ArchiveRestore, Trash2, GripVertical, UserMinus, UserPlus, ChevronDown, ChevronRight, MapPin, Store, FolderKanban, Building2, Copy, Upload } from 'lucide-react'
+import { SkillCsvImportDialog } from './skill-csv-import-dialog'
 import { createClient } from '@/lib/supabase/client'
 import { updateSkillCategory, updateSkillStandardHours, updateSkillName, toggleSkillCheckpoint, createSkill, deleteSkill, reorderSkills, updateSkillTargetDate } from '@/app/(dashboard)/actions'
 import { sortCategories } from '@/lib/category-order'
@@ -74,6 +75,10 @@ export function ProjectManager({
   const [newSkillCategory, setNewSkillCategory] = useState('')
   const [dragSkillId, setDragSkillId] = useState<string | null>(null)
   const [dragOverInfo, setDragOverInfo] = useState<{ skillId: string; position: 'before' | 'after' } | null>(null)
+  // 未割当グループの折りたたみ状態（プロジェクトIDごと、デフォルト折りたたみ）
+  const [collapsedUnassignedGroups, setCollapsedUnassignedGroups] = useState<Set<string>>(new Set())
+  // CSVインポートダイアログ
+  const [showCsvImport, setShowCsvImport] = useState(false)
 
   // ---- state ----
   const [projects, setProjects] = useState(initialProjects)
@@ -423,6 +428,147 @@ export function ProjectManager({
     })
   }
 
+  // スキル行の描画（フェーズタブと未割当グループで共通利用）
+  function renderSkillRow(skill: Skill, dropPhaseId: string) {
+    const isChecked = selectedProjectSkillIds.has(skill.id)
+    const currentPhaseId = skillPhaseMap[skill.id] ?? null
+    const isDragging = dragSkillId === skill.id
+    const isDragOver = dragOverInfo?.skillId === skill.id
+    return (
+      <div
+        key={skill.id}
+        draggable
+        onDragStart={() => setDragSkillId(skill.id)}
+        onDragEnd={() => { setDragSkillId(null); setDragOverInfo(null) }}
+        onDragOver={e => {
+          e.preventDefault()
+          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+          const pos = e.clientY < rect.top + rect.height / 2 ? 'before' : 'after'
+          setDragOverInfo({ skillId: skill.id, position: pos })
+        }}
+        onDrop={e => { e.preventDefault(); handleDrop(skill.id, dropPhaseId) }}
+        className={cn(
+          'flex items-center gap-2 rounded-lg px-3 py-2 border border-l-4 transition-all cursor-grab active:cursor-grabbing',
+          isDragging && 'opacity-30',
+          isDragOver && dragOverInfo?.position === 'before' && 'border-t-2 border-t-orange-500',
+          isDragOver && dragOverInfo?.position === 'after' && 'border-b-2 border-b-orange-500',
+          (() => {
+            const catIdx = categories.indexOf(skill.category)
+            const colors = CATEGORY_ROW_COLORS[catIdx % Object.keys(CATEGORY_ROW_COLORS).length] ?? CATEGORY_ROW_COLORS[0]
+            return isChecked ? colors.checked : colors.unchecked
+          })()
+        )}
+      >
+        <Checkbox
+          id={`skill-${skill.id}`}
+          checked={isChecked}
+          onCheckedChange={checked => handleToggleSkill(skill.id, !!checked)}
+          disabled={isPending}
+        />
+        <button
+          onClick={() => handleToggleCheckpoint(skill.id, skill.is_checkpoint)}
+          className={cn(
+            'text-[9px] font-bold rounded px-1 py-0.5 flex-shrink-0 transition-colors',
+            skill.is_checkpoint ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-400 hover:bg-gray-300'
+          )}
+          disabled={isPending}
+          title="チェックポイント"
+        >
+          CP
+        </button>
+        <input
+          defaultValue={skill.name}
+          title={skill.name}
+          onBlur={e => { if (e.target.value !== skill.name) handleRenameSkill(skill.id, e.target.value) }}
+          onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+          className="flex-1 text-sm text-gray-800 min-w-0 bg-transparent border-b border-transparent hover:border-gray-300 focus:border-orange-400 focus:outline-none px-0.5 py-0"
+          disabled={isPending}
+        />
+        <div title="カテゴリ">
+          <Select
+            value={skill.category}
+            onValueChange={v => {
+              if (v === '__new__') { setNewCategoryForSkillId(skill.id); setShowNewCategoryInput(true); return }
+              handleChangeSkillCategory(skill.id, v)
+            }}
+            disabled={isPending}
+          >
+            <SelectTrigger className="h-6 text-[10px] w-16 flex-shrink-0 px-1.5">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {categories.map(c => (
+                <SelectItem key={c} value={c}>{c}</SelectItem>
+              ))}
+              <SelectItem value="__new__">+ 新規</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex items-center gap-0 flex-shrink-0" title="標準習得時間">
+          <Input
+            type="number"
+            min={0}
+            placeholder="-"
+            value={skill.standard_hours ?? ''}
+            onChange={e => handleChangeStandardHours(skill.id, e.target.value)}
+            className="h-6 text-[10px] w-10 text-right px-1"
+            disabled={isPending}
+          />
+          <span className="text-[9px] text-gray-400">h</span>
+        </div>
+        {isChecked && selectedPhases.length > 0 && (
+          <div title="フェーズ">
+            <Select
+              value={currentPhaseId ?? 'none'}
+              onValueChange={v => handleChangeSkillPhase(skill.id, v === 'none' ? null : v)}
+              disabled={isPending}
+            >
+              <SelectTrigger className="h-6 text-[10px] w-20 flex-shrink-0 px-1.5">
+                <SelectValue placeholder="未設定" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">未設定</SelectItem>
+                {selectedPhases.map(ph => (
+                  <SelectItem key={ph.id} value={ph.id}>{ph.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+        <div title={skill.target_date_hint ? `予定日: ${skill.target_date_hint}` : '予定日'} className="flex-shrink-0 relative">
+          <Input
+            type="date"
+            defaultValue={skill.target_date_hint ?? ''}
+            onBlur={e => {
+              if (e.target.value !== (skill.target_date_hint ?? '')) handleChangeTargetDate(skill.id, e.target.value)
+            }}
+            className="h-6 text-[10px] w-20 flex-shrink-0 px-1 opacity-0 absolute inset-0 cursor-pointer"
+            disabled={isPending}
+          />
+          <span className={cn('text-[10px] h-6 w-20 flex items-center justify-center border rounded-md cursor-pointer', skill.target_date_hint ? 'text-gray-700 bg-white border-gray-200' : 'text-gray-400 bg-gray-50 border-gray-200')}>
+            {skill.target_date_hint ? `${parseInt(skill.target_date_hint.slice(5, 7))}/${parseInt(skill.target_date_hint.slice(8, 10))}` : '予定日'}
+          </span>
+        </div>
+        <Button
+          variant="ghost" size="sm"
+          className="h-7 w-7 p-0 text-gray-300 hover:text-red-500 flex-shrink-0"
+          disabled={isPending}
+          onClick={() => {
+            if (!confirm(`「${skill.name}」を削除しますか？\n\nこのスキルに関連する認定データも削除されます。`)) return
+            startTransition(async () => {
+              const result = await deleteSkill(skill.id)
+              if (result.error) { toast.error(result.error); return }
+              setSkillsState(prev => prev.filter(s => s.id !== skill.id))
+              toast.success('スキルを削除しました')
+            })
+          }}
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </Button>
+      </div>
+    )
+  }
+
   // ===== Render =====
   return (
     <div className="p-4 space-y-4 max-w-2xl mx-auto">
@@ -536,10 +682,8 @@ export function ProjectManager({
               {selectedPhases.length === 0 && (
                 <p className="text-xs text-muted-foreground text-center py-2">先にフェーズを作成してください</p>
               )}
-              {[...selectedPhases, { id: '__unassigned__', name: '未割当', order_index: 9999, project_id: '', end_hours: 0, created_at: '' }].map(phase => {
-                const phaseSkills = phase.id === '__unassigned__'
-                  ? skillsState.filter(s => !selectedProjectSkillIds.has(s.id) || !skillPhaseMap[s.id])
-                  : skillsState.filter(s => skillPhaseMap[s.id] === phase.id)
+              {selectedPhases.map(phase => {
+                const phaseSkills = skillsState.filter(s => skillPhaseMap[s.id] === phase.id)
                 const sorted = phaseSkills.sort((a, b) => {
                   const catA = categories.indexOf(a.category)
                   const catB = categories.indexOf(b.category)
@@ -553,7 +697,7 @@ export function ProjectManager({
                     onDragOver={e => e.preventDefault()}
                     onDrop={e => {
                       e.preventDefault()
-                      if (dragSkillId && phase.id !== '__unassigned__') {
+                      if (dragSkillId) {
                         handleChangeSkillPhase(dragSkillId, phase.id)
                         setDragSkillId(null)
                         setDragOverInfo(null)
@@ -562,159 +706,123 @@ export function ProjectManager({
                   >
                     <h3 className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">{phase.name}</h3>
                     <div className="space-y-1.5">
-                      {sorted.map(skill => {
-                        const isChecked = selectedProjectSkillIds.has(skill.id)
-                        const currentPhaseId = skillPhaseMap[skill.id] ?? null
-                        const isDragging = dragSkillId === skill.id
-                        const isDragOver = dragOverInfo?.skillId === skill.id
-                        return (
-                          <div
-                            key={skill.id}
-                            draggable
-                            onDragStart={() => setDragSkillId(skill.id)}
-                            onDragEnd={() => { setDragSkillId(null); setDragOverInfo(null) }}
-                            onDragOver={e => {
-                              e.preventDefault()
-                              const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                              const pos = e.clientY < rect.top + rect.height / 2 ? 'before' : 'after'
-                              setDragOverInfo({ skillId: skill.id, position: pos })
-                            }}
-                            onDrop={e => { e.preventDefault(); handleDrop(skill.id, phase.id) }}
-                            className={cn(
-                              'flex items-center gap-2 rounded-lg px-3 py-2 border border-l-4 transition-all cursor-grab active:cursor-grabbing',
-                              isDragging && 'opacity-30',
-                              isDragOver && dragOverInfo?.position === 'before' && 'border-t-2 border-t-orange-500',
-                              isDragOver && dragOverInfo?.position === 'after' && 'border-b-2 border-b-orange-500',
-                              (() => {
-                                const catIdx = categories.indexOf(skill.category)
-                                const colors = CATEGORY_ROW_COLORS[catIdx % Object.keys(CATEGORY_ROW_COLORS).length] ?? CATEGORY_ROW_COLORS[0]
-                                return isChecked ? colors.checked : colors.unchecked
-                              })()
-                            )}
-                          >
-                            <Checkbox
-                              id={`skill-${skill.id}`}
-                              checked={isChecked}
-                              onCheckedChange={checked => handleToggleSkill(skill.id, !!checked)}
-                              disabled={isPending}
-                            />
-                            <button
-                              onClick={() => handleToggleCheckpoint(skill.id, skill.is_checkpoint)}
-                              className={cn(
-                                'text-[9px] font-bold rounded px-1 py-0.5 flex-shrink-0 transition-colors',
-                                skill.is_checkpoint ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-400 hover:bg-gray-300'
-                              )}
-                              disabled={isPending}
-                              title="チェックポイント"
-                            >
-                              CP
-                            </button>
-                            <input
-                              defaultValue={skill.name}
-                              title={skill.name}
-                              onBlur={e => { if (e.target.value !== skill.name) handleRenameSkill(skill.id, e.target.value) }}
-                              onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
-                              className="flex-1 text-sm text-gray-800 min-w-0 bg-transparent border-b border-transparent hover:border-gray-300 focus:border-orange-400 focus:outline-none px-0.5 py-0"
-                              disabled={isPending}
-                            />
-                            <div title="カテゴリ">
-                              <Select
-                                value={skill.category}
-                                onValueChange={v => {
-                                  if (v === '__new__') { setNewCategoryForSkillId(skill.id); setShowNewCategoryInput(true); return }
-                                  handleChangeSkillCategory(skill.id, v)
-                                }}
-                                disabled={isPending}
-                              >
-                                <SelectTrigger className="h-6 text-[10px] w-16 flex-shrink-0 px-1.5">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {categories.map(c => (
-                                    <SelectItem key={c} value={c}>{c}</SelectItem>
-                                  ))}
-                                  <SelectItem value="__new__">+ 新規</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            <div className="flex items-center gap-0 flex-shrink-0" title="標準習得時間">
-                              <Input
-                                type="number"
-                                min={0}
-                                placeholder="-"
-                                value={skill.standard_hours ?? ''}
-                                onChange={e => handleChangeStandardHours(skill.id, e.target.value)}
-                                className="h-6 text-[10px] w-10 text-right px-1"
-                                disabled={isPending}
-                              />
-                              <span className="text-[9px] text-gray-400">h</span>
-                            </div>
-                            {isChecked && selectedPhases.length > 0 && (
-                              <div title="フェーズ">
-                                <Select
-                                  value={currentPhaseId ?? 'none'}
-                                  onValueChange={v => handleChangeSkillPhase(skill.id, v === 'none' ? null : v)}
-                                  disabled={isPending}
-                                >
-                                  <SelectTrigger className="h-6 text-[10px] w-20 flex-shrink-0 px-1.5">
-                                    <SelectValue placeholder="未設定" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="none">未設定</SelectItem>
-                                    {selectedPhases.map(phase => (
-                                      <SelectItem key={phase.id} value={phase.id}>{phase.name}</SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                            )}
-                            <div title={skill.target_date_hint ? `予定日: ${skill.target_date_hint}` : '予定日'} className="flex-shrink-0 relative">
-                              <Input
-                                type="date"
-                                defaultValue={skill.target_date_hint ?? ''}
-                                onBlur={e => {
-                                  if (e.target.value !== (skill.target_date_hint ?? '')) handleChangeTargetDate(skill.id, e.target.value)
-                                }}
-                                className="h-6 text-[10px] w-20 flex-shrink-0 px-1 opacity-0 absolute inset-0 cursor-pointer"
-                                disabled={isPending}
-                              />
-                              <span className={cn('text-[10px] h-6 w-20 flex items-center justify-center border rounded-md cursor-pointer', skill.target_date_hint ? 'text-gray-700 bg-white border-gray-200' : 'text-gray-400 bg-gray-50 border-gray-200')}>
-                                {skill.target_date_hint ? `${parseInt(skill.target_date_hint.slice(5, 7))}/${parseInt(skill.target_date_hint.slice(8, 10))}` : '予定日'}
-                              </span>
-                            </div>
-                            <Button
-                              variant="ghost" size="sm"
-                              className="h-7 w-7 p-0 text-gray-300 hover:text-red-500 flex-shrink-0"
-                              disabled={isPending}
-                              onClick={() => {
-                                if (!confirm(`「${skill.name}」を削除しますか？\n\nこのスキルに関連する認定データも削除されます。`)) return
-                                startTransition(async () => {
-                                  const result = await deleteSkill(skill.id)
-                                  if (result.error) { toast.error(result.error); return }
-                                  setSkillsState(prev => prev.filter(s => s.id !== skill.id))
-                                  toast.success('スキルを削除しました')
-                                })
-                              }}
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </Button>
-                          </div>
-                        )
-                      })}
+                      {sorted.map(skill => renderSkillRow(skill, phase.id))}
                     </div>
                   </div>
                 )
               })}
 
-              {/* スキル新規作成ボタン */}
-              <Button
-                variant="outline"
-                className="w-full mt-2"
-                onClick={() => { setNewSkillName(''); setNewSkillCategory(categories[0] ?? '接客'); setShowNewSkillDialog(true) }}
-              >
-                <Plus className="w-4 h-4 mr-1" />
-                スキルを新規作成
-              </Button>
+              {/* ===== 未割当スキル（プロジェクトごとにグループ化） ===== */}
+              {(() => {
+                const assignedToCurrent = new Set(
+                  projectSkills.filter(ps => ps.project_id === selectedProjectId && ps.project_phase_id).map(ps => ps.skill_id)
+                )
+                const unassignedSkills = skillsState.filter(s => !assignedToCurrent.has(s.id))
+
+                // 各スキルが属する他プロジェクト一覧
+                const skillToOtherProjects: Record<string, string[]> = {}
+                for (const ps of projectSkills) {
+                  if (ps.project_id === selectedProjectId) continue
+                  if (!skillToOtherProjects[ps.skill_id]) skillToOtherProjects[ps.skill_id] = []
+                  if (!skillToOtherProjects[ps.skill_id].includes(ps.project_id)) {
+                    skillToOtherProjects[ps.skill_id].push(ps.project_id)
+                  }
+                }
+
+                // グループ分け
+                const groupTrulyUnassigned: Skill[] = []
+                const groupByProject: Record<string, Skill[]> = {}
+                for (const s of unassignedSkills) {
+                  const others = skillToOtherProjects[s.id] ?? []
+                  if (others.length === 0) {
+                    groupTrulyUnassigned.push(s)
+                  } else {
+                    for (const pid of others) {
+                      if (!groupByProject[pid]) groupByProject[pid] = []
+                      groupByProject[pid].push(s)
+                    }
+                  }
+                }
+                const sortFn = (a: Skill, b: Skill) => {
+                  const catA = categories.indexOf(a.category)
+                  const catB = categories.indexOf(b.category)
+                  if (catA !== catB) return catA - catB
+                  return a.order_index - b.order_index
+                }
+                groupTrulyUnassigned.sort(sortFn)
+
+                const toggleCollapse = (key: string) => {
+                  setCollapsedUnassignedGroups(prev => {
+                    const next = new Set(prev)
+                    next.has(key) ? next.delete(key) : next.add(key)
+                    return next
+                  })
+                }
+
+                return (
+                  <>
+                    {/* 未登録スキル */}
+                    {groupTrulyUnassigned.length > 0 && (
+                      <div>
+                        <h3 className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">
+                          未割当（どのプロジェクトにも未登録）
+                        </h3>
+                        <div className="space-y-1.5">
+                          {groupTrulyUnassigned.map(skill => renderSkillRow(skill, '__unassigned__'))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 他プロジェクトで使用中（折りたたみ） */}
+                    {Object.entries(groupByProject).map(([projectId, skills]) => {
+                      const proj = projects.find(p => p.id === projectId)
+                      if (!proj) return null
+                      const isCollapsed = !collapsedUnassignedGroups.has(projectId) // デフォルト折りたたみ
+                      const sorted = [...skills].sort(sortFn)
+                      return (
+                        <div key={projectId} className="border border-gray-200 rounded-lg bg-gray-50/50">
+                          <button
+                            onClick={() => toggleCollapse(projectId)}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-t-lg transition-colors"
+                          >
+                            {isCollapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                            <span className="flex-1 text-left">
+                              「{proj.name}」で登録済み
+                            </span>
+                            <span className="text-[10px] text-gray-400">{skills.length}件</span>
+                          </button>
+                          {!isCollapsed && (
+                            <div className="space-y-1.5 p-2 border-t border-gray-200">
+                              {sorted.map(skill => renderSkillRow(skill, '__unassigned__'))}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </>
+                )
+              })()}
+
+              {/* スキル新規作成 / CSV取込ボタン */}
+              <div className="flex gap-2 mt-2">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => { setNewSkillName(''); setNewSkillCategory(categories[0] ?? '接客'); setShowNewSkillDialog(true) }}
+                >
+                  <Plus className="w-4 h-4 mr-1" />
+                  スキルを新規作成
+                </Button>
+                <Button
+                  variant="outline"
+                  className="flex-1 border-orange-200 text-orange-600 hover:bg-orange-50"
+                  onClick={() => setShowCsvImport(true)}
+                  disabled={!selectedProjectId}
+                >
+                  <Upload className="w-4 h-4 mr-1" />
+                  CSVで一括登録
+                </Button>
+              </div>
 
               <p className="text-xs text-muted-foreground text-center">
                 選択中: {selectedProjectSkillIds.size} / {allSkills.length} スキル
@@ -1073,6 +1181,21 @@ export function ProjectManager({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* CSVインポートダイアログ */}
+      {selectedProject && (
+        <SkillCsvImportDialog
+          open={showCsvImport}
+          onOpenChange={setShowCsvImport}
+          projectId={selectedProject.id}
+          projectName={selectedProject.name}
+          phaseNames={selectedPhases.map(p => p.name)}
+          onComplete={() => {
+            // ページ再読み込みしてデータ同期
+            window.location.reload()
+          }}
+        />
+      )}
     </div>
   )
 }
