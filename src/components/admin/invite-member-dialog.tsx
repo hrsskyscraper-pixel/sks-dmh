@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useTransition } from 'react'
 import { toast } from 'sonner'
-import { Mail, Check, Copy, Link as LinkIcon } from 'lucide-react'
+import { Mail, Check, Copy, Link as LinkIcon, Send } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import {
@@ -109,6 +109,12 @@ export function InviteMemberDialog({ open, onOpenChange, teamId, teamName, invit
     }
   }
 
+  // LINE公式のShare URL: モバイルはLINEアプリ、デスクトップはLINE Webで開く
+  const openLineShare = (text: string) => {
+    const shareUrl = `https://line.me/R/msg/text/?${encodeURIComponent(text)}`
+    window.open(shareUrl, '_blank', 'noopener,noreferrer')
+  }
+
   // LINE等にコピペするための案内文
   // URLに ?openExternalBrowser=1 を付けると、LINE等で開かれても外部ブラウザ（Safari/Chrome）で開く
   const appendLineOpenExternal = (url: string) => {
@@ -185,13 +191,23 @@ export function InviteMemberDialog({ open, onOpenChange, teamId, teamName, invit
             <div className="border border-orange-200 rounded-lg p-2 bg-orange-50">
               <p className="text-[10px] text-orange-600 font-medium mb-1">LINE等に送る案内文</p>
               <pre className="text-[11px] text-gray-700 whitespace-pre-wrap break-all mb-2">{buildShareText(generatedUrl)}</pre>
-              <Button
-                size="sm"
-                className="w-full h-7 text-xs bg-orange-500 hover:bg-orange-600"
-                onClick={() => copy(buildShareText(generatedUrl), '案内文')}
-              >
-                <Copy className="w-3 h-3 mr-1" />案内文をコピー
-              </Button>
+              <div className="grid grid-cols-2 gap-1.5">
+                <Button
+                  size="sm"
+                  className="h-8 text-xs bg-emerald-500 hover:bg-emerald-600"
+                  onClick={() => openLineShare(buildShareText(generatedUrl))}
+                >
+                  <Send className="w-3 h-3 mr-1" />LINEで送る
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-xs"
+                  onClick={() => copy(buildShareText(generatedUrl), '案内文')}
+                >
+                  <Copy className="w-3 h-3 mr-1" />コピー
+                </Button>
+              </div>
             </div>
           </div>
         ) : (
