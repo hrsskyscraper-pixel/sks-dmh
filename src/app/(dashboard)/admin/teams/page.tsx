@@ -42,7 +42,7 @@ export default async function AdminTeamsPage() {
     { data: projectTeamsData },
     { data: projectsData },
   ] = await Promise.all([
-    db.from('teams').select('id, name, type, prefecture, created_at, updated_at').order('name'),
+    db.from('teams').select('id, name, type, prefecture, brand_id, created_at, updated_at').order('name'),
     db.from('team_members').select('team_id, employee_id, sort_order').order('sort_order'),
     db.from('team_managers').select('team_id, employee_id, role, sort_order').order('sort_order'),
     db.from('employees').select('id, auth_user_id, name, last_name, first_name, name_kana, email, role, employment_type, hire_date, birth_date, avatar_url, instagram_url, line_url, status, requested_team_id, requested_project_team_id, line_user_id, approved_by, approved_at, notifications_read_at, created_at, updated_at').order('name'),

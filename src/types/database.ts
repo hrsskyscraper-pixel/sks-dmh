@@ -120,6 +120,7 @@ export type Database = {
           name: string
           type: 'store' | 'project' | 'department'
           prefecture: string | null
+          brand_id: string | null
           created_at: string
           updated_at: string
         }
@@ -128,6 +129,7 @@ export type Database = {
           name: string
           type: 'store' | 'project' | 'department'
           prefecture?: string | null
+          brand_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -136,6 +138,37 @@ export type Database = {
           name?: string
           type?: 'store' | 'project' | 'department'
           prefecture?: string | null
+          brand_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      brands: {
+        Row: {
+          id: string
+          name: string
+          code: string
+          color: string | null
+          sort_order: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          code: string
+          color?: string | null
+          sort_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          code?: string
+          color?: string | null
+          sort_order?: number
           created_at?: string
           updated_at?: string
         }
@@ -336,6 +369,7 @@ export type Database = {
           archived: boolean
           source_updated_at: string | null
           synced_at: string
+          brand_ids: string[]
           created_at: string
           updated_at: string
         }
@@ -352,6 +386,7 @@ export type Database = {
           archived?: boolean
           source_updated_at?: string | null
           synced_at?: string
+          brand_ids?: string[]
           created_at?: string
           updated_at?: string
         }
@@ -368,6 +403,7 @@ export type Database = {
           archived?: boolean
           source_updated_at?: string | null
           synced_at?: string
+          brand_ids?: string[]
           created_at?: string
           updated_at?: string
         }
@@ -918,6 +954,7 @@ export type TeamChangeRequest = Database['public']['Tables']['team_change_reques
 export type TeamInvitation = Database['public']['Tables']['team_invitations']['Row']
 export type ManualLibrary = Database['public']['Tables']['manual_library']['Row']
 export type SkillManual = Database['public']['Tables']['skill_manuals']['Row']
+export type Brand = Database['public']['Tables']['brands']['Row']
 export type SkillProject = Database['public']['Tables']['skill_projects']['Row']
 export type ProjectPhase = Database['public']['Tables']['project_phases']['Row']
 export type ProjectSkill = Database['public']['Tables']['project_skills']['Row']

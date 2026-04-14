@@ -4,6 +4,43 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { normalizeForMatch, scoreManualForSkill } from '@/lib/manual-matching'
+import { inferBrandsFromFolderPath, isBrandCompatible } from '@/lib/brand-inference'
+
+/**
+ * スキルのブランドを推論
+ * skill → project_skills → project_teams → teams.brand_id
+ * 複数プロジェクトに所属する場合はユニオン
+ */
+async function buildSkillBrandsMap(
+  db: ReturnType<typeof createAdminClient>
+): Promise<Record<string, string[]>> {
+  const [{ data: projectSkills }, { data: projectTeams }, { data: teams }] = await Promise.all([
+    db.from('project_skills').select('project_id, skill_id'),
+    db.from('project_teams').select('project_id, team_id'),
+    db.from('teams').select('id, brand_id'),
+  ])
+  const teamBrand: Record<string, string> = {}
+  for (const t of teams ?? []) if (t.brand_id) teamBrand[t.id] = t.brand_id
+  // project_id → brand_ids Set
+  const projectBrands: Record<string, Set<string>> = {}
+  for (const pt of projectTeams ?? []) {
+    const b = teamBrand[pt.team_id]
+    if (!b) continue
+    if (!projectBrands[pt.project_id]) projectBrands[pt.project_id] = new Set()
+    projectBrands[pt.project_id].add(b)
+  }
+  // skill_id → brand_ids Set
+  const skillBrands: Record<string, Set<string>> = {}
+  for (const ps of projectSkills ?? []) {
+    const pb = projectBrands[ps.project_id]
+    if (!pb) continue
+    if (!skillBrands[ps.skill_id]) skillBrands[ps.skill_id] = new Set()
+    for (const b of pb) skillBrands[ps.skill_id].add(b)
+  }
+  const result: Record<string, string[]> = {}
+  for (const sid in skillBrands) result[sid] = [...skillBrands[sid]]
+  return result
+}
 
 const ADMIN_ROLES = ['admin', 'ops_manager', 'executive', 'testuser']
 
@@ -52,10 +89,14 @@ export async function importManualsFromCsv(rows: CsvManualRow[]): Promise<Manual
   const db = createAdminClient()
   const warnings: string[] = []
 
-  // 既存マニュアル一覧取得
-  const { data: existing } = await db.from('manual_library').select('id, teachme_manual_id, title, url, access_count')
-  const existingByTid: Record<string, { id: string; title: string; url: string; access_count: number }> = {}
-  for (const e of existing ?? []) existingByTid[e.teachme_manual_id] = e
+  // ブランド一覧取得（フォルダから推定するために必要）
+  const { data: brandRows } = await db.from('brands').select('id, code, name').order('sort_order')
+  const brands = brandRows ?? []
+
+  // 既存マニュアル一覧取得（ブランド設定も取得）
+  const { data: existing } = await db.from('manual_library').select('id, teachme_manual_id, title, url, access_count, brand_ids')
+  const existingByTid: Record<string, { id: string; title: string; url: string; access_count: number; brand_ids: string[] }> = {}
+  for (const e of existing ?? []) existingByTid[e.teachme_manual_id] = { ...e, brand_ids: e.brand_ids ?? [] }
 
   const csvTids = new Set(rows.map(r => r.teachmeManualId))
   let inserted = 0, updated = 0, archived = 0
@@ -66,11 +107,16 @@ export async function importManualsFromCsv(rows: CsvManualRow[]): Promise<Manual
       continue
     }
     const existingRow = existingByTid[row.teachmeManualId]
-    const payload = {
+    const folderPath = row.folderPath.length > 0 ? row.folderPath : null
+
+    // フォルダパスからブランドを推論
+    const inferredBrands = inferBrandsFromFolderPath(folderPath, brands, 'cocoichi')
+
+    const basePayload = {
       teachme_manual_id: row.teachmeManualId,
       title: row.title,
       url: row.url,
-      folder_path: row.folderPath.length > 0 ? row.folderPath : null,
+      folder_path: folderPath,
       publish_status: row.publishStatus,
       access_count: row.accessCount,
       views_within_a_year: row.viewsWithinAYear,
@@ -82,13 +128,17 @@ export async function importManualsFromCsv(rows: CsvManualRow[]): Promise<Manual
 
     if (existingRow) {
       const { error } = await db.from('manual_library').update({
-        ...payload,
+        ...basePayload,
         updated_at: new Date().toISOString(),
       }).eq('id', existingRow.id)
       if (error) warnings.push(`更新失敗 ${row.title}: ${error.message}`)
       else updated++
     } else {
-      const { error } = await db.from('manual_library').insert(payload)
+      // 新規時のみブランドを自動設定
+      const { error } = await db.from('manual_library').insert({
+        ...basePayload,
+        brand_ids: inferredBrands,
+      })
       if (error) warnings.push(`追加失敗 ${row.title}: ${error.message}`)
       else inserted++
     }
@@ -103,18 +153,16 @@ export async function importManualsFromCsv(rows: CsvManualRow[]): Promise<Manual
     if (!error) archived = tidsToArchive.length
   }
 
-  // 自動マッピング:
-  // ① 正規化後のタイトル完全一致 → is_primary=true で紐付け
-  // ② 高スコア（80以上）の類似マッチ → is_primary=false で紐付け
-  // （既に紐付いているものはスキップ）
+  // 自動マッピング（ブランド互換性チェック付き）
   const { data: allSkills } = await db.from('skills').select('id, name')
   const { data: allManuals } = await db.from('manual_library')
-    .select('id, title, folder_path, search_tags, access_count, views_within_a_year, archived')
+    .select('id, title, folder_path, search_tags, access_count, views_within_a_year, archived, brand_ids')
     .eq('archived', false)
   const { data: existingLinks } = await db.from('skill_manuals').select('skill_id, manual_id')
   const linkedSet = new Set((existingLinks ?? []).map(l => `${l.skill_id}:${l.manual_id}`))
+  const skillBrandsMap = await buildSkillBrandsMap(db)
+  const manualById2 = Object.fromEntries((allManuals ?? []).map(m => [m.id, m]))
 
-  // 正規化後タイトル → マニュアルIDリスト（完全一致用）
   const manualsByNormalizedTitle: Record<string, string[]> = {}
   for (const m of allManuals ?? []) {
     const key = normalizeForMatch(m.title)
@@ -125,23 +173,24 @@ export async function importManualsFromCsv(rows: CsvManualRow[]): Promise<Manual
 
   let autoLinked = 0
   for (const skill of allSkills ?? []) {
-    // ① 正規化後の完全一致
+    const skillBrands = skillBrandsMap[skill.id] ?? []
     const exactIds = manualsByNormalizedTitle[normalizeForMatch(skill.name)] ?? []
     for (const manualId of exactIds) {
       const key = `${skill.id}:${manualId}`
       if (linkedSet.has(key)) continue
+      const m = manualById2[manualId]
+      if (!m || !isBrandCompatible(skillBrands, m.brand_ids ?? [])) continue
       const { error } = await db.from('skill_manuals').insert({
         skill_id: skill.id, manual_id: manualId, is_primary: true, display_order: 0,
       })
       if (!error) { autoLinked++; linkedSet.add(key) }
     }
 
-    // ② 高スコア類似マッチ（完全一致で紐付け済みのマニュアルは除外）
     const usedManualIds = new Set(exactIds)
-    const candidates = (allManuals ?? []).filter(m => !usedManualIds.has(m.id))
-    for (const m of candidates) {
+    for (const m of (allManuals ?? []).filter(x => !usedManualIds.has(x.id))) {
       const key = `${skill.id}:${m.id}`
       if (linkedSet.has(key)) continue
+      if (!isBrandCompatible(skillBrands, m.brand_ids ?? [])) continue
       const score = scoreManualForSkill(skill.name, m)
       if (score >= 80) {
         const { error } = await db.from('skill_manuals').insert({
@@ -184,10 +233,11 @@ export async function rerunAutoMapping(minScore: number = 50, dryRun: boolean = 
 
   const { data: allSkills } = await db.from('skills').select('id, name')
   const { data: allManuals } = await db.from('manual_library')
-    .select('id, title, folder_path, search_tags, access_count, views_within_a_year, archived')
+    .select('id, title, folder_path, search_tags, access_count, views_within_a_year, archived, brand_ids')
     .eq('archived', false)
   const { data: existingLinks } = await db.from('skill_manuals').select('skill_id, manual_id')
   const linkedSet = new Set((existingLinks ?? []).map(l => `${l.skill_id}:${l.manual_id}`))
+  const skillBrandsMap = await buildSkillBrandsMap(db)
 
   const manualsByNormalizedTitle: Record<string, string[]> = {}
   for (const m of allManuals ?? []) {
@@ -202,6 +252,7 @@ export async function rerunAutoMapping(minScore: number = 50, dryRun: boolean = 
   let exactLinked = 0, fuzzyLinked = 0
 
   for (const skill of allSkills ?? []) {
+    const skillBrands = skillBrandsMap[skill.id] ?? []
     // 完全一致
     const exactIds = manualsByNormalizedTitle[normalizeForMatch(skill.name)] ?? []
     for (const manualId of exactIds) {
@@ -209,6 +260,7 @@ export async function rerunAutoMapping(minScore: number = 50, dryRun: boolean = 
       if (linkedSet.has(key)) continue
       const m = manualById[manualId]
       if (!m) continue
+      if (!isBrandCompatible(skillBrands, m.brand_ids ?? [])) continue
       planned.push({
         skillId: skill.id, skillName: skill.name,
         manualId, manualTitle: m.title, folderPath: m.folder_path ?? [],
@@ -226,6 +278,7 @@ export async function rerunAutoMapping(minScore: number = 50, dryRun: boolean = 
     for (const m of (allManuals ?? []).filter(x => !usedManualIds.has(x.id))) {
       const key = `${skill.id}:${m.id}`
       if (linkedSet.has(key)) continue
+      if (!isBrandCompatible(skillBrands, m.brand_ids ?? [])) continue
       const score = scoreManualForSkill(skill.name, m)
       if (score >= minScore) {
         planned.push({
