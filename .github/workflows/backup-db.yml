@@ -16,12 +16,12 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Install PostgreSQL client
-        # Supabase は PostgreSQL 15.x なので対応バージョンの pg_dump を入れる
+        # Supabase は PostgreSQL 17.x なので対応バージョンの pg_dump を入れる
         run: |
           sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt jammy-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
           wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
           sudo apt-get update
-          sudo apt-get install -y postgresql-client-15
+          sudo apt-get install -y postgresql-client-17
 
       - name: Checkout backup repository
         uses: actions/checkout@v4
