@@ -1546,12 +1546,23 @@ export function TeamManager({
                               </Button>
                             )}
                           </div>
-                          <div className="flex flex-wrap gap-1.5">
+                          <div
+                            className={`flex flex-wrap gap-1.5 min-h-[28px] rounded-lg p-1 -m-1 transition-colors ${dropTarget === 'member' && dragEmp?.teamId === storeTeam.id ? 'bg-gray-200 ring-2 ring-gray-400 ring-dashed' : ''}`}
+                            onDragOver={e => { e.preventDefault(); if (dragEmp?.teamId === storeTeam.id) setDropTarget('member') }}
+                            onDragLeave={() => { setDropTarget(null); setDropBeforeId(null) }}
+                            onDrop={() => handleDrop(storeTeam.id, 'member', dropBeforeId)}
+                          >
                             {memberIds.length === 0 && <p className="text-xs text-muted-foreground">メンバーなし</p>}
                             {memberIds.map(empId => {
                               const emp = getEmployee(empId)
                               return (
-                                <div key={empId} className="flex items-center gap-1 bg-gray-100 rounded-full pl-0.5 pr-2 py-0.5">
+                                <div key={empId}
+                                  draggable={isDirectEdit}
+                                  onDragStart={() => isDirectEdit && setDragEmp({ id: empId, teamId: storeTeam.id, from: 'member' })}
+                                  onDragEnd={() => { setDragEmp(null); setDropTarget(null); setDropBeforeId(null) }}
+                                  onDragOver={e => { e.preventDefault(); e.stopPropagation(); if (dragEmp?.teamId === storeTeam.id) { setDropTarget('member'); setDropBeforeId(empId) } }}
+                                  className={`flex items-center gap-1 bg-gray-100 rounded-full pl-0.5 pr-2 py-0.5 transition-all ${isDirectEdit ? 'cursor-grab active:cursor-grabbing' : ''} ${dropBeforeId === empId && dragEmp?.from === 'member' && dragEmp?.id !== empId ? 'ring-2 ring-orange-400' : ''}`}
+                                >
                                   <Avatar className="w-4 h-4 flex-shrink-0">
                                     <AvatarImage src={emp?.avatar_url ?? undefined} />
                                     <AvatarFallback className="text-[8px] bg-gray-300 text-gray-600">{emp?.name.charAt(0)}</AvatarFallback>
@@ -1575,13 +1586,27 @@ export function TeamManager({
                               </Button>
                             )}
                           </div>
-                          <div className="flex flex-wrap gap-1.5">
+                          <div
+                            className={`flex flex-wrap gap-1.5 min-h-[28px] rounded-lg p-1 -m-1 transition-colors ${dropTarget === 'manager' && dragEmp?.teamId === storeTeam.id ? 'bg-amber-100 ring-2 ring-amber-400 ring-dashed' : ''}`}
+                            onDragOver={e => { e.preventDefault(); if (dragEmp?.teamId === storeTeam.id) setDropTarget('manager') }}
+                            onDragLeave={() => { setDropTarget(null); setDropBeforeId(null) }}
+                            onDrop={() => handleDrop(storeTeam.id, 'manager', dropBeforeId)}
+                          >
                             {managerIds.length === 0 && <p className="text-xs text-muted-foreground">担当なし</p>}
-                            {teamManagers.filter(m => m.team_id === storeTeam.id).map(manager => {
+                            {teamManagers
+                              .filter(m => m.team_id === storeTeam.id)
+                              .sort((a, b) => (a.role === 'primary' ? -1 : b.role === 'primary' ? 1 : 0) || (a.sort_order ?? 0) - (b.sort_order ?? 0))
+                              .map(manager => {
                               const emp = getEmployee(manager.employee_id)
                               const isPrimary = manager.role === 'primary'
                               return (
-                                <div key={manager.employee_id} className={`flex items-center gap-1 ${isPrimary ? 'bg-amber-100' : 'bg-blue-100'} rounded-full pl-1 pr-2 py-0.5`}>
+                                <div key={manager.employee_id}
+                                  draggable={isDirectEdit}
+                                  onDragStart={() => isDirectEdit && setDragEmp({ id: manager.employee_id, teamId: storeTeam.id, from: 'manager' })}
+                                  onDragEnd={() => { setDragEmp(null); setDropTarget(null); setDropBeforeId(null) }}
+                                  onDragOver={e => { e.preventDefault(); e.stopPropagation(); if (dragEmp?.teamId === storeTeam.id) { setDropTarget('manager'); setDropBeforeId(manager.employee_id) } }}
+                                  className={`flex items-center gap-1 ${isPrimary ? 'bg-amber-100' : 'bg-blue-100'} rounded-full pl-1 pr-2 py-0.5 transition-all ${isDirectEdit ? 'cursor-grab active:cursor-grabbing' : ''} ${dropBeforeId === manager.employee_id && dragEmp?.from === 'manager' && dragEmp?.id !== manager.employee_id ? 'ring-2 ring-orange-400' : ''}`}
+                                >
                                   <span className={`text-[9px] font-bold ${isPrimary ? 'text-amber-600' : 'text-blue-500'}`}>{isPrimary ? '主' : '副'}</span>
                                   <Avatar className="w-4 h-4 flex-shrink-0">
                                     <AvatarImage src={emp?.avatar_url ?? undefined} />
