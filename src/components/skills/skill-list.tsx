@@ -126,6 +126,7 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
   const allKeys = phases.flatMap(p => categories.map(c => `${p.id}-${c}`))
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(allKeys))
   const [expandedStatusGroups, setExpandedStatusGroups] = useState<Set<string>>(new Set())
+  const [expandedManuals, setExpandedManuals] = useState<Set<string>>(new Set())
   const [isPending, startTransition] = useTransition()
   const initialTab = (() => {
     const t = searchParams.get('tab')
@@ -257,27 +258,45 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
           {!status && skill.target_date_hint && (
             <p className="text-[10px] text-muted-foreground mt-0.5">目安: {skill.target_date_hint}</p>
           )}
-          {skillManuals[skill.id]?.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-1">
-              {skillManuals[skill.id].slice(0, 3).map(m => (
-                <a
-                  key={m.id}
-                  href={m.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={e => e.stopPropagation()}
-                  className="inline-flex items-center gap-0.5 text-[10px] text-blue-700 bg-blue-50 hover:bg-blue-100 rounded px-1.5 py-0.5 border border-blue-100 max-w-[200px]"
-                  title={m.title}
-                >
-                  <BookOpen className="w-2.5 h-2.5 flex-shrink-0" />
-                  <span className="truncate">{m.title}</span>
-                </a>
-              ))}
-              {skillManuals[skill.id].length > 3 && (
-                <span className="text-[10px] text-gray-400 self-center">他 {skillManuals[skill.id].length - 3}件</span>
-              )}
-            </div>
-          )}
+          {skillManuals[skill.id]?.length > 0 && (() => {
+            const allManuals = skillManuals[skill.id]
+            const isExpanded = expandedManuals.has(skill.id)
+            const displayed = isExpanded ? allManuals : allManuals.slice(0, 3)
+            const hiddenCount = allManuals.length - 3
+            return (
+              <div className="flex flex-wrap gap-1 mt-1">
+                {displayed.map(m => (
+                  <a
+                    key={m.id}
+                    href={m.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={e => e.stopPropagation()}
+                    className="inline-flex items-center gap-0.5 text-[10px] text-blue-700 bg-blue-50 hover:bg-blue-100 rounded px-1.5 py-0.5 border border-blue-100 max-w-[200px]"
+                    title={m.title}
+                  >
+                    <BookOpen className="w-2.5 h-2.5 flex-shrink-0" />
+                    <span className="truncate">{m.title}</span>
+                  </a>
+                ))}
+                {hiddenCount > 0 && (
+                  <button
+                    onClick={e => {
+                      e.stopPropagation()
+                      setExpandedManuals(prev => {
+                        const next = new Set(prev)
+                        if (isExpanded) next.delete(skill.id); else next.add(skill.id)
+                        return next
+                      })
+                    }}
+                    className="inline-flex items-center text-[10px] text-orange-700 bg-orange-50 hover:bg-orange-100 rounded px-1.5 py-0.5 border border-orange-200 font-medium"
+                  >
+                    {isExpanded ? '閉じる ▲' : `他 ${hiddenCount}件 ▼`}
+                  </button>
+                )}
+              </div>
+            )
+          })()}
           {status === 'rejected' && achievement && (achievement.certify_comment || achievement.certified_employee?.name) && (
             <p className="text-[11px] text-red-500 mt-0.5 bg-red-50 rounded px-1.5 py-0.5 border border-red-100">
               {achievement.certified_employee?.name && (
