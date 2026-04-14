@@ -173,6 +173,23 @@ export default async function DashboardPage({
     pendingCountsTask,
   ])
 
+  // スキル→マニュアル紐付け
+  const [{ data: skillManualsRows }, { data: manualsRows }] = await Promise.all([
+    db.from('skill_manuals').select('skill_id, manual_id, is_primary'),
+    db.from('manual_library').select('id, title, url').eq('archived', false),
+  ])
+  const manualById = Object.fromEntries((manualsRows ?? []).map(m => [m.id, m]))
+  const skillManualsMap: Record<string, { id: string; title: string; url: string; isPrimary: boolean }[]> = {}
+  for (const sm of skillManualsRows ?? []) {
+    const m = manualById[sm.manual_id]
+    if (!m) continue
+    if (!skillManualsMap[sm.skill_id]) skillManualsMap[sm.skill_id] = []
+    skillManualsMap[sm.skill_id].push({ id: m.id, title: m.title, url: m.url, isPrimary: sm.is_primary })
+  }
+  for (const sid in skillManualsMap) {
+    skillManualsMap[sid].sort((a, b) => (a.isPrimary === b.isPrimary ? 0 : a.isPrimary ? -1 : 1))
+  }
+
   const projectPhaseRows = (projectPhasesResult as { data: { id: string; project_id: string; name: string; order_index: number; end_hours: number; created_at: string }[] }).data ?? []
   const projectSkillRows = (projectSkillsResult as { data: { skill_id: string; project_phase_id: string | null }[] }).data ?? []
   const workHoursSum = (workHoursSumResult as { data: number | null }).data ?? 0
@@ -268,6 +285,7 @@ export default async function DashboardPage({
         internalCerts={[...new Set((careerRows ?? []).filter(r => r.record_type === '資格' && r.department?.startsWith('[社内]')).map(r => r.department!.replace('[社内]', '')))]}
         employeeId={employee.id}
         hasGoalRecords={(careerRows ?? []).some(r => r.record_type === '目標')}
+        skillManuals={skillManualsMap}
       />
       <Suspense fallback={<TeamRankingSkeleton />}>
         <TeamRankingServer

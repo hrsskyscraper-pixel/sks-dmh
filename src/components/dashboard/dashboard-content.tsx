@@ -12,7 +12,7 @@ import dynamic from 'next/dynamic'
 const RadarChart = dynamic(() => import('@/components/charts/radar-chart').then(m => m.RadarChart), { ssr: false })
 const PhaseProgressChart = dynamic(() => import('@/components/charts/phase-progress-chart').then(m => m.PhaseProgressChart), { ssr: false })
 import { cn } from '@/lib/utils'
-import { AlertTriangle, ChevronDown, ChevronUp, Camera, Loader2, CheckCircle2, XCircle, Bell, ClipboardList, Users, Instagram, Target, CalendarDays, Pencil } from 'lucide-react'
+import { AlertTriangle, ChevronDown, ChevronUp, Camera, Loader2, CheckCircle2, XCircle, Bell, ClipboardList, Users, Instagram, Target, CalendarDays, Pencil, BookOpen } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { setSelectedProject } from '@/app/(dashboard)/actions'
@@ -52,6 +52,7 @@ interface Props {
   internalCerts?: string[]
   employeeId?: string
   hasGoalRecords?: boolean
+  skillManuals?: Record<string, { id: string; title: string; url: string; isPrimary: boolean }[]>
 }
 
 const PHASE_COLORS = ['bg-orange-500', 'bg-amber-500', 'bg-red-500', 'bg-blue-500', 'bg-green-500', 'bg-purple-500']
@@ -106,8 +107,52 @@ export function DashboardContent({
   projectPhases, skillPhaseMap, currentProject, employeeProjects,
   unreadNotifications: initialNotifications,
   pendingAchievementsCount = 0, pendingTeamRequestsCount = 0,
-  currentGoal: initialGoal, isOwnDashboard, careerSummary = {}, storeName = null, position = null, internalCerts = [], employeeId, hasGoalRecords = false
+  currentGoal: initialGoal, isOwnDashboard, careerSummary = {}, storeName = null, position = null, internalCerts = [], employeeId, hasGoalRecords = false,
+  skillManuals = {}
 }: Props) {
+  const [expandedManuals, setExpandedManuals] = useState<Set<string>>(new Set())
+
+  // マニュアルチップ描画（スキル一覧で再利用）
+  function renderManualChips(skillId: string) {
+    const list = skillManuals[skillId]
+    if (!list || list.length === 0) return null
+    const isExpanded = expandedManuals.has(skillId)
+    const displayed = isExpanded ? list : list.slice(0, 3)
+    const hiddenCount = list.length - 3
+    return (
+      <div className="flex flex-wrap gap-1 mt-1">
+        {displayed.map(m => (
+          <a
+            key={m.id}
+            href={m.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={e => e.stopPropagation()}
+            className="inline-flex items-center gap-0.5 text-[10px] text-blue-700 bg-blue-50 hover:bg-blue-100 rounded px-1.5 py-0.5 border border-blue-100 max-w-[200px]"
+            title={m.title}
+          >
+            <BookOpen className="w-2.5 h-2.5 flex-shrink-0" />
+            <span className="truncate">{m.title}</span>
+          </a>
+        ))}
+        {hiddenCount > 0 && (
+          <button
+            onClick={e => {
+              e.stopPropagation()
+              setExpandedManuals(prev => {
+                const next = new Set(prev)
+                if (isExpanded) next.delete(skillId); else next.add(skillId)
+                return next
+              })
+            }}
+            className="inline-flex items-center text-[10px] text-orange-700 bg-orange-50 hover:bg-orange-100 rounded px-1.5 py-0.5 border border-orange-200 font-medium"
+          >
+            {isExpanded ? '閉じる ▲' : `他 ${hiddenCount}件 ▼`}
+          </button>
+        )}
+      </div>
+    )
+  }
   const [achievementList, setAchievementList] = useState(initialAchievements)
   const [notifications, setNotifications] = useState(initialNotifications)
   const [isPending, startTransition] = useTransition()
@@ -599,26 +644,29 @@ export function DashboardContent({
           <CardContent className="px-4 pb-4 space-y-2">
             {displayedAction.map(skill => (
               <div key={skill.id} className={cn(
-                'flex items-center justify-between gap-2 rounded-lg px-3 py-2',
+                'rounded-lg px-3 py-2',
                 skill._status === 'pending' ? 'bg-yellow-50 border border-yellow-200' : 'bg-white border border-amber-200'
               )}>
-                <p className="text-sm text-gray-800 flex-1 min-w-0 truncate">{skill.name}</p>
-                <div className="flex items-center gap-1.5 flex-shrink-0">
-                  <Badge className={cn('text-[10px] border-0', getCategoryColor(skill.category, categories))}>{skill.category}</Badge>
-                  {skill._status === 'pending' ? (
-                    <Badge className="text-[10px] border-0 bg-yellow-200 text-yellow-800">申請中</Badge>
-                  ) : (
-                    <Button
-                      size="sm" variant="outline"
-                      className="group h-7 text-xs px-2 border-orange-200 text-orange-600 hover:bg-orange-100 hover:border-orange-400 hover:text-orange-700 flex-shrink-0"
-                      onClick={() => { setApplyDialogSkill(skill); setApplyComment('') }}
-                      disabled={isPending}
-                    >
-                      <span className="group-hover:hidden">申請する</span>
-                      <span className="hidden group-hover:inline font-semibold">できました！</span>
-                    </Button>
-                  )}
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm text-gray-800 flex-1 min-w-0 truncate">{skill.name}</p>
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <Badge className={cn('text-[10px] border-0', getCategoryColor(skill.category, categories))}>{skill.category}</Badge>
+                    {skill._status === 'pending' ? (
+                      <Badge className="text-[10px] border-0 bg-yellow-200 text-yellow-800">申請中</Badge>
+                    ) : (
+                      <Button
+                        size="sm" variant="outline"
+                        className="group h-7 text-xs px-2 border-orange-200 text-orange-600 hover:bg-orange-100 hover:border-orange-400 hover:text-orange-700 flex-shrink-0"
+                        onClick={() => { setApplyDialogSkill(skill); setApplyComment('') }}
+                        disabled={isPending}
+                      >
+                        <span className="group-hover:hidden">申請する</span>
+                        <span className="hidden group-hover:inline font-semibold">できました！</span>
+                      </Button>
+                    )}
+                  </div>
                 </div>
+                {renderManualChips(skill.id)}
               </div>
             ))}
             {allActionSkills.length > ACTION_LIMIT && (
@@ -642,20 +690,23 @@ export function DashboardContent({
           </CardHeader>
           <CardContent className="px-4 pb-4 space-y-2">
             {upcomingSkills.slice(0, 5).map(skill => (
-              <div key={skill.id} className="flex items-center justify-between gap-2 bg-white rounded-lg px-3 py-2 border border-blue-200">
-                <p className="text-sm text-gray-800 flex-1 min-w-0 truncate">{skill.name}</p>
-                <div className="flex items-center gap-1.5 flex-shrink-0">
-                  <Badge className={cn('text-[10px] border-0', getCategoryColor(skill.category, categories))}>{skill.category}</Badge>
-                  <Button
-                    size="sm" variant="outline"
-                    className="group h-7 text-xs px-2 border-blue-200 text-blue-600 hover:bg-blue-100 hover:border-blue-400 hover:text-blue-700 flex-shrink-0"
-                    onClick={() => { setApplyDialogSkill(skill); setApplyComment('') }}
-                    disabled={isPending}
-                  >
-                    <span className="group-hover:hidden">申請する</span>
-                    <span className="hidden group-hover:inline font-semibold">できました！</span>
-                  </Button>
+              <div key={skill.id} className="bg-white rounded-lg px-3 py-2 border border-blue-200">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm text-gray-800 flex-1 min-w-0 truncate">{skill.name}</p>
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <Badge className={cn('text-[10px] border-0', getCategoryColor(skill.category, categories))}>{skill.category}</Badge>
+                    <Button
+                      size="sm" variant="outline"
+                      className="group h-7 text-xs px-2 border-blue-200 text-blue-600 hover:bg-blue-100 hover:border-blue-400 hover:text-blue-700 flex-shrink-0"
+                      onClick={() => { setApplyDialogSkill(skill); setApplyComment('') }}
+                      disabled={isPending}
+                    >
+                      <span className="group-hover:hidden">申請する</span>
+                      <span className="hidden group-hover:inline font-semibold">できました！</span>
+                    </Button>
+                  </div>
                 </div>
+                {renderManualChips(skill.id)}
               </div>
             ))}
           </CardContent>
