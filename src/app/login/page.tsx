@@ -15,7 +15,16 @@ function LoginContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const error = searchParams.get('error')
-  const next = searchParams.get('next')
+  const nextParam = searchParams.get('next')
+
+  // 元URLの #hash はサーバーに渡らないため、ブラウザ側で回収して next に付与する。
+  // 相対パスかつ // 始まりでないときのみ有効化。
+  const getNextWithHash = () => {
+    if (!nextParam) return null
+    if (!nextParam.startsWith('/') || nextParam.startsWith('//')) return null
+    const hash = typeof window !== 'undefined' ? window.location.hash : ''
+    return hash ? `${nextParam}${hash}` : nextParam
+  }
 
   const [showEmailLogin, setShowEmailLogin] = useState(false)
   const [email, setEmail] = useState('')
@@ -25,7 +34,8 @@ function LoginContent() {
 
   const handleGoogleLogin = async () => {
     const callbackUrl = new URL(`${window.location.origin}/auth/callback`)
-    if (next) callbackUrl.searchParams.set('next', next)
+    const nextWithHash = getNextWithHash()
+    if (nextWithHash) callbackUrl.searchParams.set('next', nextWithHash)
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -43,7 +53,7 @@ function LoginContent() {
       if (error) {
         setEmailError(error.message)
       } else {
-        router.push(next || '/')
+        router.push(getNextWithHash() || '/')
         router.refresh()
       }
     } finally {
