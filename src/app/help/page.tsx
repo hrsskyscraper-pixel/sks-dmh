@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, Suspense } from 'react'
+import { useEffect, useState, useMemo, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { TopBar } from '@/components/layout/nav'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -9,9 +9,10 @@ import {
   LayoutDashboard, CheckSquare, BadgeCheck, Building2, Users2, Settings,
   Award, MessageCircle, UserPlus, Pencil, Bell, LogIn, Mail,
   ChevronRight, HelpCircle, ShieldCheck, Sparkles, Target, TrendingUp, FileText,
-  Cog, Tag, BookOpen, Database, Upload, FolderKanban,
+  Cog, Tag, BookOpen, Database, Upload, FolderKanban, Search, X,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { Input } from '@/components/ui/input'
 
 const ADMIN_ROLES = ['admin', 'ops_manager', 'executive', 'testuser']
 
@@ -1099,15 +1100,31 @@ function SectionList({ sections }: { sections: Section[] }) {
   )
 }
 
+type TabKey = 'member' | 'leader' | 'admin' | 'all'
+
+const TAB_LABELS: Record<TabKey, string> = {
+  member: 'メンバー',
+  leader: 'リーダー',
+  admin: '管理者',
+  all: '全体',
+}
+
+const TAB_COLORS: Record<TabKey, string> = {
+  member: 'bg-orange-100 text-orange-700',
+  leader: 'bg-amber-100 text-amber-700',
+  admin: 'bg-purple-100 text-purple-700',
+  all: 'bg-gray-100 text-gray-700',
+}
+
 function HelpContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
-  type TabKey = 'member' | 'leader' | 'admin' | 'all'
   const rawTab = (searchParams.get('tab') as TabKey | null) ?? 'member'
   const [tab, setTab] = useState<TabKey>(
     ['member', 'leader', 'admin', 'all'].includes(rawTab as string) ? rawTab : 'member'
   )
   const [isAdmin, setIsAdmin] = useState<boolean>(false)
+  const [query, setQuery] = useState('')
 
   // 現在のユーザーのロールを取得して、管理者かどうか判定
   useEffect(() => {
@@ -1139,45 +1156,183 @@ function HelpContent() {
 
   const gridColsClass = isAdmin ? 'grid-cols-4' : 'grid-cols-3'
 
+  // 横断検索: query が入力されたら全タブからマッチを返す
+  type Hit = { section: Section; tab: TabKey; matchedIn: 'title' | 'content'; snippet: string }
+  const searchHits: Hit[] = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return []
+    const allTabs: { tab: TabKey; sections: Section[] }[] = [
+      { tab: 'member', sections: memberSections },
+      { tab: 'leader', sections: leaderSections },
+      ...(isAdmin ? [{ tab: 'admin' as TabKey, sections: adminSections }] : []),
+      { tab: 'all', sections: allSections },
+    ]
+    const hits: Hit[] = []
+    const seenIds = new Set<string>()
+    for (const { tab, sections } of allTabs) {
+      for (const s of sections) {
+        const id = `${tab}:${s.id}`
+        if (seenIds.has(id)) continue
+        const titleMatch = s.title.toLowerCase().includes(q)
+        const contentMatch = s.content.toLowerCase().includes(q)
+        if (!titleMatch && !contentMatch) continue
+        seenIds.add(id)
+        // スニペット作成
+        let snippet = ''
+        if (contentMatch) {
+          const idx = s.content.toLowerCase().indexOf(q)
+          const start = Math.max(0, idx - 30)
+          const end = Math.min(s.content.length, idx + q.length + 50)
+          snippet = (start > 0 ? '…' : '') + s.content.slice(start, end) + (end < s.content.length ? '…' : '')
+        } else {
+          snippet = s.content.slice(0, 80) + (s.content.length > 80 ? '…' : '')
+        }
+        hits.push({ section: s, tab, matchedIn: titleMatch ? 'title' : 'content', snippet })
+      }
+    }
+    return hits
+  }, [query, isAdmin])
+
+  const isSearching = query.trim().length > 0
+
   return (
     <>
       <TopBar title="使い方ガイド" hideNotificationBell />
       <div className="p-4 max-w-2xl mx-auto">
-        <Tabs value={tab} onValueChange={handleTabChange} className="mb-4">
-          <TabsList className={`grid ${gridColsClass} w-full`}>
-            <TabsTrigger value="member" className="text-xs">
-              <Sparkles className="w-3 h-3 mr-1" />メンバー
-            </TabsTrigger>
-            <TabsTrigger value="leader" className="text-xs">
-              <ShieldCheck className="w-3 h-3 mr-1" />リーダー
-            </TabsTrigger>
-            {isAdmin && (
-              <TabsTrigger value="admin" className="text-xs">
-                <Cog className="w-3 h-3 mr-1" />管理者
-              </TabsTrigger>
-            )}
-            <TabsTrigger value="all" className="text-xs">
-              <HelpCircle className="w-3 h-3 mr-1" />全体
-            </TabsTrigger>
-          </TabsList>
-          <TabsContent value="member" className="mt-3">
-            <SectionList sections={memberSections} />
-          </TabsContent>
-          <TabsContent value="leader" className="mt-3">
-            <SectionList sections={leaderSections} />
-          </TabsContent>
-          {isAdmin && (
-            <TabsContent value="admin" className="mt-3">
-              <SectionList sections={adminSections} />
-            </TabsContent>
+        {/* 検索ボックス */}
+        <div className="relative mb-3">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+          <Input
+            type="search"
+            placeholder="キーワードで検索（例: 招待、マニュアル、LINE連携）"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            className="pl-9 pr-9 h-10 text-sm"
+          />
+          {query && (
+            <button
+              onClick={() => setQuery('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              aria-label="クリア"
+            >
+              <X className="w-4 h-4" />
+            </button>
           )}
-          <TabsContent value="all" className="mt-3">
-            <SectionList sections={allSections} />
-          </TabsContent>
-        </Tabs>
+        </div>
+
+        {isSearching ? (
+          /* ==== 検索結果 ==== */
+          <div className="space-y-2">
+            <p className="text-xs text-gray-500 px-1">
+              <span className="font-semibold text-orange-600">{searchHits.length}件</span>
+              の結果（全タブから検索）
+            </p>
+            {searchHits.length === 0 && (
+              <Card>
+                <CardContent className="py-8 text-center">
+                  <p className="text-sm text-gray-500">「{query}」に一致する内容がありません</p>
+                  <p className="text-[10px] text-gray-400 mt-1">別のキーワードでお試しください</p>
+                </CardContent>
+              </Card>
+            )}
+            {searchHits.map(({ section, tab: hitTab, matchedIn, snippet }) => (
+              <Card
+                key={`${hitTab}:${section.id}`}
+                className="cursor-pointer hover:border-orange-300 transition-colors"
+                onClick={() => {
+                  setQuery('')
+                  setTab(hitTab)
+                  router.replace(`/help?tab=${hitTab}`, { scroll: false })
+                  setTimeout(() => {
+                    document.getElementById(section.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                  }, 100)
+                }}
+              >
+                <CardContent className="py-3 px-4">
+                  <div className="flex items-start gap-2">
+                    <section.icon className="w-4 h-4 text-orange-500 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span className={`text-[9px] font-semibold rounded-full px-1.5 py-0.5 ${TAB_COLORS[hitTab]}`}>
+                          {TAB_LABELS[hitTab]}
+                        </span>
+                        {matchedIn === 'title' && (
+                          <span className="text-[9px] font-semibold rounded-full px-1.5 py-0.5 bg-yellow-100 text-yellow-700">
+                            タイトル一致
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm font-semibold text-gray-800">
+                        {highlightText(section.title, query)}
+                      </p>
+                      <p className="text-xs text-gray-600 leading-relaxed mt-1 line-clamp-2">
+                        {highlightText(snippet.replace(/\*\*/g, ''), query)}
+                      </p>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0 mt-1" />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          /* ==== 通常のタブ表示 ==== */
+          <Tabs value={tab} onValueChange={handleTabChange} className="mb-4">
+            <TabsList className={`grid ${gridColsClass} w-full`}>
+              <TabsTrigger value="member" className="text-xs">
+                <Sparkles className="w-3 h-3 mr-1" />メンバー
+              </TabsTrigger>
+              <TabsTrigger value="leader" className="text-xs">
+                <ShieldCheck className="w-3 h-3 mr-1" />リーダー
+              </TabsTrigger>
+              {isAdmin && (
+                <TabsTrigger value="admin" className="text-xs">
+                  <Cog className="w-3 h-3 mr-1" />管理者
+                </TabsTrigger>
+              )}
+              <TabsTrigger value="all" className="text-xs">
+                <HelpCircle className="w-3 h-3 mr-1" />全体
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="member" className="mt-3">
+              <SectionList sections={memberSections} />
+            </TabsContent>
+            <TabsContent value="leader" className="mt-3">
+              <SectionList sections={leaderSections} />
+            </TabsContent>
+            {isAdmin && (
+              <TabsContent value="admin" className="mt-3">
+                <SectionList sections={adminSections} />
+              </TabsContent>
+            )}
+            <TabsContent value="all" className="mt-3">
+              <SectionList sections={allSections} />
+            </TabsContent>
+          </Tabs>
+        )}
       </div>
     </>
   )
+}
+
+// 検索キーワードをハイライト表示
+function highlightText(text: string, query: string): React.ReactNode {
+  const q = query.trim()
+  if (!q) return text
+  const lower = text.toLowerCase()
+  const lowerQ = q.toLowerCase()
+  const parts: React.ReactNode[] = []
+  let lastIdx = 0
+  let idx = lower.indexOf(lowerQ)
+  let key = 0
+  while (idx !== -1) {
+    if (idx > lastIdx) parts.push(text.slice(lastIdx, idx))
+    parts.push(<mark key={key++} className="bg-yellow-200 text-gray-900 rounded px-0.5">{text.slice(idx, idx + q.length)}</mark>)
+    lastIdx = idx + q.length
+    idx = lower.indexOf(lowerQ, lastIdx)
+  }
+  if (lastIdx < text.length) parts.push(text.slice(lastIdx))
+  return parts
 }
 
 export default function HelpPage() {
