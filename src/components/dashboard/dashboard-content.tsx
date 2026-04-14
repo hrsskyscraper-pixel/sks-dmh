@@ -111,6 +111,7 @@ export function DashboardContent({
   skillManuals = {}
 }: Props) {
   const [expandedManuals, setExpandedManuals] = useState<Set<string>>(new Set())
+  const [switchingProjectId, setSwitchingProjectId] = useState<string | null>(null)
 
   // マニュアルチップ描画（スキル一覧で再利用）
   function renderManualChips(skillId: string) {
@@ -411,24 +412,35 @@ export function DashboardContent({
           {/* プロジェクト切り替え */}
           {employeeProjects.length > 1 && (
             <div className="mb-3 flex gap-1.5 flex-wrap">
-              {employeeProjects.map(pj => (
-                <button
-                  key={pj.id}
-                  onClick={async () => {
-                    await setSelectedProject(pj.id)
-                    router.push(`/?project_id=${pj.id}`)
-                    router.refresh()
-                  }}
-                  className={cn(
-                    'text-[11px] rounded-full px-3 py-0.5 transition-colors',
-                    pj.id === currentProject?.id
-                      ? 'bg-white text-orange-600 font-bold'
-                      : 'bg-white/20 text-white hover:bg-white/30'
-                  )}
-                >
-                  {pj.name}
-                </button>
-              ))}
+              {employeeProjects.map(pj => {
+                const isSwitching = switchingProjectId === pj.id
+                const isSelected = pj.id === currentProject?.id
+                const disabled = switchingProjectId !== null
+                return (
+                  <button
+                    key={pj.id}
+                    disabled={disabled}
+                    onClick={async () => {
+                      if (isSelected) return
+                      setSwitchingProjectId(pj.id)
+                      await setSelectedProject(pj.id)
+                      router.push(`/?project_id=${pj.id}`)
+                      router.refresh()
+                    }}
+                    className={cn(
+                      'text-[11px] rounded-full px-3 py-0.5 transition-all flex items-center gap-1',
+                      isSelected
+                        ? 'bg-white text-orange-600 font-bold'
+                        : 'bg-white/20 text-white hover:bg-white/30',
+                      disabled && !isSwitching && 'opacity-50',
+                      isSwitching && 'bg-white/40 text-white'
+                    )}
+                  >
+                    {isSwitching && <Loader2 className="w-3 h-3 animate-spin" />}
+                    {pj.name}
+                  </button>
+                )
+              })}
             </div>
           )}
 

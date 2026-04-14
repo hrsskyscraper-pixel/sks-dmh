@@ -35,9 +35,11 @@ export default async function SkillsPage({
   ])
   const employee = (targetEmployeeResult as { data: typeof currentEmployee | null }).data ?? currentEmployee
 
-  // 参加プロジェクト一覧（project_teams + team_members 経由）
-  const { data: sMyTeams } = await db.from('team_members').select('team_id').eq('employee_id', employee.id)
-  const { data: sMyMgr } = await db.from('team_managers').select('team_id').eq('employee_id', employee.id)
+  // 参加プロジェクト一覧（team_members と team_managers は並列取得）
+  const [{ data: sMyTeams }, { data: sMyMgr }] = await Promise.all([
+    db.from('team_members').select('team_id').eq('employee_id', employee.id),
+    db.from('team_managers').select('team_id').eq('employee_id', employee.id),
+  ])
   const sTeamIds = [...new Set([...(sMyTeams ?? []).map(r => r.team_id), ...(sMyMgr ?? []).map(r => r.team_id)])]
   const { data: sPtRows } = sTeamIds.length > 0 ? await db.from('project_teams').select('project_id').in('team_id', sTeamIds) : { data: [] }
   const sProjIds = [...new Set((sPtRows ?? []).map(r => r.project_id))]

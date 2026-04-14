@@ -83,9 +83,11 @@ export default async function DashboardPage({
   ])
   const employee = (targetEmployeeResult as { data: typeof currentEmployee | null }).data ?? currentEmployee
 
-  // 参加プロジェクト一覧（project_teams + team_members 経由）
-  const { data: myTeamRows } = await db.from('team_members').select('team_id').eq('employee_id', employee.id)
-  const { data: myManagerRows } = await db.from('team_managers').select('team_id').eq('employee_id', employee.id)
+  // 参加プロジェクト一覧（team_members と team_managers は並列取得）
+  const [{ data: myTeamRows }, { data: myManagerRows }] = await Promise.all([
+    db.from('team_members').select('team_id').eq('employee_id', employee.id),
+    db.from('team_managers').select('team_id').eq('employee_id', employee.id),
+  ])
   const myTeamIds = [...new Set([...(myTeamRows ?? []).map(r => r.team_id), ...(myManagerRows ?? []).map(r => r.team_id)])]
   const { data: myProjectTeamRows } = myTeamIds.length > 0
     ? await db.from('project_teams').select('project_id').in('team_id', myTeamIds)
@@ -141,7 +143,7 @@ export default async function DashboardPage({
     return { pendingAchievementsCount, pendingTeamRequestsCount }
   })()
 
-  // 個人データのみ並列取得（teamStats関連は Suspense で分離）
+  // 個人データを並列取得（マニュアル関連も統合して待機時間を短縮）
   const [
     projectPhasesResult,
     projectSkillsResult,
@@ -150,9 +152,10 @@ export default async function DashboardPage({
     workHoursSumResult,
     { data: goalRows },
     { data: careerRows },
-    { data: allEmployeesForCareer },
     { data: teamMemberRows },
     { pendingAchievementsCount, pendingTeamRequestsCount },
+    { data: skillManualsRows },
+    { data: manualsRows },
   ] = await Promise.all([
     selectedProject
       ? db.from('project_phases').select('id, project_id, name, order_index, end_hours, created_at').eq('project_id', selectedProject.id).order('order_index')
@@ -168,16 +171,19 @@ export default async function DashboardPage({
     }),
     db.from('goals').select('id, content, set_at, deadline').eq('employee_id', employee.id).order('created_at', { ascending: false }).limit(1),
     db.from('career_records').select('record_type, department, reason, related_employee_ids, occurred_at').eq('employee_id', employee.id).order('occurred_at', { ascending: false }),
-    db.from('employees').select('id, name').order('name'),
     db.from('team_members').select('team_id, teams(name, type)').eq('employee_id', employee.id),
     pendingCountsTask,
-  ])
-
-  // スキル→マニュアル紐付け
-  const [{ data: skillManualsRows }, { data: manualsRows }] = await Promise.all([
     db.from('skill_manuals').select('skill_id, manual_id, is_primary'),
     db.from('manual_library').select('id, title, url').eq('archived', false),
   ])
+
+  // キャリア記録に関連する社員のみ取得（全社員を取らない）
+  const relatedEmployeeIds = [...new Set((careerRows ?? []).flatMap(r => r.related_employee_ids ?? []))]
+  const { data: allEmployeesForCareer } = relatedEmployeeIds.length > 0
+    ? await db.from('employees').select('id, name').in('id', relatedEmployeeIds)
+    : { data: [] as { id: string; name: string }[] }
+
+  // スキル→マニュアル紐付け（プロジェクト内スキルのみで構築）
   const manualById = Object.fromEntries((manualsRows ?? []).map(m => [m.id, m]))
   const skillManualsMap: Record<string, { id: string; title: string; url: string; isPrimary: boolean }[]> = {}
   for (const sm of skillManualsRows ?? []) {
