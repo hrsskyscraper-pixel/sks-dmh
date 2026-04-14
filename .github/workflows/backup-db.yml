@@ -1,104 +1,109 @@
 name: Database Backup
 
-  on:
-    schedule:
-      # 毎日 UTC 18:00 = JST 03:00 に実行
-      - cron: '0 18 * * *'
-    workflow_dispatch:
+on:
+  schedule:
+    # 毎日 UTC 18:00 = JST 03:00 に実行
+    - cron: '0 18 * * *'
+  workflow_dispatch:
+    # 手動実行も可能（Actions タブから Run workflow）
 
-  permissions:
-    contents: read
+permissions:
+  contents: read
 
-  jobs:
-    backup:
-      runs-on: ubuntu-latest
-      timeout-minutes: 15
-      steps:
-        - name: Install PostgreSQL client
-          run: |
-            sudo sh -c 'echo "deb
-  http://apt.postgresql.org/pub/repos/apt jammy-pgdg main" >
-  /etc/apt/sources.list.d/pgdg.list'
-            wget --quiet -O -
-  https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo
-  apt-key add -
-            sudo apt-get update
-            sudo apt-get install -y postgresql-client-15
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Install PostgreSQL client
+        # Supabase は PostgreSQL 15.x なので対応バージョンの pg_dump を入れる
+        run: |
+          sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt jammy-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-15
 
-        - name: Checkout backup repository
-          uses: actions/checkout@v4
-          with:
-            repository: ${{ secrets.BACKUP_REPO }}
-            token: ${{ secrets.BACKUP_REPO_PAT }}
-            path: backup-repo
+      - name: Checkout backup repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ secrets.BACKUP_REPO }}
+          token: ${{ secrets.BACKUP_REPO_PAT }}
+          path: backup-repo
 
-        - name: Create backup dump
-          env:
-            DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          run: |
-            set -e
-            DATE=$(date -u +%Y%m%d-%H%M%S)
-            echo "backup_date=$DATE" >> $GITHUB_ENV
-            mkdir -p backup-repo/daily
-            pg_dump "$DATABASE_URL" \
-              --schema=public --no-owner --no-privileges \
-              --format=custom --compress=9 \
-              --file="backup-repo/daily/db-${DATE}.dump"
-            pg_dump "$DATABASE_URL" \
-              --schema=public --schema-only --no-owner
-  --no-privileges \
-              > "backup-repo/daily/schema-${DATE}.sql"
-            ls -lh backup-repo/daily/db-${DATE}.dump
-  backup-repo/daily/schema-${DATE}.sql
+      - name: Create backup dump
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          set -e
+          DATE=$(date -u +%Y%m%d-%H%M%S)
+          echo "backup_date=$DATE" >> $GITHUB_ENV
+          mkdir -p backup-repo/daily
 
-        - name: Encrypt backup (AES-256)
-          env:
-            BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
-          run: |
-            set -e
-            cd backup-repo/daily
-            openssl enc -aes-256-cbc -pbkdf2 -iter 100000 -salt \
-              -in "db-${{ env.backup_date }}.dump" \
-              -out "db-${{ env.backup_date }}.dump.enc" \
-              -pass env:BACKUP_PASSPHRASE
-            rm "db-${{ env.backup_date }}.dump"
-            ls -lh db-${{ env.backup_date }}.dump.enc
+          # public スキーマのみダンプ（auth/storage等のSupabase内部スキーマは除外）
+          # custom フォーマット = pg_restore で柔軟に復元可能
+          pg_dump "$DATABASE_URL" \
+            --schema=public \
+            --no-owner \
+            --no-privileges \
+            --format=custom \
+            --compress=9 \
+            --file="backup-repo/daily/db-${DATE}.dump"
 
-        - name: Rotate old backups (keep last 30 days)
-          run: |
-            cd backup-repo/daily
-            ls -1t db-*.dump.enc 2>/dev/null | tail -n +31 | xargs
-   -r rm -v
-            ls -1t schema-*.sql 2>/dev/null | tail -n +11 | xargs
-  -r rm -v
+          # 人間が内容を軽く確認できるよう plain テキスト版も保存（schema-only）
+          pg_dump "$DATABASE_URL" \
+            --schema=public \
+            --schema-only \
+            --no-owner \
+            --no-privileges \
+            > "backup-repo/daily/schema-${DATE}.sql"
 
-        - name: Write metadata
-          run: |
-            cd backup-repo
-            cat > LATEST.md <<EOF
-            # 最新バックアップ
-            - 取得日時（UTC）: $(date -u +"%Y-%m-%d %H:%M:%S")
-            - 取得日時（JST）: $(TZ=Asia/Tokyo date +"%Y-%m-%d
-  %H:%M:%S")
-            - ダンプファイル: daily/db-${{ env.backup_date
-  }}.dump.enc
-            - スキーマ: daily/schema-${{ env.backup_date }}.sql
-            - 対象スキーマ: public のみ（auth/storage は含まず）
-            - フォーマット: pg_dump custom（AES-256暗号化）
-            - 保持世代: 直近30件の dump / 10件の schema
-            EOF
+          ls -lh backup-repo/daily/db-${DATE}.dump backup-repo/daily/schema-${DATE}.sql
 
-        - name: Commit and push to backup repo
-          run: |
-            cd backup-repo
-            git config user.name "backup-bot"
-            git config user.email
-  "backup-bot@users.noreply.github.com"
-            git add -A
-            if git diff --cached --quiet; then
-              echo "No changes to commit"
-              exit 0
-            fi
-            git commit -m "Daily backup: $(date -u
-  +%Y-%m-%d-%H%M%S)"
-            git push
+      - name: Encrypt backup (AES-256)
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          set -e
+          cd backup-repo/daily
+          openssl enc -aes-256-cbc -pbkdf2 -iter 100000 -salt \
+            -in "db-${{ env.backup_date }}.dump" \
+            -out "db-${{ env.backup_date }}.dump.enc" \
+            -pass env:BACKUP_PASSPHRASE
+          # 平文 dump は破棄（暗号化版のみリポジトリに残す）
+          rm "db-${{ env.backup_date }}.dump"
+          ls -lh db-${{ env.backup_date }}.dump.enc
+
+      - name: Rotate old backups (keep last 30 days)
+        run: |
+          cd backup-repo/daily
+          # 暗号化ダンプは最新30件のみ保持
+          ls -1t db-*.dump.enc 2>/dev/null | tail -n +31 | xargs -r rm -v
+          # スキーマファイルは最新10件のみ保持
+          ls -1t schema-*.sql 2>/dev/null | tail -n +11 | xargs -r rm -v
+
+      - name: Write metadata
+        run: |
+          cd backup-repo
+          cat > LATEST.md <<EOF
+          # 最新バックアップ
+          - 取得日時（UTC）: $(date -u +"%Y-%m-%d %H:%M:%S")
+          - 取得日時（JST）: $(TZ=Asia/Tokyo date +"%Y-%m-%d %H:%M:%S")
+          - ダンプファイル: daily/db-${{ env.backup_date }}.dump.enc
+          - スキーマ: daily/schema-${{ env.backup_date }}.sql
+          - 対象スキーマ: public のみ（auth/storage は含まず）
+          - フォーマット: pg_dump custom（AES-256暗号化）
+          - 保持世代: 直近30件の dump / 10件の schema
+          EOF
+
+      - name: Commit and push to backup repo
+        run: |
+          cd backup-repo
+          git config user.name "backup-bot"
+          git config user.email "backup-bot@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "Daily backup: $(date -u +%Y-%m-%d-%H%M%S)"
+          git push
