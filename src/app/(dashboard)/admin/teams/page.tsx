@@ -42,7 +42,7 @@ export default async function AdminTeamsPage() {
     { data: projectTeamsData },
     { data: projectsData },
   ] = await Promise.all([
-    db.from('teams').select('id, name, type, prefecture, brand_id, created_at, updated_at').order('name'),
+    db.from('teams').select('id, name, type, prefecture, brand_id, brand_ids, created_at, updated_at').order('name'),
     db.from('team_members').select('team_id, employee_id, sort_order').order('sort_order'),
     db.from('team_managers').select('team_id, employee_id, role, sort_order').order('sort_order'),
     db.from('employees').select('id, auth_user_id, name, last_name, first_name, name_kana, email, role, employment_type, hire_date, birth_date, avatar_url, instagram_url, line_url, status, requested_team_id, requested_project_team_id, line_user_id, approved_by, approved_at, notifications_read_at, created_at, updated_at').order('name'),
@@ -52,6 +52,7 @@ export default async function AdminTeamsPage() {
     db.from('project_teams').select('project_id, team_id'),
     db.from('skill_projects').select('id, name').eq('is_active', true),
   ])
+  const { data: brands } = await db.from('brands').select('id, name, color').order('sort_order')
 
   // チーム→プロジェクト名マップ
   const projectNameMap = Object.fromEntries((projectsData ?? []).map(p => [p.id, p.name]))
@@ -77,6 +78,7 @@ export default async function AdminTeamsPage() {
         employees={employees ?? []}
         changeRequests={changeRequests ?? []}
         teamProjectNames={teamProjectNames}
+        brands={brands ?? []}
       />
     </>
   )

@@ -34,6 +34,7 @@ interface Props {
   employees: Employee[]
   changeRequests: TeamChangeRequest[]
   teamProjectNames?: Record<string, string[]>
+  brands?: { id: string; name: string; color: string | null }[]
 }
 
 type RequestType = TeamChangeRequest['request_type']
@@ -84,6 +85,7 @@ export function TeamManager({
   employees,
   changeRequests: initialChangeRequests,
   teamProjectNames = {},
+  brands = [],
 }: Props) {
   const searchParams = useSearchParams()
   const initialTab = searchParams.get('tab') === 'requests' ? 'requests' : 'teams'
@@ -111,10 +113,10 @@ export function TeamManager({
   // ===== Create Team Dialog =====
   const [showCreateTeam, setShowCreateTeam] = useState(false)
   const [newTeamName, setNewTeamName] = useState('')
-  const [newTeamType, setNewTeamType] = useState<Team['type'] | ''>('')
   const [newTeamManagerId, setNewTeamManagerId] = useState('')
   const [newTeamSubManagerIds, setNewTeamSubManagerIds] = useState<string[]>([])
   const [newTeamMemberIds, setNewTeamMemberIds] = useState<string[]>([])
+  const [newTeamBrandIds, setNewTeamBrandIds] = useState<Set<string>>(new Set())
 
   // ===== 招待ダイアログ =====
   const [inviteDialog, setInviteDialog] = useState<{ teamId: string; teamName: string; asManager: boolean } | null>(null)
@@ -304,11 +306,17 @@ export function TeamManager({
 
   const handleCreateTeam = () => {
     if (!isDirectEdit) return
-    if (!newTeamName.trim() || !newTeamType || !newTeamManagerId) return
+    if (!newTeamName.trim() || !newTeamManagerId) return
     startTransition(async () => {
+      const brandIdsArr = [...newTeamBrandIds]
       const { data: team, error: teamError } = await supabase
         .from('teams')
-        .insert({ name: newTeamName.trim(), type: newTeamType })
+        .insert({
+          name: newTeamName.trim(),
+          type: 'project',
+          brand_ids: brandIdsArr,
+          brand_id: brandIdsArr[0] ?? null,
+        })
         .select()
         .single()
       if (teamError) { toast.error('チームの作成に失敗しました'); return }
@@ -334,13 +342,13 @@ export function TeamManager({
 
       setTeams(prev => [...prev, team])
       setTeamManagers(prev => [...prev, ...managerInserts.map((m, i) => ({ ...m, sort_order: i }))])
-      await logDirectAction('create_team', team.id, { team_name: team.name, team_type: newTeamType, manager_id: newTeamManagerId, manager_name: getEmployeeName(newTeamManagerId), sub_managers: newTeamSubManagerIds.filter(id => id !== newTeamManagerId).map(id => getEmployeeName(id)), members: newTeamMemberIds.map(id => getEmployeeName(id)) })
+      await logDirectAction('create_team', team.id, { team_name: team.name, team_type: 'project', manager_id: newTeamManagerId, manager_name: getEmployeeName(newTeamManagerId), sub_managers: newTeamSubManagerIds.filter(id => id !== newTeamManagerId).map(id => getEmployeeName(id)), members: newTeamMemberIds.map(id => getEmployeeName(id)) })
       setShowCreateTeam(false)
       setNewTeamName('')
-      setNewTeamType('')
       setNewTeamManagerId('')
       setNewTeamSubManagerIds([])
       setNewTeamMemberIds([])
+      setNewTeamBrandIds(new Set())
       toast.success(`チーム「${team.name}」を作成しました`)
     })
   }
@@ -1659,7 +1667,7 @@ export function TeamManager({
               setRequestDialog({
                 requestType: 'create_team',
                 teamId: null,
-                payload: {},
+                payload: { type: 'project' },
                 label: '新しいチームの作成を申請',
               })
               setRequestManagerId(effectiveEmployee.id)
@@ -1880,34 +1888,45 @@ export function TeamManager({
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <p className="text-xs font-medium text-gray-600 mb-1">チーム名</p>
+              <p className="text-xs font-medium text-gray-600 mb-1">チーム名 <span className="text-red-500">*</span></p>
               <input
                 type="text"
                 value={newTeamName}
                 onChange={e => setNewTeamName(e.target.value)}
-                placeholder="例: 新人早期育成チーム、渋谷店"
+                placeholder="例: 新人早期育成チーム、店長業務認定"
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-orange-300"
               />
             </div>
             <div>
-              <div className="flex items-baseline gap-2 mb-1">
-                <p className="text-xs font-medium text-gray-600">種別 <span className="text-red-500">*</span></p>
-                <p className="text-[10px] text-muted-foreground">店舗を横断するチームの場合、チームを選択してください。</p>
-              </div>
-              <div className="flex gap-2">
-                {(['project', 'department', 'store'] as const).map(type => (
-                  <button
-                    key={type}
-                    onClick={() => setNewTeamType(type)}
-                    className={`flex-1 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-                      newTeamType === type
-                        ? `${TEAM_TYPE_COLORS[type]} border-current`
-                        : 'bg-gray-50 text-gray-500 border-gray-200'
-                    }`}
-                  >
-                    {TEAM_TYPE_LABELS[type]}
-                  </button>
-                ))}
+              <p className="text-xs font-medium text-gray-600 mb-1">
+                ブランド（任意・複数選択可）
+              </p>
+              <p className="text-[10px] text-muted-foreground mb-1.5">
+                店舗・部署は「ブランド・店舗・部署管理」で作成してください
+              </p>
+              <div className="flex flex-wrap gap-1">
+                {brands.length === 0 && (
+                  <span className="text-[10px] text-gray-400">ブランド未登録（ブランド管理で作成）</span>
+                )}
+                {brands.map(b => {
+                  const active = newTeamBrandIds.has(b.id)
+                  return (
+                    <button
+                      key={b.id}
+                      onClick={() => {
+                        setNewTeamBrandIds(prev => {
+                          const next = new Set(prev)
+                          if (active) next.delete(b.id); else next.add(b.id)
+                          return next
+                        })
+                      }}
+                      className={`text-[11px] rounded-full px-2 py-0.5 border ${active ? 'text-white border-transparent' : 'text-gray-500 border-gray-300 bg-gray-50 hover:bg-gray-100'}`}
+                      style={active ? { background: b.color ?? '#94a3b8' } : {}}
+                    >
+                      {active && '✓ '}{b.name}
+                    </button>
+                  )
+                })}
               </div>
             </div>
             <div>
@@ -1980,7 +1999,7 @@ export function TeamManager({
             <Button
               className="w-full bg-orange-500 hover:bg-orange-600 text-white"
               onClick={handleCreateTeam}
-              disabled={isPending || !newTeamName.trim() || !newTeamType || !newTeamManagerId}
+              disabled={isPending || !newTeamName.trim() || !newTeamManagerId}
             >
               <Plus className="w-4 h-4 mr-1" />
               作成する
@@ -2131,36 +2150,7 @@ export function TeamManager({
                       } : null)}
                     />
                   </div>
-                  <div>
-                    <div className="flex items-baseline gap-2 mb-1">
-                      <p className="text-xs font-medium text-gray-600">種別</p>
-                      <p className="text-[10px] text-muted-foreground">店舗を横断するチームの場合、チームを選択してください。</p>
-                    </div>
-                    <div className="flex gap-2">
-                      {(['project', 'store'] as const).map(type => {
-                        const p = requestDialog.payload as Record<string, unknown>
-                        const selected = p.type === type
-                        return (
-                          <button
-                            key={type}
-                            onClick={() => setRequestDialog(prev => prev ? {
-                              ...prev,
-                              payload: { ...prev.payload, type }
-                            } : null)}
-                            className={`flex-1 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-                              selected
-                                ? type === 'store'
-                                  ? 'bg-blue-100 text-blue-700 border-blue-300'
-                                  : 'bg-purple-100 text-purple-700 border-purple-300'
-                                : 'bg-gray-50 text-gray-500 border-gray-200'
-                            }`}
-                          >
-                            {TEAM_TYPE_LABELS[type]}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </div>
+                  {/* 申請できるのはチームのみ（店舗・部署はマスタで管理者が作成） */}
                   <div>
                     <p className="text-xs font-medium text-gray-600 mb-1">担当リーダー <span className="text-red-500">*</span></p>
                     <select

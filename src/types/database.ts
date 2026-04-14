@@ -121,6 +121,7 @@ export type Database = {
           type: 'store' | 'project' | 'department'
           prefecture: string | null
           brand_id: string | null
+          brand_ids: string[]
           created_at: string
           updated_at: string
         }
@@ -130,6 +131,7 @@ export type Database = {
           type: 'store' | 'project' | 'department'
           prefecture?: string | null
           brand_id?: string | null
+          brand_ids?: string[]
           created_at?: string
           updated_at?: string
         }
@@ -139,6 +141,7 @@ export type Database = {
           type?: 'store' | 'project' | 'department'
           prefecture?: string | null
           brand_id?: string | null
+          brand_ids?: string[]
           created_at?: string
           updated_at?: string
         }

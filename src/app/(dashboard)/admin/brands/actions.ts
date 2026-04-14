@@ -65,12 +65,16 @@ export async function deleteBrand(id: string): Promise<{ error?: string }> {
   return {}
 }
 
-/** 店舗のブランド設定 */
+/** 店舗のブランド設定（brand_id と brand_ids を同期） */
 export async function setTeamBrand(teamId: string, brandId: string | null): Promise<{ error?: string }> {
   const check = await assertAdmin()
   if (check.error) return { error: check.error }
   const db = createAdminClient()
-  const { error } = await db.from('teams').update({ brand_id: brandId, updated_at: new Date().toISOString() }).eq('id', teamId)
+  const { error } = await db.from('teams').update({
+    brand_id: brandId,
+    brand_ids: brandId ? [brandId] : [],
+    updated_at: new Date().toISOString(),
+  }).eq('id', teamId)
   if (error) return { error: error.message }
   revalidatePath('/admin/teams')
   revalidatePath('/admin/brands')
@@ -83,11 +87,123 @@ export async function setTeamsBrand(teamIds: string[], brandId: string | null): 
   if (check.error) return { error: check.error, updated: 0 }
   if (teamIds.length === 0) return { updated: 0 }
   const db = createAdminClient()
-  const { error } = await db.from('teams').update({ brand_id: brandId, updated_at: new Date().toISOString() }).in('id', teamIds)
+  const { error } = await db.from('teams').update({
+    brand_id: brandId,
+    brand_ids: brandId ? [brandId] : [],
+    updated_at: new Date().toISOString(),
+  }).in('id', teamIds)
   if (error) return { error: error.message, updated: 0 }
   revalidatePath('/admin/teams')
   revalidatePath('/admin/brands')
   return { updated: teamIds.length }
+}
+
+/** チーム/部署の複数ブランド設定 */
+export async function setTeamBrandIds(teamId: string, brandIds: string[]): Promise<{ error?: string }> {
+  const check = await assertAdmin()
+  if (check.error) return { error: check.error }
+  const db = createAdminClient()
+  // 部署/チームは brand_ids で管理、brand_id は使わない
+  const { error } = await db.from('teams').update({
+    brand_ids: brandIds,
+    brand_id: brandIds[0] ?? null,  // 互換のため先頭も保持
+    updated_at: new Date().toISOString(),
+  }).eq('id', teamId)
+  if (error) return { error: error.message }
+  revalidatePath('/admin/teams')
+  revalidatePath('/admin/brands')
+  return {}
+}
+
+/** 新規店舗作成（ブランド必須） */
+export async function createStore(params: {
+  name: string
+  brandId: string
+  prefecture?: string | null
+}): Promise<{ error?: string; id?: string }> {
+  const check = await assertAdmin()
+  if (check.error) return { error: check.error }
+  if (!params.name.trim()) return { error: '店舗名を入力してください' }
+  if (!params.brandId) return { error: 'ブランドを選択してください' }
+  const db = createAdminClient()
+  const { data, error } = await db.from('teams').insert({
+    name: params.name.trim(),
+    type: 'store',
+    prefecture: params.prefecture ?? null,
+    brand_id: params.brandId,
+    brand_ids: [params.brandId],
+  }).select('id').single()
+  if (error) return { error: error.message }
+  revalidatePath('/admin/teams')
+  revalidatePath('/admin/brands')
+  return { id: data.id }
+}
+
+/** 新規部署作成（ブランド複数任意） */
+export async function createDepartment(params: {
+  name: string
+  brandIds: string[]
+}): Promise<{ error?: string; id?: string }> {
+  const check = await assertAdmin()
+  if (check.error) return { error: check.error }
+  if (!params.name.trim()) return { error: '部署名を入力してください' }
+  const db = createAdminClient()
+  const { data, error } = await db.from('teams').insert({
+    name: params.name.trim(),
+    type: 'department',
+    brand_ids: params.brandIds,
+    brand_id: params.brandIds[0] ?? null,
+  }).select('id').single()
+  if (error) return { error: error.message }
+  revalidatePath('/admin/teams')
+  revalidatePath('/admin/brands')
+  return { id: data.id }
+}
+
+/** 店舗/部署の名前更新 */
+export async function updateTeamName(teamId: string, name: string): Promise<{ error?: string }> {
+  const check = await assertAdmin()
+  if (check.error) return { error: check.error }
+  if (!name.trim()) return { error: '名前を入力してください' }
+  const db = createAdminClient()
+  const { error } = await db.from('teams').update({
+    name: name.trim(),
+    updated_at: new Date().toISOString(),
+  }).eq('id', teamId)
+  if (error) return { error: error.message }
+  revalidatePath('/admin/teams')
+  revalidatePath('/admin/brands')
+  return {}
+}
+
+/** 店舗/部署の都道府県更新 */
+export async function updateTeamPrefecture(teamId: string, prefecture: string | null): Promise<{ error?: string }> {
+  const check = await assertAdmin()
+  if (check.error) return { error: check.error }
+  const db = createAdminClient()
+  const { error } = await db.from('teams').update({
+    prefecture,
+    updated_at: new Date().toISOString(),
+  }).eq('id', teamId)
+  if (error) return { error: error.message }
+  revalidatePath('/admin/teams')
+  revalidatePath('/admin/brands')
+  return {}
+}
+
+/** チーム削除（依存レコードも一緒に削除される - RLS に注意） */
+export async function deleteMasterTeam(teamId: string): Promise<{ error?: string }> {
+  const check = await assertAdmin()
+  if (check.error) return { error: check.error }
+  const db = createAdminClient()
+  // メンバー・マネジャーの紐付けを削除してからチームを削除
+  await db.from('team_members').delete().eq('team_id', teamId)
+  await db.from('team_managers').delete().eq('team_id', teamId)
+  const { error } = await db.from('teams').delete().eq('id', teamId)
+  if (error) return { error: error.message }
+  revalidatePath('/admin/teams')
+  revalidatePath('/admin/brands')
+  return {}
 }
 
 /** 個別マニュアルのブランド設定 */
