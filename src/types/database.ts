@@ -322,6 +322,81 @@ export type Database = {
         }
         Relationships: []
       }
+      manual_library: {
+        Row: {
+          id: string
+          teachme_manual_id: string
+          title: string
+          url: string
+          folder_path: string[] | null
+          publish_status: string | null
+          access_count: number
+          views_within_a_year: number
+          search_tags: string[] | null
+          archived: boolean
+          source_updated_at: string | null
+          synced_at: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          teachme_manual_id: string
+          title: string
+          url: string
+          folder_path?: string[] | null
+          publish_status?: string | null
+          access_count?: number
+          views_within_a_year?: number
+          search_tags?: string[] | null
+          archived?: boolean
+          source_updated_at?: string | null
+          synced_at?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          teachme_manual_id?: string
+          title?: string
+          url?: string
+          folder_path?: string[] | null
+          publish_status?: string | null
+          access_count?: number
+          views_within_a_year?: number
+          search_tags?: string[] | null
+          archived?: boolean
+          source_updated_at?: string | null
+          synced_at?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      skill_manuals: {
+        Row: {
+          skill_id: string
+          manual_id: string
+          display_order: number
+          is_primary: boolean
+          created_at: string
+        }
+        Insert: {
+          skill_id: string
+          manual_id: string
+          display_order?: number
+          is_primary?: boolean
+          created_at?: string
+        }
+        Update: {
+          skill_id?: string
+          manual_id?: string
+          display_order?: number
+          is_primary?: boolean
+          created_at?: string
+        }
+        Relationships: []
+      }
       phase_milestones: {
         Row: {
           phase: string
@@ -841,6 +916,8 @@ export type Team = Database['public']['Tables']['teams']['Row']
 export type TeamMember = Database['public']['Tables']['team_members']['Row']
 export type TeamChangeRequest = Database['public']['Tables']['team_change_requests']['Row']
 export type TeamInvitation = Database['public']['Tables']['team_invitations']['Row']
+export type ManualLibrary = Database['public']['Tables']['manual_library']['Row']
+export type SkillManual = Database['public']['Tables']['skill_manuals']['Row']
 export type SkillProject = Database['public']['Tables']['skill_projects']['Row']
 export type ProjectPhase = Database['public']['Tables']['project_phases']['Row']
 export type ProjectSkill = Database['public']['Tables']['project_skills']['Row']

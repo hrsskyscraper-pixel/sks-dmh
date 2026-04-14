@@ -58,6 +58,8 @@ export default async function SkillsPage({
     { data: allSkills },
     { data: achievements },
     { data: cumulativeHours },
+    { data: skillManualsRows },
+    { data: manualsRows },
   ] = await Promise.all([
     selectedProject
       ? db.from('project_phases').select('id, project_id, name, order_index, end_hours, created_at').eq('project_id', selectedProject.id).order('order_index')
@@ -73,6 +75,8 @@ export default async function SkillsPage({
       p_employee_id: employee.id,
       p_as_of_date: new Date().toISOString().split('T')[0],
     }),
+    db.from('skill_manuals').select('skill_id, manual_id, is_primary, display_order'),
+    db.from('manual_library').select('id, title, url').eq('archived', false),
   ])
 
   const projectPhases: ProjectPhase[] = projectPhaseRows ?? []
@@ -85,6 +89,20 @@ export default async function SkillsPage({
   const projectSkillIds = new Set(Object.keys(skillPhaseMap))
   const skills = (allSkills ?? []).filter(s => projectSkillIds.has(s.id))
   const milestones = buildMilestoneMap(projectPhases)
+
+  // スキル→マニュアル マップ構築
+  const manualById = Object.fromEntries((manualsRows ?? []).map(m => [m.id, m]))
+  const skillManualsMap: Record<string, { id: string; title: string; url: string; isPrimary: boolean }[]> = {}
+  for (const sm of skillManualsRows ?? []) {
+    const m = manualById[sm.manual_id]
+    if (!m) continue
+    if (!skillManualsMap[sm.skill_id]) skillManualsMap[sm.skill_id] = []
+    skillManualsMap[sm.skill_id].push({ id: m.id, title: m.title, url: m.url, isPrimary: sm.is_primary })
+  }
+  // 各スキルのマニュアルを is_primary 優先で並び替え
+  for (const sid in skillManualsMap) {
+    skillManualsMap[sid].sort((a, b) => (a.isPrimary === b.isPrimary ? 0 : a.isPrimary ? -1 : 1))
+  }
 
   return (
     <>
@@ -99,6 +117,7 @@ export default async function SkillsPage({
         skillPhaseMap={skillPhaseMap}
         cumulativeHours={cumulativeHours ?? 0}
         milestones={milestones}
+        skillManuals={skillManualsMap}
       />
     </>
   )

@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
-import { CheckCircle2, Clock, Circle, ChevronDown, ChevronRight, ChevronUp, Trophy, XCircle } from 'lucide-react'
+import { CheckCircle2, Clock, Circle, ChevronDown, ChevronRight, ChevronUp, Trophy, XCircle, BookOpen } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -38,6 +38,7 @@ interface Props {
   skillPhaseMap: Record<string, string | null>
   cumulativeHours?: number
   milestones?: MilestoneMap
+  skillManuals?: Record<string, { id: string; title: string; url: string; isPrimary: boolean }[]>
 }
 
 function fmtDate(dateStr: string | null | undefined): string {
@@ -117,7 +118,7 @@ function getCategoryProgressColor(category: string, allCategories: string[]): st
   return '[&>div]:bg-gray-500'
 }
 
-export function SkillList({ employeeId, skills, achievements: initialAchievements, readOnly = false, phases, skillPhaseMap, cumulativeHours, milestones }: Props) {
+export function SkillList({ employeeId, skills, achievements: initialAchievements, readOnly = false, phases, skillPhaseMap, cumulativeHours, milestones, skillManuals = {} }: Props) {
   const searchParams = useSearchParams()
   const initialPhaseId = phases.find(p => p.name === searchParams.get('phase'))?.id ?? phases[0]?.id ?? ''
   const [achievements, setAchievements] = useState(initialAchievements)
@@ -255,6 +256,27 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
           </p>
           {!status && skill.target_date_hint && (
             <p className="text-[10px] text-muted-foreground mt-0.5">目安: {skill.target_date_hint}</p>
+          )}
+          {skillManuals[skill.id]?.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1">
+              {skillManuals[skill.id].slice(0, 3).map(m => (
+                <a
+                  key={m.id}
+                  href={m.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={e => e.stopPropagation()}
+                  className="inline-flex items-center gap-0.5 text-[10px] text-blue-700 bg-blue-50 hover:bg-blue-100 rounded px-1.5 py-0.5 border border-blue-100 max-w-[200px]"
+                  title={m.title}
+                >
+                  <BookOpen className="w-2.5 h-2.5 flex-shrink-0" />
+                  <span className="truncate">{m.title}</span>
+                </a>
+              ))}
+              {skillManuals[skill.id].length > 3 && (
+                <span className="text-[10px] text-gray-400 self-center">他 {skillManuals[skill.id].length - 3}件</span>
+              )}
+            </div>
           )}
           {status === 'rejected' && achievement && (achievement.certify_comment || achievement.certified_employee?.name) && (
             <p className="text-[11px] text-red-500 mt-0.5 bg-red-50 rounded px-1.5 py-0.5 border border-red-100">
