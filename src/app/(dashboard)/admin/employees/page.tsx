@@ -47,7 +47,7 @@ export default async function EmployeesPage() {
     { data: allTeamManagers },
     { data: projectTeamsData },
   ] = await Promise.all([
-    db.from('employees').select('id, auth_user_id, name, last_name, first_name, name_kana, email, role, employment_type, hire_date, birth_date, avatar_url, instagram_url, line_url, status, requested_team_id, requested_project_team_id, line_user_id, approved_by, approved_at, notifications_read_at, created_at, updated_at').order('created_at'),
+    db.from('employees').select('id, auth_user_id, name, last_name, first_name, name_kana, email, role, business_role_ids, system_permission, employment_type, hire_date, birth_date, avatar_url, instagram_url, line_url, status, requested_team_id, requested_project_team_id, line_user_id, approved_by, approved_at, notifications_read_at, created_at, updated_at').order('created_at'),
     db.from('achievements').select('employee_id, skill_id').eq('status', 'certified'),
     db.from('work_hours').select('employee_id, hours'),
     // project_teams + team_members 経由で employee→project マッピング

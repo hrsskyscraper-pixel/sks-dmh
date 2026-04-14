@@ -21,6 +21,8 @@ export type Database = {
           hire_date: string | null
           birth_date: string | null
           role: 'employee' | 'store_manager' | 'manager' | 'admin' | 'ops_manager' | 'executive' | 'testuser'
+          business_role_ids: string[]
+          system_permission: 'developer' | 'ops_admin' | 'training_leader' | 'training_member'
           employment_type: '社員' | 'メイト'
           avatar_url: string | null
           instagram_url: string | null
@@ -46,6 +48,8 @@ export type Database = {
           hire_date?: string | null
           birth_date?: string | null
           role?: 'employee' | 'store_manager' | 'manager' | 'admin' | 'ops_manager' | 'executive' | 'testuser'
+          business_role_ids?: string[]
+          system_permission?: 'developer' | 'ops_admin' | 'training_leader' | 'training_member'
           employment_type?: '社員' | 'メイト'
           avatar_url?: string | null
           instagram_url?: string | null
@@ -71,6 +75,8 @@ export type Database = {
           hire_date?: string | null
           birth_date?: string | null
           role?: 'employee' | 'store_manager' | 'manager' | 'admin' | 'ops_manager' | 'executive' | 'testuser'
+          business_role_ids?: string[]
+          system_permission?: 'developer' | 'ops_admin' | 'training_leader' | 'training_member'
           employment_type?: '社員' | 'メイト'
           avatar_url?: string | null
           instagram_url?: string | null
@@ -142,6 +148,30 @@ export type Database = {
           prefecture?: string | null
           brand_id?: string | null
           brand_ids?: string[]
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      business_roles: {
+        Row: {
+          id: string
+          name: string
+          sort_order: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          sort_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          sort_order?: number
           created_at?: string
           updated_at?: string
         }
@@ -982,6 +1012,15 @@ export type LegacyPhase = '4月' | '5月〜6月' | '7月〜8月'
 export type Phase = string
 export type Category = string
 export type Role = 'employee' | 'store_manager' | 'manager' | 'admin' | 'ops_manager' | 'executive' | 'testuser'
+export type SystemPermission = 'developer' | 'ops_admin' | 'training_leader' | 'training_member'
+export type BusinessRole = Database['public']['Tables']['business_roles']['Row']
+
+export const SYSTEM_PERMISSION_LABELS: Record<SystemPermission, string> = {
+  developer: '開発者',
+  ops_admin: '運用管理者',
+  training_leader: 'リーダー',
+  training_member: 'メンバー',
+}
 export type EmployeeStatus = 'pending' | 'approved'
 export type AchievementStatus = 'pending' | 'certified' | 'rejected'
 export type EmploymentType = '社員' | 'メイト'
