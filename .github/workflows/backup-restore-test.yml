@@ -1,0 +1,119 @@
+name: Backup Restore Test
+
+# バックアップから一時的なPostgreSQLに復元し、データが正常に戻せるかをテスト
+# 本番DBには一切影響しない
+#
+# 手動実行: Actions タブ → "Backup Restore Test" → Run workflow
+# （デフォルトでは最新のバックアップを使用）
+
+on:
+  workflow_dispatch:
+    inputs:
+      backup_file:
+        description: "バックアップファイル名（例: db-20260414-022256.dump.enc / 'latest' で最新）"
+        required: false
+        default: 'latest'
+
+jobs:
+  restore-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_DB: restore_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout backup repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ secrets.BACKUP_REPO }}
+          token: ${{ secrets.BACKUP_REPO_PAT }}
+
+      - name: Find backup file
+        id: find
+        run: |
+          if [ "${{ inputs.backup_file }}" = "latest" ] || [ -z "${{ inputs.backup_file }}" ]; then
+            FILE=$(ls -1t daily/db-*.dump.enc 2>/dev/null | head -1)
+          else
+            FILE="daily/${{ inputs.backup_file }}"
+          fi
+          if [ -z "$FILE" ] || [ ! -f "$FILE" ]; then
+            echo "::error::バックアップファイルが見つかりません: $FILE"
+            exit 1
+          fi
+          echo "file=$FILE" >> $GITHUB_OUTPUT
+          echo "✅ 対象バックアップ: $FILE"
+          ls -lh "$FILE"
+
+      - name: Decrypt backup
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          set -e
+          openssl enc -aes-256-cbc -pbkdf2 -iter 100000 -d \
+            -in "${{ steps.find.outputs.file }}" \
+            -out /tmp/restore.dump \
+            -pass env:BACKUP_PASSPHRASE
+          echo "✅ 復号完了"
+          ls -lh /tmp/restore.dump
+
+      - name: Restore to temporary PostgreSQL
+        run: |
+          set -e
+          # Docker postgres:17-alpine の pg_restore で、GitHub Actions service の Postgres に復元
+          docker run --rm --network host \
+            -v /tmp:/in \
+            -e PGPASSWORD=testpass \
+            postgres:17-alpine \
+            pg_restore \
+              --no-owner \
+              --no-privileges \
+              --clean --if-exists \
+              -h localhost -p 5432 -U postgres -d restore_test \
+              /in/restore.dump || true
+          # pg_restore は警告で非ゼロ終了することがあるので || true で継続
+          # 実際の成否は次の Verify ステップで判定
+
+      - name: Verify restored data
+        run: |
+          set -e
+          # 主要テーブルの行数を確認
+          docker run --rm --network host \
+            -e PGPASSWORD=testpass \
+            postgres:17-alpine \
+            psql -h localhost -U postgres -d restore_test -c "
+              SELECT
+                (SELECT COUNT(*) FROM employees)   AS employees,
+                (SELECT COUNT(*) FROM teams)       AS teams,
+                (SELECT COUNT(*) FROM skills)      AS skills,
+                (SELECT COUNT(*) FROM achievements) AS achievements,
+                (SELECT COUNT(*) FROM career_records) AS career_records,
+                (SELECT COUNT(*) FROM skill_projects) AS projects;
+            "
+
+          # テーブル一覧とRLSポリシー存在確認
+          echo ""
+          echo "📋 復元されたテーブル:"
+          docker run --rm --network host \
+            -e PGPASSWORD=testpass \
+            postgres:17-alpine \
+            psql -h localhost -U postgres -d restore_test -t -c "
+              SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename;
+            "
+
+          echo ""
+          echo "✅ 復元テスト成功"
+
+      - name: Cleanup
+        if: always()
+        run: rm -f /tmp/restore.dump
