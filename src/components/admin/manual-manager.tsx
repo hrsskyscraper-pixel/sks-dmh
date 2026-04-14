@@ -19,10 +19,12 @@ import {
   linkSkillManual,
   unlinkSkillManual,
   toggleSkillManualPrimary,
+  rerunAutoMapping,
   type CsvManualRow,
   type ManualImportResult,
 } from '@/app/(dashboard)/admin/manuals/actions'
 import type { ManualLibrary, SkillManual } from '@/types/database'
+import { rankManualsForSkill } from '@/lib/manual-matching'
 
 type SkillLite = { id: string; name: string; category: string; order_index: number }
 
@@ -145,20 +147,11 @@ export function ManualManager({ manuals: initialManuals, skills, skillManuals: i
   const selectedSkillLinks = selectedSkillId ? (linksBySkill[selectedSkillId] ?? []) : []
   const selectedSkillLinkedManualIds = new Set(selectedSkillLinks.map(l => l.manual_id))
 
-  // マッピング候補: タイトル部分一致でサジェスト
+  // マッピング候補: タイトル・フォルダ・タグ を総合評価してサジェスト
   const suggestedForSelected = useMemo(() => {
     if (!selectedSkill) return []
-    const needle = selectedSkill.name.toLowerCase().trim()
-    if (!needle) return []
-    return activeManuals
-      .filter(m => !selectedSkillLinkedManualIds.has(m.id))
-      .map(m => ({
-        manual: m,
-        score: m.title.toLowerCase().includes(needle) || needle.includes(m.title.toLowerCase()) ? 1 : 0,
-      }))
-      .filter(x => x.score > 0)
-      .slice(0, 5)
-      .map(x => x.manual)
+    const candidates = activeManuals.filter(m => !selectedSkillLinkedManualIds.has(m.id))
+    return rankManualsForSkill(selectedSkill.name, candidates, { minScore: 5, limit: 8 })
   }, [selectedSkill, activeManuals, selectedSkillLinkedManualIds])
 
   const mappingFiltered = useMemo(() => {
@@ -208,6 +201,61 @@ export function ManualManager({ manuals: initialManuals, skills, skillManuals: i
               </div>
               <p className="text-xs text-gray-500 mt-2">
                 「スキル紐付け」タブでスキルとマニュアルを関連付けると、メンバーがスキル画面から直接マニュアルを開けるようになります。
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">一括自動紐付け（推奨）</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <p className="text-xs text-gray-600 leading-relaxed">
+                全スキル × 全マニュアルをタイトル・フォルダ・タグの類似度で評価し、
+                高スコアのものを自動で紐付けます。既存の紐付けはそのまま保持されます。
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1"
+                  disabled={isPending}
+                  onClick={() => {
+                    if (!confirm('類似度が高いマニュアルを自動で紐付けます（厳しめ：スコア80以上）。続行しますか？')) return
+                    startTransition(async () => {
+                      const res = await rerunAutoMapping(80)
+                      if (res.error) toast.error(res.error)
+                      else {
+                        toast.success(`完全一致 ${res.exactLinked}件 / 類似 ${res.fuzzyLinked}件 を紐付けました`)
+                        setTimeout(() => window.location.reload(), 1000)
+                      }
+                    })
+                  }}
+                >
+                  厳密（80+）
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1 border-orange-200 text-orange-700 hover:bg-orange-50"
+                  disabled={isPending}
+                  onClick={() => {
+                    if (!confirm('類似度がやや高いマニュアルを自動で紐付けます（中程度：スコア50以上）。紐付け件数が多めになります。続行しますか？')) return
+                    startTransition(async () => {
+                      const res = await rerunAutoMapping(50)
+                      if (res.error) toast.error(res.error)
+                      else {
+                        toast.success(`完全一致 ${res.exactLinked}件 / 類似 ${res.fuzzyLinked}件 を紐付けました`)
+                        setTimeout(() => window.location.reload(), 1000)
+                      }
+                    })
+                  }}
+                >
+                  推奨（50+）
+                </Button>
+              </div>
+              <p className="text-[10px] text-gray-400">
+                実行後は「スキル紐付け」タブで結果を確認し、不要な紐付けは解除してください
               </p>
             </CardContent>
           </Card>
@@ -319,21 +367,30 @@ export function ManualManager({ manuals: initialManuals, skills, skillManuals: i
                       </div>
                     </div>
 
-                    {/* サジェスト */}
+                    {/* サジェスト（総合スコアリング） */}
                     {suggestedForSelected.length > 0 && (
                       <div>
-                        <p className="text-[10px] font-medium text-amber-600 mb-1">💡 おすすめ（タイトル類似）</p>
+                        <p className="text-[10px] font-medium text-amber-600 mb-1">💡 おすすめ（タイトル・フォルダ・タグ類似）</p>
                         <div className="space-y-1">
-                          {suggestedForSelected.map(m => (
+                          {suggestedForSelected.map(({ manual: m, score }) => (
                             <button
                               key={m.id}
                               onClick={() => handleLink(selectedSkill.id, m.id, false)}
                               disabled={isPending}
-                              className="w-full flex items-center gap-1 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded px-2 py-1.5 text-left"
+                              className="w-full flex items-center gap-2 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded px-2 py-1.5 text-left"
+                              title={`スコア: ${score.toFixed(1)} / フォルダ: ${(m.folder_path ?? []).join(' / ')}`}
                             >
-                              <Link2 className="w-3 h-3 text-amber-600" />
-                              <span className="flex-1 text-xs text-amber-800 truncate">{m.title}</span>
-                              <span className="text-[10px] text-amber-500">＋</span>
+                              <Link2 className="w-3 h-3 text-amber-600 flex-shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs text-amber-800 truncate">{m.title}</p>
+                                {(m.folder_path?.length ?? 0) > 0 && (
+                                  <p className="text-[9px] text-amber-500/80 truncate">📁 {(m.folder_path ?? []).join(' / ')}</p>
+                                )}
+                              </div>
+                              <span className="text-[9px] text-amber-600 font-mono bg-amber-100 rounded px-1 flex-shrink-0">
+                                {Math.round(score)}
+                              </span>
+                              <span className="text-[10px] text-amber-500 flex-shrink-0">＋</span>
                             </button>
                           ))}
                         </div>
