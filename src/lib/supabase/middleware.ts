@@ -43,7 +43,14 @@ export async function updateSession(request: NextRequest) {
     !pathname.startsWith('/invite/')
   ) {
     const url = request.nextUrl.clone()
+    // 元のパス（クエリ含む）を next として保持し、ログイン後に復帰できるようにする
+    const next = pathname + (request.nextUrl.search || '')
     url.pathname = '/login'
+    url.search = ''
+    // ルート直下は復帰不要、また不正な値（外部URL等）は弾く
+    if (next.startsWith('/') && !next.startsWith('//') && next !== '/') {
+      url.searchParams.set('next', next)
+    }
     return NextResponse.redirect(url)
   }
 
