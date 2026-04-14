@@ -3,6 +3,9 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
 import { TopBar } from '@/components/layout/nav'
 import { EmployeeCareerCard } from '@/components/admin/employee-career-card'
+import { EmployeePermissionEditor } from '@/components/admin/employee-permission-editor'
+import { canAdminister } from '@/lib/permissions'
+import type { SystemPermission, EmploymentType } from '@/types/database'
 
 export default async function EmployeeDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams?: Promise<{ add?: string }> }) {
   const currentEmployee = await getCurrentEmployee()
@@ -46,7 +49,7 @@ export default async function EmployeeDetailPage({ params, searchParams }: { par
     { data: goals },
     { data: certs },
   ] = await Promise.all([
-    db.from('employees').select('id, name, last_name, first_name, name_kana, email, role, employment_type, hire_date, birth_date, avatar_url, instagram_url, line_url, line_user_id').eq('id', id).single(),
+    db.from('employees').select('id, name, last_name, first_name, name_kana, email, role, system_permission, business_role_ids, employment_type, hire_date, birth_date, avatar_url, instagram_url, line_url, line_user_id').eq('id', id).single(),
     db.from('career_records').select('*').eq('employee_id', id).order('occurred_at', { ascending: false }),
     db.from('employees').select('id, name, avatar_url').order('name'),
     db.from('team_members').select('team_id').eq('employee_id', id),
@@ -54,6 +57,7 @@ export default async function EmployeeDetailPage({ params, searchParams }: { par
     db.from('goals').select('id, content, deadline, set_at').eq('employee_id', id).order('created_at', { ascending: false }).limit(1),
     db.from('certifications').select('id, name, icon, color').eq('is_active', true).order('order_index'),
   ])
+  const { data: businessRoles } = await db.from('business_roles').select('*').order('sort_order')
 
   if (!employee) redirect('/admin/employees')
 
@@ -75,6 +79,17 @@ export default async function EmployeeDetailPage({ params, searchParams }: { par
         certifications={(certs ?? []) as { id: string; name: string; icon: 'award' | 'star'; color: string }[]}
         autoAddType={(await (searchParams ?? Promise.resolve({})) as { add?: string })?.add ?? undefined}
       />
+      <div className="px-4 pb-8">
+        <EmployeePermissionEditor
+          employeeId={employee.id}
+          employeeName={employee.name}
+          currentPermission={employee.system_permission as SystemPermission}
+          currentBusinessRoleIds={employee.business_role_ids ?? []}
+          currentEmploymentType={employee.employment_type as EmploymentType}
+          businessRoles={businessRoles ?? []}
+          canEdit={canAdminister(currentEmployee)}
+        />
+      </div>
     </>
   )
 }

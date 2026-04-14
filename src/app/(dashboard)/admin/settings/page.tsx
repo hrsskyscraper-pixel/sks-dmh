@@ -4,7 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { TopBar } from '@/components/layout/nav'
 import { CertificationManager } from '@/components/admin/certification-manager'
 import Link from 'next/link'
-import { FolderKanban, Upload, Award, ChevronRight, BookOpen, Tag } from 'lucide-react'
+import { FolderKanban, Upload, Award, ChevronRight, BookOpen, Tag, Briefcase } from 'lucide-react'
 
 export default async function SettingsPage() {
   const currentEmployee = await getCurrentEmployee()
@@ -34,6 +34,20 @@ export default async function SettingsPage() {
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-gray-800">プロジェクト管理</p>
               <p className="text-xs text-gray-500">フェーズ・スキル割当・目標時間の設定</p>
+            </div>
+            <ChevronRight className="w-4 h-4 text-gray-300" />
+          </Link>
+
+          <Link
+            href="/admin/business-roles"
+            className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white p-4 hover:bg-gray-50 transition-colors"
+          >
+            <div className="w-10 h-10 rounded-lg bg-sky-100 flex items-center justify-center flex-shrink-0">
+              <Briefcase className="w-5 h-5 text-sky-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-gray-800">業務役職マスタ</p>
+              <p className="text-xs text-gray-500">役員・部長・店長・女将・育成担当 等の業務上の役職</p>
             </div>
             <ChevronRight className="w-4 h-4 text-gray-300" />
           </Link>
