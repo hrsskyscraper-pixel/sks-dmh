@@ -136,30 +136,8 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
   const prefOrder = PREF_ORDER.filter(p => storePrefGrouped[p])
   for (const p of Object.keys(storePrefGrouped)) { if (!prefOrder.includes(p)) prefOrder.push(p) }
 
-  // デフォルト選択: 自分が所属するチームのうちプロジェクト紐づきを優先
-  const projectTeamIdSet = new Set(projectTeamIds)
-  const defaultTeamId = (() => {
-    if (!currentEmployeeId) return null
-    const myTeamIdsAll = [
-      ...teamMembers.filter(m => m.employee_id === currentEmployeeId).map(m => m.team_id),
-      ...teamManagersList.filter(m => m.employee_id === currentEmployeeId).map(m => m.team_id),
-    ]
-    const myTeamIdsUnique = [...new Set(myTeamIdsAll)]
-    // プロジェクト紐づき優先、種別優先順: project > department > store
-    const typeOrder: Record<string, number> = { project: 0, department: 1, store: 2 }
-    const teamById = Object.fromEntries(teams.map(t => [t.id, t]))
-    const sorted = myTeamIdsUnique
-      .filter(id => teamById[id])
-      .sort((a, b) => {
-        const aPj = projectTeamIdSet.has(a) ? 0 : 1
-        const bPj = projectTeamIdSet.has(b) ? 0 : 1
-        if (aPj !== bPj) return aPj - bPj
-        return (typeOrder[teamById[a].type] ?? 9) - (typeOrder[teamById[b].type] ?? 9)
-      })
-    return sorted[0] ?? null
-  })()
-
-  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(defaultTeamId)
+  // デフォルト選択: すべて（null）
+  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null)
   const [expandedPrefs, setExpandedPrefs] = useState<Set<string>>(new Set())
   const [showStores, setShowStores] = useState(false)
   const supabase = createClient()
