@@ -37,6 +37,7 @@ interface Props {
   changeRequests: TeamChangeRequest[]
   teamProjectNames?: Record<string, string[]>
   brands?: { id: string; name: string; color: string | null }[]
+  activeProjects?: { id: string; name: string }[]
 }
 
 type RequestType = TeamChangeRequest['request_type']
@@ -83,9 +84,34 @@ export function TeamManager({
   teamManagers: initialTeamManagers,
   employees,
   changeRequests: initialChangeRequests,
-  teamProjectNames = {},
+  teamProjectNames: initialTeamProjectNames = {},
   brands = [],
+  activeProjects = [],
 }: Props) {
+  const [teamProjectNames, setTeamProjectNames] = useState(initialTeamProjectNames)
+  const [assignProjectDialog, setAssignProjectDialog] = useState<{ teamId: string; teamName: string } | null>(null)
+  const [assignProjectId, setAssignProjectId] = useState<string>('')
+
+  const handleAssignProject = () => {
+    if (!assignProjectDialog || !assignProjectId) return
+    const { teamId, teamName } = assignProjectDialog
+    const project = activeProjects.find(p => p.id === assignProjectId)
+    if (!project) return
+    startTransition(async () => {
+      const { error } = await supabase
+        .from('project_teams')
+        .insert({ project_id: assignProjectId, team_id: teamId })
+      if (error) { toast.error(`割当に失敗しました: ${error.message}`); return }
+      setTeamProjectNames(prev => ({
+        ...prev,
+        [teamId]: [...(prev[teamId] ?? []), project.name],
+      }))
+      setAssignProjectDialog(null)
+      setAssignProjectId('')
+      toast.success(`「${teamName}」に${project.name}を割り当てました`)
+    })
+  }
+
   const searchParams = useSearchParams()
   const initialTab = searchParams.get('tab') === 'requests' ? 'requests' : 'teams'
   const [teams, setTeams] = useState(initialTeams)
@@ -937,6 +963,12 @@ export function TeamManager({
                         ))}
                       </div>
                     )}
+                    {team.type === 'project' && memberIds.length > 0 && !(teamProjectNames[team.id]?.length) && isDirectEdit && (
+                      <div className="mt-1.5 flex items-center gap-2 p-2 rounded-lg bg-amber-50 border border-amber-200">
+                        <span className="text-xs text-amber-700 flex-1">プロジェクトの割り当てがありません</span>
+                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setAssignProjectDialog({ teamId: team.id, teamName: team.name }); setAssignProjectId('') }} disabled={isPending}>プロジェクトを割り当てる</Button>
+                      </div>
+                    )}
                   </CardHeader>
                   {isExpanded && (
                     <CardContent className="px-4 pb-3 space-y-2">
@@ -1095,6 +1127,12 @@ export function TeamManager({
                   {teamProjectNames[team.id].map(pn => (
                     <Badge key={pn} className="text-[9px] bg-violet-100 text-violet-700 border-0">{pn}</Badge>
                   ))}
+                </div>
+              )}
+              {team.type === 'project' && memberIds.length > 0 && !(teamProjectNames[team.id]?.length) && isDirectEdit && (
+                <div className="mt-1.5 flex items-center gap-2 p-2 rounded-lg bg-amber-50 border border-amber-200">
+                  <span className="text-xs text-amber-700 flex-1">プロジェクトの割り当てがありません</span>
+                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setAssignProjectDialog({ teamId: team.id, teamName: team.name }); setAssignProjectId('') }} disabled={isPending}>プロジェクトを割り当てる</Button>
                 </div>
               )}
             </CardHeader>
@@ -1382,6 +1420,12 @@ export function TeamManager({
                   {teamProjectNames[team.id].map(pn => (
                     <Badge key={pn} className="text-[9px] bg-violet-100 text-violet-700 border-0">{pn}</Badge>
                   ))}
+                </div>
+              )}
+              {team.type === 'project' && memberIds.length > 0 && !(teamProjectNames[team.id]?.length) && isDirectEdit && (
+                <div className="mt-1.5 flex items-center gap-2 p-2 rounded-lg bg-amber-50 border border-amber-200">
+                  <span className="text-xs text-amber-700 flex-1">プロジェクトの割り当てがありません</span>
+                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setAssignProjectDialog({ teamId: team.id, teamName: team.name }); setAssignProjectId('') }} disabled={isPending}>プロジェクトを割り当てる</Button>
                 </div>
               )}
             </CardHeader>
@@ -2447,6 +2491,42 @@ export function TeamManager({
                 {isPending ? '保存中...' : '保存'}
               </Button>
             </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* プロジェクト割当ダイアログ */}
+      <Dialog open={!!assignProjectDialog} onOpenChange={open => { if (!open) { setAssignProjectDialog(null); setAssignProjectId('') } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-base">プロジェクトを割り当てる</DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-gray-600">
+            <strong>{assignProjectDialog?.teamName}</strong> に割り当てる、現在アクティブなプロジェクトを選択してください。
+          </p>
+          <div className="space-y-1 max-h-64 overflow-y-auto">
+            {activeProjects.length === 0 ? (
+              <p className="text-xs text-gray-500 py-4 text-center">アクティブなプロジェクトがありません</p>
+            ) : (
+              activeProjects.map(p => (
+                <label key={p.id} className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer border ${assignProjectId === p.id ? 'bg-orange-50 border-orange-300' : 'border-gray-200 hover:bg-gray-50'}`}>
+                  <input
+                    type="radio"
+                    name="assignProject"
+                    checked={assignProjectId === p.id}
+                    onChange={() => setAssignProjectId(p.id)}
+                    className="accent-orange-500"
+                  />
+                  <span className="text-sm">{p.name}</span>
+                </label>
+              ))
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setAssignProjectDialog(null); setAssignProjectId('') }} disabled={isPending}>キャンセル</Button>
+            <Button className="bg-orange-500 hover:bg-orange-600" onClick={handleAssignProject} disabled={isPending || !assignProjectId}>
+              {isPending ? '保存中...' : '割り当てる'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

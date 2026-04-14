@@ -79,6 +79,7 @@ export default async function AdminTeamsPage() {
         changeRequests={changeRequests ?? []}
         teamProjectNames={teamProjectNames}
         brands={brands ?? []}
+        activeProjects={projectsData ?? []}
       />
     </>
   )
