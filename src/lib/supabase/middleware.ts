@@ -54,10 +54,18 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // 認証済みユーザーがログインページにアクセスしたらトップへ
+  // 認証済みユーザーがログインページにアクセスしたら next があればそこへ、なければトップへ
   if (user && pathname.startsWith('/login')) {
     const url = request.nextUrl.clone()
+    const rawNext = url.searchParams.get('next')
+    // 相対パス（/abc）のみ許可、//evil.com 等は弾く
+    const next = rawNext && rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : null
+    if (next) {
+      const nextUrl = new URL(next, url.origin)
+      return NextResponse.redirect(nextUrl)
+    }
     url.pathname = '/'
+    url.search = ''
     return NextResponse.redirect(url)
   }
 
