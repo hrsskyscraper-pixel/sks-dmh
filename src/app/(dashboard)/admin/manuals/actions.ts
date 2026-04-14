@@ -157,14 +157,26 @@ export async function importManualsFromCsv(rows: CsvManualRow[]): Promise<Manual
   return { inserted, updated, archived, autoLinked, warnings }
 }
 
+export interface PlannedLink {
+  skillId: string
+  skillName: string
+  manualId: string
+  manualTitle: string
+  folderPath: string[]
+  score: number
+  isExact: boolean
+}
+
 /**
- * 既にCSV取込済みの状態で、全スキル × 全マニュアル を再評価して
- * スコア閾値以上のものを自動紐付け（既存紐付けはそのまま保持）
+ * 全スキル × 全マニュアルを再評価して紐付け予定を計算
+ * dryRun=true: 紐付けずに候補一覧を返す（プレビュー用）
+ * dryRun=false: 実際に紐付けを実行
  */
-export async function rerunAutoMapping(minScore: number = 50): Promise<{
+export async function rerunAutoMapping(minScore: number = 50, dryRun: boolean = false): Promise<{
   error?: string
   exactLinked: number
   fuzzyLinked: number
+  planned?: PlannedLink[]
 }> {
   const check = await assertAdmin()
   if (check.error) return { error: check.error, exactLinked: 0, fuzzyLinked: 0 }
@@ -184,35 +196,58 @@ export async function rerunAutoMapping(minScore: number = 50): Promise<{
     if (!manualsByNormalizedTitle[key]) manualsByNormalizedTitle[key] = []
     manualsByNormalizedTitle[key].push(m.id)
   }
+  const manualById = Object.fromEntries((allManuals ?? []).map(m => [m.id, m]))
 
+  const planned: PlannedLink[] = []
   let exactLinked = 0, fuzzyLinked = 0
+
   for (const skill of allSkills ?? []) {
+    // 完全一致
     const exactIds = manualsByNormalizedTitle[normalizeForMatch(skill.name)] ?? []
     for (const manualId of exactIds) {
       const key = `${skill.id}:${manualId}`
       if (linkedSet.has(key)) continue
-      const { error } = await db.from('skill_manuals').insert({
-        skill_id: skill.id, manual_id: manualId, is_primary: true, display_order: 0,
+      const m = manualById[manualId]
+      if (!m) continue
+      planned.push({
+        skillId: skill.id, skillName: skill.name,
+        manualId, manualTitle: m.title, folderPath: m.folder_path ?? [],
+        score: 100, isExact: true,
       })
-      if (!error) { exactLinked++; linkedSet.add(key) }
+      if (!dryRun) {
+        const { error } = await db.from('skill_manuals').insert({
+          skill_id: skill.id, manual_id: manualId, is_primary: true, display_order: 0,
+        })
+        if (!error) { exactLinked++; linkedSet.add(key) }
+      }
     }
+    // 類似マッチ
     const usedManualIds = new Set(exactIds)
     for (const m of (allManuals ?? []).filter(x => !usedManualIds.has(x.id))) {
       const key = `${skill.id}:${m.id}`
       if (linkedSet.has(key)) continue
       const score = scoreManualForSkill(skill.name, m)
       if (score >= minScore) {
-        const { error } = await db.from('skill_manuals').insert({
-          skill_id: skill.id, manual_id: m.id, is_primary: false, display_order: 0,
+        planned.push({
+          skillId: skill.id, skillName: skill.name,
+          manualId: m.id, manualTitle: m.title, folderPath: m.folder_path ?? [],
+          score, isExact: false,
         })
-        if (!error) { fuzzyLinked++; linkedSet.add(key) }
+        if (!dryRun) {
+          const { error } = await db.from('skill_manuals').insert({
+            skill_id: skill.id, manual_id: m.id, is_primary: false, display_order: 0,
+          })
+          if (!error) { fuzzyLinked++; linkedSet.add(key) }
+        }
       }
     }
   }
 
-  revalidatePath('/admin/manuals')
-  revalidatePath('/skills')
-  return { exactLinked, fuzzyLinked }
+  if (!dryRun) {
+    revalidatePath('/admin/manuals')
+    revalidatePath('/skills')
+  }
+  return { exactLinked, fuzzyLinked, planned: dryRun ? planned.sort((a, b) => b.score - a.score) : undefined }
 }
 
 export async function linkSkillManual(params: {

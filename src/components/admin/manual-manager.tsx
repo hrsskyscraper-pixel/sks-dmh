@@ -22,6 +22,7 @@ import {
   rerunAutoMapping,
   type CsvManualRow,
   type ManualImportResult,
+  type PlannedLink,
 } from '@/app/(dashboard)/admin/manuals/actions'
 import type { ManualLibrary, SkillManual } from '@/types/database'
 import { rankManualsForSkill } from '@/lib/manual-matching'
@@ -55,6 +56,13 @@ export function ManualManager({ manuals: initialManuals, skills, skillManuals: i
   const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null)
   const [mappingSearch, setMappingSearch] = useState('')
   const [showLinkDialog, setShowLinkDialog] = useState(false)
+
+  // 一括自動紐付けプレビュー
+  const [previewDialog, setPreviewDialog] = useState<{
+    minScore: number
+    label: string
+    planned: PlannedLink[]
+  } | null>(null)
 
   const activeManuals = manuals.filter(m => !m.archived)
   const linksBySkill = useMemo(() => {
@@ -221,18 +229,14 @@ export function ManualManager({ manuals: initialManuals, skills, skillManuals: i
                   className="flex-1"
                   disabled={isPending}
                   onClick={() => {
-                    if (!confirm('類似度が高いマニュアルを自動で紐付けます（厳しめ：スコア80以上）。続行しますか？')) return
                     startTransition(async () => {
-                      const res = await rerunAutoMapping(80)
-                      if (res.error) toast.error(res.error)
-                      else {
-                        toast.success(`完全一致 ${res.exactLinked}件 / 類似 ${res.fuzzyLinked}件 を紐付けました`)
-                        setTimeout(() => window.location.reload(), 1000)
-                      }
+                      const res = await rerunAutoMapping(80, true)
+                      if (res.error) { toast.error(res.error); return }
+                      setPreviewDialog({ minScore: 80, label: '厳密（80+）', planned: res.planned ?? [] })
                     })
                   }}
                 >
-                  厳密（80+）
+                  プレビュー（厳密 80+）
                 </Button>
                 <Button
                   variant="outline"
@@ -240,23 +244,21 @@ export function ManualManager({ manuals: initialManuals, skills, skillManuals: i
                   className="flex-1 border-orange-200 text-orange-700 hover:bg-orange-50"
                   disabled={isPending}
                   onClick={() => {
-                    if (!confirm('類似度がやや高いマニュアルを自動で紐付けます（中程度：スコア50以上）。紐付け件数が多めになります。続行しますか？')) return
                     startTransition(async () => {
-                      const res = await rerunAutoMapping(50)
-                      if (res.error) toast.error(res.error)
-                      else {
-                        toast.success(`完全一致 ${res.exactLinked}件 / 類似 ${res.fuzzyLinked}件 を紐付けました`)
-                        setTimeout(() => window.location.reload(), 1000)
-                      }
+                      const res = await rerunAutoMapping(50, true)
+                      if (res.error) { toast.error(res.error); return }
+                      setPreviewDialog({ minScore: 50, label: '推奨（50+）', planned: res.planned ?? [] })
                     })
                   }}
                 >
-                  推奨（50+）
+                  プレビュー（推奨 50+）
                 </Button>
               </div>
-              <p className="text-[10px] text-gray-400">
-                実行後は「スキル紐付け」タブで結果を確認し、不要な紐付けは解除してください
-              </p>
+              <div className="bg-blue-50 border border-blue-100 rounded p-2 text-[11px] text-blue-700 leading-relaxed">
+                💡 数値は<strong>類似度スコア</strong>です（タイトル・フォルダ名・タグなどを総合評価）。<br />
+                ・100: 完全一致　　・80+: ほぼ確実　　・50+: 中程度の類似　　・それ以下: 関連薄<br />
+                ボタンを押すと紐付け<strong>予定</strong>の一覧が表示され、内容を確認してから実行できます。
+              </div>
             </CardContent>
           </Card>
 
@@ -370,7 +372,9 @@ export function ManualManager({ manuals: initialManuals, skills, skillManuals: i
                     {/* サジェスト（総合スコアリング） */}
                     {suggestedForSelected.length > 0 && (
                       <div>
-                        <p className="text-[10px] font-medium text-amber-600 mb-1">💡 おすすめ（タイトル・フォルダ・タグ類似）</p>
+                        <p className="text-[10px] font-medium text-amber-600 mb-1">
+                          💡 おすすめ（タイトル・フォルダ・タグの<strong>類似度スコア</strong>順）
+                        </p>
                         <div className="space-y-1">
                           {suggestedForSelected.map(({ manual: m, score }) => (
                             <button
@@ -387,7 +391,10 @@ export function ManualManager({ manuals: initialManuals, skills, skillManuals: i
                                   <p className="text-[9px] text-amber-500/80 truncate">📁 {(m.folder_path ?? []).join(' / ')}</p>
                                 )}
                               </div>
-                              <span className="text-[9px] text-amber-600 font-mono bg-amber-100 rounded px-1 flex-shrink-0">
+                              <span
+                                className="text-[9px] text-amber-600 font-mono bg-amber-100 rounded px-1 flex-shrink-0"
+                                title="類似度スコア（100=完全一致 / 80+=ほぼ確実 / 50+=中程度類似）"
+                              >
                                 {Math.round(score)}
                               </span>
                               <span className="text-[10px] text-amber-500 flex-shrink-0">＋</span>
@@ -492,6 +499,90 @@ export function ManualManager({ manuals: initialManuals, skills, skillManuals: i
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* ===== 一括自動紐付けプレビューダイアログ ===== */}
+      <Dialog open={previewDialog !== null} onOpenChange={v => { if (!v) setPreviewDialog(null) }}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="text-base flex items-center gap-2">
+              <Link2 className="w-4 h-4 text-orange-500" />
+              自動紐付けプレビュー（{previewDialog?.label}）
+            </DialogTitle>
+          </DialogHeader>
+          {previewDialog && (
+            <div className="space-y-2">
+              <div className="bg-blue-50 rounded p-2 text-[11px] text-blue-700 leading-relaxed">
+                以下の <strong>{previewDialog.planned.length}件</strong> を紐付けようとしています。
+                「スコア」は類似度（100=完全一致 / 80+=ほぼ確実 / 50+=中程度）。
+                内容を確認して「実行」ボタンで紐付けします。
+              </div>
+              {previewDialog.planned.length === 0 ? (
+                <p className="text-xs text-gray-500 text-center py-6">
+                  新たに紐付けできるものはありませんでした<br />
+                  （既に紐付け済み、またはスコアが閾値未満）
+                </p>
+              ) : (
+                <div className="border rounded-lg overflow-hidden max-h-[50vh] overflow-y-auto">
+                  <table className="w-full text-[11px]">
+                    <thead className="bg-gray-50 sticky top-0">
+                      <tr className="text-left">
+                        <th className="px-2 py-1.5 font-medium">スキル</th>
+                        <th className="px-2 py-1.5 font-medium">→ マニュアル</th>
+                        <th className="px-2 py-1.5 font-medium text-right">スコア</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {previewDialog.planned.map(p => (
+                        <tr key={`${p.skillId}:${p.manualId}`} className="hover:bg-gray-50">
+                          <td className="px-2 py-1 text-gray-800 truncate max-w-[160px]" title={p.skillName}>
+                            {p.skillName}
+                          </td>
+                          <td className="px-2 py-1">
+                            <p className="text-gray-800 truncate max-w-[240px]" title={p.manualTitle}>{p.manualTitle}</p>
+                            {p.folderPath.length > 0 && (
+                              <p className="text-[9px] text-gray-400 truncate max-w-[240px]">📁 {p.folderPath.join(' / ')}</p>
+                            )}
+                          </td>
+                          <td className="px-2 py-1 text-right">
+                            <span className={`font-mono text-[10px] rounded px-1 ${
+                              p.isExact ? 'bg-emerald-100 text-emerald-700'
+                                : p.score >= 80 ? 'bg-blue-100 text-blue-700'
+                                : 'bg-amber-100 text-amber-700'
+                            }`}>
+                              {p.isExact ? '完全一致' : Math.round(p.score)}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPreviewDialog(null)} disabled={isPending}>
+              キャンセル
+            </Button>
+            <Button
+              className="bg-orange-500 hover:bg-orange-600"
+              disabled={isPending || !previewDialog || previewDialog.planned.length === 0}
+              onClick={() => {
+                if (!previewDialog) return
+                startTransition(async () => {
+                  const res = await rerunAutoMapping(previewDialog.minScore, false)
+                  if (res.error) { toast.error(res.error); return }
+                  toast.success(`完全一致 ${res.exactLinked}件 / 類似 ${res.fuzzyLinked}件 を紐付けました`)
+                  setPreviewDialog(null)
+                  setTimeout(() => window.location.reload(), 800)
+                })
+              }}
+            >
+              {isPending ? '実行中...' : `${previewDialog?.planned.length ?? 0}件を紐付け実行`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ===== 手動リンクダイアログ ===== */}
       <Dialog open={showLinkDialog} onOpenChange={setShowLinkDialog}>
