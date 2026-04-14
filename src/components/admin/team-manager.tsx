@@ -2,6 +2,7 @@
 
 import { useState, useTransition, useEffect, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import { toast } from 'sonner'
 import { Plus, Trash2, UserPlus, UserMinus, ClipboardList, Check, X, ChevronDown, ChevronUp, ChevronRight, Pencil, MapPin, Mail } from 'lucide-react'
 import { InviteMemberDialog } from './invite-member-dialog'
@@ -970,7 +971,7 @@ export function TeamManager({
                                   <AvatarImage src={emp?.avatar_url ?? undefined} />
                                   <AvatarFallback className="text-[8px] bg-gray-300 text-gray-600">{emp?.name.charAt(0)}</AvatarFallback>
                                 </Avatar>
-                                <span className="text-xs text-gray-700">{getEmployeeName(empId)}</span>
+                                <Link href={`/admin/employees/${empId}`} className="text-xs text-gray-700 hover:underline hover:text-orange-600" onClick={e => e.stopPropagation()}>{getEmployeeName(empId)}</Link>
                               </div>
                             )
                           })}
@@ -1005,7 +1006,7 @@ export function TeamManager({
                                   <AvatarImage src={emp?.avatar_url ?? undefined} />
                                   <AvatarFallback className={`text-[8px] ${isPrimary ? 'bg-amber-300 text-amber-700' : 'bg-blue-300 text-blue-700'}`}>{emp?.name.charAt(0)}</AvatarFallback>
                                 </Avatar>
-                                <span className={`text-xs ${isPrimary ? 'text-amber-700' : 'text-blue-700'}`}>{getEmployeeName(manager.employee_id)}</span>
+                                <Link href={`/admin/employees/${manager.employee_id}`} className={`text-xs hover:underline ${isPrimary ? 'text-amber-700 hover:text-amber-900' : 'text-blue-700 hover:text-blue-900'}`} onClick={e => e.stopPropagation()}>{getEmployeeName(manager.employee_id)}</Link>
                               </div>
                             )
                           })}
@@ -1176,7 +1177,7 @@ export function TeamManager({
                           <AvatarImage src={emp?.avatar_url ?? undefined} />
                           <AvatarFallback className="text-[8px] bg-gray-300 text-gray-600">{emp?.name.charAt(0)}</AvatarFallback>
                         </Avatar>
-                        <span className="text-xs text-gray-700">{getEmployeeName(empId)}</span>
+                        <Link href={`/admin/employees/${empId}`} className="text-xs text-gray-700 hover:underline hover:text-orange-600" onClick={e => e.stopPropagation()}>{getEmployeeName(empId)}</Link>
                         {isDirectEdit && (
                           <button
                             onClick={() => setConfirmDialog({
@@ -1293,7 +1294,7 @@ export function TeamManager({
                             <AvatarImage src={emp?.avatar_url ?? undefined} />
                             <AvatarFallback className={`text-[8px] ${isPrimary ? 'bg-amber-300 text-amber-700' : 'bg-blue-300 text-blue-700'}`}>{emp?.name.charAt(0)}</AvatarFallback>
                           </Avatar>
-                          <span className={`text-xs ${isPrimary ? 'text-amber-700' : 'text-blue-700'}`}>{getEmployeeName(manager.employee_id)}</span>
+                          <Link href={`/admin/employees/${manager.employee_id}`} className={`text-xs hover:underline ${isPrimary ? 'text-amber-700 hover:text-amber-900' : 'text-blue-700 hover:text-blue-900'}`} onClick={e => e.stopPropagation()}>{getEmployeeName(manager.employee_id)}</Link>
                           {isDirectEdit && (
                             <button
                               onClick={() => setConfirmDialog({
@@ -1409,7 +1410,7 @@ export function TeamManager({
                             <AvatarImage src={emp?.avatar_url ?? undefined} />
                             <AvatarFallback className="text-[8px] bg-gray-300 text-gray-600">{emp?.name.charAt(0)}</AvatarFallback>
                           </Avatar>
-                          <span className="text-xs text-gray-700">{getEmployeeName(empId)}</span>
+                          <Link href={`/admin/employees/${empId}`} className="text-xs text-gray-700 hover:underline hover:text-orange-600" onClick={e => e.stopPropagation()}>{getEmployeeName(empId)}</Link>
                           {isDirectEdit && (
                             <button onClick={() => setConfirmDialog({ title: 'メンバー削除', message: `${getEmployeeName(empId)} をこの部署から削除しますか？`, confirmLabel: '削除', confirmClassName: 'flex-1 bg-red-500 hover:bg-red-600 text-white', onConfirm: () => handleRemoveMember(team.id, empId) })} className="text-gray-300 hover:text-red-500 ml-0.5"><X className="w-3 h-3" /></button>
                           )}
@@ -1439,7 +1440,7 @@ export function TeamManager({
                             <AvatarImage src={emp?.avatar_url ?? undefined} />
                             <AvatarFallback className={`text-[8px] ${isPrimary ? 'bg-amber-300 text-amber-700' : 'bg-blue-300 text-blue-700'}`}>{emp?.name.charAt(0)}</AvatarFallback>
                           </Avatar>
-                          <span className={`text-xs ${isPrimary ? 'text-amber-700' : 'text-blue-700'}`}>{getEmployeeName(manager.employee_id)}</span>
+                          <Link href={`/admin/employees/${manager.employee_id}`} className={`text-xs hover:underline ${isPrimary ? 'text-amber-700 hover:text-amber-900' : 'text-blue-700 hover:text-blue-900'}`} onClick={e => e.stopPropagation()}>{getEmployeeName(manager.employee_id)}</Link>
                           {isDirectEdit && (
                             <button onClick={() => setConfirmDialog({ title: 'リーダー削除', message: `${getEmployeeName(manager.employee_id)} をリーダーから削除しますか？`, confirmLabel: '削除', confirmClassName: 'flex-1 bg-red-500 hover:bg-red-600 text-white', onConfirm: () => handleRemoveManager(team.id, manager.employee_id) })} className={`${isPrimary ? 'text-amber-400' : 'text-blue-400'} hover:text-red-500 ml-0.5`}><X className="w-3 h-3" /></button>
                           )}
@@ -1559,7 +1560,7 @@ export function TeamManager({
                                     <AvatarImage src={emp?.avatar_url ?? undefined} />
                                     <AvatarFallback className="text-[8px] bg-gray-300 text-gray-600">{emp?.name.charAt(0)}</AvatarFallback>
                                   </Avatar>
-                                  <span className="text-xs text-gray-700">{getEmployeeName(empId)}</span>
+                                  <Link href={`/admin/employees/${empId}`} className="text-xs text-gray-700 hover:underline hover:text-orange-600" onClick={e => e.stopPropagation()}>{getEmployeeName(empId)}</Link>
                                   {isDirectEdit && (
                                     <button onClick={() => setConfirmDialog({ title: 'メンバー削除', message: `${getEmployeeName(empId)} を「${storeTeam.name}」から削除しますか？`, confirmLabel: '削除', confirmClassName: 'flex-1 bg-red-500 hover:bg-red-600 text-white', onConfirm: () => handleRemoveMember(storeTeam.id, empId) })} className="text-gray-300 hover:text-red-500 ml-0.5"><X className="w-3 h-3" /></button>
                                   )}
@@ -1590,7 +1591,7 @@ export function TeamManager({
                                     <AvatarImage src={emp?.avatar_url ?? undefined} />
                                     <AvatarFallback className={`text-[8px] ${isPrimary ? 'bg-amber-300 text-amber-700' : 'bg-blue-300 text-blue-700'}`}>{emp?.name.charAt(0)}</AvatarFallback>
                                   </Avatar>
-                                  <span className={`text-xs ${isPrimary ? 'text-amber-700' : 'text-blue-700'}`}>{getEmployeeName(manager.employee_id)}</span>
+                                  <Link href={`/admin/employees/${manager.employee_id}`} className={`text-xs hover:underline ${isPrimary ? 'text-amber-700 hover:text-amber-900' : 'text-blue-700 hover:text-blue-900'}`} onClick={e => e.stopPropagation()}>{getEmployeeName(manager.employee_id)}</Link>
                                   {isDirectEdit && (
                                     <button onClick={() => setConfirmDialog({ title: 'リーダー削除', message: `${getEmployeeName(manager.employee_id)} を「${storeTeam.name}」のリーダーから削除しますか？`, confirmLabel: '削除', confirmClassName: 'flex-1 bg-red-500 hover:bg-red-600 text-white', onConfirm: () => handleRemoveManager(storeTeam.id, manager.employee_id) })} className={`${isPrimary ? 'text-amber-400' : 'text-blue-400'} hover:text-red-500 ml-0.5`}><UserMinus className="w-3 h-3" /></button>
                                   )}
