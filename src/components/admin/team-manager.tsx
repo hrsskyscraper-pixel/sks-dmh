@@ -893,7 +893,14 @@ export function TeamManager({
       {(() => {
         const isMine = (t: Team) => getTeamManagerIds(t.id).includes(effectiveEmployee.id) || getTeamMemberIds(t.id).includes(effectiveEmployee.id)
         const typeOrder: Record<string, number> = { project: 0, department: 1, store: 2 }
-        const myTeamsList = teams.filter(isMine).sort((a, b) => (typeOrder[a.type] ?? 9) - (typeOrder[b.type] ?? 9))
+        // プロジェクトと紐づいているチームを上に、紐づいていないものを下にする
+        const hasProject = (t: Team) => (teamProjectNames[t.id]?.length ?? 0) > 0
+        const myTeamsList = teams.filter(isMine).sort((a, b) => {
+          const aHasProject = hasProject(a)
+          const bHasProject = hasProject(b)
+          if (aHasProject !== bHasProject) return aHasProject ? -1 : 1
+          return (typeOrder[a.type] ?? 9) - (typeOrder[b.type] ?? 9)
+        })
         if (myTeamsList.length === 0) return null
         return (
           <>
