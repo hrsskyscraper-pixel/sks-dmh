@@ -963,7 +963,7 @@ export function TeamManager({
                         ))}
                       </div>
                     )}
-                    {team.type === 'project' && memberIds.length > 0 && !(teamProjectNames[team.id]?.length) && isDirectEdit && (
+                    {memberIds.length > 0 && !(teamProjectNames[team.id]?.length) && isDirectEdit && (
                       <div className="mt-1.5 flex items-center gap-2 p-2 rounded-lg bg-amber-50 border border-amber-200">
                         <span className="text-xs text-amber-700 flex-1">プロジェクトの割り当てがありません</span>
                         <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setAssignProjectDialog({ teamId: team.id, teamName: team.name }); setAssignProjectId('') }} disabled={isPending}>プロジェクトを割り当てる</Button>
@@ -1129,7 +1129,7 @@ export function TeamManager({
                   ))}
                 </div>
               )}
-              {team.type === 'project' && memberIds.length > 0 && !(teamProjectNames[team.id]?.length) && isDirectEdit && (
+              {memberIds.length > 0 && !(teamProjectNames[team.id]?.length) && isDirectEdit && (
                 <div className="mt-1.5 flex items-center gap-2 p-2 rounded-lg bg-amber-50 border border-amber-200">
                   <span className="text-xs text-amber-700 flex-1">プロジェクトの割り当てがありません</span>
                   <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setAssignProjectDialog({ teamId: team.id, teamName: team.name }); setAssignProjectId('') }} disabled={isPending}>プロジェクトを割り当てる</Button>
@@ -1422,7 +1422,7 @@ export function TeamManager({
                   ))}
                 </div>
               )}
-              {team.type === 'project' && memberIds.length > 0 && !(teamProjectNames[team.id]?.length) && isDirectEdit && (
+              {memberIds.length > 0 && !(teamProjectNames[team.id]?.length) && isDirectEdit && (
                 <div className="mt-1.5 flex items-center gap-2 p-2 rounded-lg bg-amber-50 border border-amber-200">
                   <span className="text-xs text-amber-700 flex-1">プロジェクトの割り当てがありません</span>
                   <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setAssignProjectDialog({ teamId: team.id, teamName: team.name }); setAssignProjectId('') }} disabled={isPending}>プロジェクトを割り当てる</Button>
@@ -1575,6 +1575,12 @@ export function TeamManager({
                           {teamProjectNames[storeTeam.id].map(pn => (
                             <Badge key={pn} className="text-[9px] bg-violet-100 text-violet-700 border-0">{pn}</Badge>
                           ))}
+                        </div>
+                      )}
+                      {memberIds.length > 0 && !(teamProjectNames[storeTeam.id]?.length) && isDirectEdit && (
+                        <div className="mt-1.5 flex items-center gap-2 p-2 rounded-lg bg-amber-50 border border-amber-200">
+                          <span className="text-xs text-amber-700 flex-1">プロジェクトの割り当てがありません</span>
+                          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setAssignProjectDialog({ teamId: storeTeam.id, teamName: storeTeam.name }); setAssignProjectId('') }} disabled={isPending}>プロジェクトを割り当てる</Button>
                         </div>
                       )}
                     </CardHeader>
