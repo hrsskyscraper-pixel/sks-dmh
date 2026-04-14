@@ -15,14 +15,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Install PostgreSQL client
-        # Supabase は PostgreSQL 17.x なので対応バージョンの pg_dump を入れる
-        run: |
-          sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt jammy-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
-          wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
-          sudo apt-get update
-          sudo apt-get install -y postgresql-client-17
-
       - name: Checkout backup repository
         uses: actions/checkout@v4
         with:
@@ -30,7 +22,7 @@ jobs:
           token: ${{ secrets.BACKUP_REPO_PAT }}
           path: backup-repo
 
-      - name: Create backup dump
+      - name: Create backup dump (via Docker postgres:17)
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
@@ -39,23 +31,22 @@ jobs:
           echo "backup_date=$DATE" >> $GITHUB_ENV
           mkdir -p backup-repo/daily
 
+          # Supabase PG 17 に正確に一致するバージョンの pg_dump を Docker で使用
           # public スキーマのみダンプ（auth/storage等のSupabase内部スキーマは除外）
-          # custom フォーマット = pg_restore で柔軟に復元可能
-          pg_dump "$DATABASE_URL" \
-            --schema=public \
-            --no-owner \
-            --no-privileges \
-            --format=custom \
-            --compress=9 \
-            --file="backup-repo/daily/db-${DATE}.dump"
+          docker run --rm \
+            -e DATABASE_URL="$DATABASE_URL" \
+            -v "$PWD/backup-repo/daily:/out" \
+            postgres:17-alpine \
+            sh -c "pg_dump \"\$DATABASE_URL\" --schema=public --no-owner --no-privileges --format=custom --compress=9 --file=/out/db-${DATE}.dump"
 
-          # 人間が内容を軽く確認できるよう plain テキスト版も保存（schema-only）
-          pg_dump "$DATABASE_URL" \
-            --schema=public \
-            --schema-only \
-            --no-owner \
-            --no-privileges \
-            > "backup-repo/daily/schema-${DATE}.sql"
+          docker run --rm \
+            -e DATABASE_URL="$DATABASE_URL" \
+            -v "$PWD/backup-repo/daily:/out" \
+            postgres:17-alpine \
+            sh -c "pg_dump \"\$DATABASE_URL\" --schema=public --schema-only --no-owner --no-privileges > /out/schema-${DATE}.sql"
+
+          # 権限修正（Docker が root で書き込むため）
+          sudo chown -R $USER:$USER backup-repo/daily
 
           ls -lh backup-repo/daily/db-${DATE}.dump backup-repo/daily/schema-${DATE}.sql
 
