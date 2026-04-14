@@ -69,13 +69,15 @@ export async function POST(request: Request) {
 
   const { dbRole, employmentType } = resolveRole(role)
 
-  // 1. employee を approved に更新
+  // 1. employee を approved に更新（承認後は requested_team_id をクリア）
   const { error: updateErr } = await db.from('employees').update({
     status: 'approved' as const,
     role: dbRole as 'employee' | 'store_manager' | 'manager' | 'admin' | 'ops_manager' | 'executive',
     employment_type: employmentType,
     approved_by: approver.id,
     approved_at: new Date().toISOString(),
+    requested_team_id: null,
+    requested_project_team_id: null,
     ...(lastName ? { last_name: lastName.trim(), first_name: (firstName || '').trim() } : {}),
   }).eq('id', employeeId)
   if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })

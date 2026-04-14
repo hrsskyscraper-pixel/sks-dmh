@@ -2049,7 +2049,7 @@ export function TeamManager({
                 )}
               </div>
               <div className="border border-gray-200 rounded-lg overflow-y-auto max-h-64 divide-y divide-gray-100">
-                {sortEmployees(addDialog?.type === 'manager' ? managerCandidates : employees)
+                {sortEmployees(addDialog?.type === 'manager' ? managerCandidates : employees.filter(e => e.status === 'approved'))
                   .map(emp => {
                     const existingIds = addDialog
                       ? (addDialog.type === 'member' ? getTeamMemberIds(addDialog.teamId) : getTeamManagerIds(addDialog.teamId))
