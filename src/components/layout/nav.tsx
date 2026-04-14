@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState } from 'react'
-import { LayoutDashboard, CheckSquare, BadgeCheck, Upload, Users2, LogOut, Building2, FolderKanban, MessageSquare, UserPlus, Settings, User, FileText, HelpCircle, Shield, ScrollText } from 'lucide-react'
+import { LayoutDashboard, CheckSquare, BadgeCheck, Upload, Users2, LogOut, Building2, FolderKanban, MessageSquare, UserPlus, Settings, User, FileText, HelpCircle, Shield, ScrollText, History } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
@@ -73,6 +73,14 @@ function AccountMenu({ avatarUrl, employeeId, employeeName, role, onLogout }: { 
             >
               <HelpCircle className="w-4 h-4 text-gray-400" />
               使い方ガイド
+            </Link>
+            <Link
+              href="/changelog"
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-2 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <History className="w-4 h-4 text-gray-400" />
+              更新履歴
             </Link>
             {role && ['admin', 'ops_manager', 'executive'].includes(role) && (
               <Link
