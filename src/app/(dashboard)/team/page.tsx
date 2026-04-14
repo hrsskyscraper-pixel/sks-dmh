@@ -7,10 +7,11 @@ import { TopBar } from '@/components/layout/nav'
 import { TeamDashboard } from '@/components/dashboard/team-dashboard'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
 import { buildMilestoneMap, calcStandardPct } from '@/lib/milestone'
+import { canApprove } from '@/lib/permissions'
 
 export default async function TeamPage() {
   const currentEmployee = await getCurrentEmployee()
-  if (!currentEmployee || !['store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'].includes(currentEmployee.role)) {
+  if (!currentEmployee || !canApprove(currentEmployee)) {
     redirect('/')
   }
 

@@ -4,10 +4,11 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
 import { TopBar } from '@/components/layout/nav'
 import { CsvImport } from '@/components/admin/csv-import'
+import { canApprove } from '@/lib/permissions'
 
 export default async function CsvImportPage() {
   const employee = await getCurrentEmployee()
-  if (!employee || !['store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'].includes(employee.role)) {
+  if (!employee || !canApprove(employee)) {
     redirect('/')
   }
 

@@ -7,7 +7,8 @@ import { TopBar } from '@/components/layout/nav'
 import { EmployeeManager } from '@/components/admin/employee-manager'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
 import { buildMilestoneMap, calcStandardPct } from '@/lib/milestone'
-import type { Role, Team, TeamMember } from '@/types/database'
+import type { Role, SystemPermission, Team, TeamMember } from '@/types/database'
+import { canAdminister, isTrainingLeader } from '@/lib/permissions'
 
 export default async function EmployeesPage() {
   const currentEmployee = await getCurrentEmployee()
@@ -19,18 +20,23 @@ export default async function EmployeesPage() {
   const cookieStore = await cookies()
   const viewAsId = cookieStore.get(VIEW_AS_COOKIE)?.value ?? null
   let effectiveRole: Role = currentEmployee.role
+  let effectiveSystemPermission: SystemPermission | null | undefined = currentEmployee.system_permission
 
   if (viewAsId) {
     const { data: viewAsEmp } = await db
       .from('employees')
-      .select('role')
+      .select('role, system_permission')
       .eq('id', viewAsId)
       .single()
-    if (viewAsEmp) effectiveRole = viewAsEmp.role as Role
+    if (viewAsEmp) {
+      effectiveRole = viewAsEmp.role as Role
+      effectiveSystemPermission = viewAsEmp.system_permission as SystemPermission | null | undefined
+    }
   }
 
-  const isSystemAdmin = ['admin', 'ops_manager', 'executive'].includes(effectiveRole)
-  const isTeamManager = ['store_manager', 'manager'].includes(effectiveRole)
+  const effectiveEmp = { role: effectiveRole, system_permission: effectiveSystemPermission }
+  const isSystemAdmin = canAdminister(effectiveEmp)
+  const isTeamManager = isTrainingLeader(effectiveEmp)
   const canEdit = isSystemAdmin
 
   const [

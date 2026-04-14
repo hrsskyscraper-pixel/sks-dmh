@@ -22,6 +22,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { createClient } from '@/lib/supabase/client'
 import type { Employee, Team, TeamMember, TeamManager, TeamChangeRequest, Role } from '@/types/database'
+import { canAdminister, canApprove } from '@/lib/permissions'
 
 interface Props {
   currentEmployee: Employee
@@ -72,9 +73,6 @@ const STATUS_LABELS: Record<TeamChangeRequest['status'], string> = {
   rejected: '差し戻し',
 }
 
-function canDirectEdit(role: Role) {
-  return role === 'admin' || role === 'ops_manager' || role === 'executive'
-}
 
 export function TeamManager({
   currentEmployee,
@@ -97,8 +95,8 @@ export function TeamManager({
   const [isPending, startTransition] = useTransition()
   const supabase = createClient()
   // effectiveRole で権限を判定（view-as 中はそちらを優先）
-  const isDirectEdit = canDirectEdit(effectiveRole)
-  const isReadOnly = !['store_manager', 'manager', 'admin', 'ops_manager', 'executive'].includes(effectiveRole)
+  const isDirectEdit = canAdminister(effectiveEmployee)
+  const isReadOnly = !canApprove(effectiveEmployee)
   // view-as 中は申請操作を無効化（requested_by が admin になってしまうため）
   const isViewAs = currentEmployee.id !== effectiveEmployee.id
 
@@ -276,9 +274,7 @@ export function TeamManager({
   }, [])
 
   // マネジャー候補（manager/admin/ops_manager/executive）
-  const managerCandidates = employees.filter(e =>
-    ['store_manager', 'manager', 'admin', 'ops_manager', 'executive'].includes(e.role)
-  )
+  const managerCandidates = employees.filter(e => canApprove(e))
 
   // -------------------------------------------------------
   // Direct edit actions (admin / ops_manager)

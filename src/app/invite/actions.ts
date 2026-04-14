@@ -4,8 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendInvitationNotification } from '@/lib/notifications'
-
-const INVITER_ROLES = ['store_manager', 'manager', 'admin', 'ops_manager', 'executive']
+import { canApprove } from '@/lib/permissions'
 
 /**
  * 招待リンク発行（フェーズ2: 未アプリ参加者 or 誰でも受諾可能）
@@ -24,11 +23,11 @@ export async function createInvitationLink(params: {
 
   const { data: inviter } = await db
     .from('employees')
-    .select('id, role')
+    .select('id, role, system_permission')
     .eq('auth_user_id', user.id)
     .eq('status', 'approved')
     .single()
-  if (!inviter || !INVITER_ROLES.includes(inviter.role)) {
+  if (!inviter || !canApprove(inviter)) {
     return { error: '招待権限がありません' }
   }
 
@@ -68,11 +67,11 @@ export async function createInvitation(params: {
   // 招待者の権限チェック
   const { data: inviter } = await db
     .from('employees')
-    .select('id, name, role')
+    .select('id, name, role, system_permission')
     .eq('auth_user_id', user.id)
     .eq('status', 'approved')
     .single()
-  if (!inviter || !INVITER_ROLES.includes(inviter.role)) {
+  if (!inviter || !canApprove(inviter)) {
     return { error: '招待権限がありません' }
   }
 

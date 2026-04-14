@@ -13,7 +13,8 @@ import { NotificationCountProvider } from '@/components/layout/notification-cont
 import { OnboardingDialog } from '@/components/onboarding/onboarding-dialog'
 import { PendingScreen } from '@/components/onboarding/pending-screen'
 import { LineLinkFloatingButton } from '@/components/layout/line-link-floating-button'
-import type { Database, Role } from '@/types/database'
+import type { Database, Role, SystemPermission } from '@/types/database'
+import { canAdminister, canApprove } from '@/lib/permissions'
 
 export default async function DashboardLayout({
   children,
@@ -112,7 +113,7 @@ export default async function DashboardLayout({
   // viewAs社員取得
   const db = createAdminClient()
   const { data: viewAsEmployee } = viewAsId
-    ? await db.from('employees').select('name, role, notifications_read_at').eq('id', viewAsId).single()
+    ? await db.from('employees').select('name, role, system_permission, notifications_read_at').eq('id', viewAsId).single()
     : { data: null }
 
   // 通知数は view-as 対象社員（なければ自分）で計算
@@ -149,6 +150,10 @@ export default async function DashboardLayout({
 
   // BottomNav は viewAs 社員のロールで表示を切り替える
   const effectiveRole: Role = (viewAsEmployee?.role as Role | undefined) ?? role
+  const effectiveEmp = {
+    role: effectiveRole,
+    system_permission: (viewAsEmployee?.system_permission as SystemPermission | null | undefined) ?? employee.system_permission,
+  }
 
   // 差し戻しスキル件数
   const targetEmpId = viewAsId ?? employee.id
@@ -160,11 +165,10 @@ export default async function DashboardLayout({
 
   // 承認待ち合計（スキル認定 + チーム変更 + 参加許諾）
   // store_manager/manager は自分の管理チームのみ、admin以上は全件
-  const approvalRoles: Role[] = ['store_manager', 'manager', 'admin', 'ops_manager', 'executive']
   let pendingApprovalCount = 0
-  if (approvalRoles.includes(effectiveRole)) {
+  if (canApprove(effectiveEmp)) {
     const adminDb = createAdminClient()
-    const isSystemAdmin = ['admin', 'ops_manager', 'executive'].includes(effectiveRole)
+    const isSystemAdmin = canAdminister(effectiveEmp)
     const effectiveEmpId = viewAsId ?? employee.id
 
     if (isSystemAdmin) {

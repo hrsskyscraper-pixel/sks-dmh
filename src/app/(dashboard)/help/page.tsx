@@ -13,8 +13,7 @@ import {
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Input } from '@/components/ui/input'
-
-const ADMIN_ROLES = ['admin', 'ops_manager', 'executive', 'testuser']
+import { canAdminister } from '@/lib/permissions'
 
 // ======================================================================
 // 「全体」タブ: 全機能の説明（管理者・開発者向けの詳細）
@@ -1134,8 +1133,8 @@ function HelpContent() {
         const supabase = createClient()
         const { data: { user } } = await supabase.auth.getUser()
         if (!user || cancelled) return
-        const { data: emp } = await supabase.from('employees').select('role').eq('auth_user_id', user.id).single()
-        if (!cancelled && emp && ADMIN_ROLES.includes(emp.role)) {
+        const { data: emp } = await supabase.from('employees').select('role, system_permission').eq('auth_user_id', user.id).single()
+        if (!cancelled && emp && canAdminister(emp)) {
           setIsAdmin(true)
         }
       } catch { /* 未ログイン or エラー時は isAdmin=false のまま */ }

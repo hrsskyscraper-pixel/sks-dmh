@@ -8,6 +8,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
 import { SELECTED_PROJECT_COOKIE } from '@/lib/selected-project'
 import { writeAuditLog } from '@/lib/audit'
+import { canAdminister, canApprove } from '@/lib/permissions'
 
 export async function setViewAs(employeeId: string) {
   const supabase = await createClient()
@@ -42,8 +43,8 @@ export async function updateEmployeeName(employeeId: string, newName: string): P
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '認証エラー' }
 
-  const { data: emp } = await supabase.from('employees').select('role').eq('auth_user_id', user.id).single()
-  if (!emp || !['admin', 'ops_manager', 'executive', 'testuser'].includes(emp.role)) return { error: '権限がありません' }
+  const { data: emp } = await supabase.from('employees').select('role, system_permission').eq('auth_user_id', user.id).single()
+  if (!emp || !canAdminister(emp)) return { error: '権限がありません' }
 
   const adminDb = createAdminClient()
   const { error } = await adminDb.from('employees').update({ name: newName.trim() }).eq('id', employeeId)
@@ -60,11 +61,11 @@ export async function updateSkillCategory(skillId: string, newCategory: string):
 
   const { data: emp } = await supabase
     .from('employees')
-    .select('role')
+    .select('role, system_permission')
     .eq('auth_user_id', user.id)
     .single()
 
-  if (!emp || !['admin', 'ops_manager', 'executive', 'testuser'].includes(emp.role)) {
+  if (!emp || !canAdminister(emp)) {
     return { error: '権限がありません' }
   }
 
@@ -109,8 +110,8 @@ export async function addCareerRecord(data: {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '認証エラー' }
 
-  const { data: emp } = await supabase.from('employees').select('id, role').eq('auth_user_id', user.id).single()
-  if (!emp || !['store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'].includes(emp.role)) return { error: '権限がありません' }
+  const { data: emp } = await supabase.from('employees').select('id, role, system_permission').eq('auth_user_id', user.id).single()
+  if (!emp || !canApprove(emp)) return { error: '権限がありません' }
 
   const adminDb = createAdminClient()
   const { error } = await adminDb.from('career_records').insert({
@@ -160,11 +161,11 @@ export async function updateSkillStandardHours(skillId: string, hours: number | 
 
   const { data: emp } = await supabase
     .from('employees')
-    .select('role')
+    .select('role, system_permission')
     .eq('auth_user_id', user.id)
     .single()
 
-  if (!emp || !['admin', 'ops_manager', 'executive', 'testuser'].includes(emp.role)) {
+  if (!emp || !canAdminister(emp)) {
     return { error: '権限がありません' }
   }
 
@@ -194,8 +195,8 @@ export async function updateSkillName(skillId: string, newName: string): Promise
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '認証エラー' }
 
-  const { data: emp } = await supabase.from('employees').select('role').eq('auth_user_id', user.id).single()
-  if (!emp || !['admin', 'ops_manager', 'executive', 'testuser'].includes(emp.role)) return { error: '権限がありません' }
+  const { data: emp } = await supabase.from('employees').select('role, system_permission').eq('auth_user_id', user.id).single()
+  if (!emp || !canAdminister(emp)) return { error: '権限がありません' }
 
   const adminDb = createAdminClient()
   const { error } = await adminDb.from('skills').update({ name: newName.trim() }).eq('id', skillId)
@@ -208,8 +209,8 @@ export async function createSkill(data: { name: string; category: string }): Pro
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '認証エラー' }
 
-  const { data: emp } = await supabase.from('employees').select('role').eq('auth_user_id', user.id).single()
-  if (!emp || !['admin', 'ops_manager', 'executive', 'testuser'].includes(emp.role)) return { error: '権限がありません' }
+  const { data: emp } = await supabase.from('employees').select('role, system_permission').eq('auth_user_id', user.id).single()
+  if (!emp || !canAdminister(emp)) return { error: '権限がありません' }
 
   const adminDb = createAdminClient()
   const { data: maxOrder } = await adminDb.from('skills').select('order_index').order('order_index', { ascending: false }).limit(1).single()
@@ -243,8 +244,8 @@ export async function deleteSkill(skillId: string): Promise<{ error?: string }> 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '認証エラー' }
 
-  const { data: emp } = await supabase.from('employees').select('role').eq('auth_user_id', user.id).single()
-  if (!emp || !['admin', 'ops_manager', 'executive', 'testuser'].includes(emp.role)) return { error: '権限がありません' }
+  const { data: emp } = await supabase.from('employees').select('role, system_permission').eq('auth_user_id', user.id).single()
+  if (!emp || !canAdminister(emp)) return { error: '権限がありません' }
 
   const adminDb = createAdminClient()
   const { error } = await adminDb.from('skills').delete().eq('id', skillId)
@@ -257,8 +258,8 @@ export async function toggleSkillCheckpoint(skillId: string, isCheckpoint: boole
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '認証エラー' }
 
-  const { data: emp } = await supabase.from('employees').select('role').eq('auth_user_id', user.id).single()
-  if (!emp || !['admin', 'ops_manager', 'executive', 'testuser'].includes(emp.role)) return { error: '権限がありません' }
+  const { data: emp } = await supabase.from('employees').select('role, system_permission').eq('auth_user_id', user.id).single()
+  if (!emp || !canAdminister(emp)) return { error: '権限がありません' }
 
   const adminDb = createAdminClient()
   const { error } = await adminDb.from('skills').update({ is_checkpoint: isCheckpoint }).eq('id', skillId)
@@ -271,7 +272,7 @@ export async function changeEmployeeRole(employeeId: string, newRole: string, ne
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '認証エラー' }
 
-  const { data: actor } = await supabase.from('employees').select('id, role').eq('auth_user_id', user.id).single()
+  const { data: actor } = await supabase.from('employees').select('id, role, system_permission').eq('auth_user_id', user.id).single()
   if (!actor) return { error: '権限がありません' }
 
   // 旧ロール取得

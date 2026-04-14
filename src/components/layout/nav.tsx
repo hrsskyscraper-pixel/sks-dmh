@@ -9,6 +9,7 @@ import { createClient } from '@/lib/supabase/client'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
 import { useNotificationCount } from '@/components/layout/notification-context'
 import type { Role } from '@/types/database'
+import { canAdminister } from '@/lib/permissions'
 
 const navItems = [
   { href: '/',                 label: 'ホーム',     icon: LayoutDashboard,    roles: ['employee', 'store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'] },
@@ -82,7 +83,7 @@ function AccountMenu({ avatarUrl, employeeId, employeeName, role, onLogout }: { 
               <History className="w-4 h-4 text-gray-400" />
               更新履歴
             </Link>
-            {role && ['admin', 'ops_manager', 'executive'].includes(role) && (
+            {role && canAdminister({ role }) && (
               <Link
                 href="/admin/settings"
                 onClick={() => setOpen(false)}

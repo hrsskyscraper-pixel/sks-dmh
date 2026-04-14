@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { canAdminister } from '@/lib/permissions'
 
 export interface CsvSkillRow {
   name: string
@@ -31,8 +32,8 @@ export async function importSkillsFromCsv(params: {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '認証エラー', created: 0, assigned: 0, warnings: [] }
 
-  const { data: emp } = await supabase.from('employees').select('role').eq('auth_user_id', user.id).single()
-  if (!emp || !['admin', 'ops_manager', 'executive', 'testuser'].includes(emp.role)) {
+  const { data: emp } = await supabase.from('employees').select('role, system_permission').eq('auth_user_id', user.id).single()
+  if (!emp || !canAdminister(emp)) {
     return { error: '権限がありません', created: 0, assigned: 0, warnings: [] }
   }
 

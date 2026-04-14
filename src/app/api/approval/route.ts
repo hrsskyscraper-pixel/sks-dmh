@@ -3,9 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { sendApprovalNotification } from '@/lib/notifications'
 import { writeAuditLog } from '@/lib/audit'
-import type { Role } from '@/types/database'
-
-const APPROVAL_ROLES: Role[] = ['store_manager', 'manager', 'admin', 'ops_manager', 'executive']
+import { canAdminister, canApprove } from '@/lib/permissions'
 
 // mate ロールは DB 上は employee + employment_type='メイト' として保存
 function resolveRole(role: string): { dbRole: string; employmentType: '社員' | 'メイト' } {
@@ -23,11 +21,11 @@ export async function POST(request: Request) {
   // 承認者の権限チェック
   const { data: approver } = await db
     .from('employees')
-    .select('id, role')
+    .select('id, role, system_permission')
     .eq('auth_user_id', user.id)
     .eq('status', 'approved')
     .single()
-  if (!approver || !APPROVAL_ROLES.includes(approver.role as Role)) {
+  if (!approver || !canApprove(approver)) {
     return NextResponse.json({ error: '権限がありません' }, { status: 403 })
   }
 
@@ -40,7 +38,7 @@ export async function POST(request: Request) {
   const effectiveProjectTeamId = projectTeamId === '__none__' ? null : (projectTeamId || null)
 
   // store_manager / manager は自分の管理チームのみ承認可能
-  const isSystemAdmin = ['admin', 'ops_manager', 'executive'].includes(approver.role)
+  const isSystemAdmin = canAdminister(approver)
   if (!isSystemAdmin) {
     if (effectiveTeamId) {
       const { data: managed } = await db

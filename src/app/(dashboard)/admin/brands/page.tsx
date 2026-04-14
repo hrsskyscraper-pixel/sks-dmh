@@ -3,14 +3,12 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
 import { TopBar } from '@/components/layout/nav'
 import { BrandManager } from '@/components/admin/brand-manager'
-import type { Role } from '@/types/database'
-
-const ADMIN_ROLES: Role[] = ['admin', 'ops_manager', 'executive', 'testuser']
+import { canAdminister } from '@/lib/permissions'
 
 export default async function BrandsPage() {
   const currentEmployee = await getCurrentEmployee()
   if (!currentEmployee) redirect('/login')
-  if (!ADMIN_ROLES.includes(currentEmployee.role as Role)) redirect('/')
+  if (!canAdminister(currentEmployee)) redirect('/')
 
   const db = createAdminClient()
   const [

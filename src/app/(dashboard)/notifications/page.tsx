@@ -7,6 +7,7 @@ import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
 import { TopBar } from '@/components/layout/nav'
 import { NotificationList } from '@/components/notifications/notification-list'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
+import { canAdminister, isTrainingLeader } from '@/lib/permissions'
 
 export default async function NotificationsPage() {
   const currentEmployee = await getCurrentEmployee()
@@ -23,7 +24,7 @@ export default async function NotificationsPage() {
   let targetEmployee = currentEmployee
   if (viewAsId) {
     const { data } = await db.from('employees')
-      .select('id, role, notifications_read_at')
+      .select('id, role, system_permission, notifications_read_at')
       .eq('id', viewAsId)
       .single()
     if (data) targetEmployee = { ...currentEmployee, ...data }
@@ -65,7 +66,7 @@ export default async function NotificationsPage() {
       : Promise.resolve({ data: [] as { id: string; achievement_id: string; employee_id: string; content: string; created_at: string }[] }),
     db.from('employees').select('id, name, avatar_url').order('name'),
     // マネージャー向け: 自分のチームの承認待ち申請のみ
-    ['store_manager', 'manager'].includes(targetRole)
+    isTrainingLeader(targetEmployee)
       ? (async () => {
           const { data: teamRows } = await db.from('team_managers').select('team_id').eq('employee_id', targetId)
           const teamIds = (teamRows ?? []).map(r => r.team_id)
@@ -80,7 +81,7 @@ export default async function NotificationsPage() {
             .order('achieved_at', { ascending: false })
             .limit(20)
         })()
-      : ['store_manager', 'admin', 'ops_manager', 'executive'].includes(targetRole)
+      : canAdminister(targetEmployee)
         ? db.from('achievements')
             .select('id, employee_id, skill_id, status, achieved_at, skills(name)')
             .eq('status', 'pending')

@@ -4,17 +4,16 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { TopBar } from '@/components/layout/nav'
 import { ApprovalCenter } from '@/components/approvals/approval-center'
 import type { Role } from '@/types/database'
-
-const APPROVAL_ROLES: Role[] = ['store_manager', 'manager', 'admin', 'ops_manager', 'executive']
+import { canAdminister, canApprove } from '@/lib/permissions'
 
 export default async function ApprovalsPage() {
   const employee = await getCurrentEmployee()
   if (!employee) redirect('/login')
   const role = employee.role as Role
-  if (!APPROVAL_ROLES.includes(role)) redirect('/')
+  if (!canApprove(employee)) redirect('/')
 
   const db = createAdminClient()
-  const isSystemAdmin = ['admin', 'ops_manager', 'executive'].includes(role)
+  const isSystemAdmin = canAdminister(employee)
 
   // 管理するチームのメンバーID
   let managedMemberIds: string[] = []

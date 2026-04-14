@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { sendMail } from '@/lib/notifications/email'
 import { sendLineMessage } from '@/lib/notifications/line'
+import { canApprove } from '@/lib/permissions'
 
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -14,10 +15,10 @@ export async function POST(request: Request) {
   // 認定者の権限確認
   const { data: certifier } = await db
     .from('employees')
-    .select('id, name, role')
+    .select('id, name, role, system_permission')
     .eq('auth_user_id', user.id)
     .single()
-  if (!certifier || !['store_manager', 'manager', 'admin', 'ops_manager', 'executive'].includes(certifier.role)) {
+  if (!certifier || !canApprove(certifier)) {
     return NextResponse.json({ error: '権限がありません' }, { status: 403 })
   }
 

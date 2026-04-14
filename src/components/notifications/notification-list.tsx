@@ -4,6 +4,8 @@ import { useState, useCallback } from 'react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
+import { canApprove } from '@/lib/permissions'
+import type { Role } from '@/types/database'
 
 interface EmployeeInfo { id: string; name: string; avatar_url: string | null }
 interface AchievementInfo { id: string; skill_id: string; status: string; skills: { name: string } | null }
@@ -91,7 +93,7 @@ export function NotificationList({ reactions, comments, achievementMap, employee
 
   const items: NotificationItem[] = [...groupMap.values()]
 
-  if (['store_manager', 'manager', 'admin', 'ops_manager', 'executive'].includes(currentRole)) {
+  if (canApprove({ role: currentRole as Role })) {
     for (const p of pendingForMe) {
       items.push({
         id: `p-${p.id}`, type: 'pending', employeeId: p.employee_id, achievementId: p.id,

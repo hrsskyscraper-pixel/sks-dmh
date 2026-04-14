@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { normalizeForMatch, scoreManualForSkill } from '@/lib/manual-matching'
 import { inferBrandsFromFolderPath, isBrandCompatible } from '@/lib/brand-inference'
+import { canAdminister } from '@/lib/permissions'
 
 /**
  * スキルのブランドを推論
@@ -42,8 +43,6 @@ async function buildSkillBrandsMap(
   return result
 }
 
-const ADMIN_ROLES = ['admin', 'ops_manager', 'executive', 'testuser']
-
 export interface CsvManualRow {
   folderPath: string[]
   title: string
@@ -70,8 +69,8 @@ async function assertAdmin() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '認証エラー' as const }
-  const { data: emp } = await supabase.from('employees').select('role').eq('auth_user_id', user.id).single()
-  if (!emp || !ADMIN_ROLES.includes(emp.role)) return { error: '権限がありません' as const }
+  const { data: emp } = await supabase.from('employees').select('role, system_permission').eq('auth_user_id', user.id).single()
+  if (!emp || !canAdminister(emp)) return { error: '権限がありません' as const }
   return { ok: true as const }
 }
 

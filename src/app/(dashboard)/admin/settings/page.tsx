@@ -5,10 +5,11 @@ import { TopBar } from '@/components/layout/nav'
 import { CertificationManager } from '@/components/admin/certification-manager'
 import Link from 'next/link'
 import { FolderKanban, Upload, Award, ChevronRight, BookOpen, Tag, Briefcase } from 'lucide-react'
+import { canAdminister } from '@/lib/permissions'
 
 export default async function SettingsPage() {
   const currentEmployee = await getCurrentEmployee()
-  if (!currentEmployee || !['admin', 'ops_manager', 'executive'].includes(currentEmployee.role)) {
+  if (!currentEmployee || !canAdminister(currentEmployee)) {
     redirect('/')
   }
 

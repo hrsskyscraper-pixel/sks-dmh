@@ -4,7 +4,7 @@ import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
 import { TopBar } from '@/components/layout/nav'
 import { EmployeeCareerCard } from '@/components/admin/employee-career-card'
 import { EmployeePermissionEditor } from '@/components/admin/employee-permission-editor'
-import { canAdminister } from '@/lib/permissions'
+import { canAdminister, isTrainingLeader } from '@/lib/permissions'
 import type { SystemPermission, EmploymentType } from '@/types/database'
 
 export default async function EmployeeDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams?: Promise<{ add?: string }> }) {
@@ -13,11 +13,10 @@ export default async function EmployeeDetailPage({ params, searchParams }: { par
 
   const { id } = await params
   const db = createAdminClient()
-  const role = currentEmployee.role
 
   // アクセス権限チェック
-  const isFullAccess = ['admin', 'ops_manager', 'executive', 'testuser'].includes(role)
-  const isTeamAccess = ['manager', 'store_manager'].includes(role)
+  const isFullAccess = canAdminister(currentEmployee)
+  const isTeamAccess = isTrainingLeader(currentEmployee)
   const isSelfOnly = !isFullAccess && !isTeamAccess
 
   if (isSelfOnly && currentEmployee.id !== id) redirect('/')

@@ -18,6 +18,7 @@ import { buildMilestoneMap } from '@/lib/milestone'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { LineLinkBanner } from '@/components/layout/line-link-banner'
 import { LineLinkToast } from '@/components/layout/line-link-toast'
+import { canAdminister, canApprove } from '@/lib/permissions'
 
 function TeamRankingSkeleton() {
   return (
@@ -110,7 +111,7 @@ export default async function DashboardPage({
 
   // pending件数（manager は内部で直列クエリが必要なため async IIFE で並列起動）
   const pendingCountsTask = (async (): Promise<{ pendingAchievementsCount: number; pendingTeamRequestsCount: number }> => {
-    if (!['store_manager', 'manager', 'admin', 'ops_manager', 'executive'].includes(effectiveRole)) {
+    if (!canApprove(employee)) {
       return { pendingAchievementsCount: 0, pendingTeamRequestsCount: 0 }
     }
     const achievementsCountP = (effectiveRole === 'store_manager' || effectiveRole === 'manager')
@@ -131,7 +132,7 @@ export default async function DashboardPage({
       : db.from('achievements').select('*', { count: 'exact', head: true })
           .eq('status', 'pending').then(r => r.count ?? 0)
 
-    const teamRequestsCountP = ['admin', 'ops_manager', 'executive'].includes(effectiveRole)
+    const teamRequestsCountP = canAdminister(employee)
       ? db.from('team_change_requests').select('*', { count: 'exact', head: true })
           .eq('status', 'pending').then(r => r.count ?? 0)
       : Promise.resolve(0)

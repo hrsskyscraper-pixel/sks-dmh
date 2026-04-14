@@ -45,7 +45,7 @@ export async function sendJoinRequestNotification({ applicant, team, projectTeam
   const { data: sysAdmins } = await db
     .from('employees')
     .select('email')
-    .in('role', ['admin', 'ops_manager', 'executive'])
+    .in('system_permission', ['developer', 'ops_admin'])
     .eq('status', 'approved')
   const sysAdminEmails = (sysAdmins ?? []).map(e => e.email)
 
@@ -187,7 +187,7 @@ export async function sendApprovalNotification({ employee, teamName, approvedBy 
   const { data: sysAdmins } = await db
     .from('employees')
     .select('email')
-    .in('role', ['admin', 'ops_manager', 'executive'])
+    .in('system_permission', ['developer', 'ops_admin'])
     .eq('status', 'approved')
   const sysAdminEmails = (sysAdmins ?? []).map(e => e.email)
 
