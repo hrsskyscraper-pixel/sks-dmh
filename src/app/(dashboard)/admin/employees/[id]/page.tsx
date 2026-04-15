@@ -3,10 +3,9 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
 import { TopBar } from '@/components/layout/nav'
 import { EmployeeCareerCard } from '@/components/admin/employee-career-card'
-import { EmployeePermissionEditor } from '@/components/admin/employee-permission-editor'
 import { SkillGrantSection } from '@/components/admin/skill-grant-dialog'
 import { canAdminister, canApprove, isTrainingLeader } from '@/lib/permissions'
-import type { SystemPermission, EmploymentType } from '@/types/database'
+import type { SystemPermission } from '@/types/database'
 
 export default async function EmployeeDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams?: Promise<{ add?: string }> }) {
   const currentEmployee = await getCurrentEmployee()
@@ -49,7 +48,7 @@ export default async function EmployeeDetailPage({ params, searchParams }: { par
     { data: goals },
     { data: certs },
   ] = await Promise.all([
-    db.from('employees').select('id, name, last_name, first_name, name_kana, email, role, system_permission, business_role_ids, employment_type, hire_date, birth_date, avatar_url, instagram_url, line_url, line_user_id').eq('id', id).single(),
+    db.from('employees').select('id, name, last_name, first_name, name_kana, email, role, system_permission, business_role_ids, employment_type, hire_date, birth_date, avatar_url, instagram_url, line_url, line_user_id').eq('id', id).single() as unknown as Promise<{ data: { id: string; name: string; last_name: string; first_name: string; name_kana: string | null; email: string; role: string; system_permission: SystemPermission; business_role_ids: string[]; employment_type: string; hire_date: string | null; birth_date: string | null; avatar_url: string | null; instagram_url: string | null; line_url: string | null; line_user_id: string | null } | null }>,
     db.from('career_records').select('*').eq('employee_id', id).order('occurred_at', { ascending: false }),
     db.from('employees').select('id, name, avatar_url').order('name'),
     db.from('team_members').select('team_id').eq('employee_id', id),
@@ -135,6 +134,8 @@ export default async function EmployeeDetailPage({ params, searchParams }: { par
         employeeMap={employeeMap}
         allEmployees={allEmployees ?? []}
         canEdit={canEdit}
+        canEditPermission={canAdminister(currentEmployee)}
+        businessRoles={businessRoles ?? []}
         memberTeamIds={memberTeamIds}
         allTeams={(allTeams ?? []) as { id: string; name: string; type: 'store' | 'project' | 'department'; prefecture: string | null }[]}
         goal={(goals ?? [])[0] ?? null}
@@ -153,15 +154,6 @@ export default async function EmployeeDetailPage({ params, searchParams }: { par
             canGrant={canApprove(currentEmployee)}
           />
         )}
-        <EmployeePermissionEditor
-          employeeId={employee.id}
-          employeeName={employee.name}
-          currentPermission={employee.system_permission as SystemPermission}
-          currentBusinessRoleIds={employee.business_role_ids ?? []}
-          currentEmploymentType={employee.employment_type as EmploymentType}
-          businessRoles={businessRoles ?? []}
-          canEdit={canAdminister(currentEmployee)}
-        />
       </div>
     </>
   )

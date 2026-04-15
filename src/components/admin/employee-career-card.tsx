@@ -12,7 +12,9 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
-import { changeEmployeeRole } from '@/app/(dashboard)/actions'
+import { Checkbox } from '@/components/ui/checkbox'
+import { updateEmployeePermission } from '@/app/(dashboard)/admin/business-roles/actions'
+import { SYSTEM_PERMISSION_LABELS, type BusinessRole, type SystemPermission, type EmploymentType } from '@/types/database'
 import { Plus, Trash2, ArrowLeft, Users, Briefcase, GraduationCap, MapPin, ArrowRightLeft, FileText, Pencil, Instagram, MessageCircle, X, Store, FolderKanban, Building2, Award, Star, UserCog, LogIn, Camera, Loader2, ChevronDown, ChevronRight, Target } from 'lucide-react'
 import { CertIcon as CertIconComponent, getCertColorClasses } from '@/components/admin/certification-manager'
 import { addCareerRecord, updateCareerRecord, deleteCareerRecord, updateEmployeeName } from '@/app/(dashboard)/actions'
@@ -53,27 +55,7 @@ interface GoalInfo {
   set_at: string
 }
 
-type DisplayRole = '開発者' | '役員' | '運用管理者' | 'マネジャー' | '店長' | '社員' | 'メイト'
-
-const ROLE_MAP: { display: DisplayRole; role: string; employment_type: string }[] = [
-  { display: 'メイト', role: 'employee', employment_type: 'メイト' },
-  { display: '社員', role: 'employee', employment_type: '社員' },
-  { display: '店長', role: 'store_manager', employment_type: '社員' },
-  { display: 'マネジャー', role: 'manager', employment_type: '社員' },
-  { display: '運用管理者', role: 'ops_manager', employment_type: '社員' },
-  { display: '役員', role: 'executive', employment_type: '社員' },
-  { display: '開発者', role: 'admin', employment_type: '社員' },
-]
-
-function getDisplayRole(role: string, employmentType: string): DisplayRole {
-  if (role === 'admin') return '開発者'
-  if (role === 'executive') return '役員'
-  if (role === 'ops_manager') return '運用管理者'
-  if (role === 'manager') return 'マネジャー'
-  if (role === 'store_manager') return '店長'
-  if (employmentType === 'メイト') return 'メイト'
-  return '社員'
-}
+const PERMISSION_OPTIONS: SystemPermission[] = ['developer', 'ops_admin', 'training_leader', 'training_member']
 
 function getHireYearLabel(hireDate: string | null): string | null {
   if (!hireDate) return null
@@ -95,11 +77,14 @@ function calcAge(birthDate: string | null): number | null {
 }
 
 interface Props {
-  employee: { id: string; name: string; name_kana: string | null; email: string; role: string; employment_type: string; hire_date: string | null; birth_date: string | null; avatar_url: string | null; instagram_url: string | null; line_url: string | null; line_user_id: string | null }
+  employee: { id: string; name: string; name_kana: string | null; email: string; role: string; employment_type: string; system_permission: SystemPermission; business_role_ids: string[]; hire_date: string | null; birth_date: string | null; avatar_url: string | null; instagram_url: string | null; line_url: string | null; line_user_id: string | null }
   careerRecords: CareerRecord[]
   employeeMap: Record<string, EmployeeInfo>
   allEmployees: EmployeeInfo[]
   canEdit: boolean
+  /** 権限・業務役職の編集権（運用管理者・開発者のみ true） */
+  canEditPermission?: boolean
+  businessRoles?: BusinessRole[]
   memberTeamIds: string[]
   allTeams: TeamInfo[]
   goal: GoalInfo | null
@@ -107,7 +92,7 @@ interface Props {
   autoAddType?: string
 }
 
-export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEmployees, canEdit, memberTeamIds, allTeams, goal, certifications, autoAddType }: Props) {
+export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEmployees, canEdit, canEditPermission = false, businessRoles = [], memberTeamIds, allTeams, goal, certifications, autoAddType }: Props) {
   const [isPending, startTransition] = useTransition()
   const [avatarUrl, setAvatarUrl] = useState(employee.avatar_url)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
@@ -142,11 +127,15 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
   const [editFirstNameKana, setEditFirstNameKana] = useState(kanaDefault.split(/[\s\u3000]/).slice(1).join(' ') || '')
   const [avatarPreviewOpen, setAvatarPreviewOpen] = useState(false)
   const [currentNameKana, setCurrentNameKana] = useState(employee.name_kana)
-  const [editRole, setEditRole] = useState(getDisplayRole(employee.role, employee.employment_type))
+  const [editEmploymentType, setEditEmploymentType] = useState<EmploymentType>(employee.employment_type as EmploymentType)
+  const [editSystemPermission, setEditSystemPermission] = useState<SystemPermission>(employee.system_permission)
+  const [editBusinessRoleIds, setEditBusinessRoleIds] = useState<Set<string>>(new Set(employee.business_role_ids ?? []))
   const [editBirthDate, setEditBirthDate] = useState(employee.birth_date ?? '')
   const [editInstagram, setEditInstagram] = useState(employee.instagram_url ?? '')
   const [editLineUrl, setEditLineUrl] = useState(employee.line_url ?? '')
-  const [currentRole, setCurrentRole] = useState(getDisplayRole(employee.role, employee.employment_type))
+  const [currentEmploymentType, setCurrentEmploymentType] = useState<EmploymentType>(employee.employment_type as EmploymentType)
+  const [currentSystemPermission, setCurrentSystemPermission] = useState<SystemPermission>(employee.system_permission)
+  const [currentBusinessRoleIds, setCurrentBusinessRoleIds] = useState<string[]>(employee.business_role_ids ?? [])
   const [currentBirthDate, setCurrentBirthDate] = useState(employee.birth_date)
   const [currentInstagram, setCurrentInstagram] = useState(employee.instagram_url)
   const [currentLineUrl, setCurrentLineUrl] = useState(employee.line_url)
@@ -159,20 +148,29 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
   const currentHireDate = oldestHireDate ?? employee.hire_date
 
   const handleProfileSave = () => {
-    const rm = ROLE_MAP.find(r => r.display === editRole)
-    if (!rm || !editLastName.trim()) return
+    if (!editLastName.trim()) return
     startTransition(async () => {
-      // ロール変更があれば監査ログ付きサーバーアクションを使用
-      const roleChanged = rm.role !== employee.role || rm.employment_type !== employee.employment_type
-      if (roleChanged) {
-        const { error: roleErr } = await changeEmployeeRole(employee.id, rm.role, rm.employment_type)
-        if (roleErr) { toast.error(roleErr); return }
+      // 権限・業務役職の変更（canEditPermission のみ実行・dual-write で旧 role も更新される）
+      if (canEditPermission) {
+        const permChanged =
+          editSystemPermission !== currentSystemPermission ||
+          editEmploymentType !== currentEmploymentType ||
+          editBusinessRoleIds.size !== currentBusinessRoleIds.length ||
+          [...editBusinessRoleIds].some(id => !currentBusinessRoleIds.includes(id))
+        if (permChanged) {
+          const res = await updateEmployeePermission({
+            employeeId: employee.id,
+            system_permission: editSystemPermission,
+            business_role_ids: [...editBusinessRoleIds],
+            employment_type: editEmploymentType,
+          })
+          if (res.error) { toast.error(res.error); return }
+        }
       }
       const { error } = await supabase.from('employees').update({
         last_name: editLastName.trim(),
         first_name: editFirstName.trim(),
         name_kana: `${editLastNameKana.trim()} ${editFirstNameKana.trim()}`.trim() || null,
-        ...(!roleChanged ? { role: rm.role, employment_type: rm.employment_type } : {}),
         birth_date: editBirthDate || null,
         instagram_url: editInstagram || null,
         line_url: editLineUrl || null,
@@ -180,7 +178,11 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
       if (error) { toast.error('更新に失敗しました'); return }
       setEmployeeName(`${editLastName.trim()} ${editFirstName.trim()}`.trim())
       setCurrentNameKana(`${editLastNameKana.trim()} ${editFirstNameKana.trim()}`.trim() || null)
-      setCurrentRole(editRole)
+      if (canEditPermission) {
+        setCurrentSystemPermission(editSystemPermission)
+        setCurrentEmploymentType(editEmploymentType)
+        setCurrentBusinessRoleIds([...editBusinessRoleIds])
+      }
       setCurrentBirthDate(editBirthDate || null)
       setCurrentInstagram(editInstagram || null)
       setCurrentLineUrl(editLineUrl || null)
@@ -386,7 +388,13 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
               <p className="text-sm text-gray-500">{employee.email}</p>
 
               <div className="flex gap-1.5 mt-2 flex-wrap items-center">
-                <Badge className="text-[10px] bg-orange-100 text-orange-700 border-0">{currentRole}</Badge>
+                <Badge className="text-[10px] bg-orange-100 text-orange-700 border-0">{currentEmploymentType}</Badge>
+                <Badge className="text-[10px] bg-violet-100 text-violet-700 border-0">{SYSTEM_PERMISSION_LABELS[currentSystemPermission]}</Badge>
+                {currentBusinessRoleIds.length > 0 && businessRoles
+                  .filter(r => currentBusinessRoleIds.includes(r.id))
+                  .map(r => (
+                    <Badge key={r.id} className="text-[10px] bg-amber-100 text-amber-700 border-0">{r.name}</Badge>
+                  ))}
                 {(() => {
                   const latestPosition = careerRecords.find(r => r.record_type === '役職')
                   return latestPosition?.department ? (
@@ -457,7 +465,9 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
                     const kp = (currentNameKana ?? '').split(/[\s\u3000]/)
                     setEditLastNameKana(kp[0] || '')
                     setEditFirstNameKana(kp.slice(1).join(' ') || '')
-                    setEditRole(currentRole)
+                    setEditEmploymentType(currentEmploymentType)
+                    setEditSystemPermission(currentSystemPermission)
+                    setEditBusinessRoleIds(new Set(currentBusinessRoleIds))
                     setEditBirthDate(currentBirthDate ?? '')
                     setEditInstagram(currentInstagram ?? '')
                     setEditLineUrl(currentLineUrl ?? '')
@@ -501,17 +511,55 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
                 <Input value={editFirstNameKana} onChange={e => setEditFirstNameKana(e.target.value)} placeholder="たろう" className="mt-1" />
               </div>
             </div>
-            <div>
-              <label className="text-xs font-medium text-gray-600">ロール</label>
-              <Select value={editRole} onValueChange={v => setEditRole(v as DisplayRole)}>
-                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {ROLE_MAP.map(r => (
-                    <SelectItem key={r.display} value={r.display}>{r.display}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {canEditPermission && (
+              <>
+                <div>
+                  <label className="text-xs font-medium text-gray-600">雇用形態</label>
+                  <Select value={editEmploymentType} onValueChange={v => setEditEmploymentType(v as EmploymentType)} disabled={isPending}>
+                    <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="社員">社員</SelectItem>
+                      <SelectItem value="メイト">メイト</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-600">システム権限</label>
+                  <Select value={editSystemPermission} onValueChange={v => setEditSystemPermission(v as SystemPermission)} disabled={isPending}>
+                    <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {PERMISSION_OPTIONS.map(p => (
+                        <SelectItem key={p} value={p}>{SYSTEM_PERMISSION_LABELS[p]}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-600">業務役職（複数選択可）</label>
+                  <div className="mt-1.5 space-y-1.5">
+                    {businessRoles.length === 0 ? (
+                      <p className="text-xs text-gray-400">業務役職マスタが空です</p>
+                    ) : (
+                      businessRoles.map(r => (
+                        <label key={r.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                          <Checkbox
+                            checked={editBusinessRoleIds.has(r.id)}
+                            onCheckedChange={() => setEditBusinessRoleIds(prev => {
+                              const next = new Set(prev)
+                              if (next.has(r.id)) next.delete(r.id)
+                              else next.add(r.id)
+                              return next
+                            })}
+                            disabled={isPending}
+                          />
+                          <span>{r.name}</span>
+                        </label>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
             <div>
               <label className="text-xs font-medium text-gray-600">生年月日</label>
               <Input type="date" value={editBirthDate} onChange={e => setEditBirthDate(e.target.value)} className="mt-1" />
