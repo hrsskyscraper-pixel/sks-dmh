@@ -80,9 +80,9 @@ export default async function EmployeeDetailPage({ params, searchParams }: { par
   const [{ data: projectSkills }, { data: certifiedAch }] = grantProjectIds.length > 0
     ? await Promise.all([
         db.from('project_skills').select('skill_id, skills(id, name, phase, category, order_index)').in('project_id', grantProjectIds),
-        db.from('achievements').select('skill_id').eq('employee_id', id).eq('status', 'certified'),
+        db.from('achievements').select('id, skill_id, certified_at, certified_by, skills(name)').eq('employee_id', id).eq('status', 'certified'),
       ])
-    : [{ data: [] as never[] }, { data: [] as { skill_id: string }[] }]
+    : [{ data: [] as never[] }, { data: [] as Array<{ id: string; skill_id: string; certified_at: string | null; certified_by: string | null; skills: { name: string } | null }> }]
 
   type SkillRow = { id: string; name: string; phase: string | null; category: string; order_index: number }
   const availableSkillsMap = new Map<string, SkillRow>()
@@ -91,7 +91,24 @@ export default async function EmployeeDetailPage({ params, searchParams }: { par
     if (sk) availableSkillsMap.set(sk.id, sk)
   }
   const availableSkills = [...availableSkillsMap.values()].sort((a, b) => a.order_index - b.order_index)
-  const certifiedSkillIds = (certifiedAch ?? []).map(r => r.skill_id)
+  type CertifiedAchRow = { id: string; skill_id: string; certified_at: string | null; certified_by: string | null; skills: { name: string } | { name: string }[] | null }
+  const certifiedAchRows = (certifiedAch ?? []) as CertifiedAchRow[]
+  const certifiedSkillIds = certifiedAchRows.map(r => r.skill_id)
+  const certifierIds = [...new Set(certifiedAchRows.map(r => r.certified_by).filter((v): v is string => !!v))]
+  const { data: certifierRows } = certifierIds.length > 0
+    ? await db.from('employees').select('id, name').in('id', certifierIds)
+    : { data: [] as { id: string; name: string }[] }
+  const certifierNameMap = Object.fromEntries((certifierRows ?? []).map(r => [r.id, r.name]))
+  const certifiedAchievements = certifiedAchRows.map(r => {
+    const sk = Array.isArray(r.skills) ? r.skills[0] : r.skills
+    return {
+      achievementId: r.id,
+      skillId: r.skill_id,
+      skillName: sk?.name ?? '不明',
+      certifiedAt: r.certified_at,
+      certifierName: r.certified_by ? certifierNameMap[r.certified_by] ?? null : null,
+    }
+  })
 
   if (!employee) redirect('/admin/employees')
 
@@ -120,6 +137,7 @@ export default async function EmployeeDetailPage({ params, searchParams }: { par
             employeeName={employee.name}
             availableSkills={availableSkills}
             certifiedSkillIds={certifiedSkillIds}
+            certifiedAchievements={certifiedAchievements}
             canGrant={canApprove(currentEmployee)}
           />
         )}
