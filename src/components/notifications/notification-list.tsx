@@ -156,7 +156,11 @@ export function NotificationList({ reactions, comments, achievementMap, employee
   return (
     <div className="p-4 space-y-0.5">
       {items.map(item => {
-        const isClicked = clickedIds.has(item.id)
+        const isRejected =
+          (item.kind === 'cert_result' && item.action === 'reject') ||
+          (item.kind === 'team_req_result' && item.status === 'rejected')
+        // 差戻は要対応なのでクリック済みでも強調を維持
+        const isClicked = !isRejected && clickedIds.has(item.id)
         let href = '/'
         let avatarEmp: EmployeeInfo | undefined
         let avatarFallback = '?'
@@ -169,20 +173,24 @@ export function NotificationList({ reactions, comments, achievementMap, employee
         } else if (item.kind === 'cert_result') {
           href = `/skills#achievement-${item.achievementId}`
           if (item.actorId) avatarEmp = employeeMap[item.actorId]
-          avatarFallback = item.action === 'certify' ? '✓' : '↺'
-          avatarBg = item.action === 'certify' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+          avatarFallback = item.action === 'certify' ? '✓' : '!'
+          avatarBg = item.action === 'certify' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
         } else {
           href = '/team?tab=requests'
           if (item.reviewerId) avatarEmp = employeeMap[item.reviewerId]
-          avatarFallback = item.status === 'approved' ? '✓' : '↺'
-          avatarBg = item.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+          avatarFallback = item.status === 'approved' ? '✓' : '!'
+          avatarBg = item.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
         }
 
         return (
           <Link key={item.id} href={href} onClick={() => handleClick(item.id)}>
             <div className={cn(
-              'flex items-start gap-2.5 rounded-lg px-3 py-3 transition-colors',
-              isClicked ? 'bg-white hover:bg-gray-50' : 'bg-blue-50 hover:bg-blue-100'
+              'flex items-start gap-2.5 rounded-lg px-3 py-3 transition-colors border',
+              isRejected
+                ? 'bg-red-50 border-red-200 hover:bg-red-100'
+                : isClicked
+                  ? 'bg-white border-transparent hover:bg-gray-50'
+                  : 'bg-blue-50 border-transparent hover:bg-blue-100'
             )}>
               <Avatar className="w-10 h-10 flex-shrink-0 mt-0.5">
                 <AvatarImage src={avatarEmp?.avatar_url ?? undefined} />
@@ -191,6 +199,9 @@ export function NotificationList({ reactions, comments, achievementMap, employee
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
+                {isRejected && (
+                  <span className="inline-block mb-1 px-1.5 py-0.5 rounded bg-red-500 text-white text-[10px] font-bold">要対応</span>
+                )}
                 <p className={cn('text-sm', isClicked ? 'text-gray-500' : 'text-gray-800')}>
                   {item.kind === 'activity' && (
                     <>
