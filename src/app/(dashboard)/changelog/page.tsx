@@ -60,7 +60,7 @@ export default async function ChangelogPage() {
 
   return (
     <>
-      <TopBar title="更新履歴" hideNotificationBell />
+      <TopBar title="更新履歴" />
       <div className="p-4 max-w-2xl mx-auto">
         <Card>
           <CardContent className="px-5 py-5">
