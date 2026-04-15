@@ -22,10 +22,12 @@ interface Props {
   certifiedSkillIds: string[]
   /** 認定済みスキル一覧（取消用） */
   certifiedAchievements?: CertifiedItem[]
+  /** フェーズの表示順（project_phases.order_index に準拠） */
+  phaseOrder?: string[]
   canGrant: boolean
 }
 
-export function SkillGrantSection({ employeeId, employeeName, availableSkills, certifiedSkillIds, certifiedAchievements = [], canGrant }: Props) {
+export function SkillGrantSection({ employeeId, employeeName, availableSkills, certifiedSkillIds, certifiedAchievements = [], phaseOrder = [], canGrant }: Props) {
   const [open, setOpen] = useState(false)
   const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null)
   const [comment, setComment] = useState('')
@@ -38,8 +40,12 @@ export function SkillGrantSection({ employeeId, employeeName, availableSkills, c
     for (const s of availableSkills) {
       if (s.phase) set.add(s.phase)
     }
-    return [...set]
-  }, [availableSkills])
+    const orderIdx = (name: string) => {
+      const i = phaseOrder.indexOf(name)
+      return i === -1 ? Number.MAX_SAFE_INTEGER : i
+    }
+    return [...set].sort((a, b) => orderIdx(a) - orderIdx(b))
+  }, [availableSkills, phaseOrder])
 
   // 取消ダイアログ
   const [revokeOpen, setRevokeOpen] = useState(false)

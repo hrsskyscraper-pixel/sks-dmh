@@ -77,12 +77,23 @@ export default async function EmployeeDetailPage({ params, searchParams }: { par
   }
   const grantProjectIds = empProjectIds.length > 0 ? empProjectIds : fallbackProjectIds
 
-  const [{ data: projectSkills }, { data: certifiedAch }] = grantProjectIds.length > 0
+  const [{ data: projectSkills }, { data: certifiedAch }, { data: projectPhases }] = grantProjectIds.length > 0
     ? await Promise.all([
         db.from('project_skills').select('skill_id, skills(id, name, phase, category, order_index)').in('project_id', grantProjectIds),
         db.from('achievements').select('id, skill_id, certified_at, certified_by, skills(name)').eq('employee_id', id).eq('status', 'certified'),
+        db.from('project_phases').select('name, order_index, project_id').in('project_id', grantProjectIds).order('order_index'),
       ])
-    : [{ data: [] as never[] }, { data: [] as Array<{ id: string; skill_id: string; certified_at: string | null; certified_by: string | null; skills: { name: string } | null }> }]
+    : [{ data: [] as never[] }, { data: [] as Array<{ id: string; skill_id: string; certified_at: string | null; certified_by: string | null; skills: { name: string } | null }> }, { data: [] as Array<{ name: string; order_index: number; project_id: string }> }]
+
+  // プロジェクトフェーズの順序（同名なら最小 order_index を採用）
+  const phaseOrderMap = new Map<string, number>()
+  for (const p of projectPhases ?? []) {
+    const prev = phaseOrderMap.get(p.name)
+    if (prev === undefined || p.order_index < prev) phaseOrderMap.set(p.name, p.order_index)
+  }
+  const phaseOrder = [...phaseOrderMap.entries()]
+    .sort((a, b) => a[1] - b[1])
+    .map(([name]) => name)
 
   type SkillRow = { id: string; name: string; phase: string | null; category: string; order_index: number }
   const availableSkillsMap = new Map<string, SkillRow>()
@@ -138,6 +149,7 @@ export default async function EmployeeDetailPage({ params, searchParams }: { par
             availableSkills={availableSkills}
             certifiedSkillIds={certifiedSkillIds}
             certifiedAchievements={certifiedAchievements}
+            phaseOrder={phaseOrder}
             canGrant={canApprove(currentEmployee)}
           />
         )}
