@@ -30,7 +30,16 @@ export function SkillGrantSection({ employeeId, employeeName, availableSkills, c
   const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null)
   const [comment, setComment] = useState('')
   const [search, setSearch] = useState('')
+  const [selectedPhase, setSelectedPhase] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+
+  const phases = useMemo(() => {
+    const set = new Set<string>()
+    for (const s of availableSkills) {
+      if (s.phase) set.add(s.phase)
+    }
+    return [...set]
+  }, [availableSkills])
 
   // 取消ダイアログ
   const [revokeOpen, setRevokeOpen] = useState(false)
@@ -64,8 +73,9 @@ export function SkillGrantSection({ employeeId, employeeName, availableSkills, c
     const q = search.trim().toLowerCase()
     return availableSkills
       .filter(s => !certifiedSet.has(s.id))
+      .filter(s => !selectedPhase || s.phase === selectedPhase)
       .filter(s => !q || s.name.toLowerCase().includes(q) || s.category.toLowerCase().includes(q) || (s.phase ?? '').toLowerCase().includes(q))
-  }, [availableSkills, certifiedSet, search])
+  }, [availableSkills, certifiedSet, search, selectedPhase])
 
   const handleGrant = () => {
     if (!selectedSkillId) return
@@ -77,6 +87,7 @@ export function SkillGrantSection({ employeeId, employeeName, availableSkills, c
       setSelectedSkillId(null)
       setComment('')
       setSearch('')
+      setSelectedPhase(null)
     })
   }
 
@@ -108,7 +119,7 @@ export function SkillGrantSection({ employeeId, employeeName, availableSkills, c
         </CardContent>
       </Card>
 
-      <Dialog open={open} onOpenChange={v => { if (!v) { setOpen(false); setSelectedSkillId(null); setComment(''); setSearch('') } }}>
+      <Dialog open={open} onOpenChange={v => { if (!v) { setOpen(false); setSelectedSkillId(null); setComment(''); setSearch(''); setSelectedPhase(null) } }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-base">スキル認定の付与</DialogTitle>
@@ -127,6 +138,30 @@ export function SkillGrantSection({ employeeId, employeeName, availableSkills, c
               disabled={isPending}
             />
           </div>
+
+          {phases.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              <button
+                type="button"
+                onClick={() => setSelectedPhase(null)}
+                disabled={isPending}
+                className={`px-2 py-1 rounded-full text-[11px] font-medium border transition-colors ${selectedPhase === null ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
+              >
+                すべて
+              </button>
+              {phases.map(p => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setSelectedPhase(p)}
+                  disabled={isPending}
+                  className={`px-2 py-1 rounded-full text-[11px] font-medium border transition-colors ${selectedPhase === p ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+          )}
 
           <div className="border border-gray-200 rounded-lg max-h-56 overflow-y-auto divide-y divide-gray-100">
             {filteredSkills.length === 0 ? (
