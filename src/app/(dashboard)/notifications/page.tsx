@@ -1,6 +1,5 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
-import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
@@ -91,13 +90,13 @@ export default async function NotificationsPage() {
   )
 
   // 通知ページを開いた時点で既読タイムスタンプを更新（ベルバッジを消す）
+  // Next.js の render 中に revalidatePath を呼べないため、書き込みのみ行う。
+  // ベルのカウントは次回ナビゲーション時のレイアウト再評価で更新される。
   const adminDb = createAdminClient()
   const targetIdForRead = viewAsId ?? currentEmployee.id
   await adminDb.from('employees')
     .update({ notifications_read_at: new Date().toISOString() })
     .eq('id', targetIdForRead)
-  // 他ページのベルバッジを更新するためキャッシュ無効化
-  revalidatePath('/', 'layout')
 
   return (
     <>
