@@ -124,14 +124,9 @@ export default async function DashboardLayout({
     .from('achievements')
     .select('id')
     .eq('employee_id', notifTargetId)
-    .eq('status', 'certified')
   const targetAchIds = (targetAchievements ?? []).map(a => a.id)
 
-  const [unreadResult, { data: unreadReactions }, { data: unreadComments }] = await Promise.all([
-    role === 'manager' && employee
-      ? supabase.from('team_change_requests').select('*', { count: 'exact', head: true })
-          .eq('requested_by', employee.id).in('status', ['approved', 'rejected']).is('applicant_read_at', null)
-      : Promise.resolve({ count: 0 }),
+  const [{ data: unreadReactions }, { data: unreadComments }, { data: unreadCertResults }, { count: unreadTeamReqCount }] = await Promise.all([
     targetAchIds.length > 0
       ? db.from('achievement_reactions').select('achievement_id, employee_id')
           .in('achievement_id', targetAchIds).neq('employee_id', notifTargetId).gt('created_at', notifReadAt)
@@ -140,13 +135,23 @@ export default async function DashboardLayout({
       ? db.from('achievement_comments').select('achievement_id, employee_id')
           .in('achievement_id', targetAchIds).neq('employee_id', notifTargetId).gt('created_at', notifReadAt)
       : Promise.resolve({ data: [] }),
+    // 自分のスキル認定結果（認定・差戻）の未読
+    targetAchIds.length > 0
+      ? db.from('achievement_history').select('achievement_id')
+          .in('achievement_id', targetAchIds).in('action', ['certify', 'reject']).gt('created_at', notifReadAt)
+      : Promise.resolve({ data: [] }),
+    // 自分のチーム変更申請の結果（承認・差戻）の未読
+    db.from('team_change_requests').select('*', { count: 'exact', head: true })
+      .eq('requested_by', notifTargetId).in('status', ['approved', 'rejected']).gt('reviewed_at', notifReadAt),
   ])
-  const unreadRequestCount = (unreadResult as { count: number | null }).count ?? 0
-  // 同じ achievement_id + employee_id をまとめてカウント
+  // 同じ achievement_id + employee_id をまとめてカウント（リアクション・コメント）
   const notifKeys = new Set<string>()
   for (const r of unreadReactions ?? []) notifKeys.add(`${r.employee_id}:${r.achievement_id}`)
   for (const c of unreadComments ?? []) notifKeys.add(`${c.employee_id}:${c.achievement_id}`)
-  const unreadNotifCount = notifKeys.size
+  // スキル認定結果は achievement_id 単位でユニーク
+  const certResultKeys = new Set<string>()
+  for (const h of unreadCertResults ?? []) certResultKeys.add(h.achievement_id)
+  const unreadNotifCount = notifKeys.size + certResultKeys.size + (unreadTeamReqCount ?? 0)
 
   // BottomNav は viewAs 社員のロールで表示を切り替える
   const effectiveRole: Role = (viewAsEmployee?.role as Role | undefined) ?? role
@@ -258,7 +263,7 @@ export default async function DashboardLayout({
           {children}
         </main>
         <LineLinkFloatingButton isLinked={!!employee.line_user_id} />
-        <BottomNav role={effectiveRole} unreadRequestCount={unreadRequestCount} pendingApprovalCount={pendingApprovalCount} dashboardBadge={dashboardBadge} avatarUrl={employee.avatar_url} employeeId={employee.id} employeeName={employee.name} rejectedSkillCount={rejectedSkillCount ?? 0} />
+        <BottomNav role={effectiveRole} unreadRequestCount={unreadTeamReqCount ?? 0} pendingApprovalCount={pendingApprovalCount} dashboardBadge={dashboardBadge} avatarUrl={employee.avatar_url} employeeId={employee.id} employeeName={employee.name} rejectedSkillCount={rejectedSkillCount ?? 0} />
         <Toaster position="top-center" richColors />
       </div>
     </NotificationCountProvider>

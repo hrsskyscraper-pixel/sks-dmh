@@ -4,19 +4,25 @@ import { useState, useCallback } from 'react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
-import { canApprove } from '@/lib/permissions'
-import type { Role } from '@/types/database'
 
 interface EmployeeInfo { id: string; name: string; avatar_url: string | null }
 interface AchievementInfo { id: string; skill_id: string; status: string; skills: { name: string } | null }
+
+const REQUEST_TYPE_LABELS: Record<string, string> = {
+  create_team: 'チーム作成',
+  add_member: 'メンバー追加',
+  remove_member: 'メンバー削除',
+  add_manager: 'リーダー追加',
+  remove_manager: 'リーダー削除',
+}
 
 interface Props {
   reactions: { id: string; achievement_id: string; employee_id: string; emoji: string; created_at: string }[]
   comments: { id: string; achievement_id: string; employee_id: string; content: string; created_at: string }[]
   achievementMap: Record<string, AchievementInfo>
   employeeMap: Record<string, EmployeeInfo>
-  pendingForMe: { id: string; employee_id: string; skill_id: string; status: string; achieved_at: string; skills: { name: string } | null }[]
-  currentRole: string
+  myAchievementResults: { id: string; achievement_id: string; action: 'apply' | 'reject' | 'reapply' | 'certify'; actor_id: string; comment: string | null; created_at: string }[]
+  myTeamRequestResults: { id: string; request_type: string; team_id: string | null; reviewed_by: string | null; reviewed_at: string | null; review_comment: string | null; status: 'pending' | 'approved' | 'rejected'; payload: unknown }[]
   notificationsReadAt: string | null
 }
 
@@ -32,17 +38,10 @@ function timeAgo(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString('ja-JP')
 }
 
-type NotificationItem = {
-  id: string
-  type: 'activity' | 'pending'
-  employeeId: string
-  achievementId: string
-  skillName: string
-  emojis: string[]
-  commentText: string | null
-  createdAt: string
-  isNew: boolean
-}
+type NotificationItem =
+  | { kind: 'activity'; id: string; employeeId: string; achievementId: string; skillName: string; emojis: string[]; commentText: string | null; createdAt: string; isNew: boolean }
+  | { kind: 'cert_result'; id: string; achievementId: string; skillName: string; action: 'apply' | 'reject' | 'reapply' | 'certify'; actorId: string | null; comment: string | null; createdAt: string; isNew: boolean }
+  | { kind: 'team_req_result'; id: string; requestType: string; status: 'pending' | 'approved' | 'rejected'; reviewerId: string | null; comment: string | null; teamName: string | null; createdAt: string; isNew: boolean }
 
 const STORAGE_KEY = 'notif_clicked_ids'
 
@@ -51,11 +50,11 @@ function getClickedIds(): Set<string> {
   catch { return new Set() }
 }
 
-export function NotificationList({ reactions, comments, achievementMap, employeeMap, pendingForMe, currentRole, notificationsReadAt }: Props) {
+export function NotificationList({ reactions, comments, achievementMap, employeeMap, myAchievementResults, myTeamRequestResults, notificationsReadAt }: Props) {
   const readAt = notificationsReadAt ? new Date(notificationsReadAt).getTime() : 0
 
-  // 同じスキル×同じ人をグルーピング
-  const groupMap = new Map<string, NotificationItem>()
+  // 同じスキル×同じ人のリアクション・コメントをグルーピング
+  const groupMap = new Map<string, Extract<NotificationItem, { kind: 'activity' }>>()
 
   for (const r of reactions) {
     const ach = achievementMap[r.achievement_id]
@@ -67,7 +66,7 @@ export function NotificationList({ reactions, comments, achievementMap, employee
       if (new Date(r.created_at).getTime() > readAt) existing.isNew = true
     } else {
       groupMap.set(key, {
-        id: key, type: 'activity', employeeId: r.employee_id, achievementId: r.achievement_id,
+        kind: 'activity', id: key, employeeId: r.employee_id, achievementId: r.achievement_id,
         skillName: ach?.skills?.name ?? '不明', emojis: [r.emoji], commentText: null,
         createdAt: r.created_at, isNew: new Date(r.created_at).getTime() > readAt,
       })
@@ -84,7 +83,7 @@ export function NotificationList({ reactions, comments, achievementMap, employee
       if (new Date(c.created_at).getTime() > readAt) existing.isNew = true
     } else {
       groupMap.set(key, {
-        id: key, type: 'activity', employeeId: c.employee_id, achievementId: c.achievement_id,
+        kind: 'activity', id: key, employeeId: c.employee_id, achievementId: c.achievement_id,
         skillName: ach?.skills?.name ?? '不明', emojis: [], commentText: c.content,
         createdAt: c.created_at, isNew: new Date(c.created_at).getTime() > readAt,
       })
@@ -93,19 +92,47 @@ export function NotificationList({ reactions, comments, achievementMap, employee
 
   const items: NotificationItem[] = [...groupMap.values()]
 
-  if (canApprove({ role: currentRole as Role })) {
-    for (const p of pendingForMe) {
-      items.push({
-        id: `p-${p.id}`, type: 'pending', employeeId: p.employee_id, achievementId: p.id,
-        skillName: p.skills?.name ?? '不明', emojis: [], commentText: null,
-        createdAt: p.achieved_at, isNew: new Date(p.achieved_at).getTime() > readAt,
-      })
-    }
+  // 自分のスキル認定結果（achievement_history の certify/reject のみ、最新を採用）
+  const seenAch = new Set<string>()
+  for (const h of myAchievementResults) {
+    if (h.action !== 'certify' && h.action !== 'reject') continue
+    if (seenAch.has(h.achievement_id)) continue
+    seenAch.add(h.achievement_id)
+    const ach = achievementMap[h.achievement_id]
+    items.push({
+      kind: 'cert_result',
+      id: `cr-${h.id}`,
+      achievementId: h.achievement_id,
+      skillName: ach?.skills?.name ?? '不明',
+      action: h.action,
+      actorId: h.actor_id,
+      comment: h.comment,
+      createdAt: h.created_at,
+      isNew: new Date(h.created_at).getTime() > readAt,
+    })
+  }
+
+  // 自分のチーム変更申請の承認・差戻結果
+  for (const r of myTeamRequestResults) {
+    if (!r.reviewed_at) continue
+    if (r.status !== 'approved' && r.status !== 'rejected') continue
+    const payload = (r.payload ?? {}) as Record<string, unknown>
+    const teamName = (typeof payload.team_name === 'string' ? payload.team_name : null)
+    items.push({
+      kind: 'team_req_result',
+      id: `tr-${r.id}`,
+      requestType: r.request_type,
+      status: r.status,
+      reviewerId: r.reviewed_by,
+      comment: r.review_comment,
+      teamName,
+      createdAt: r.reviewed_at,
+      isNew: new Date(r.reviewed_at).getTime() > readAt,
+    })
   }
 
   items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 
-  // 個別クリック状態（localStorage）
   const [clickedIds, setClickedIds] = useState<Set<string>>(() => getClickedIds())
 
   const handleClick = useCallback((id: string) => {
@@ -129,11 +156,27 @@ export function NotificationList({ reactions, comments, achievementMap, employee
   return (
     <div className="p-4 space-y-0.5">
       {items.map(item => {
-        const emp = employeeMap[item.employeeId]
-        const href = item.type === 'pending'
-          ? '/team?tab=pending'
-          : `/timeline#achievement-${item.achievementId}`
         const isClicked = clickedIds.has(item.id)
+        let href = '/'
+        let avatarEmp: EmployeeInfo | undefined
+        let avatarFallback = '?'
+        let avatarBg = 'bg-gray-100 text-gray-600'
+
+        if (item.kind === 'activity') {
+          href = `/timeline#achievement-${item.achievementId}`
+          avatarEmp = employeeMap[item.employeeId]
+          avatarFallback = avatarEmp?.name?.charAt(0) ?? '?'
+        } else if (item.kind === 'cert_result') {
+          href = `/skills#achievement-${item.achievementId}`
+          if (item.actorId) avatarEmp = employeeMap[item.actorId]
+          avatarFallback = item.action === 'certify' ? '✓' : '↺'
+          avatarBg = item.action === 'certify' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+        } else {
+          href = '/team?tab=requests'
+          if (item.reviewerId) avatarEmp = employeeMap[item.reviewerId]
+          avatarFallback = item.status === 'approved' ? '✓' : '↺'
+          avatarBg = item.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+        }
 
         return (
           <Link key={item.id} href={href} onClick={() => handleClick(item.id)}>
@@ -142,16 +185,16 @@ export function NotificationList({ reactions, comments, achievementMap, employee
               isClicked ? 'bg-white hover:bg-gray-50' : 'bg-blue-50 hover:bg-blue-100'
             )}>
               <Avatar className="w-10 h-10 flex-shrink-0 mt-0.5">
-                <AvatarImage src={emp?.avatar_url ?? undefined} />
-                <AvatarFallback className="bg-gray-100 text-gray-600 text-xs font-bold">
-                  {emp?.name?.charAt(0) ?? '?'}
+                <AvatarImage src={avatarEmp?.avatar_url ?? undefined} />
+                <AvatarFallback className={cn('text-sm font-bold', avatarBg)}>
+                  {avatarFallback}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
                 <p className={cn('text-sm', isClicked ? 'text-gray-500' : 'text-gray-800')}>
-                  {item.type === 'activity' && (
+                  {item.kind === 'activity' && (
                     <>
-                      <span className={cn('font-semibold', isClicked ? 'text-gray-600' : 'text-gray-800')}>{emp?.name}</span>
+                      <span className={cn('font-semibold', isClicked ? 'text-gray-600' : 'text-gray-800')}>{avatarEmp?.name}</span>
                       <span> さんが </span>
                       <span className={cn('font-semibold', isClicked ? 'text-orange-400' : 'text-orange-600')}>{item.skillName}</span>
                       <span> に </span>
@@ -160,12 +203,31 @@ export function NotificationList({ reactions, comments, achievementMap, employee
                       {item.commentText && <span>「{item.commentText}」</span>}
                     </>
                   )}
-                  {item.type === 'pending' && (
+                  {item.kind === 'cert_result' && item.action === 'certify' && (
                     <>
-                      <span className={cn('font-semibold', isClicked ? 'text-gray-600' : 'text-gray-800')}>{emp?.name}</span>
-                      <span> さんが </span>
                       <span className={cn('font-semibold', isClicked ? 'text-orange-400' : 'text-orange-600')}>{item.skillName}</span>
-                      <span> の認定を申請しました</span>
+                      <span> が認定されました</span>
+                      {avatarEmp && <span className="text-xs text-gray-500"> ({avatarEmp.name})</span>}
+                      {item.comment && <span className="block text-xs text-gray-600 mt-0.5">「{item.comment}」</span>}
+                    </>
+                  )}
+                  {item.kind === 'cert_result' && item.action === 'reject' && (
+                    <>
+                      <span className={cn('font-semibold', isClicked ? 'text-orange-400' : 'text-orange-600')}>{item.skillName}</span>
+                      <span> が差し戻されました</span>
+                      {avatarEmp && <span className="text-xs text-gray-500"> ({avatarEmp.name})</span>}
+                      {item.comment && <span className="block text-xs text-gray-600 mt-0.5">「{item.comment}」</span>}
+                    </>
+                  )}
+                  {item.kind === 'team_req_result' && (
+                    <>
+                      <span className={cn('font-semibold', isClicked ? 'text-orange-400' : 'text-orange-600')}>
+                        {item.teamName ? `「${item.teamName}」` : ''}
+                        {REQUEST_TYPE_LABELS[item.requestType] ?? item.requestType}
+                      </span>
+                      <span>の申請が{item.status === 'approved' ? '承認されました' : '差し戻されました'}</span>
+                      {avatarEmp && <span className="text-xs text-gray-500"> ({avatarEmp.name})</span>}
+                      {item.comment && <span className="block text-xs text-gray-600 mt-0.5">「{item.comment}」</span>}
                     </>
                   )}
                 </p>

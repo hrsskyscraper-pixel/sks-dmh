@@ -7,7 +7,6 @@ import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
 import { TopBar } from '@/components/layout/nav'
 import { NotificationList } from '@/components/notifications/notification-list'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
-import { canAdminister, isTrainingLeader } from '@/lib/permissions'
 
 export default async function NotificationsPage() {
   const currentEmployee = await getCurrentEmployee()
@@ -31,7 +30,6 @@ export default async function NotificationsPage() {
   }
 
   const targetId = targetEmployee.id
-  const targetRole = targetEmployee.role
 
   // 対象社員のachievementのID一覧
   const { data: myAchievements } = await db
@@ -41,12 +39,13 @@ export default async function NotificationsPage() {
 
   const myAchievementIds = (myAchievements ?? []).map(a => a.id)
 
-  // 対象社員のachievementに対するリアクション・コメント
+  // 対象社員のachievementに対するリアクション・コメント、および自分宛の結果通知
   const [
     { data: reactions },
     { data: comments },
     { data: employees },
-    { data: pendingForMe },
+    { data: myAchievementResults },
+    { data: myTeamRequestResults },
   ] = await Promise.all([
     myAchievementIds.length > 0
       ? db.from('achievement_reactions')
@@ -65,29 +64,22 @@ export default async function NotificationsPage() {
           .limit(50)
       : Promise.resolve({ data: [] as { id: string; achievement_id: string; employee_id: string; content: string; created_at: string }[] }),
     db.from('employees').select('id, name, avatar_url').order('name'),
-    // マネージャー向け: 自分のチームの承認待ち申請のみ
-    isTrainingLeader(targetEmployee)
-      ? (async () => {
-          const { data: teamRows } = await db.from('team_managers').select('team_id').eq('employee_id', targetId)
-          const teamIds = (teamRows ?? []).map(r => r.team_id)
-          if (!teamIds.length) return { data: [] }
-          const { data: members } = await db.from('team_members').select('employee_id').in('team_id', teamIds)
-          const memberIds = (members ?? []).map(r => r.employee_id)
-          if (!memberIds.length) return { data: [] }
-          return db.from('achievements')
-            .select('id, employee_id, skill_id, status, achieved_at, skills(name)')
-            .eq('status', 'pending')
-            .in('employee_id', memberIds)
-            .order('achieved_at', { ascending: false })
-            .limit(20)
-        })()
-      : canAdminister(targetEmployee)
-        ? db.from('achievements')
-            .select('id, employee_id, skill_id, status, achieved_at, skills(name)')
-            .eq('status', 'pending')
-            .order('achieved_at', { ascending: false })
-            .limit(20)
-        : Promise.resolve({ data: [] }),
+    // 自分のスキル認定結果（認定・差戻）
+    myAchievementIds.length > 0
+      ? db.from('achievement_history')
+          .select('id, achievement_id, action, actor_id, comment, created_at')
+          .in('achievement_id', myAchievementIds)
+          .in('action', ['certify', 'reject'])
+          .order('created_at', { ascending: false })
+          .limit(30)
+      : Promise.resolve({ data: [] as { id: string; achievement_id: string; action: 'certify' | 'reject'; actor_id: string; comment: string | null; created_at: string }[] }),
+    // 自分のチーム変更申請の承認・差戻結果
+    db.from('team_change_requests')
+      .select('id, request_type, team_id, reviewed_by, reviewed_at, review_comment, status, payload')
+      .eq('requested_by', targetId)
+      .in('status', ['approved', 'rejected'])
+      .order('reviewed_at', { ascending: false })
+      .limit(20),
   ])
 
   const employeeMap = Object.fromEntries(
@@ -115,8 +107,8 @@ export default async function NotificationsPage() {
         comments={comments ?? []}
         achievementMap={achievementMap}
         employeeMap={employeeMap}
-        pendingForMe={pendingForMe ?? []}
-        currentRole={targetRole}
+        myAchievementResults={myAchievementResults ?? []}
+        myTeamRequestResults={myTeamRequestResults ?? []}
         notificationsReadAt={targetEmployee.notifications_read_at}
       />
     </>
