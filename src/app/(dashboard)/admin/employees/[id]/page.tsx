@@ -4,7 +4,8 @@ import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
 import { TopBar } from '@/components/layout/nav'
 import { EmployeeCareerCard } from '@/components/admin/employee-career-card'
 import { EmployeePermissionEditor } from '@/components/admin/employee-permission-editor'
-import { canAdminister, isTrainingLeader } from '@/lib/permissions'
+import { SkillGrantSection } from '@/components/admin/skill-grant-dialog'
+import { canAdminister, canApprove, isTrainingLeader } from '@/lib/permissions'
 import type { SystemPermission, EmploymentType } from '@/types/database'
 
 export default async function EmployeeDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams?: Promise<{ add?: string }> }) {
@@ -58,6 +59,40 @@ export default async function EmployeeDetailPage({ params, searchParams }: { par
   ])
   const { data: businessRoles } = await db.from('business_roles').select('*').order('sort_order')
 
+  // スキル付与用: 対象社員が所属するプロジェクト経由で付与可能スキル一覧を算出
+  const { data: empProjectRows } = await db.from('employee_projects').select('project_id').eq('employee_id', id)
+  const empProjectIds = (empProjectRows ?? []).map(r => r.project_id)
+  // メンバー所属プロジェクトが空の場合は、team_members/team_managers → project_teams からも取得
+  let fallbackProjectIds: string[] = []
+  if (empProjectIds.length === 0) {
+    const [{ data: teamMemRows }, { data: teamMgrRows }] = await Promise.all([
+      db.from('team_members').select('team_id').eq('employee_id', id),
+      db.from('team_managers').select('team_id').eq('employee_id', id),
+    ])
+    const teamIdsForEmp = [...new Set([...(teamMemRows ?? []).map(r => r.team_id), ...(teamMgrRows ?? []).map(r => r.team_id)])]
+    if (teamIdsForEmp.length > 0) {
+      const { data: pt } = await db.from('project_teams').select('project_id').in('team_id', teamIdsForEmp)
+      fallbackProjectIds = [...new Set((pt ?? []).map(r => r.project_id))]
+    }
+  }
+  const grantProjectIds = empProjectIds.length > 0 ? empProjectIds : fallbackProjectIds
+
+  const [{ data: projectSkills }, { data: certifiedAch }] = grantProjectIds.length > 0
+    ? await Promise.all([
+        db.from('project_skills').select('skill_id, skills(id, name, phase, category, order_index)').in('project_id', grantProjectIds),
+        db.from('achievements').select('skill_id').eq('employee_id', id).eq('status', 'certified'),
+      ])
+    : [{ data: [] as never[] }, { data: [] as { skill_id: string }[] }]
+
+  type SkillRow = { id: string; name: string; phase: string | null; category: string; order_index: number }
+  const availableSkillsMap = new Map<string, SkillRow>()
+  for (const ps of (projectSkills ?? []) as Array<{ skill_id: string; skills: SkillRow | SkillRow[] | null }>) {
+    const sk = Array.isArray(ps.skills) ? ps.skills[0] : ps.skills
+    if (sk) availableSkillsMap.set(sk.id, sk)
+  }
+  const availableSkills = [...availableSkillsMap.values()].sort((a, b) => a.order_index - b.order_index)
+  const certifiedSkillIds = (certifiedAch ?? []).map(r => r.skill_id)
+
   if (!employee) redirect('/admin/employees')
 
   const employeeMap = Object.fromEntries((allEmployees ?? []).map(e => [e.id, e]))
@@ -78,7 +113,16 @@ export default async function EmployeeDetailPage({ params, searchParams }: { par
         certifications={(certs ?? []) as { id: string; name: string; icon: 'award' | 'star'; color: string }[]}
         autoAddType={(await (searchParams ?? Promise.resolve({})) as { add?: string })?.add ?? undefined}
       />
-      <div className="px-4 pb-8">
+      <div className="px-4 pb-8 space-y-4">
+        {canApprove(currentEmployee) && canEdit && (
+          <SkillGrantSection
+            employeeId={employee.id}
+            employeeName={employee.name}
+            availableSkills={availableSkills}
+            certifiedSkillIds={certifiedSkillIds}
+            canGrant={canApprove(currentEmployee)}
+          />
+        )}
         <EmployeePermissionEditor
           employeeId={employee.id}
           employeeName={employee.name}
