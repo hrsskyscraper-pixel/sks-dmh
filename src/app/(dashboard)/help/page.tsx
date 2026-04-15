@@ -1276,7 +1276,7 @@ function HelpContent() {
 
   return (
     <>
-      <TopBar title="使い方ガイド" hideNotificationBell />
+      <TopBar title="使い方ガイド" />
       <div className="p-4 max-w-2xl mx-auto">
         {/* 検索ボックス */}
         <div className="relative mb-3">
