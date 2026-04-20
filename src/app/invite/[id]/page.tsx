@@ -118,6 +118,7 @@ export default async function InvitePage({
         first_name: nameParts.slice(1).join(' ') || '',
         email: user.email ?? '',
         role: 'employee',
+        system_permission: 'training_member',
         employment_type: '社員',
         avatar_url: (user.user_metadata.avatar_url as string | undefined) ?? null,
         status: 'approved',
