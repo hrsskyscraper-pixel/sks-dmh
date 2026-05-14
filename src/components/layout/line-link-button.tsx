@@ -2,6 +2,7 @@
 
 import { Button } from '@/components/ui/button'
 import { MessageCircle } from 'lucide-react'
+import { buildLineLoginAuthorizeUrl } from '@/lib/line-login'
 
 interface Props {
   isLinked: boolean
@@ -10,14 +11,11 @@ interface Props {
 export function LineLinkButton({ isLinked }: Props) {
   const handleLink = () => {
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin
-    const channelId = process.env.NEXT_PUBLIC_LINE_LOGIN_CHANNEL_ID
-    if (!channelId) {
+    const url = buildLineLoginAuthorizeUrl(baseUrl)
+    if (!url) {
       alert('LINE Login が設定されていません')
       return
     }
-    const redirectUri = encodeURIComponent(`${baseUrl}/auth/line/callback`)
-    const state = crypto.randomUUID()
-    const url = `https://access.line.me/oauth2/v2.1/authorize?response_type=code&client_id=${channelId}&redirect_uri=${redirectUri}&state=${state}&scope=profile`
     window.location.href = url
   }
 

@@ -19,6 +19,12 @@ export function LineLinkToast() {
       })
       // URLからパラメータを除去
       router.replace('/', { scroll: false })
+    } else if (linked === 'nofriend') {
+      toast.warning('あと一歩でLINE通知が届きます', {
+        description: '公式アカウント「Growth Driver」を友だち追加すると通知が届くようになります。下部の緑のボタンからもう一度連携し、表示される「追加」をオンにしてください。',
+        duration: 10000,
+      })
+      router.replace('/', { scroll: false })
     } else if (error) {
       const messages: Record<string, string> = {
         token_failed: 'LINEの認証に失敗しました。もう一度お試しください。',

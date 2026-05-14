@@ -49,7 +49,7 @@ export default async function DashboardLayout({
       // RLS を回避するため admin client で再取得
       const { data: created } = await adminDb
         .from('employees')
-        .select('id, name, last_name, first_name, name_kana, email, role, business_role_ids, system_permission, employment_type, hire_date, birth_date, avatar_url, instagram_url, line_url, status, requested_team_id, requested_project_team_id, line_user_id, approved_by, approved_at, notifications_read_at, auth_user_id, created_at, updated_at')
+        .select('id, name, last_name, first_name, name_kana, email, role, business_role_ids, system_permission, employment_type, hire_date, birth_date, avatar_url, instagram_url, line_url, status, requested_team_id, requested_project_team_id, line_user_id, line_friend, approved_by, approved_at, notifications_read_at, auth_user_id, created_at, updated_at')
         .eq('auth_user_id', user.id)
         .single()
       employee = created
@@ -263,7 +263,7 @@ export default async function DashboardLayout({
         <main className="pb-20 max-w-2xl mx-auto">
           {children}
         </main>
-        <LineLinkFloatingButton isLinked={!!employee.line_user_id} />
+        <LineLinkFloatingButton isLinked={!!employee.line_user_id} friendLinked={employee.line_friend === true} />
         <BottomNav role={effectiveRole} unreadRequestCount={unreadTeamReqCount ?? 0} pendingApprovalCount={pendingApprovalCount} dashboardBadge={dashboardBadge} avatarUrl={employee.avatar_url} employeeId={employee.id} employeeName={employee.name} rejectedSkillCount={rejectedSkillCount ?? 0} />
         <Toaster position="top-center" richColors />
       </div>
