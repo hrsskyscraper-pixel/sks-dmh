@@ -29,7 +29,12 @@ export async function GET(request: Request) {
   const url = new URL(request.url)
   const code = url.searchParams.get('code')
   const error = url.searchParams.get('error')
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://sks-dmh.vercel.app'
+  // baseUrl はリクエスト元のオリジンを使う。
+  // - LINE 仕様で、token 交換時の redirect_uri は authorize 時と完全一致が必要
+  // - 連携元（クライアント）は window.location.origin で authorize した
+  // - したがって callback も同じオリジンを使うのが正解
+  // NEXT_PUBLIC_APP_URL（本番URL固定）を使うと preview デプロイで不一致になり 400 になる
+  const baseUrl = url.origin
 
   if (error || !code) {
     console.error('LINE callback error:', error)

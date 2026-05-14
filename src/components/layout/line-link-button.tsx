@@ -10,7 +10,8 @@ interface Props {
 
 export function LineLinkButton({ isLinked }: Props) {
   const handleLink = () => {
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin
+    // window.location.origin を使う（NEXT_PUBLIC_APP_URL は本番URL固定で preview/localhost では誤動作するため）
+    const baseUrl = window.location.origin
     const url = buildLineLoginAuthorizeUrl(baseUrl)
     if (!url) {
       alert('LINE Login が設定されていません')
