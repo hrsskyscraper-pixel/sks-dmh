@@ -2,11 +2,39 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
+/**
+ * Messaging API の `GET /v2/bot/profile/{userId}` で友だち追加状態を判定する。
+ * - 200: 友だち（プロフィール取得可）→ true
+ * - 404: 未追加/ブロック → false
+ * - その他 / トークン未設定: 判定不能 → null
+ */
+async function checkFriendship(lineUserId: string): Promise<boolean | null> {
+  const token = process.env.LINE_MESSAGING_ACCESS_TOKEN
+  if (!token) return null
+  try {
+    const res = await fetch(`https://api.line.me/v2/bot/profile/${lineUserId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (res.ok) return true
+    if (res.status === 404) return false
+    console.error('[LINE] friendship check 想定外レスポンス:', res.status, await res.text().catch(() => ''))
+    return null
+  } catch (err) {
+    console.error('[LINE] friendship check 失敗:', err)
+    return null
+  }
+}
+
 export async function GET(request: Request) {
   const url = new URL(request.url)
   const code = url.searchParams.get('code')
   const error = url.searchParams.get('error')
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://sks-dmh.vercel.app'
+  // baseUrl はリクエスト元のオリジンを使う。
+  // - LINE 仕様で、token 交換時の redirect_uri は authorize 時と完全一致が必要
+  // - 連携元（クライアント）は window.location.origin で authorize した
+  // - したがって callback も同じオリジンを使うのが正解
+  // NEXT_PUBLIC_APP_URL（本番URL固定）を使うと preview デプロイで不一致になり 400 になる
+  const baseUrl = url.origin
 
   if (error || !code) {
     console.error('LINE callback error:', error)
@@ -65,10 +93,13 @@ export async function GET(request: Request) {
   const profile = await profileRes.json()
   const lineUserId = profile.userId
 
-  // employees に line_user_id を保存
+  // 公式アカウントの友だち追加状態を確認（通知が届くかの判定）
+  const isFriend = await checkFriendship(lineUserId)
+
+  // employees に line_user_id / line_friend を保存
   const { error: updateError } = await db
     .from('employees')
-    .update({ line_user_id: lineUserId })
+    .update({ line_user_id: lineUserId, line_friend: isFriend })
     .eq('id', employee.id)
 
   if (updateError) {
@@ -76,5 +107,8 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${baseUrl}/?line_error=save_failed`)
   }
 
-  return NextResponse.redirect(`${baseUrl}/?line_linked=true`)
+  // 友だち未追加（false）なら、友だち追加が必要な旨を案内するパラメータを付ける。
+  // isFriend が null（判定不能）の場合は従来通り「連携完了」とだけ伝える。
+  const linkedParam = isFriend === false ? 'nofriend' : 'true'
+  return NextResponse.redirect(`${baseUrl}/?line_linked=${linkedParam}`)
 }

@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dialog'
 import { UserPlus, CheckCircle, AlertCircle, HelpCircle, UserCircle, MessageCircle } from 'lucide-react'
 import { acceptInvitation } from '../actions'
+import { buildLineLoginAuthorizeUrl } from '@/lib/line-login'
 
 interface Props {
   invitationId: string
@@ -106,15 +107,13 @@ export function AcceptInvitationButton({ invitationId, asManager = false, initia
       return
     }
     const baseUrl = window.location.origin
-    const channelId = process.env.NEXT_PUBLIC_LINE_LOGIN_CHANNEL_ID
-    if (!channelId) {
+    const url = buildLineLoginAuthorizeUrl(baseUrl)
+    if (!url) {
       toast.error('LINE Login が設定されていません')
       router.push('/')
       return
     }
-    const redirectUri = encodeURIComponent(`${baseUrl}/auth/line/callback`)
-    const state = crypto.randomUUID()
-    window.location.href = `https://access.line.me/oauth2/v2.1/authorize?response_type=code&client_id=${channelId}&redirect_uri=${redirectUri}&state=${state}&scope=profile`
+    window.location.href = url
   }
 
   if (joined) {
