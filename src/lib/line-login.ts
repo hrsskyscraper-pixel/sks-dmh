@@ -1,4 +1,15 @@
 /**
+ * 公式アカウント Growth Driver の友だち追加URL（Basic ID: @556bhmpg）。
+ *
+ * 未認証 LINE 公式アカウントは LINE アプリ内検索に表示されないため、
+ * ユーザーに「LINEで Growth Driver を検索→追加」を案内しても見つからない。
+ * このURLを直接タップすれば LINE が開き、友だち追加画面が出る。
+ *
+ * OA を別アカウントに切り替える場合はここを更新する。
+ */
+export const LINE_OA_FRIEND_ADD_URL = 'https://line.me/R/ti/p/@556bhmpg'
+
+/**
  * LINE Login の認可URLを組み立てる（クライアント側で使用）。
  *
  * `bot_prompt=aggressive` を付けることで、連携時に「リンクされた LINE 公式アカウント」の
