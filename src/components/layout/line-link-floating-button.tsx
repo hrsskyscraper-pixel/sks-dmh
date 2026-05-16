@@ -1,14 +1,20 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
 import { MessageCircle, X } from 'lucide-react'
+import { toast } from 'sonner'
 import { buildLineLoginAuthorizeUrl } from '@/lib/line-login'
+import { recheckLineFriendship } from '@/app/(dashboard)/line-actions'
 
 /**
  * LINE通知を受け取れていないユーザー向けの常時表示ボタン（下部ナビの上に浮かぶ）。
- * - 未連携: 「LINE連携で通知を受け取る」
- * - 連携済みだが公式アカウント未追加（friendLinked=false）: 「友だち追加で通知を受け取る」
- * タップで LINE OAuth（bot_prompt 付き）に遷移。「×」で一時的に非表示にできるが、リロードで再表示。
+ *
+ * 挙動の分岐:
+ * - **未連携** (`!isLinked`): 従来通り OAuth に飛ぶ（bot_prompt付きで友だち追加プロンプトも出す）
+ * - **連携済みだが公式アカウント未追加** (`isLinked && !friendLinked`):
+ *   OAuth を再実行せず、Messaging API で友だち状態を再確認する。
+ *   OAuth 再実行は code 2重消費で token_failed になりやすい上、line_user_id が
+ *   既にあるユーザーには本質的に不要。
  */
 export function LineLinkFloatingButton({
   isLinked,
@@ -18,14 +24,37 @@ export function LineLinkFloatingButton({
   friendLinked?: boolean
 }) {
   const [hidden, setHidden] = useState(false)
+  const [isPending, startTransition] = useTransition()
 
-  // 連携済みかつ友だち追加済みなら何も出さない
   if (isLinked && friendLinked) return null
   if (hidden) return null
 
   const needsFriend = isLinked && !friendLinked
 
-  const handleLink = () => {
+  const handleTap = () => {
+    if (needsFriend) {
+      startTransition(async () => {
+        const res = await recheckLineFriendship()
+        if (!res.ok) {
+          toast.error(res.error)
+          return
+        }
+        if (res.friend) {
+          toast.success('LINE通知の準備が整いました', {
+            description: '今後はGrowth Driverの通知がLINEに届きます。',
+            duration: 6000,
+          })
+        } else {
+          toast.warning('まだ友だち追加が確認できません', {
+            description: 'LINEアプリで「Growth Driver」を検索して友だち追加してから、もう一度このボタンをタップしてください。',
+            duration: 10000,
+          })
+        }
+      })
+      return
+    }
+
+    // 未連携: OAuth フロー
     const baseUrl = window.location.origin
     const url = buildLineLoginAuthorizeUrl(baseUrl)
     if (!url) {
@@ -42,10 +71,13 @@ export function LineLinkFloatingButton({
       <div className="flex items-center gap-2 bg-green-500 text-white rounded-full shadow-lg px-3 py-2 mx-auto max-w-[24rem]">
         <MessageCircle className="w-5 h-5 flex-shrink-0" />
         <button
-          onClick={handleLink}
-          className="flex-1 text-left text-sm font-medium hover:opacity-90"
+          onClick={handleTap}
+          disabled={isPending}
+          className="flex-1 text-left text-sm font-medium hover:opacity-90 disabled:opacity-60"
         >
-          {needsFriend ? '友だち追加で通知を受け取る' : 'LINE連携で通知を受け取る'}
+          {needsFriend
+            ? (isPending ? '確認中...' : '友だち追加したら、ここをタップ')
+            : 'LINE連携で通知を受け取る'}
         </button>
         <button
           onClick={() => setHidden(true)}
