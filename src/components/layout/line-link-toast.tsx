@@ -3,7 +3,6 @@
 import { useEffect } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { LINE_OA_FRIEND_ADD_URL } from '@/lib/line-login'
 
 export function LineLinkToast() {
   const searchParams = useSearchParams()
@@ -22,12 +21,8 @@ export function LineLinkToast() {
       router.replace('/', { scroll: false })
     } else if (linked === 'nofriend') {
       toast.warning('あと一歩でLINE通知が届きます', {
-        description: '下のボタンから公式アカウント「Growth Driver」を友だち追加してから、ダッシュボード上部のバナーで「② 確認する」を押してください。',
+        description: 'ダッシュボード上部の緑バナーの「LINEで友達追加する」→「友達追加成功を確認する」の順に押してください。',
         duration: 14000,
-        action: {
-          label: 'LINEで友だち追加',
-          onClick: () => window.open(LINE_OA_FRIEND_ADD_URL, '_blank', 'noopener,noreferrer'),
-        },
       })
       router.replace('/', { scroll: false })
     } else if (error) {
