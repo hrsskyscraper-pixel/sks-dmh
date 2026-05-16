@@ -3,18 +3,18 @@
 import { useState, useTransition } from 'react'
 import { MessageCircle, X } from 'lucide-react'
 import { toast } from 'sonner'
-import { buildLineLoginAuthorizeUrl } from '@/lib/line-login'
+import { buildLineLoginAuthorizeUrl, LINE_OA_FRIEND_ADD_URL } from '@/lib/line-login'
 import { recheckLineFriendship } from '@/app/(dashboard)/line-actions'
 
 /**
  * LINE通知を受け取れていないユーザー向けの常時表示ボタン（下部ナビの上に浮かぶ）。
  *
  * 挙動の分岐:
- * - **未連携** (`!isLinked`): 従来通り OAuth に飛ぶ（bot_prompt付きで友だち追加プロンプトも出す）
+ * - **未連携** (`!isLinked`): OAuth フロー（bot_prompt付き、連携と友だち追加を一度にやる）
  * - **連携済みだが公式アカウント未追加** (`isLinked && !friendLinked`):
- *   OAuth を再実行せず、Messaging API で友だち状態を再確認する。
- *   OAuth 再実行は code 2重消費で token_failed になりやすい上、line_user_id が
- *   既にあるユーザーには本質的に不要。
+ *   まず recheck で「もう友だち追加してたパターン」を拾い、その結果に応じて
+ *   友だち追加URLを案内するトーストを出す（toast の action から LINE OA を開ける）。
+ *   OAuth は使わない（code 2重消費で token_failed になりやすいため）。
  */
 export function LineLinkFloatingButton({
   isLinked,
@@ -46,8 +46,12 @@ export function LineLinkFloatingButton({
           })
         } else {
           toast.warning('まだ友だち追加が確認できません', {
-            description: 'LINEアプリで「Growth Driver」を検索して友だち追加してから、もう一度このボタンをタップしてください。',
-            duration: 10000,
+            description: '下のボタンから公式アカウント Growth Driver を友だち追加してから、もう一度このボタンをタップしてください。',
+            duration: 14000,
+            action: {
+              label: 'LINEで友だち追加',
+              onClick: () => window.open(LINE_OA_FRIEND_ADD_URL, '_blank', 'noopener,noreferrer'),
+            },
           })
         }
       })
