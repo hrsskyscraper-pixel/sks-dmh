@@ -1,19 +1,45 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
 import { Button } from '@/components/ui/button'
 import { MessageCircle, X } from 'lucide-react'
+import { toast } from 'sonner'
 import { buildLineLoginAuthorizeUrl } from '@/lib/line-login'
+import { recheckLineFriendship } from '@/app/(dashboard)/line-actions'
 
 /**
- * @param needsFriend true の場合、「連携済みだが公式アカウント未追加」向けの文言を表示する。
+ * @param needsFriend true の場合、「連携済みだが公式アカウント未追加」向けの文言を表示し、
+ *                    ボタンは OAuth ではなく Messaging API による友だち状態 recheck を呼ぶ。
  */
 export function LineLinkBanner({ needsFriend = false }: { needsFriend?: boolean }) {
   const [dismissed, setDismissed] = useState(false)
+  const [isPending, startTransition] = useTransition()
 
   if (dismissed) return null
 
-  const handleLink = () => {
+  const handleClick = () => {
+    if (needsFriend) {
+      startTransition(async () => {
+        const res = await recheckLineFriendship()
+        if (!res.ok) {
+          toast.error(res.error)
+          return
+        }
+        if (res.friend) {
+          toast.success('LINE通知の準備が整いました', {
+            description: '今後はGrowth Driverの通知がLINEに届きます。',
+            duration: 6000,
+          })
+        } else {
+          toast.warning('まだ友だち追加が確認できません', {
+            description: 'LINEアプリで「Growth Driver」を検索して友だち追加してから、もう一度ボタンをタップしてください。',
+            duration: 10000,
+          })
+        }
+      })
+      return
+    }
+
     const baseUrl = window.location.origin
     const url = buildLineLoginAuthorizeUrl(baseUrl)
     if (!url) return
@@ -29,12 +55,17 @@ export function LineLinkBanner({ needsFriend = false }: { needsFriend?: boolean 
         </p>
         <p className="text-xs text-green-600 mt-0.5">
           {needsFriend
-            ? '公式アカウント「Growth Driver」を友だち追加すると通知が届きます。'
+            ? 'LINEで「Growth Driver」を検索して友だち追加してから、右のボタンをタップしてください。'
             : 'LINEアカウントを連携すると、通知をLINEで受け取れます。'}
         </p>
       </div>
-      <Button size="sm" onClick={handleLink} className="bg-green-500 hover:bg-green-600 flex-shrink-0 text-xs">
-        {needsFriend ? '友だち追加' : '連携する'}
+      <Button
+        size="sm"
+        onClick={handleClick}
+        disabled={isPending}
+        className="bg-green-500 hover:bg-green-600 flex-shrink-0 text-xs disabled:opacity-60"
+      >
+        {needsFriend ? (isPending ? '確認中…' : '確認する') : '連携する'}
       </Button>
       <button onClick={() => setDismissed(true)} className="text-green-400 hover:text-green-600 flex-shrink-0">
         <X className="w-4 h-4" />

@@ -21,8 +21,8 @@ export function LineLinkToast() {
       router.replace('/', { scroll: false })
     } else if (linked === 'nofriend') {
       toast.warning('あと一歩でLINE通知が届きます', {
-        description: '公式アカウント「Growth Driver」を友だち追加すると通知が届くようになります。下部の緑のボタンからもう一度連携し、表示される「追加」をオンにしてください。',
-        duration: 10000,
+        description: 'LINEアプリで公式アカウント「Growth Driver」を検索して友だち追加してから、ダッシュボードの緑ボタン「友だち追加したら、ここをタップ」を押してください。',
+        duration: 12000,
       })
       router.replace('/', { scroll: false })
     } else if (error) {
