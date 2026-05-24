@@ -38,6 +38,8 @@ interface Props {
   projectTeams: { project_id: string; team_id: string }[]
   allSkills: Skill[]
   teams: Pick<Team, 'id' | 'name' | 'type' | 'prefecture'>[]
+  currentEmployeeId: string
+  employeeNameMap: Record<string, string>
 }
 
 const CATEGORY_ROW_COLORS: Record<number, { checked: string; unchecked: string }> = {
@@ -60,6 +62,8 @@ export function ProjectManager({
   projectTeams: initialProjectTeams,
   allSkills,
   teams,
+  currentEmployeeId,
+  employeeNameMap,
 }: Props) {
   const supabase = createClient()
   const [isPending, startTransition] = useTransition()
@@ -152,7 +156,7 @@ export function ProjectManager({
       } else {
         const { data, error } = await supabase
           .from('skill_projects')
-          .insert({ name: projectName.trim(), description: projectDesc.trim() || null })
+          .insert({ name: projectName.trim(), description: projectDesc.trim() || null, created_by: currentEmployeeId })
           .select()
           .single()
         if (error) { toast.error('作成に失敗しました'); return }
@@ -183,7 +187,7 @@ export function ProjectManager({
       // 1. 新プロジェクト作成
       const { data: newProject, error: pErr } = await supabase
         .from('skill_projects')
-        .insert({ name: `${project.name}（コピー）`, description: project.description })
+        .insert({ name: `${project.name}（コピー）`, description: project.description, created_by: currentEmployeeId })
         .select()
         .single()
       if (pErr || !newProject) { toast.error('コピーに失敗しました'); return }
@@ -613,6 +617,12 @@ export function ProjectManager({
                   {selectedProject.description && (
                     <p className="text-xs text-muted-foreground mt-0.5">{selectedProject.description}</p>
                   )}
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    作成: {selectedProject.created_by ? (employeeNameMap[selectedProject.created_by] ?? '不明') : '記録なし'}
+                    <span className="ml-2">
+                      ({new Date(selectedProject.created_at).toLocaleDateString('ja-JP')})
+                    </span>
+                  </p>
                 </div>
                 <div className="flex gap-1.5 flex-shrink-0">
                   <Button size="sm" variant="outline" className="h-7 text-xs px-2" onClick={() => openEditProject(selectedProject)} disabled={isPending}>

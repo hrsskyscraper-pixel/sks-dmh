@@ -497,6 +497,7 @@ export type Database = {
           description: string | null
           is_active: boolean
           created_at: string
+          created_by: string | null
         }
         Insert: {
           id?: string
@@ -504,6 +505,7 @@ export type Database = {
           description?: string | null
           is_active?: boolean
           created_at?: string
+          created_by?: string | null
         }
         Update: {
           id?: string
@@ -511,8 +513,17 @@ export type Database = {
           description?: string | null
           is_active?: boolean
           created_at?: string
+          created_by?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: 'skill_projects_created_by_fkey'
+            columns: ['created_by']
+            isOneToOne: false
+            referencedRelation: 'employees'
+            referencedColumns: ['id']
+          },
+        ]
       }
       project_phases: {
         Row: {
