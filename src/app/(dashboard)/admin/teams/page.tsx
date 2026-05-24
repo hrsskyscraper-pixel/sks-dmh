@@ -54,6 +54,21 @@ export default async function AdminTeamsPage() {
   ])
   const { data: brands } = await db.from('brands').select('id, name, color').order('sort_order')
 
+  // 各プロジェクトのフェーズ件数（セットアップ未完了判定用）
+  const activeProjectIds = (projectsData ?? []).map(p => p.id)
+  const { data: phaseRows } = activeProjectIds.length > 0
+    ? await db.from('project_phases').select('project_id').in('project_id', activeProjectIds)
+    : { data: [] }
+  const phaseCountMap: Record<string, number> = {}
+  for (const pr of phaseRows ?? []) {
+    phaseCountMap[pr.project_id] = (phaseCountMap[pr.project_id] ?? 0) + 1
+  }
+  const activeProjectsWithStatus = (projectsData ?? []).map(p => ({
+    id: p.id,
+    name: p.name,
+    phaseCount: phaseCountMap[p.id] ?? 0,
+  }))
+
   // チーム→プロジェクト名マップ
   const projectNameMap = Object.fromEntries((projectsData ?? []).map(p => [p.id, p.name]))
   const teamProjectNames: Record<string, string[]> = {}
@@ -79,7 +94,7 @@ export default async function AdminTeamsPage() {
         changeRequests={changeRequests ?? []}
         teamProjectNames={teamProjectNames}
         brands={brands ?? []}
-        activeProjects={projectsData ?? []}
+        activeProjects={activeProjectsWithStatus}
       />
     </>
   )

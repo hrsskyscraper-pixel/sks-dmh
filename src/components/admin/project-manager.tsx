@@ -23,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Plus, Pencil, Archive, ArchiveRestore, Trash2, GripVertical, UserMinus, UserPlus, ChevronDown, ChevronRight, MapPin, Store, FolderKanban, Building2, Copy, Upload } from 'lucide-react'
+import { Plus, Pencil, Archive, ArchiveRestore, Trash2, GripVertical, UserMinus, UserPlus, ChevronDown, ChevronRight, MapPin, Store, FolderKanban, Building2, Copy, Upload, AlertTriangle } from 'lucide-react'
 import { SkillCsvImportDialog } from './skill-csv-import-dialog'
 import { createClient } from '@/lib/supabase/client'
 import { updateSkillCategory, updateSkillStandardHours, updateSkillName, toggleSkillCheckpoint, createSkill, deleteSkill, reorderSkills, updateSkillTargetDate } from '@/app/(dashboard)/actions'
@@ -101,6 +101,9 @@ export function ProjectManager({
 
   // コピー確認ダイアログ
   const [copyConfirmProject, setCopyConfirmProject] = useState<SkillProject | null>(null)
+
+  // セットアップ未完了チームの割当確認ダイアログ
+  const [teamAssignConfirm, setTeamAssignConfirm] = useState<{ teamId: string; teamName: string } | null>(null)
 
   // フェーズ追加ダイアログ
   const [phaseDialog, setPhaseDialog] = useState(false)
@@ -409,10 +412,22 @@ export function ProjectManager({
 
   // ===== メンバー操作 =====
 
-  function handleToggleTeam(teamId: string, isLinked: boolean) {
+  function performAddTeam(teamId: string) {
     if (!selectedProjectId) return
     startTransition(async () => {
-      if (isLinked) {
+      const { error } = await supabase
+        .from('project_teams')
+        .insert({ project_id: selectedProjectId, team_id: teamId })
+      if (error) { toast.error('チームの追加に失敗しました'); return }
+      setProjectTeamsState(prev => [...prev, { project_id: selectedProjectId, team_id: teamId }])
+      toast.success('チームを追加しました')
+    })
+  }
+
+  function handleToggleTeam(teamId: string, isLinked: boolean) {
+    if (!selectedProjectId) return
+    if (isLinked) {
+      startTransition(async () => {
         const { error } = await supabase
           .from('project_teams')
           .delete()
@@ -421,15 +436,16 @@ export function ProjectManager({
         if (error) { toast.error('チームの削除に失敗しました'); return }
         setProjectTeamsState(prev => prev.filter(pt => !(pt.project_id === selectedProjectId && pt.team_id === teamId)))
         toast.success('チームを外しました')
-      } else {
-        const { error } = await supabase
-          .from('project_teams')
-          .insert({ project_id: selectedProjectId, team_id: teamId })
-        if (error) { toast.error('チームの追加に失敗しました'); return }
-        setProjectTeamsState(prev => [...prev, { project_id: selectedProjectId, team_id: teamId }])
-        toast.success('チームを追加しました')
-      }
-    })
+      })
+      return
+    }
+    // 追加時、フェーズ未設定なら警告ダイアログを挟む
+    if (selectedPhases.length === 0) {
+      const team = teams.find(t => t.id === teamId)
+      setTeamAssignConfirm({ teamId, teamName: team?.name ?? '' })
+      return
+    }
+    performAddTeam(teamId)
   }
 
   // スキル行の描画（フェーズタブと未割当グループで共通利用）
@@ -607,15 +623,27 @@ export function ProjectManager({
             <CardContent className="pt-4 pb-4 px-4">
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <h2 className="text-base font-bold text-gray-900">{selectedProject.name}</h2>
                     {selectedProject.is_active
                       ? <Badge className="bg-green-100 text-green-700 border-0 text-[10px]">有効</Badge>
                       : <Badge className="bg-gray-100 text-gray-500 border-0 text-[10px]">アーカイブ</Badge>
                     }
+                    {selectedPhases.length === 0 && (
+                      <Badge className="bg-amber-100 text-amber-800 border border-amber-300 text-[10px] gap-1">
+                        <AlertTriangle className="w-3 h-3" />
+                        セットアップ未完了
+                      </Badge>
+                    )}
                   </div>
                   {selectedProject.description && (
                     <p className="text-xs text-muted-foreground mt-0.5">{selectedProject.description}</p>
+                  )}
+                  {selectedPhases.length === 0 && (
+                    <p className="text-[11px] text-amber-700 mt-1.5 leading-snug">
+                      フェーズが未設定のため、メンバーには「準備中」と表示されます。<br />
+                      下の「フェーズ」タブから設定してください。
+                    </p>
                   )}
                   <p className="text-[10px] text-muted-foreground mt-1">
                     作成: {selectedProject.created_by ? (employeeNameMap[selectedProject.created_by] ?? '不明') : '記録なし'}
@@ -993,6 +1021,37 @@ export function ProjectManager({
             <Button variant="outline" onClick={() => setCopyConfirmProject(null)}>キャンセル</Button>
             <Button onClick={() => { if (copyConfirmProject) { handleCopyProject(copyConfirmProject); setCopyConfirmProject(null) } }} disabled={isPending}>
               コピーして作成
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ===== セットアップ未完了プロジェクトのチーム割当確認ダイアログ ===== */}
+      <Dialog open={!!teamAssignConfirm} onOpenChange={open => { if (!open) setTeamAssignConfirm(null) }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-700">
+              <AlertTriangle className="w-4 h-4" />
+              セットアップ未完了です
+            </DialogTitle>
+          </DialogHeader>
+          <div className="text-sm text-gray-700 space-y-2">
+            <p>
+              プロジェクト「<strong>{selectedProject?.name}</strong>」は<strong>フェーズが未設定</strong>のため、
+              「<strong>{teamAssignConfirm?.teamName}</strong>」のメンバーには「準備中」と表示されます。
+            </p>
+            <p className="text-xs text-gray-500">
+              先に「フェーズ」タブから設定を完了することをお勧めします。今すぐ割り当てる場合も、後からフェーズ・スキルを設定すれば利用可能になります。
+            </p>
+          </div>
+          <DialogFooter className="flex-col gap-2 sm:flex-row">
+            <Button variant="outline" onClick={() => setTeamAssignConfirm(null)}>キャンセル</Button>
+            <Button
+              className="bg-amber-600 hover:bg-amber-700"
+              onClick={() => { if (teamAssignConfirm) { performAddTeam(teamAssignConfirm.teamId); setTeamAssignConfirm(null) } }}
+              disabled={isPending}
+            >
+              このまま割り当てる
             </Button>
           </DialogFooter>
         </DialogContent>

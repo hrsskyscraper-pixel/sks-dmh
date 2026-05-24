@@ -37,7 +37,7 @@ interface Props {
   changeRequests: TeamChangeRequest[]
   teamProjectNames?: Record<string, string[]>
   brands?: { id: string; name: string; color: string | null }[]
-  activeProjects?: { id: string; name: string }[]
+  activeProjects?: { id: string; name: string; phaseCount?: number }[]
 }
 
 type RequestType = TeamChangeRequest['request_type']
@@ -92,24 +92,39 @@ export function TeamManager({
   const [assignProjectDialog, setAssignProjectDialog] = useState<{ teamId: string; teamName: string } | null>(null)
   const [assignProjectId, setAssignProjectId] = useState<string>('')
 
+  const performAssignProject = (teamId: string, teamName: string, projectId: string, projectName: string) => {
+    startTransition(async () => {
+      const { error } = await supabase
+        .from('project_teams')
+        .insert({ project_id: projectId, team_id: teamId })
+      if (error) { toast.error(`割当に失敗しました: ${error.message}`); return }
+      setTeamProjectNames(prev => ({
+        ...prev,
+        [teamId]: [...(prev[teamId] ?? []), projectName],
+      }))
+      setAssignProjectDialog(null)
+      setAssignProjectId('')
+      toast.success(`「${teamName}」に${projectName}を割り当てました`)
+    })
+  }
+
   const handleAssignProject = () => {
     if (!assignProjectDialog || !assignProjectId) return
     const { teamId, teamName } = assignProjectDialog
     const project = activeProjects.find(p => p.id === assignProjectId)
     if (!project) return
-    startTransition(async () => {
-      const { error } = await supabase
-        .from('project_teams')
-        .insert({ project_id: assignProjectId, team_id: teamId })
-      if (error) { toast.error(`割当に失敗しました: ${error.message}`); return }
-      setTeamProjectNames(prev => ({
-        ...prev,
-        [teamId]: [...(prev[teamId] ?? []), project.name],
-      }))
-      setAssignProjectDialog(null)
-      setAssignProjectId('')
-      toast.success(`「${teamName}」に${project.name}を割り当てました`)
-    })
+    // フェーズ未設定 = セットアップ未完了 → 警告ダイアログ
+    if ((project.phaseCount ?? 0) === 0) {
+      setConfirmDialog({
+        title: '⚠️ セットアップ未完了です',
+        message: `プロジェクト「${project.name}」はフェーズが未設定のため、「${teamName}」のメンバーには「準備中」と表示されます。先にフェーズを設定することをお勧めしますが、後から設定することも可能です。このまま割り当てますか？`,
+        confirmLabel: 'このまま割り当てる',
+        confirmClassName: 'flex-1 bg-amber-600 hover:bg-amber-700 text-white',
+        onConfirm: () => performAssignProject(teamId, teamName, project.id, project.name),
+      })
+      return
+    }
+    performAssignProject(teamId, teamName, project.id, project.name)
   }
 
   const searchParams = useSearchParams()

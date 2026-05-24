@@ -43,7 +43,7 @@ export default async function SkillsPage({
   const sTeamIds = [...new Set([...(sMyTeams ?? []).map(r => r.team_id), ...(sMyMgr ?? []).map(r => r.team_id)])]
   const { data: sPtRows } = sTeamIds.length > 0 ? await db.from('project_teams').select('project_id').in('team_id', sTeamIds) : { data: [] }
   const sProjIds = [...new Set((sPtRows ?? []).map(r => r.project_id))]
-  const { data: sProjects } = sProjIds.length > 0 ? await db.from('skill_projects').select('id, name, is_active').in('id', sProjIds).eq('is_active', true) : { data: [] }
+  const { data: sProjects } = sProjIds.length > 0 ? await db.from('skill_projects').select('id, name, is_active, created_by').in('id', sProjIds).eq('is_active', true) : { data: [] }
   const employeeProjects = sProjects ?? []
 
   const requestedProjectId = (params as { project_id?: string } | undefined)?.project_id
@@ -104,6 +104,37 @@ export default async function SkillsPage({
   // 各スキルのマニュアルを is_primary 優先で並び替え
   for (const sid in skillManualsMap) {
     skillManualsMap[sid].sort((a, b) => (a.isPrimary === b.isPrimary ? 0 : a.isPrimary ? -1 : 1))
+  }
+
+  // フェーズ0件 = 管理者が未セットアップ。準備中カードを出す
+  if (selectedProject && projectPhases.length === 0) {
+    let creatorName: string | null = null
+    if (selectedProject.created_by) {
+      const { data: creator } = await db.from('employees').select('name').eq('id', selectedProject.created_by).single()
+      creatorName = creator?.name ?? null
+    }
+    return (
+      <>
+        <TopBar title="スキルチェックリスト" />
+        <div className="p-4">
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-center space-y-3">
+            <div className="text-3xl">🛠️</div>
+            <h2 className="text-sm font-bold text-amber-900">スキルを準備中です</h2>
+            <p className="text-xs text-amber-800 leading-relaxed">
+              プロジェクト「<span className="font-semibold">{selectedProject.name}</span>」は
+              {creatorName ? <>管理者「<span className="font-semibold">{creatorName}</span>」</> : '管理者'}
+              が準備中です。<br />
+              設定が完了するまで、もうしばらくお待ちください。
+            </p>
+            {creatorName && (
+              <p className="text-[11px] text-amber-700 pt-1">
+                お急ぎの場合は {creatorName} さんへ直接ご確認ください。
+              </p>
+            )}
+          </div>
+        </div>
+      </>
+    )
   }
 
   return (
