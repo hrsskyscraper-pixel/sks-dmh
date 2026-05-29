@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useMemo, Suspense } from 'react'
+import { useEffect, useState, useMemo, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { TopBar } from '@/components/layout/nav'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -1252,8 +1252,10 @@ function HelpContent() {
   const [tab, setTab] = useState<TabKey>(
     ['member', 'leader', 'admin', 'all'].includes(rawTab as string) ? rawTab : 'member'
   )
-  const [isAdmin, setIsAdmin] = useState<boolean>(false)
+  // null = 判定中（管理者かどうかが確定するまでタブを書き換えない）
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null)
   const [query, setQuery] = useState('')
+  const didScrollToHashRef = useRef(false)
 
   // 現在のユーザーのロールを取得して、管理者かどうか判定
   useEffect(() => {
@@ -1262,20 +1264,35 @@ function HelpContent() {
       try {
         const supabase = createClient()
         const { data: { user } } = await supabase.auth.getUser()
-        if (!user || cancelled) return
+        if (!user) { if (!cancelled) setIsAdmin(false); return }
         const { data: emp } = await supabase.from('employees').select('role, system_permission').eq('auth_user_id', user.id).single()
-        if (!cancelled && emp && canAdminister(emp)) {
-          setIsAdmin(true)
-        }
-      } catch { /* 未ログイン or エラー時は isAdmin=false のまま */ }
+        if (!cancelled) setIsAdmin(!!emp && canAdminister(emp))
+      } catch {
+        if (!cancelled) setIsAdmin(false)
+      }
     })()
     return () => { cancelled = true }
   }, [])
 
-  // 管理者でない状態でadminタブが指定されていたら member に戻す
+  // 判定が確定した後、管理者でないのに admin タブが指定されていれば member に戻す
   useEffect(() => {
+    if (isAdmin === null) return
     if (tab === 'admin' && !isAdmin) setTab('member')
   }, [tab, isAdmin])
+
+  // 初回ロード時、URL のハッシュ（例: #a-teams）に該当するセクションへスクロール
+  useEffect(() => {
+    if (didScrollToHashRef.current) return
+    if (isAdmin === null) return // タブが確定するまで待つ
+    if (typeof window === 'undefined') return
+    const hash = window.location.hash.replace(/^#/, '')
+    if (!hash) return
+    didScrollToHashRef.current = true
+    // タブ切替後に DOM が描画されるのを待つ
+    setTimeout(() => {
+      document.getElementById(hash)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 150)
+  }, [isAdmin, tab])
 
   const handleTabChange = (v: string) => {
     const next = v as TabKey
