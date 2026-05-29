@@ -2,14 +2,16 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { useState } from 'react'
-import { LayoutDashboard, CheckSquare, BadgeCheck, Upload, Users2, LogOut, Building2, FolderKanban, MessageSquare, UserPlus, Settings, User, FileText, HelpCircle, Shield, ScrollText, History } from 'lucide-react'
+import { useState, useTransition } from 'react'
+import { LayoutDashboard, CheckSquare, BadgeCheck, Upload, Users2, LogOut, Building2, FolderKanban, MessageSquare, UserPlus, Settings, User, FileText, HelpCircle, Shield, ScrollText, History, Type } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
 import { useNotificationCount } from '@/components/layout/notification-context'
 import type { Role } from '@/types/database'
 import { canAdminister } from '@/lib/permissions'
+import { setFontScale } from '@/app/(dashboard)/actions'
+import { FONT_SCALE_COOKIE, FONT_SCALE_OPTIONS, DEFAULT_FONT_SCALE } from '@/lib/font-scale'
 
 const navItems = [
   { href: '/',                 label: 'ホーム',     icon: LayoutDashboard,    roles: ['employee', 'store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'] },
@@ -29,9 +31,48 @@ interface NavProps {
   employeeId?: string
   employeeName?: string
   rejectedSkillCount?: number
+  fontScale?: number
 }
 
-function AccountMenu({ avatarUrl, employeeId, employeeName, role, onLogout }: { avatarUrl?: string | null; employeeId?: string; employeeName?: string; role?: Role; onLogout: () => void }) {
+function FontScaleSelector({ fontScale }: { fontScale: number }) {
+  const [current, setCurrent] = useState(fontScale)
+  const [, startTransition] = useTransition()
+
+  const handleSelect = (scale: number) => {
+    setCurrent(scale)
+    // 即座に反映（楽観的更新）: <html> と Cookie を更新してから DB へ永続化
+    document.documentElement.style.fontSize = `${scale}%`
+    document.cookie = `${FONT_SCALE_COOKIE}=${scale}; path=/; max-age=${60 * 60 * 24 * 365}; samesite=lax`
+    startTransition(async () => { await setFontScale(scale) })
+  }
+
+  return (
+    <div className="px-3 py-2.5 border-t border-gray-100">
+      <p className="text-xs text-gray-500 mb-1.5 flex items-center gap-1.5">
+        <Type className="w-3.5 h-3.5 text-gray-400" />
+        文字サイズ
+      </p>
+      <div className="flex gap-1">
+        {FONT_SCALE_OPTIONS.map(opt => (
+          <button
+            key={opt.value}
+            onClick={() => handleSelect(opt.value)}
+            className={cn(
+              'flex-1 rounded-md border py-1 text-xs transition-colors',
+              current === opt.value
+                ? 'border-orange-400 bg-orange-50 text-orange-600 font-semibold'
+                : 'border-gray-200 text-gray-600 hover:bg-gray-50',
+            )}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function AccountMenu({ avatarUrl, employeeId, employeeName, role, fontScale = DEFAULT_FONT_SCALE, onLogout }: { avatarUrl?: string | null; employeeId?: string; employeeName?: string; role?: Role; fontScale?: number; onLogout: () => void }) {
   const [open, setOpen] = useState(false)
   return (
     <div className="relative">
@@ -93,6 +134,7 @@ function AccountMenu({ avatarUrl, employeeId, employeeName, role, onLogout }: { 
                 設定
               </Link>
             )}
+            <FontScaleSelector fontScale={fontScale} />
             <div className="border-t border-gray-100 mt-1">
               <Link
                 href="/privacy"
@@ -125,7 +167,7 @@ function AccountMenu({ avatarUrl, employeeId, employeeName, role, onLogout }: { 
   )
 }
 
-export function BottomNav({ role, unreadRequestCount = 0, pendingApprovalCount = 0, dashboardBadge = null, avatarUrl, employeeId, employeeName, rejectedSkillCount = 0 }: NavProps) {
+export function BottomNav({ role, unreadRequestCount = 0, pendingApprovalCount = 0, dashboardBadge = null, avatarUrl, employeeId, employeeName, rejectedSkillCount = 0, fontScale = DEFAULT_FONT_SCALE }: NavProps) {
   const pathname = usePathname()
   const router = useRouter()
   const visibleItems = navItems.filter(item => (item.roles as readonly string[]).includes(role))
@@ -176,6 +218,7 @@ export function BottomNav({ role, unreadRequestCount = 0, pendingApprovalCount =
           employeeId={employeeId}
           employeeName={employeeName}
           role={role}
+          fontScale={fontScale}
           onLogout={handleLogout}
         />
       </div>

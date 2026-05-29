@@ -13,6 +13,8 @@ import { NotificationCountProvider } from '@/components/layout/notification-cont
 import { OnboardingDialog } from '@/components/onboarding/onboarding-dialog'
 import { PendingScreen } from '@/components/onboarding/pending-screen'
 import { LineLinkFloatingButton } from '@/components/layout/line-link-floating-button'
+import { FontScaleSync } from '@/components/layout/font-scale-sync'
+import { normalizeFontScale } from '@/lib/font-scale'
 import type { Database, Role, SystemPermission } from '@/types/database'
 import { canAdminister, canApprove } from '@/lib/permissions'
 
@@ -49,7 +51,7 @@ export default async function DashboardLayout({
       // RLS を回避するため admin client で再取得
       const { data: created } = await adminDb
         .from('employees')
-        .select('id, name, last_name, first_name, name_kana, email, role, business_role_ids, system_permission, employment_type, hire_date, birth_date, avatar_url, instagram_url, line_url, status, requested_team_id, requested_project_team_id, line_user_id, line_friend, approved_by, approved_at, notifications_read_at, auth_user_id, created_at, updated_at')
+        .select('id, name, last_name, first_name, name_kana, email, role, business_role_ids, system_permission, employment_type, hire_date, birth_date, avatar_url, instagram_url, line_url, status, requested_team_id, requested_project_team_id, line_user_id, line_friend, approved_by, approved_at, notifications_read_at, font_scale, auth_user_id, created_at, updated_at')
         .eq('auth_user_id', user.id)
         .single()
       employee = created
@@ -256,15 +258,19 @@ export default async function DashboardLayout({
     }
   }
 
+  // 文字サイズは「自分の」表示設定なので、view-as 対象ではなくログイン本人の値を使う
+  const fontScale = normalizeFontScale(employee.font_scale)
+
   return (
     <NotificationCountProvider count={unreadNotifCount}>
+      <FontScaleSync scale={fontScale} />
       <div className="min-h-screen bg-gray-50" style={viewAsEmployee ? { '--banner-h': '2.5rem' } as React.CSSProperties : undefined}>
         {viewAsEmployee && <ViewAsBanner employeeName={viewAsEmployee.name} />}
         <main className="pb-20 max-w-2xl mx-auto">
           {children}
         </main>
         <LineLinkFloatingButton isLinked={!!employee.line_user_id} friendLinked={employee.line_friend === true} />
-        <BottomNav role={effectiveRole} unreadRequestCount={unreadTeamReqCount ?? 0} pendingApprovalCount={pendingApprovalCount} dashboardBadge={dashboardBadge} avatarUrl={employee.avatar_url} employeeId={employee.id} employeeName={employee.name} rejectedSkillCount={rejectedSkillCount ?? 0} />
+        <BottomNav role={effectiveRole} unreadRequestCount={unreadTeamReqCount ?? 0} pendingApprovalCount={pendingApprovalCount} dashboardBadge={dashboardBadge} avatarUrl={employee.avatar_url} employeeId={employee.id} employeeName={employee.name} rejectedSkillCount={rejectedSkillCount ?? 0} fontScale={fontScale} />
         <Toaster position="top-center" richColors />
       </div>
     </NotificationCountProvider>

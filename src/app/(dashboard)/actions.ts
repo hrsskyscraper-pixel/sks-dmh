@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
 import { SELECTED_PROJECT_COOKIE } from '@/lib/selected-project'
+import { FONT_SCALE_COOKIE, isValidFontScale } from '@/lib/font-scale'
 import { writeAuditLog } from '@/lib/audit'
 import { canAdminister, canApprove } from '@/lib/permissions'
 
@@ -29,6 +30,32 @@ export async function setSelectedProject(projectId: string) {
     sameSite: 'lax',
   })
   revalidatePath('/', 'layout')
+}
+
+/**
+ * ログイン中ユーザー自身の文字サイズ設定を更新する。
+ * DB（employees.font_scale）を正とし、Cookie はSSR時のチラつき防止のミラーとして同期する。
+ * view-as 中でも「自分の」表示設定なので、必ず auth_user_id ベースで自分の行を更新する。
+ */
+export async function setFontScale(scale: number): Promise<{ error?: string }> {
+  if (!isValidFontScale(scale)) return { error: '不正な値です' }
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: '認証エラー' }
+
+  const adminDb = createAdminClient()
+  const { error } = await adminDb.from('employees').update({ font_scale: scale }).eq('auth_user_id', user.id)
+  if (error) return { error: error.message }
+
+  const cookieStore = await cookies()
+  cookieStore.set(FONT_SCALE_COOKIE, String(scale), {
+    path: '/',
+    maxAge: 60 * 60 * 24 * 365,
+    sameSite: 'lax',
+  })
+  revalidatePath('/', 'layout')
+  return {}
 }
 
 export async function clearViewAs() {
