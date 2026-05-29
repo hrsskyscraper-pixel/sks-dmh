@@ -12,6 +12,7 @@ import { writeAuditLog } from '@/lib/audit'
 import { canAdminister, canApprove } from '@/lib/permissions'
 import { getAuthUser, getCurrentEmployee } from '@/lib/supabase/auth-cache'
 import { EMPTY_NAV_COUNTS, type NavCounts } from '@/lib/nav-counts'
+import { getTestEmployeeIds } from '@/lib/test-data'
 import type { Role, SystemPermission } from '@/types/database'
 
 /**
@@ -75,30 +76,37 @@ export async function getNavCounts(): Promise<NavCounts> {
     return count ?? 0
   }
 
-  // --- ブロック3: 承認待ち合計（リーダー以上のみ） ---
+  // --- ブロック3: 承認待ち合計（リーダー以上のみ、テスト社員は除外） ---
   const computePendingApproval = async (): Promise<number> => {
     if (!canApprove(effectiveEmp)) return 0
+    const testIds = await getTestEmployeeIds()
     if (canAdminister(effectiveEmp)) {
-      const [skillCount, teamCount, joinCount] = await Promise.all([
-        db.from('achievements').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-        db.from('team_change_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-        db.from('employees').select('*', { count: 'exact', head: true }).eq('status', 'pending').not('requested_team_id', 'is', null),
+      const [{ data: pendAch }, { data: pendReq }, { data: pendJoin }] = await Promise.all([
+        db.from('achievements').select('employee_id').eq('status', 'pending'),
+        db.from('team_change_requests').select('requested_by').eq('status', 'pending'),
+        db.from('employees').select('id').eq('status', 'pending').not('requested_team_id', 'is', null),
       ])
-      return (skillCount.count ?? 0) + (teamCount.count ?? 0) + (joinCount.count ?? 0)
+      const a = (pendAch ?? []).filter(r => !testIds.has(r.employee_id)).length
+      const t = (pendReq ?? []).filter(r => !r.requested_by || !testIds.has(r.requested_by)).length
+      const j = (pendJoin ?? []).filter(r => !testIds.has(r.id)).length
+      return a + t + j
     }
     // store_manager / manager: 管理チームのメンバーのみ
     const { data: managed } = await db.from('team_managers').select('team_id').eq('employee_id', targetId)
     const managedTeamIds = (managed ?? []).map(m => m.team_id)
     if (managedTeamIds.length === 0) return 0
     const { data: members } = await db.from('team_members').select('employee_id').in('team_id', managedTeamIds)
-    const managedMemberIds = [...new Set((members ?? []).map(m => m.employee_id))]
+    const managedMemberIds = [...new Set((members ?? []).map(m => m.employee_id))].filter(id => !testIds.has(id))
     if (managedMemberIds.length === 0) return 0
-    const [skillCount, teamCount, joinCount] = await Promise.all([
-      db.from('achievements').select('*', { count: 'exact', head: true }).eq('status', 'pending').in('employee_id', managedMemberIds),
-      db.from('team_change_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending').in('team_id', managedTeamIds),
-      db.from('employees').select('*', { count: 'exact', head: true }).eq('status', 'pending').not('requested_team_id', 'is', null).in('requested_team_id', managedTeamIds),
+    const [{ data: pendAch }, { data: pendReq }, { data: pendJoin }] = await Promise.all([
+      db.from('achievements').select('employee_id').eq('status', 'pending').in('employee_id', managedMemberIds),
+      db.from('team_change_requests').select('requested_by').eq('status', 'pending').in('team_id', managedTeamIds),
+      db.from('employees').select('id').eq('status', 'pending').not('requested_team_id', 'is', null).in('requested_team_id', managedTeamIds),
     ])
-    return (skillCount.count ?? 0) + (teamCount.count ?? 0) + (joinCount.count ?? 0)
+    const a = (pendAch ?? []).length
+    const t = (pendReq ?? []).filter(r => !r.requested_by || !testIds.has(r.requested_by)).length
+    const j = (pendJoin ?? []).filter(r => !testIds.has(r.id)).length
+    return a + t + j
   }
 
   // --- ブロック4: ホームのバッジ（遅れ/次の一歩） ---
@@ -207,6 +215,39 @@ export async function clearViewAs() {
   cookieStore.delete(VIEW_AS_COOKIE)
   revalidatePath('/', 'layout')
   redirect('/')
+}
+
+/** 社員のテスト用フラグを切り替える（管理者のみ）。公開表示からの除外に反映される。 */
+export async function setEmployeeTest(employeeId: string, isTest: boolean): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: '認証エラー' }
+  const { data: emp } = await supabase.from('employees').select('role, system_permission').eq('auth_user_id', user.id).single()
+  if (!emp || !canAdminister(emp)) return { error: '権限がありません' }
+
+  const adminDb = createAdminClient()
+  const { error } = await adminDb.from('employees').update({ is_test: isTest }).eq('id', employeeId)
+  if (error) return { error: error.message }
+  revalidatePath('/admin/employees')
+  revalidatePath('/', 'layout')
+  return {}
+}
+
+/** チーム/店舗のテスト用フラグを切り替える（管理者のみ）。所属メンバーもカスケードで公開表示から除外される。 */
+export async function setTeamTest(teamId: string, isTest: boolean): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: '認証エラー' }
+  const { data: emp } = await supabase.from('employees').select('role, system_permission').eq('auth_user_id', user.id).single()
+  if (!emp || !canAdminister(emp)) return { error: '権限がありません' }
+
+  const adminDb = createAdminClient()
+  const { error } = await adminDb.from('teams').update({ is_test: isTest }).eq('id', teamId)
+  if (error) return { error: error.message }
+  revalidatePath('/admin/teams')
+  revalidatePath('/admin/brands')
+  revalidatePath('/', 'layout')
+  return {}
 }
 
 export async function updateEmployeeName(employeeId: string, newName: string): Promise<{ error?: string }> {

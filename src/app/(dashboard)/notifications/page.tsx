@@ -6,6 +6,7 @@ import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
 import { TopBar } from '@/components/layout/nav'
 import { NotificationList } from '@/components/notifications/notification-list'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
+import { getTestEmployeeIds } from '@/lib/test-data'
 
 export default async function NotificationsPage() {
   const currentEmployee = await getCurrentEmployee()
@@ -81,6 +82,11 @@ export default async function NotificationsPage() {
       .limit(20),
   ])
 
+  // テスト社員からのリアクション・コメントは除外
+  const testEmpIds = await getTestEmployeeIds()
+  const visibleReactions = (reactions ?? []).filter(r => !testEmpIds.has(r.employee_id))
+  const visibleComments = (comments ?? []).filter(c => !testEmpIds.has(c.employee_id))
+
   const employeeMap = Object.fromEntries(
     (employees ?? []).map(e => [e.id, e])
   )
@@ -102,8 +108,8 @@ export default async function NotificationsPage() {
     <>
       <TopBar title="お知らせ" hideNotificationBell />
       <NotificationList
-        reactions={reactions ?? []}
-        comments={comments ?? []}
+        reactions={visibleReactions}
+        comments={visibleComments}
         achievementMap={achievementMap}
         employeeMap={employeeMap}
         myAchievementResults={myAchievementResults ?? []}

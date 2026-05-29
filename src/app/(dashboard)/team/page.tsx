@@ -8,6 +8,7 @@ import { TeamDashboard } from '@/components/dashboard/team-dashboard'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
 import { buildMilestoneMap, calcStandardPct } from '@/lib/milestone'
 import { canApprove } from '@/lib/permissions'
+import { getTestEmployeeIds } from '@/lib/test-data'
 
 export default async function TeamPage() {
   const currentEmployee = await getCurrentEmployee()
@@ -43,10 +44,10 @@ export default async function TeamPage() {
     { data: allTeams },
     { data: allTeamMembersForStore },
   ] = await Promise.all([
-    db.from('employees').select('id, auth_user_id, name, last_name, first_name, name_kana, email, role, business_role_ids, system_permission, employment_type, hire_date, birth_date, avatar_url, instagram_url, line_url, status, requested_team_id, requested_project_team_id, line_user_id, line_friend, approved_by, approved_at, notifications_read_at, font_scale, created_at, updated_at').order('hire_date'),
+    db.from('employees').select('id, auth_user_id, name, last_name, first_name, name_kana, email, role, business_role_ids, system_permission, employment_type, hire_date, birth_date, avatar_url, instagram_url, line_url, status, requested_team_id, requested_project_team_id, line_user_id, line_friend, approved_by, approved_at, notifications_read_at, font_scale, is_test, created_at, updated_at').order('hire_date'),
     db.from('skills').select('id, name, phase, category, order_index, target_date_hint, standard_hours, is_checkpoint, created_at'),
     db.from('achievements')
-      .select('id, status, employee_id, skill_id, achieved_at, certified_by, certified_at, cumulative_hours_at_achievement, notes, apply_comment, certify_comment, is_read, created_at, skills(id, name, phase, category, order_index, target_date_hint, standard_hours, is_checkpoint, created_at), employees!achievements_employee_id_fkey(id, auth_user_id, name, last_name, first_name, name_kana, email, role, business_role_ids, system_permission, employment_type, hire_date, birth_date, avatar_url, instagram_url, line_url, status, requested_team_id, requested_project_team_id, line_user_id, line_friend, approved_by, approved_at, notifications_read_at, font_scale, created_at, updated_at)')
+      .select('id, status, employee_id, skill_id, achieved_at, certified_by, certified_at, cumulative_hours_at_achievement, notes, apply_comment, certify_comment, is_read, created_at, skills(id, name, phase, category, order_index, target_date_hint, standard_hours, is_checkpoint, created_at), employees!achievements_employee_id_fkey(id, auth_user_id, name, last_name, first_name, name_kana, email, role, business_role_ids, system_permission, employment_type, hire_date, birth_date, avatar_url, instagram_url, line_url, status, requested_team_id, requested_project_team_id, line_user_id, line_friend, approved_by, approved_at, notifications_read_at, font_scale, is_test, created_at, updated_at)')
       .order('created_at', { ascending: false }),
     db.from('team_managers').select('team_id').eq('employee_id', effectiveEmployeeId),
     db.from('work_hours').select('employee_id, hours'),
@@ -140,9 +141,13 @@ export default async function TeamPage() {
     empStatsMap[emp.id] = { standardPct, totalSkills, storeName: storeByEmployee[emp.id] ?? null }
   }
 
-  // 担当チームのメンバーの pending のみに絞る（他チームの申請はリーダーに見せない）
+  // テスト社員は一覧・集計から除外
+  const testEmpIds = await getTestEmployeeIds()
+  const visibleEmployees = (employees ?? []).filter(e => !testEmpIds.has(e.id))
+
+  // 担当チームのメンバーの pending のみに絞る（他チームの申請はリーダーに見せない）＋テスト社員除外
   const filteredAchievements = (achievements ?? []).filter(
-    a => a.status !== 'pending' || priorityMemberIds.has(a.employee_id)
+    a => (a.status !== 'pending' || priorityMemberIds.has(a.employee_id)) && !testEmpIds.has(a.employee_id)
   )
 
   return (
@@ -150,7 +155,7 @@ export default async function TeamPage() {
       <TopBar title="スキル認定" />
       <TeamDashboard
         currentEmployee={currentEmployee}
-        employees={employees ?? []}
+        employees={visibleEmployees}
         skills={skills ?? []}
         achievements={filteredAchievements}
         priorityMemberIds={priorityMemberIds}

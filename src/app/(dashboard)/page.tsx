@@ -19,6 +19,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { LineLinkBanner } from '@/components/layout/line-link-banner'
 import { LineLinkToast } from '@/components/layout/line-link-toast'
 import { canAdminister, canApprove } from '@/lib/permissions'
+import { getTestEmployeeIds } from '@/lib/test-data'
 
 function TeamRankingSkeleton() {
   return (
@@ -78,7 +79,7 @@ export default async function DashboardPage({
   // targetEmployee と searchParams を並列取得
   const [targetEmployeeResult, params] = await Promise.all([
     viewAsId
-      ? db.from('employees').select('id, name, last_name, first_name, name_kana, email, role, business_role_ids, system_permission, employment_type, hire_date, birth_date, avatar_url, instagram_url, line_url, line_user_id, line_friend, status, requested_team_id, requested_project_team_id, approved_by, approved_at, notifications_read_at, font_scale, auth_user_id, created_at, updated_at').eq('id', viewAsId).single()
+      ? db.from('employees').select('id, name, last_name, first_name, name_kana, email, role, business_role_ids, system_permission, employment_type, hire_date, birth_date, avatar_url, instagram_url, line_url, line_user_id, line_friend, status, requested_team_id, requested_project_team_id, approved_by, approved_at, notifications_read_at, font_scale, is_test, auth_user_id, created_at, updated_at').eq('id', viewAsId).single()
       : Promise.resolve({ data: null }),
     searchParams ?? Promise.resolve(undefined),
   ])
@@ -114,6 +115,7 @@ export default async function DashboardPage({
     if (!canApprove(employee)) {
       return { pendingAchievementsCount: 0, pendingTeamRequestsCount: 0 }
     }
+    const testEmpIds = await getTestEmployeeIds()
     const achievementsCountP = (effectiveRole === 'store_manager' || effectiveRole === 'manager')
       ? (async () => {
           const { data: leaderTeamRows } = await db
@@ -122,19 +124,19 @@ export default async function DashboardPage({
           if (!myTeamIds.length) return 0
           const { data: myMembers } = await db
             .from('team_members').select('employee_id').in('team_id', myTeamIds)
-          const myMemberIds = (myMembers ?? []).map(r => r.employee_id)
+          const myMemberIds = (myMembers ?? []).map(r => r.employee_id).filter(id => !testEmpIds.has(id))
           if (!myMemberIds.length) return 0
-          const { count } = await db
-            .from('achievements').select('*', { count: 'exact', head: true })
+          const { data: pend } = await db
+            .from('achievements').select('employee_id')
             .eq('status', 'pending').in('employee_id', myMemberIds)
-          return count ?? 0
+          return (pend ?? []).length
         })()
-      : db.from('achievements').select('*', { count: 'exact', head: true })
-          .eq('status', 'pending').then(r => r.count ?? 0)
+      : db.from('achievements').select('employee_id')
+          .eq('status', 'pending').then(r => (r.data ?? []).filter(a => !testEmpIds.has(a.employee_id)).length)
 
     const teamRequestsCountP = canAdminister(employee)
-      ? db.from('team_change_requests').select('*', { count: 'exact', head: true })
-          .eq('status', 'pending').then(r => r.count ?? 0)
+      ? db.from('team_change_requests').select('requested_by')
+          .eq('status', 'pending').then(r => (r.data ?? []).filter(t => !t.requested_by || !testEmpIds.has(t.requested_by)).length)
       : Promise.resolve(0)
 
     const [pendingAchievementsCount, pendingTeamRequestsCount] = await Promise.all([

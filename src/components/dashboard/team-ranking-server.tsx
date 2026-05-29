@@ -2,6 +2,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { TeamRanking } from '@/components/dashboard/team-ranking'
 import { buildMilestoneMap, calcStandardPct } from '@/lib/milestone'
 import type { TeamMemberStat } from '@/components/dashboard/team-ranking'
+import { getTestEmployeeIds } from '@/lib/test-data'
 
 interface Props {
   employeeId: string
@@ -34,6 +35,9 @@ export async function TeamRankingServer({ employeeId, employeeRole, selectedProj
     db.from('teams').select('id, name, type'),
     db.from('team_members').select('employee_id, team_id'),
   ])
+
+  // テスト社員（is_test / testuser / テスト店舗所属）はランキングから除外
+  const testEmpIds = await getTestEmployeeIds()
 
   // store名マッピング
   const storeTeams = (allTeams ?? []).filter(t => t.type === 'store')
@@ -94,7 +98,7 @@ export async function TeamRankingServer({ employeeId, employeeRole, selectedProj
     return result
   }
 
-  const teamStats: TeamMemberStat[] = (allEmployees ?? []).map(emp => {
+  const teamStats: TeamMemberStat[] = (allEmployees ?? []).filter(emp => !testEmpIds.has(emp.id)).map(emp => {
     const firstProjectId = empFirstProject[emp.id] ?? null
     const empSkillIdSet = firstProjectId ? (projectSkillIdMap[firstProjectId] ?? new Set<string>()) : new Set<string>()
     let empCertifiedCount = 0

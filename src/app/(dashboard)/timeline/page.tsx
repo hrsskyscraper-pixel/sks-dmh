@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
 import { TopBar } from '@/components/layout/nav'
 import { TimelineFeed } from '@/components/timeline/timeline-feed'
+import { getTestEmployeeIds } from '@/lib/test-data'
 
 export default async function TimelinePage() {
   const currentEmployee = await getCurrentEmployee()
@@ -32,17 +33,23 @@ export default async function TimelinePage() {
       .order('name'),
   ])
 
+  // テスト社員の投稿・反応・コメントは除外
+  const testEmpIds = await getTestEmployeeIds()
+  const visibleAchievements = (certifiedAchievements ?? []).filter(a => !testEmpIds.has(a.employee_id))
+  const visibleComments = (comments ?? []).filter(c => !testEmpIds.has(c.employee_id))
+  const visibleReactions = (reactions ?? []).filter(r => !testEmpIds.has(r.employee_id))
+
   const employeeMap = Object.fromEntries(
-    (employees ?? []).map(e => [e.id, e])
+    (employees ?? []).filter(e => !testEmpIds.has(e.id)).map(e => [e.id, e])
   )
 
   return (
     <>
       <TopBar title="タイムライン" />
       <TimelineFeed
-        achievements={certifiedAchievements ?? []}
-        comments={comments ?? []}
-        reactions={reactions ?? []}
+        achievements={visibleAchievements}
+        comments={visibleComments}
+        reactions={visibleReactions}
         employeeMap={employeeMap}
         currentEmployeeId={currentEmployee.id}
       />

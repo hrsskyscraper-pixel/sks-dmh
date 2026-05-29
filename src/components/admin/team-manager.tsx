@@ -4,7 +4,7 @@ import { useState, useTransition, useEffect, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
-import { Plus, Trash2, UserPlus, UserMinus, ClipboardList, Check, X, ChevronDown, ChevronUp, ChevronRight, Pencil, MapPin, Mail } from 'lucide-react'
+import { Plus, Trash2, UserPlus, UserMinus, ClipboardList, Check, X, ChevronDown, ChevronUp, ChevronRight, Pencil, MapPin, Mail, FlaskConical } from 'lucide-react'
 import { InviteMemberDialog } from './invite-member-dialog'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -199,6 +199,7 @@ export function TeamManager({
   // ===== 都道府県折りたたみ =====
   const [expandedPrefs, setExpandedPrefs] = useState<Set<string>>(new Set())
   const [showAllTeams, setShowAllTeams] = useState(false)
+  const [showTestStores, setShowTestStores] = useState(false)
   const togglePref = (pref: string) => setExpandedPrefs(prev => {
     const next = new Set(prev)
     next.has(pref) ? next.delete(pref) : next.add(pref)
@@ -400,6 +401,20 @@ export function TeamManager({
       setTeamMembers(prev => prev.filter(m => m.team_id !== teamId))
       setTeamManagers(prev => prev.filter(m => m.team_id !== teamId))
       toast.success('チームを削除しました')
+    })
+  }
+
+  const handleToggleTeamTest = (teamId: string, next: boolean) => {
+    if (!isDirectEdit) return
+    setTeams(prev => prev.map(t => t.id === teamId ? { ...t, is_test: next } : t))
+    startTransition(async () => {
+      const { error } = await supabase.from('teams').update({ is_test: next }).eq('id', teamId)
+      if (error) {
+        toast.error('更新に失敗しました')
+        setTeams(prev => prev.map(t => t.id === teamId ? { ...t, is_test: !next } : t))
+        return
+      }
+      toast.success(next ? 'テスト店舗にしました（所属メンバーも公開表示から除外）' : 'テスト指定を解除しました')
     })
   }
 
@@ -1510,9 +1525,9 @@ export function TeamManager({
         )
       })}
 
-      {/* 店舗 (store) — 都道府県別折りたたみ */}
+      {/* 店舗 (store) — 都道府県別折りたたみ（テスト店舗は除外して別グループに） */}
       {shouldShowAll && (() => {
-        const storeTeams = teams.filter(t => t.type === 'store')
+        const storeTeams = teams.filter(t => t.type === 'store' && !t.is_test)
         const PREF_ORDER = ['秋田県','栃木県','群馬県','埼玉県','千葉県','東京都','神奈川県','新潟県','静岡県','茨城県']
         const grouped: Record<string, Team[]> = {}
         const noPref: Team[] = []
@@ -1572,6 +1587,17 @@ export function TeamManager({
                           <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-gray-400" onClick={() => toggleExpand(storeTeam.id)}>
                             {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                           </Button>
+                          {isDirectEdit && (
+                            <Button
+                              variant="ghost" size="sm"
+                              className="h-7 w-7 p-0 text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                              title="テスト店舗にする（所属メンバーも公開表示から除外）"
+                              onClick={() => handleToggleTeamTest(storeTeam.id, true)}
+                              disabled={isPending}
+                            >
+                              <FlaskConical className="w-3.5 h-3.5" />
+                            </Button>
+                          )}
                           {isDirectEdit && (
                             <Button
                               variant="ghost" size="sm"
@@ -1694,6 +1720,51 @@ export function TeamManager({
             </div>
           )
         })
+      })()}
+
+      {/* テスト店舗（折りたたみ・所属メンバーは公開表示から除外） */}
+      {shouldShowAll && (() => {
+        const testStores = teams.filter(t => t.type === 'store' && t.is_test)
+        if (testStores.length === 0) return null
+        return (
+          <div>
+            <button
+              type="button"
+              onClick={() => setShowTestStores(v => !v)}
+              className="w-full flex items-center gap-1.5 text-xs font-semibold text-gray-400 hover:text-gray-600 transition-colors py-1 mt-2"
+            >
+              {showTestStores ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+              <FlaskConical className="w-3.5 h-3.5" />
+              テスト店舗（{testStores.length}）
+            </button>
+            {showTestStores && testStores.map(storeTeam => (
+              <Card key={storeTeam.id} className="mb-1.5 border-gray-200 bg-gray-50">
+                <CardHeader className="pb-2 pt-3 px-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <Badge className="text-[9px] bg-gray-200 text-gray-600 border-0 flex-shrink-0">テスト</Badge>
+                      <span className="text-sm font-semibold text-gray-700 truncate">{storeTeam.name}</span>
+                    </div>
+                    {isDirectEdit && (
+                      <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-gray-500 hover:text-gray-700" onClick={() => handleToggleTeamTest(storeTeam.id, false)} disabled={isPending}>解除</Button>
+                        <Button
+                          variant="ghost" size="sm"
+                          className="h-7 w-7 p-0 text-red-400 hover:text-red-600 hover:bg-red-50"
+                          onClick={() => setConfirmDialog({ title: '削除の確認', message: `店舗「${storeTeam.name}」を削除しますか？`, confirmLabel: '削除する', confirmClassName: 'flex-1 bg-red-500 hover:bg-red-600 text-white', onConfirm: () => handleDeleteTeam(storeTeam.id) })}
+                          disabled={isPending}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">メンバー {getTeamMemberIds(storeTeam.id).length}名　担当リーダー {getTeamManagerIds(storeTeam.id).length}名</p>
+                </CardHeader>
+              </Card>
+            ))}
+          </div>
+        )
       })()}
 
     </div>

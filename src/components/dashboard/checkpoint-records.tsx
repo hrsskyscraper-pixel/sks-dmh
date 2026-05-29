@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Trophy } from 'lucide-react'
+import { getTestEmployeeIds } from '@/lib/test-data'
 
 interface Props {
   employeeId: string
@@ -40,9 +41,13 @@ export async function CheckpointRecords({ employeeId, employeeRole, projectSkill
 
   if (!certifiedAchievements?.length) return null
 
+  // テスト社員の記録はランキングから除外
+  const testEmpIds = await getTestEmployeeIds()
+  const visibleAchievements = certifiedAchievements.filter(a => !testEmpIds.has(a.employee_id))
+
   // 各CPスキルのTOP3を計算
   const top3BySkill: Record<string, { employeeId: string; hours: number; rank: number }[]> = {}
-  for (const a of certifiedAchievements) {
+  for (const a of visibleAchievements) {
     const hours = a.cumulative_hours_at_achievement ?? Infinity
     if (!top3BySkill[a.skill_id]) top3BySkill[a.skill_id] = []
     top3BySkill[a.skill_id].push({ employeeId: a.employee_id, hours, rank: 0 })

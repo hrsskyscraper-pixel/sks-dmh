@@ -36,6 +36,7 @@ export type Database = {
           approved_at: string | null
           notifications_read_at: string | null
           font_scale: number
+          is_test: boolean
           created_at: string
           updated_at: string
         }
@@ -65,6 +66,7 @@ export type Database = {
           approved_at?: string | null
           notifications_read_at?: string | null
           font_scale?: number
+          is_test?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -94,6 +96,7 @@ export type Database = {
           approved_at?: string | null
           notifications_read_at?: string | null
           font_scale?: number
+          is_test?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -134,6 +137,7 @@ export type Database = {
           prefecture: string | null
           brand_id: string | null
           brand_ids: string[]
+          is_test: boolean
           created_at: string
           updated_at: string
         }
@@ -144,6 +148,7 @@ export type Database = {
           prefecture?: string | null
           brand_id?: string | null
           brand_ids?: string[]
+          is_test?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -154,6 +159,7 @@ export type Database = {
           prefecture?: string | null
           brand_id?: string | null
           brand_ids?: string[]
+          is_test?: boolean
           created_at?: string
           updated_at?: string
         }

@@ -5,6 +5,7 @@ import { TopBar } from '@/components/layout/nav'
 import { ApprovalManager } from '@/components/approval/approval-manager'
 import type { Role } from '@/types/database'
 import { canAdminister, canApprove } from '@/lib/permissions'
+import { getTestEmployeeIds } from '@/lib/test-data'
 
 export default async function ApprovalPage() {
   const employee = await getCurrentEmployee()
@@ -38,10 +39,11 @@ export default async function ApprovalPage() {
 
   const { data: pendingEmployees } = await pendingQuery
 
-  // システム管理者でなければ自分の管理チームの依頼のみ表示
-  const filtered = isSystemAdmin
-    ? (pendingEmployees ?? [])
-    : (pendingEmployees ?? []).filter(e => managedTeamIds.includes(e.requested_team_id!))
+  // テスト社員を除外し、システム管理者でなければ自分の管理チームの依頼のみ表示
+  const testEmpIds = await getTestEmployeeIds()
+  const filtered = (pendingEmployees ?? [])
+    .filter(e => !testEmpIds.has(e.id))
+    .filter(e => isSystemAdmin || managedTeamIds.includes(e.requested_team_id!))
 
   // 店舗・部署取得
   const { data: teams } = await db.from('teams').select('id, name, type, prefecture').in('type', ['store', 'department']).order('name')

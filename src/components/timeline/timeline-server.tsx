@@ -2,6 +2,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { TimelineFeed } from '@/components/timeline/timeline-feed'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import Link from 'next/link'
+import { getTestEmployeeIds } from '@/lib/test-data'
 
 interface Props {
   employeeId: string
@@ -22,7 +23,7 @@ export async function TimelineServer({ employeeId, employeeRole }: Props) {
       .eq('status', 'certified')
       .not('certified_at', 'is', null)
       .order('certified_at', { ascending: false })
-      .limit(5),
+      .limit(20),
     db.from('achievement_comments')
       .select('id, achievement_id, employee_id, content, created_at')
       .order('created_at'),
@@ -33,8 +34,14 @@ export async function TimelineServer({ employeeId, employeeRole }: Props) {
       .order('name'),
   ])
 
+  // テスト社員の投稿・反応・コメントは除外（フィルタ後に表示件数へ絞る）
+  const testEmpIds = await getTestEmployeeIds()
+  const visibleAchievements = (certifiedAchievements ?? []).filter(a => !testEmpIds.has(a.employee_id)).slice(0, 5)
+  const visibleComments = (comments ?? []).filter(c => !testEmpIds.has(c.employee_id))
+  const visibleReactions = (reactions ?? []).filter(r => !testEmpIds.has(r.employee_id))
+
   const employeeMap = Object.fromEntries(
-    (employees ?? []).map(e => [e.id, e])
+    (employees ?? []).filter(e => !testEmpIds.has(e.id)).map(e => [e.id, e])
   )
 
   return (
@@ -50,9 +57,9 @@ export async function TimelineServer({ employeeId, employeeRole }: Props) {
         </CardHeader>
         <CardContent className="px-4 pb-4">
           <TimelineFeed
-            achievements={certifiedAchievements ?? []}
-            comments={comments ?? []}
-            reactions={reactions ?? []}
+            achievements={visibleAchievements}
+            comments={visibleComments}
+            reactions={visibleReactions}
             employeeMap={employeeMap}
             currentEmployeeId={employeeId}
             compact

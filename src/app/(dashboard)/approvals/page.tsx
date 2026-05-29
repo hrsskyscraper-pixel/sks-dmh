@@ -5,6 +5,7 @@ import { TopBar } from '@/components/layout/nav'
 import { ApprovalCenter } from '@/components/approvals/approval-center'
 import type { Role } from '@/types/database'
 import { canAdminister, canApprove } from '@/lib/permissions'
+import { getTestEmployeeIds } from '@/lib/test-data'
 
 export default async function ApprovalsPage() {
   const employee = await getCurrentEmployee()
@@ -14,6 +15,7 @@ export default async function ApprovalsPage() {
 
   const db = createAdminClient()
   const isSystemAdmin = canAdminister(employee)
+  const testEmpIds = await getTestEmployeeIds()
 
   // 管理するチームのメンバーID
   let managedMemberIds: string[] = []
@@ -34,9 +36,9 @@ export default async function ApprovalsPage() {
     .eq('status', 'pending')
     .order('created_at', { ascending: false })
 
-  const filteredAchievements = isSystemAdmin
-    ? (pendingAchievements ?? [])
-    : (pendingAchievements ?? []).filter(a => managedMemberIds.includes(a.employee_id))
+  const filteredAchievements = (pendingAchievements ?? [])
+    .filter(a => !testEmpIds.has(a.employee_id))
+    .filter(a => isSystemAdmin || managedMemberIds.includes(a.employee_id))
 
   // 処理済みスキル認定（承認権限者全員が閲覧可能・直近30件）
   const { data: recentAchievements } = await db
@@ -102,9 +104,9 @@ export default async function ApprovalsPage() {
     .eq('status', 'pending')
     .order('created_at', { ascending: false })
 
-  const filteredTeamRequests = isSystemAdmin
-    ? (pendingTeamRequests ?? [])
-    : (pendingTeamRequests ?? []).filter(r => r.team_id && managedTeamIds.includes(r.team_id))
+  const filteredTeamRequests = (pendingTeamRequests ?? [])
+    .filter(r => !r.requested_by || !testEmpIds.has(r.requested_by))
+    .filter(r => isSystemAdmin || (r.team_id && managedTeamIds.includes(r.team_id)))
 
   // 3. 参加許諾待ち
   const { data: pendingJoins } = await db
@@ -114,9 +116,9 @@ export default async function ApprovalsPage() {
     .not('requested_team_id', 'is', null)
     .order('created_at')
 
-  const filteredJoins = isSystemAdmin
-    ? (pendingJoins ?? [])
-    : (pendingJoins ?? []).filter(e => e.requested_team_id && managedTeamIds.includes(e.requested_team_id))
+  const filteredJoins = (pendingJoins ?? [])
+    .filter(e => !testEmpIds.has(e.id))
+    .filter(e => isSystemAdmin || (e.requested_team_id && managedTeamIds.includes(e.requested_team_id)))
 
   // 店舗・チーム名マップ
   const { data: allTeams } = await db.from('teams').select('id, name, type, prefecture').order('name')

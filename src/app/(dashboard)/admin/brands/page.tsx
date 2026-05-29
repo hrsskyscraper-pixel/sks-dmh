@@ -17,17 +17,20 @@ export default async function BrandsPage() {
     { data: manuals },
   ] = await Promise.all([
     db.from('brands').select('*').order('sort_order'),
-    db.from('teams').select('id, name, type, brand_id, brand_ids, prefecture').in('type', ['store', 'department']).order('type').order('name'),
+    db.from('teams').select('id, name, type, brand_id, brand_ids, prefecture, is_test').in('type', ['store', 'department']).order('type').order('name'),
     db.from('manual_library').select('id, brand_ids').eq('archived', false),
   ])
 
   const stores = (teams ?? []).filter(t => t.type === 'store')
   const departments = (teams ?? []).filter(t => t.type === 'department')
+  // 統計カウントはテスト店舗/部署を除外（管理リスト自体には表示する）
+  const realStores = stores.filter(s => !s.is_test)
+  const realDepartments = departments.filter(d => !d.is_test)
 
   const stats: Record<string, { stores: number; departments: number; manuals: number }> = {}
   for (const b of brands ?? []) stats[b.id] = { stores: 0, departments: 0, manuals: 0 }
-  for (const s of stores) if (s.brand_id && stats[s.brand_id]) stats[s.brand_id].stores++
-  for (const d of departments) {
+  for (const s of realStores) if (s.brand_id && stats[s.brand_id]) stats[s.brand_id].stores++
+  for (const d of realDepartments) {
     for (const bid of d.brand_ids ?? []) {
       if (stats[bid]) stats[bid].departments++
     }
@@ -37,7 +40,7 @@ export default async function BrandsPage() {
       if (stats[bid]) stats[bid].manuals++
     }
   }
-  const storesWithoutBrand = stores.filter(s => !s.brand_id).length
+  const storesWithoutBrand = realStores.filter(s => !s.brand_id).length
   const manualsWithoutBrand = (manuals ?? []).filter(m => (m.brand_ids ?? []).length === 0).length
 
   return (

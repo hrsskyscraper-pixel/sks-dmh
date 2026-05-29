@@ -18,7 +18,7 @@ import { createClient } from '@/lib/supabase/client'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
 import { Store, FolderKanban, Building2, ChevronDown, ChevronRight, MapPin, Award, Star, Instagram, MessageCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { changeEmployeeRole } from '@/app/(dashboard)/actions'
+import { changeEmployeeRole, setEmployeeTest } from '@/app/(dashboard)/actions'
 import type { Employee, Role, EmploymentType, Team, TeamMember } from '@/types/database'
 
 // UI上の表示役割
@@ -139,6 +139,20 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
   // デフォルト選択: すべて（null）
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null)
   const [expandedPrefs, setExpandedPrefs] = useState<Set<string>>(new Set())
+  const [showTest, setShowTest] = useState(false)
+
+  const handleToggleTest = (employeeId: string, next: boolean) => {
+    setEmployees(prev => prev.map(e => e.id === employeeId ? { ...e, is_test: next } : e))
+    startTransition(async () => {
+      const res = await setEmployeeTest(employeeId, next)
+      if (res.error) {
+        toast.error(res.error)
+        setEmployees(prev => prev.map(e => e.id === employeeId ? { ...e, is_test: !next } : e))
+      } else {
+        toast.success(next ? 'テスト指定にしました' : 'テスト指定を解除しました')
+      }
+    })
+  }
   const [showStores, setShowStores] = useState(false)
   const supabase = createClient()
 
@@ -236,6 +250,10 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
   const filteredEmployees = memberIdSet
     ? sortedEmployees.filter(emp => memberIdSet.has(emp.id))
     : sortedEmployees
+  // テストアカウントは通常は隠し、トグルで末尾に展開
+  const realEmployees = filteredEmployees.filter(emp => !emp.is_test)
+  const testEmployees = filteredEmployees.filter(emp => emp.is_test)
+  const visibleEmployees = showTest ? [...realEmployees, ...testEmployees] : realEmployees
 
   return (
     <div className="p-4 space-y-3">
@@ -360,9 +378,18 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
         </div>
       )}
       <p className="text-xs text-muted-foreground">
-        {filteredEmployees.length}名{selectedTeamId ? ` / 全${employees.length}名` : ''}
+        {realEmployees.length}名{selectedTeamId ? ` / 全${employees.length}名` : ''}
       </p>
-      {filteredEmployees.map(employee => {
+      {testEmployees.length > 0 && (
+        <button
+          onClick={() => setShowTest(v => !v)}
+          className="w-full flex items-center gap-1.5 text-xs font-semibold text-gray-400 hover:text-gray-600 transition-colors py-1"
+        >
+          {showTest ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+          テストアカウント（{testEmployees.length}）
+        </button>
+      )}
+      {visibleEmployees.map(employee => {
         const displayRole = getDisplayRole(employee)
         const canEditThis = canEdit || (isTeamManager && managedSet.has(employee.id))
         const availableRoles = canEdit ? ALL_DISPLAY_ROLES : TEAM_MANAGER_ROLES
@@ -434,6 +461,9 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
                     )}
                     {positionByEmployee[employee.id] && (
                       <Badge className="text-[9px] bg-sky-100 text-sky-700 border-0 flex-shrink-0">{positionByEmployee[employee.id]}</Badge>
+                    )}
+                    {employee.is_test && (
+                      <Badge className="text-[9px] bg-gray-200 text-gray-600 border-0 flex-shrink-0">テスト</Badge>
                     )}
                   </div>
                   {/* 社内資格 */}
@@ -523,6 +553,14 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
                               {r}に変更
                             </DropdownMenuItem>
                           ))}
+                        {canEdit && (
+                          <DropdownMenuItem
+                            onClick={() => handleToggleTest(employee.id, !employee.is_test)}
+                            className="text-sm"
+                          >
+                            {employee.is_test ? 'テスト指定を解除' : 'テスト指定にする'}
+                          </DropdownMenuItem>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                     )}
