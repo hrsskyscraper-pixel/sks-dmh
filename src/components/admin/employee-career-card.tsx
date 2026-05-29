@@ -948,7 +948,7 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
               <div className="bg-white rounded-2xl overflow-hidden shadow-xl">
                 <div className="aspect-square bg-gray-100 flex items-center justify-center">
                   {avatarUrl ? (
-                    <img src={avatarUrl} alt={employeeName} className="w-full h-full object-cover" />
+                    <img src={avatarUrl} alt={employeeName} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                   ) : (
                     <span className="text-6xl font-bold text-gray-300">{employeeName.charAt(0)}</span>
                   )}

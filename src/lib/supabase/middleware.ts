@@ -26,9 +26,12 @@ export async function updateSession(request: NextRequest) {
     }
   )
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // middleware はリダイレクト判定（認証済みか否か）だけに使うため、
+  // getUser()（毎回 Auth サーバーへ往復）ではなく getClaims()（非対称鍵なら
+  // JWT をローカル検証し往復を回避）で十分。実データ取得側は RLS + サーバー
+  // コンポーネントの getCurrentEmployee/getUser で引き続き検証する。
+  const { data: claimsData } = await supabase.auth.getClaims()
+  const user = claimsData?.claims ?? null
 
   const { pathname } = request.nextUrl
 

@@ -592,7 +592,7 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
               <div className="bg-white rounded-2xl overflow-hidden shadow-xl">
                 <div className="aspect-square bg-gray-100 flex items-center justify-center">
                   {avatarPreview.url ? (
-                    <img src={avatarPreview.url} alt={avatarPreview.name} className="w-full h-full object-cover" />
+                    <img src={avatarPreview.url} alt={avatarPreview.name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                   ) : (
                     <span className="text-6xl font-bold text-gray-300">{avatarPreview.name.charAt(0)}</span>
                   )}

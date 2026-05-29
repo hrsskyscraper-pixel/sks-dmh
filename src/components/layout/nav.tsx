@@ -7,7 +7,7 @@ import { LayoutDashboard, CheckSquare, BadgeCheck, Upload, Users2, LogOut, Build
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
-import { useNotificationCount } from '@/components/layout/notification-context'
+import { useNavData, useNotificationCount } from '@/components/layout/nav-data-context'
 import type { Role } from '@/types/database'
 import { canAdminister } from '@/lib/permissions'
 import { setFontScale } from '@/app/(dashboard)/actions'
@@ -24,13 +24,9 @@ const navItems = [
 
 interface NavProps {
   role: Role
-  unreadRequestCount?: number
-  pendingApprovalCount?: number
-  dashboardBadge?: { count: number; color: 'red' | 'blue' } | null
   avatarUrl?: string | null
   employeeId?: string
   employeeName?: string
-  rejectedSkillCount?: number
   fontScale?: number
 }
 
@@ -81,7 +77,7 @@ function AccountMenu({ avatarUrl, employeeId, employeeName, role, fontScale = DE
         className="flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg transition-colors min-w-[56px]"
       >
         {avatarUrl ? (
-          <img src={avatarUrl} alt="" className="w-6 h-6 rounded-full object-cover border border-gray-200" />
+          <img src={avatarUrl} alt="" loading="lazy" decoding="async" className="w-6 h-6 rounded-full object-cover border border-gray-200" />
         ) : (
           <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center">
             <User className="w-3.5 h-3.5 text-gray-500" />
@@ -167,9 +163,11 @@ function AccountMenu({ avatarUrl, employeeId, employeeName, role, fontScale = DE
   )
 }
 
-export function BottomNav({ role, unreadRequestCount = 0, pendingApprovalCount = 0, dashboardBadge = null, avatarUrl, employeeId, employeeName, rejectedSkillCount = 0, fontScale = DEFAULT_FONT_SCALE }: NavProps) {
+export function BottomNav({ role, avatarUrl, employeeId, employeeName, fontScale = DEFAULT_FONT_SCALE }: NavProps) {
   const pathname = usePathname()
   const router = useRouter()
+  const { unreadTeamReqCount, pendingApprovalCount, dashboardBadge, rejectedSkillCount } = useNavData()
+  const unreadRequestCount = unreadTeamReqCount
   const visibleItems = navItems.filter(item => (item.roles as readonly string[]).includes(role))
 
   const handleLogout = async () => {

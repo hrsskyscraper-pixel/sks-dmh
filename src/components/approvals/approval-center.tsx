@@ -717,7 +717,7 @@ export function ApprovalCenter({
                 return (
                   <div key={h.id} className={`flex gap-2 ${isApplicant ? 'flex-row-reverse' : 'flex-row'}`}>
                     {h.actor_avatar ? (
-                      <img src={h.actor_avatar} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0 mt-4" />
+                      <img src={h.actor_avatar} alt="" loading="lazy" decoding="async" className="w-8 h-8 rounded-full object-cover flex-shrink-0 mt-4" />
                     ) : (
                       <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0 mt-4">
                         <span className="text-[10px] text-gray-500 font-bold">{h.actor_name?.charAt(0)}</span>

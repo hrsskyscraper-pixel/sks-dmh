@@ -562,7 +562,7 @@ export function DashboardContent({
                 <CardContent className="py-3 px-4">
                   <div className="flex items-start gap-3">
                     {certEmp?.avatar_url ? (
-                      <img src={certEmp.avatar_url} alt="" className="w-9 h-9 rounded-full object-cover flex-shrink-0" />
+                      <img src={certEmp.avatar_url} alt="" loading="lazy" decoding="async" className="w-9 h-9 rounded-full object-cover flex-shrink-0" />
                     ) : (
                       <div className="flex-shrink-0 mt-0.5">
                         {notification.status === 'certified' ? <CheckCircle2 className="w-5 h-5 text-green-500" /> : <XCircle className="w-5 h-5 text-red-400" />}

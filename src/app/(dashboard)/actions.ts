@@ -10,6 +10,150 @@ import { SELECTED_PROJECT_COOKIE } from '@/lib/selected-project'
 import { FONT_SCALE_COOKIE, isValidFontScale } from '@/lib/font-scale'
 import { writeAuditLog } from '@/lib/audit'
 import { canAdminister, canApprove } from '@/lib/permissions'
+import { getAuthUser, getCurrentEmployee } from '@/lib/supabase/auth-cache'
+import { EMPTY_NAV_COUNTS, type NavCounts } from '@/lib/nav-counts'
+import type { Role, SystemPermission } from '@/types/database'
+
+/**
+ * ボトムナビ／通知ベルのバッジ系カウントをまとめて取得する。
+ * 以前は (dashboard)/layout.tsx が毎レンダリングで直列に実行していたため、
+ * すべてのページ遷移が 16〜23 クエリ＋RPC の完了を待ってブロックされていた。
+ * これをレイアウトから剥がし、クライアントが描画後に呼ぶことで shell が即表示される。
+ * 内部は 4 つの独立ブロックを並列実行する。
+ */
+export async function getNavCounts(): Promise<NavCounts> {
+  const user = await getAuthUser()
+  if (!user) return EMPTY_NAV_COUNTS
+  const employee = await getCurrentEmployee()
+  if (!employee) return EMPTY_NAV_COUNTS
+
+  const cookieStore = await cookies()
+  const viewAsId = cookieStore.get(VIEW_AS_COOKIE)?.value ?? null
+  const db = createAdminClient()
+
+  const { data: viewAsEmployee } = viewAsId
+    ? await db.from('employees').select('role, system_permission, notifications_read_at').eq('id', viewAsId).single()
+    : { data: null }
+
+  const targetId = viewAsId ?? employee.id
+  const notifReadAt = (viewAsId ? viewAsEmployee?.notifications_read_at : employee.notifications_read_at) ?? '1970-01-01T00:00:00Z'
+  const effectiveEmp = {
+    role: (viewAsEmployee?.role as Role | undefined) ?? (employee.role as Role),
+    system_permission: (viewAsEmployee?.system_permission as SystemPermission | null | undefined) ?? employee.system_permission,
+  }
+
+  // --- ブロック1: 通知ベル＋チーム変更申請結果の未読 ---
+  const computeNotif = async (): Promise<{ notifCount: number; unreadTeamReqCount: number }> => {
+    const { data: targetAchievements } = await db.from('achievements').select('id').eq('employee_id', targetId)
+    const targetAchIds = (targetAchievements ?? []).map(a => a.id)
+    const [{ data: unreadReactions }, { data: unreadComments }, { data: unreadCertResults }, { count: unreadTeamReqCount }] = await Promise.all([
+      targetAchIds.length > 0
+        ? db.from('achievement_reactions').select('achievement_id, employee_id').in('achievement_id', targetAchIds).neq('employee_id', targetId).gt('created_at', notifReadAt)
+        : Promise.resolve({ data: [] }),
+      targetAchIds.length > 0
+        ? db.from('achievement_comments').select('achievement_id, employee_id').in('achievement_id', targetAchIds).neq('employee_id', targetId).gt('created_at', notifReadAt)
+        : Promise.resolve({ data: [] }),
+      targetAchIds.length > 0
+        ? db.from('achievement_history').select('achievement_id').in('achievement_id', targetAchIds).in('action', ['certify', 'reject']).gt('created_at', notifReadAt)
+        : Promise.resolve({ data: [] }),
+      db.from('team_change_requests').select('*', { count: 'exact', head: true })
+        .eq('requested_by', targetId).in('status', ['approved', 'rejected']).gt('reviewed_at', notifReadAt),
+    ])
+    const notifKeys = new Set<string>()
+    for (const r of unreadReactions ?? []) notifKeys.add(`${r.employee_id}:${r.achievement_id}`)
+    for (const c of unreadComments ?? []) notifKeys.add(`${c.employee_id}:${c.achievement_id}`)
+    const certResultKeys = new Set<string>()
+    for (const h of unreadCertResults ?? []) certResultKeys.add(h.achievement_id)
+    const utr = unreadTeamReqCount ?? 0
+    return { notifCount: notifKeys.size + certResultKeys.size + utr, unreadTeamReqCount: utr }
+  }
+
+  // --- ブロック2: 差し戻しスキル件数 ---
+  const computeRejected = async (): Promise<number> => {
+    const { count } = await db.from('achievements').select('*', { count: 'exact', head: true })
+      .eq('employee_id', targetId).eq('status', 'rejected')
+    return count ?? 0
+  }
+
+  // --- ブロック3: 承認待ち合計（リーダー以上のみ） ---
+  const computePendingApproval = async (): Promise<number> => {
+    if (!canApprove(effectiveEmp)) return 0
+    if (canAdminister(effectiveEmp)) {
+      const [skillCount, teamCount, joinCount] = await Promise.all([
+        db.from('achievements').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+        db.from('team_change_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+        db.from('employees').select('*', { count: 'exact', head: true }).eq('status', 'pending').not('requested_team_id', 'is', null),
+      ])
+      return (skillCount.count ?? 0) + (teamCount.count ?? 0) + (joinCount.count ?? 0)
+    }
+    // store_manager / manager: 管理チームのメンバーのみ
+    const { data: managed } = await db.from('team_managers').select('team_id').eq('employee_id', targetId)
+    const managedTeamIds = (managed ?? []).map(m => m.team_id)
+    if (managedTeamIds.length === 0) return 0
+    const { data: members } = await db.from('team_members').select('employee_id').in('team_id', managedTeamIds)
+    const managedMemberIds = [...new Set((members ?? []).map(m => m.employee_id))]
+    if (managedMemberIds.length === 0) return 0
+    const [skillCount, teamCount, joinCount] = await Promise.all([
+      db.from('achievements').select('*', { count: 'exact', head: true }).eq('status', 'pending').in('employee_id', managedMemberIds),
+      db.from('team_change_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending').in('team_id', managedTeamIds),
+      db.from('employees').select('*', { count: 'exact', head: true }).eq('status', 'pending').not('requested_team_id', 'is', null).in('requested_team_id', managedTeamIds),
+    ])
+    return (skillCount.count ?? 0) + (teamCount.count ?? 0) + (joinCount.count ?? 0)
+  }
+
+  // --- ブロック4: ホームのバッジ（遅れ/次の一歩） ---
+  const computeDashboardBadge = async (): Promise<NavCounts['dashboardBadge']> => {
+    const [{ data: tRows }, { data: mRows }] = await Promise.all([
+      db.from('team_members').select('team_id').eq('employee_id', targetId),
+      db.from('team_managers').select('team_id').eq('employee_id', targetId),
+    ])
+    const tIds = [...new Set([...(tRows ?? []).map(r => r.team_id), ...(mRows ?? []).map(r => r.team_id)])]
+    if (tIds.length === 0) return null
+    const { data: ptRows } = await db.from('project_teams').select('project_id').in('team_id', tIds)
+    const projIds = [...new Set((ptRows ?? []).map(r => r.project_id))]
+    if (projIds.length === 0) return null
+    const firstProjId = projIds[0]
+    const [{ data: phases }, { data: pSkills }, { data: certAch }, whResult] = await Promise.all([
+      db.from('project_phases').select('id, name, order_index, end_hours').eq('project_id', firstProjId).order('order_index'),
+      db.from('project_skills').select('skill_id, project_phase_id').eq('project_id', firstProjId),
+      db.from('achievements').select('skill_id').eq('employee_id', targetId).eq('status', 'certified'),
+      db.rpc('get_employee_cumulative_hours', { p_employee_id: targetId, p_as_of_date: new Date().toISOString().split('T')[0] }),
+    ])
+    const cumHours = (whResult as { data: number | null }).data ?? 0
+    const certifiedSkillIds = new Set((certAch ?? []).map(a => a.skill_id))
+    const phaseById = Object.fromEntries((phases ?? []).map(p => [p.id, p]))
+    const sortedPhases = [...(phases ?? [])].sort((a, b) => a.order_index - b.order_index)
+    const currentPhaseIdx = sortedPhases.findIndex(p => cumHours < p.end_hours)
+    let delayedCount = 0
+    let nextCount = 0
+    for (const ps of pSkills ?? []) {
+      if (certifiedSkillIds.has(ps.skill_id)) continue
+      const phase = phaseById[ps.project_phase_id ?? '']
+      if (!phase) continue
+      const phaseIdx = sortedPhases.findIndex(p => p.id === phase.id)
+      if (cumHours >= phase.end_hours) delayedCount++
+      else if (phaseIdx <= currentPhaseIdx) nextCount++
+    }
+    if (delayedCount > 0) return { count: delayedCount, color: 'red' }
+    if (nextCount > 0) return { count: nextCount, color: 'blue' }
+    return null
+  }
+
+  const [notif, rejectedSkillCount, pendingApprovalCount, dashboardBadge] = await Promise.all([
+    computeNotif(),
+    computeRejected(),
+    computePendingApproval(),
+    computeDashboardBadge(),
+  ])
+
+  return {
+    notifCount: notif.notifCount,
+    unreadTeamReqCount: notif.unreadTeamReqCount,
+    pendingApprovalCount,
+    rejectedSkillCount,
+    dashboardBadge,
+  }
+}
 
 export async function setViewAs(employeeId: string) {
   const supabase = await createClient()

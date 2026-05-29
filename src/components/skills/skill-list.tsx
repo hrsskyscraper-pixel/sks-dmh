@@ -432,7 +432,7 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
                 <div key={ach.id} onClick={() => openChatHistory(ach)} className="rounded-lg border cursor-pointer hover:shadow-sm transition-shadow py-2.5 px-3 bg-red-50 border-red-100">
                   <div className="flex items-start gap-3">
                     {ach.certified_employee?.avatar_url ? (
-                      <img src={ach.certified_employee.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0 mt-0.5" />
+                      <img src={ach.certified_employee.avatar_url} alt="" loading="lazy" decoding="async" className="w-8 h-8 rounded-full object-cover flex-shrink-0 mt-0.5" />
                     ) : (
                       <XCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
                     )}
@@ -792,7 +792,7 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
                 return (
                   <div key={h.id} className={`flex gap-2 ${isApplicant ? 'flex-row-reverse' : 'flex-row'}`}>
                     {h.actor_avatar ? (
-                      <img src={h.actor_avatar} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0 mt-4" />
+                      <img src={h.actor_avatar} alt="" loading="lazy" decoding="async" className="w-8 h-8 rounded-full object-cover flex-shrink-0 mt-4" />
                     ) : (
                       <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0 mt-4">
                         <span className="text-[10px] text-gray-500 font-bold">{h.actor_name?.charAt(0)}</span>

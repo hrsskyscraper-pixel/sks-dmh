@@ -9,14 +9,13 @@ import { Toaster } from '@/components/ui/sonner'
 import { ViewAsBanner } from '@/components/layout/view-as-banner'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { NotificationCountProvider } from '@/components/layout/notification-context'
+import { NavDataProvider } from '@/components/layout/nav-data-context'
 import { OnboardingDialog } from '@/components/onboarding/onboarding-dialog'
 import { PendingScreen } from '@/components/onboarding/pending-screen'
 import { LineLinkFloatingButton } from '@/components/layout/line-link-floating-button'
 import { FontScaleSync } from '@/components/layout/font-scale-sync'
 import { normalizeFontScale } from '@/lib/font-scale'
-import type { Database, Role, SystemPermission } from '@/types/database'
-import { canAdminister, canApprove } from '@/lib/permissions'
+import type { Database, Role } from '@/types/database'
 
 export default async function DashboardLayout({
   children,
@@ -119,150 +118,17 @@ export default async function DashboardLayout({
     ? await db.from('employees').select('name, role, system_permission, notifications_read_at').eq('id', viewAsId).single()
     : { data: null }
 
-  // 通知数は view-as 対象社員（なければ自分）で計算
-  const notifTargetId = viewAsId ?? employee.id
-  const notifReadAt = (viewAsId ? viewAsEmployee?.notifications_read_at : employee.notifications_read_at) ?? '1970-01-01T00:00:00Z'
-
-  const { data: targetAchievements } = await db
-    .from('achievements')
-    .select('id')
-    .eq('employee_id', notifTargetId)
-  const targetAchIds = (targetAchievements ?? []).map(a => a.id)
-
-  const [{ data: unreadReactions }, { data: unreadComments }, { data: unreadCertResults }, { count: unreadTeamReqCount }] = await Promise.all([
-    targetAchIds.length > 0
-      ? db.from('achievement_reactions').select('achievement_id, employee_id')
-          .in('achievement_id', targetAchIds).neq('employee_id', notifTargetId).gt('created_at', notifReadAt)
-      : Promise.resolve({ data: [] }),
-    targetAchIds.length > 0
-      ? db.from('achievement_comments').select('achievement_id, employee_id')
-          .in('achievement_id', targetAchIds).neq('employee_id', notifTargetId).gt('created_at', notifReadAt)
-      : Promise.resolve({ data: [] }),
-    // 自分のスキル認定結果（認定・差戻）の未読
-    targetAchIds.length > 0
-      ? db.from('achievement_history').select('achievement_id')
-          .in('achievement_id', targetAchIds).in('action', ['certify', 'reject']).gt('created_at', notifReadAt)
-      : Promise.resolve({ data: [] }),
-    // 自分のチーム変更申請の結果（承認・差戻）の未読
-    db.from('team_change_requests').select('*', { count: 'exact', head: true })
-      .eq('requested_by', notifTargetId).in('status', ['approved', 'rejected']).gt('reviewed_at', notifReadAt),
-  ])
-  // 同じ achievement_id + employee_id をまとめてカウント（リアクション・コメント）
-  const notifKeys = new Set<string>()
-  for (const r of unreadReactions ?? []) notifKeys.add(`${r.employee_id}:${r.achievement_id}`)
-  for (const c of unreadComments ?? []) notifKeys.add(`${c.employee_id}:${c.achievement_id}`)
-  // スキル認定結果は achievement_id 単位でユニーク
-  const certResultKeys = new Set<string>()
-  for (const h of unreadCertResults ?? []) certResultKeys.add(h.achievement_id)
-  const unreadNotifCount = notifKeys.size + certResultKeys.size + (unreadTeamReqCount ?? 0)
-
   // BottomNav は viewAs 社員のロールで表示を切り替える
   const effectiveRole: Role = (viewAsEmployee?.role as Role | undefined) ?? role
-  const effectiveEmp = {
-    role: effectiveRole,
-    system_permission: (viewAsEmployee?.system_permission as SystemPermission | null | undefined) ?? employee.system_permission,
-  }
-
-  // 差し戻しスキル件数
-  const targetEmpId = viewAsId ?? employee.id
-  const { count: rejectedSkillCount } = await createAdminClient()
-    .from('achievements')
-    .select('*', { count: 'exact', head: true })
-    .eq('employee_id', targetEmpId)
-    .eq('status', 'rejected')
-
-  // 承認待ち合計（スキル認定 + チーム変更 + 参加許諾）
-  // store_manager/manager は自分の管理チームのみ、admin以上は全件
-  let pendingApprovalCount = 0
-  if (canApprove(effectiveEmp)) {
-    const adminDb = createAdminClient()
-    const isSystemAdmin = canAdminister(effectiveEmp)
-    const effectiveEmpId = viewAsId ?? employee.id
-
-    if (isSystemAdmin) {
-      const [skillCount, teamCount, joinCount] = await Promise.all([
-        adminDb.from('achievements').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-        adminDb.from('team_change_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-        adminDb.from('employees').select('*', { count: 'exact', head: true }).eq('status', 'pending').not('requested_team_id', 'is', null),
-      ])
-      pendingApprovalCount = (skillCount.count ?? 0) + (teamCount.count ?? 0) + (joinCount.count ?? 0)
-    } else {
-      // store_manager / manager: 管理チームのメンバーのみ
-      const { data: managed } = await adminDb.from('team_managers').select('team_id').eq('employee_id', effectiveEmpId)
-      const managedTeamIds = (managed ?? []).map(m => m.team_id)
-      if (managedTeamIds.length > 0) {
-        const { data: members } = await adminDb.from('team_members').select('employee_id').in('team_id', managedTeamIds)
-        const managedMemberIds = [...new Set((members ?? []).map(m => m.employee_id))]
-        if (managedMemberIds.length > 0) {
-          const [skillCount, teamCount, joinCount] = await Promise.all([
-            adminDb.from('achievements').select('*', { count: 'exact', head: true }).eq('status', 'pending').in('employee_id', managedMemberIds),
-            adminDb.from('team_change_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending').in('team_id', managedTeamIds),
-            adminDb.from('employees').select('*', { count: 'exact', head: true }).eq('status', 'pending').not('requested_team_id', 'is', null).in('requested_team_id', managedTeamIds),
-          ])
-          pendingApprovalCount = (skillCount.count ?? 0) + (teamCount.count ?? 0) + (joinCount.count ?? 0)
-        }
-      }
-    }
-  }
-
-  // ダッシュボードバッジ: 遅れスキル / 次のステップ
-  let dashboardBadge: { count: number; color: 'red' | 'blue' } | null = null
-  {
-    const targetId = viewAsId ?? employee.id
-    const adminDb = createAdminClient()
-
-    // 社員が参加するプロジェクト取得（project_teams経由）
-    const { data: tRows } = await adminDb.from('team_members').select('team_id').eq('employee_id', targetId)
-    const { data: mRows } = await adminDb.from('team_managers').select('team_id').eq('employee_id', targetId)
-    const tIds = [...new Set([...(tRows ?? []).map(r => r.team_id), ...(mRows ?? []).map(r => r.team_id)])]
-    if (tIds.length > 0) {
-      const { data: ptRows } = await adminDb.from('project_teams').select('project_id').in('team_id', tIds)
-      const projIds = [...new Set((ptRows ?? []).map(r => r.project_id))]
-      if (projIds.length > 0) {
-        const firstProjId = projIds[0]
-        const [{ data: phases }, { data: pSkills }, { data: certAch }, whResult] = await Promise.all([
-          adminDb.from('project_phases').select('id, name, order_index, end_hours').eq('project_id', firstProjId).order('order_index'),
-          adminDb.from('project_skills').select('skill_id, project_phase_id').eq('project_id', firstProjId),
-          adminDb.from('achievements').select('skill_id').eq('employee_id', targetId).eq('status', 'certified'),
-          adminDb.rpc('get_employee_cumulative_hours', { p_employee_id: targetId, p_as_of_date: new Date().toISOString().split('T')[0] }),
-        ])
-        const cumHours = (whResult as { data: number | null }).data ?? 0
-        const certifiedSkillIds = new Set((certAch ?? []).map(a => a.skill_id))
-        const phaseById = Object.fromEntries((phases ?? []).map(p => [p.id, p]))
-
-        // 遅れスキル: フェーズ目標時間 <= 累計勤務 なのに未取得
-        let delayedCount = 0
-        let nextCount = 0
-        // 現在のフェーズ（累計勤務がまだ到達していないフェーズ）
-        const sortedPhases = [...(phases ?? [])].sort((a, b) => a.order_index - b.order_index)
-        const currentPhaseIdx = sortedPhases.findIndex(p => cumHours < p.end_hours)
-
-        for (const ps of pSkills ?? []) {
-          if (certifiedSkillIds.has(ps.skill_id)) continue
-          const phase = phaseById[ps.project_phase_id ?? '']
-          if (!phase) continue
-          const phaseIdx = sortedPhases.findIndex(p => p.id === phase.id)
-          if (cumHours >= phase.end_hours) {
-            delayedCount++
-          } else if (phaseIdx <= currentPhaseIdx) {
-            nextCount++
-          }
-        }
-
-        if (delayedCount > 0) {
-          dashboardBadge = { count: delayedCount, color: 'red' }
-        } else if (nextCount > 0) {
-          dashboardBadge = { count: nextCount, color: 'blue' }
-        }
-      }
-    }
-  }
 
   // 文字サイズは「自分の」表示設定なので、view-as 対象ではなくログイン本人の値を使う
   const fontScale = normalizeFontScale(employee.font_scale)
 
+  // バッジ系のカウント（通知・承認待ち・遅れ等）はここでは取得しない。
+  // 以前は毎遷移で 16〜23 クエリ＋RPC を直列実行してページ描画をブロックしていた。
+  // NavDataProvider が描画後にクライアントから getNavCounts() を呼び、非同期で差し込む。
   return (
-    <NotificationCountProvider count={unreadNotifCount}>
+    <NavDataProvider>
       <FontScaleSync scale={fontScale} />
       <div className="min-h-screen bg-gray-50" style={viewAsEmployee ? { '--banner-h': '2.5rem' } as React.CSSProperties : undefined}>
         {viewAsEmployee && <ViewAsBanner employeeName={viewAsEmployee.name} />}
@@ -270,9 +136,9 @@ export default async function DashboardLayout({
           {children}
         </main>
         <LineLinkFloatingButton isLinked={!!employee.line_user_id} friendLinked={employee.line_friend === true} />
-        <BottomNav role={effectiveRole} unreadRequestCount={unreadTeamReqCount ?? 0} pendingApprovalCount={pendingApprovalCount} dashboardBadge={dashboardBadge} avatarUrl={employee.avatar_url} employeeId={employee.id} employeeName={employee.name} rejectedSkillCount={rejectedSkillCount ?? 0} fontScale={fontScale} />
+        <BottomNav role={effectiveRole} avatarUrl={employee.avatar_url} employeeId={employee.id} employeeName={employee.name} fontScale={fontScale} />
         <Toaster position="top-center" richColors />
       </div>
-    </NotificationCountProvider>
+    </NavDataProvider>
   )
 }
