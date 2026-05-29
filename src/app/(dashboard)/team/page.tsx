@@ -92,10 +92,15 @@ export default async function TeamPage() {
     }
   }
 
-  // employee→project マッピングを事前構築
-  const empFirstProject: Record<string, string> = {}
+  // employee→project マッピング（複数所属あり）を事前構築
+  const empProjects: Record<string, string[]> = {}
   for (const ep of allEmployeeProjects ?? []) {
-    if (!empFirstProject[ep.employee_id]) empFirstProject[ep.employee_id] = ep.project_id
+    (empProjects[ep.employee_id] ??= []).push(ep.project_id)
+  }
+  // 認定済みスキル集合（プロジェクト選択の判定用）
+  const certifiedSet = new Set<string>()
+  for (const a of achievements ?? []) {
+    if (a.status === 'certified') certifiedSet.add(`${a.employee_id}:${a.skill_id}`)
   }
 
   // project別のフェーズ・スキルを事前構築
@@ -130,15 +135,24 @@ export default async function TeamPage() {
 
   const empStatsMap: Record<string, { standardPct: number; totalSkills: number; storeName: string | null }> = {}
   for (const emp of employees ?? []) {
-    const firstProjectId = empFirstProject[emp.id] ?? null
-    let standardPct = 0
-    let totalSkills = 0
-    if (firstProjectId) {
-      const stats = getProjectStats(firstProjectId)
-      totalSkills = stats.totalSkills
-      standardPct = calcStandardPct(hoursByEmployee[emp.id] ?? 0, stats.milestones, stats.skillsByPhase, totalSkills)
+    // 所属プロジェクトのうち空でないものから、本人の認定が最も多いものを採用
+    // （空プロジェクトの誤選択で 0% になるのを防ぐ）
+    let best: { standardPct: number; totalSkills: number; certifiedCount: number } | null = null
+    for (const pid of empProjects[emp.id] ?? []) {
+      const skills = pSkillsByProject[pid] ?? []
+      if (skills.length === 0) continue
+      let cc = 0
+      for (const ps of skills) {
+        if (certifiedSet.has(`${emp.id}:${ps.skill_id}`)) cc++
+      }
+      const stats = getProjectStats(pid)
+      const sp = calcStandardPct(hoursByEmployee[emp.id] ?? 0, stats.milestones, stats.skillsByPhase, stats.totalSkills)
+      const cand = { standardPct: sp, totalSkills: stats.totalSkills, certifiedCount: cc }
+      if (!best || cand.certifiedCount > best.certifiedCount || (cand.certifiedCount === best.certifiedCount && cand.standardPct > best.standardPct)) {
+        best = cand
+      }
     }
-    empStatsMap[emp.id] = { standardPct, totalSkills, storeName: storeByEmployee[emp.id] ?? null }
+    empStatsMap[emp.id] = { standardPct: best?.standardPct ?? 0, totalSkills: best?.totalSkills ?? 0, storeName: storeByEmployee[emp.id] ?? null }
   }
 
   // テスト社員は一覧・集計から除外

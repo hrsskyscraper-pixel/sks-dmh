@@ -75,16 +75,17 @@ export default async function EmployeesPage() {
     acc[a.employee_id] = (acc[a.employee_id] ?? 0) + 1
     return acc
   }, {} as Record<string, number>)
+  const certifiedSet = new Set<string>((allCertified ?? []).map(a => `${a.employee_id}:${a.skill_id}`))
 
   const hoursByEmployee = (allWorkHours ?? []).reduce((acc, r) => {
     acc[r.employee_id] = (acc[r.employee_id] ?? 0) + r.hours
     return acc
   }, {} as Record<string, number>)
 
-  // employee→project マッピングを事前構築
-  const empFirstProject: Record<string, string> = {}
+  // employee→project マッピング（複数所属あり）を事前構築
+  const empProjects: Record<string, string[]> = {}
   for (const ep of allEmployeeProjects ?? []) {
-    if (!empFirstProject[ep.employee_id]) empFirstProject[ep.employee_id] = ep.project_id
+    (empProjects[ep.employee_id] ??= []).push(ep.project_id)
   }
 
   // project別のフェーズ・スキルを事前構築
@@ -124,20 +125,26 @@ export default async function EmployeesPage() {
   for (const emp of employees ?? []) {
     if (emp.role !== 'employee') continue
 
-    const empProjectId = empFirstProject[emp.id] ?? null
-    let totalSkills = 0
-    let standardPct = 0
-
-    if (empProjectId) {
-      const stats = getProjectStats(empProjectId)
-      totalSkills = stats.totalSkills
-      standardPct = calcStandardPct(hoursByEmployee[emp.id] ?? 0, stats.milestones, stats.skillsByPhase, totalSkills)
+    // 所属プロジェクトのうち空でないものから、本人の認定が最も多いものを採用
+    // （空プロジェクトの誤選択で 0% になるのを防ぐ）
+    let best: { totalSkills: number; standardPct: number; certifiedCount: number } | null = null
+    for (const pid of empProjects[emp.id] ?? []) {
+      const stats = getProjectStats(pid)
+      if (stats.totalSkills === 0) continue
+      let cc = 0
+      for (const ps of skillsByProject[pid] ?? []) {
+        if (certifiedSet.has(`${emp.id}:${ps.skill_id}`)) cc++
+      }
+      const sp = calcStandardPct(hoursByEmployee[emp.id] ?? 0, stats.milestones, stats.skillsByPhase, stats.totalSkills)
+      const cand = { totalSkills: stats.totalSkills, standardPct: sp, certifiedCount: cc }
+      if (!best || cand.certifiedCount > best.certifiedCount || (cand.certifiedCount === best.certifiedCount && cand.standardPct > best.standardPct)) {
+        best = cand
+      }
     }
 
-    const certifiedCount = certifiedByEmployee[emp.id] ?? 0
     employeeStats[emp.id] = {
-      certifiedPct: totalSkills > 0 ? Math.round((certifiedCount / totalSkills) * 100) : 0,
-      standardPct,
+      certifiedPct: best && best.totalSkills > 0 ? Math.round((best.certifiedCount / best.totalSkills) * 100) : 0,
+      standardPct: best?.standardPct ?? 0,
     }
   }
 

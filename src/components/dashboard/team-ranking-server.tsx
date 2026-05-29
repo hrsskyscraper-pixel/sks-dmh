@@ -59,9 +59,10 @@ export async function TeamRankingServer({ employeeId, employeeRole, selectedProj
     projectSkillIdMap[ps.project_id].add(ps.skill_id)
   }
 
-  const empFirstProject: Record<string, string> = {}
+  // 社員→所属プロジェクト一覧（複数所属あり）
+  const empProjects: Record<string, string[]> = {}
   for (const ep of allEmployeeProjects ?? []) {
-    if (!empFirstProject[ep.employee_id]) empFirstProject[ep.employee_id] = ep.project_id
+    (empProjects[ep.employee_id] ??= []).push(ep.project_id)
   }
 
   const certifiedSet = new Set(
@@ -99,29 +100,30 @@ export async function TeamRankingServer({ employeeId, employeeRole, selectedProj
   }
 
   const teamStats: TeamMemberStat[] = (allEmployees ?? []).filter(emp => !testEmpIds.has(emp.id)).map(emp => {
-    const firstProjectId = empFirstProject[emp.id] ?? null
-    const empSkillIdSet = firstProjectId ? (projectSkillIdMap[firstProjectId] ?? new Set<string>()) : new Set<string>()
-    let empCertifiedCount = 0
-    for (const skillId of empSkillIdSet) {
-      if (certifiedSet.has(`${emp.id}:${skillId}`)) empCertifiedCount++
-    }
-
-    if (!firstProjectId) {
-      return {
-        id: emp.id, name: emp.name, avatar_url: emp.avatar_url,
-        employment_type: emp.employment_type, hire_date: emp.hire_date,
-        store_name: storeByEmployee[emp.id] ?? null,
-        certifiedCount: empCertifiedCount, totalSkills: 0, standardPct: 0,
+    // 所属プロジェクトのうち「スキルが設定されている（空でない）」ものだけを対象に、
+    // 本人の認定が最も多いプロジェクトを採用する（空プロジェクトの誤選択で0%になるのを防ぐ）。
+    let best: { certifiedCount: number; totalSkills: number; standardPct: number } | null = null
+    for (const pid of empProjects[emp.id] ?? []) {
+      const skillSet = projectSkillIdMap[pid] ?? new Set<string>()
+      if (skillSet.size === 0) continue
+      let cc = 0
+      for (const skillId of skillSet) {
+        if (certifiedSet.has(`${emp.id}:${skillId}`)) cc++
+      }
+      const stats = getProjectStats(pid)
+      const sp = calcStandardPct(hoursByEmployee[emp.id] ?? 0, stats.milestones, stats.skillsByPhase, stats.totalSkills)
+      const cand = { certifiedCount: cc, totalSkills: stats.totalSkills, standardPct: sp }
+      if (!best || cand.certifiedCount > best.certifiedCount || (cand.certifiedCount === best.certifiedCount && cand.standardPct > best.standardPct)) {
+        best = cand
       }
     }
-
-    const stats = getProjectStats(firstProjectId)
     return {
       id: emp.id, name: emp.name, avatar_url: emp.avatar_url,
       employment_type: emp.employment_type, hire_date: emp.hire_date,
       store_name: storeByEmployee[emp.id] ?? null,
-      certifiedCount: empCertifiedCount, totalSkills: stats.totalSkills,
-      standardPct: calcStandardPct(hoursByEmployee[emp.id] ?? 0, stats.milestones, stats.skillsByPhase, stats.totalSkills),
+      certifiedCount: best?.certifiedCount ?? 0,
+      totalSkills: best?.totalSkills ?? 0,
+      standardPct: best?.standardPct ?? 0,
     }
   })
 
