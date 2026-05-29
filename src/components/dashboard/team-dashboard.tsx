@@ -41,6 +41,8 @@ interface Props {
   managedTeams?: { id: string; name: string }[]
   managedTeamMembers?: { team_id: string; employee_id: string }[]
   empStatsMap?: Record<string, EmpStat>
+  /** 育成対象（プロジェクトに紐づくチームのメンバー）の employee_id 一覧 */
+  developmentTargetIds?: string[]
 }
 
 function calcHireYear(hireDate: string | null): number {
@@ -52,7 +54,8 @@ function calcHireYear(hireDate: string | null): number {
   return Math.max(1, todayFY - hireFY + 1)
 }
 
-export function TeamDashboard({ currentEmployee, employees, skills, achievements: initialAchievements, priorityMemberIds, managedTeams = [], managedTeamMembers = [], empStatsMap = {} }: Props) {
+export function TeamDashboard({ currentEmployee, employees, skills, achievements: initialAchievements, priorityMemberIds, managedTeams = [], managedTeamMembers = [], empStatsMap = {}, developmentTargetIds = [] }: Props) {
+  const targetIdSet = new Set(developmentTargetIds)
   const searchParams = useSearchParams()
   const initialTab = searchParams.get('tab') === 'pending' ? 'pending' : 'overview'
   const [achievements, setAchievements] = useState(initialAchievements)
@@ -167,7 +170,8 @@ export function TeamDashboard({ currentEmployee, employees, skills, achievements
     ? pendingAchievements.filter(a => !a.employees || !priorityMemberIds!.has(a.employees.id))
     : pendingAchievements
 
-  const overviewStats = employeeStats.filter(({ employee }) => employee.role === 'employee')
+  // 育成対象＝チームのメンバー（ロール不問）。マネージャー兼メンバーも含める
+  const overviewStats = employeeStats.filter(({ employee }) => targetIdSet.has(employee.id))
   const priorityStats = hasPriority
     ? overviewStats.filter(({ employee }) => priorityMemberIds!.has(employee.id)).sort((a, b) => b.pct - a.pct)
     : []

@@ -53,7 +53,8 @@ export default async function TeamPage() {
     db.from('work_hours').select('employee_id, hours'),
     (async () => {
       const { getEmployeeProjectMapping } = await import('@/lib/project-members')
-      return { data: await getEmployeeProjectMapping(db) }
+      // 育成対象＝チームの「メンバー」。リーダー(team_managers)は対象に含めない
+      return { data: await getEmployeeProjectMapping(db, { membersOnly: true }) }
     })(),
     db.from('project_phases').select('id, project_id, name, order_index, end_hours'),
     db.from('project_skills').select('project_id, skill_id, project_phase_id'),
@@ -176,6 +177,7 @@ export default async function TeamPage() {
         managedTeams={managedTeams}
         managedTeamMembers={managedTeamMembers}
         empStatsMap={empStatsMap}
+        developmentTargetIds={Object.keys(empProjects)}
       />
     </>
   )

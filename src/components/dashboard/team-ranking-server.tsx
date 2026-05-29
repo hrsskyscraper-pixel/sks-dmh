@@ -23,12 +23,13 @@ export async function TeamRankingServer({ employeeId, employeeRole, selectedProj
     { data: allTeams },
     { data: allTeamMembers },
   ] = await Promise.all([
-    db.from('employees').select('id, name, avatar_url, employment_type, hire_date').eq('role', 'employee').order('name'),
+    db.from('employees').select('id, name, avatar_url, employment_type, hire_date').order('name'),
     db.from('achievements').select('employee_id, skill_id').eq('status', 'certified'),
     db.from('work_hours').select('employee_id, hours'),
     (async () => {
       const { getEmployeeProjectMapping } = await import('@/lib/project-members')
-      return { data: await getEmployeeProjectMapping(db) }
+      // 育成対象＝チームの「メンバー」。リーダー(team_managers)は対象に含めない
+      return { data: await getEmployeeProjectMapping(db, { membersOnly: true }) }
     })(),
     db.from('project_phases').select('id, project_id, name, order_index, end_hours, created_at'),
     db.from('project_skills').select('project_id, skill_id, project_phase_id'),
@@ -99,7 +100,10 @@ export async function TeamRankingServer({ employeeId, employeeRole, selectedProj
     return result
   }
 
-  const teamStats: TeamMemberStat[] = (allEmployees ?? []).filter(emp => !testEmpIds.has(emp.id)).map(emp => {
+  // 育成対象＝プロジェクトに紐づくチームの「メンバー」になっている社員（ロール不問・テスト除外）
+  const teamStats: TeamMemberStat[] = (allEmployees ?? [])
+    .filter(emp => !testEmpIds.has(emp.id) && (empProjects[emp.id]?.length ?? 0) > 0)
+    .map(emp => {
     // 所属プロジェクトのうち「スキルが設定されている（空でない）」ものだけを対象に、
     // 本人の認定が最も多いプロジェクトを採用する（空プロジェクトの誤選択で0%になるのを防ぐ）。
     let best: { certifiedCount: number; totalSkills: number; standardPct: number } | null = null

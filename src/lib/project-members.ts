@@ -3,12 +3,21 @@ import { SupabaseClient } from '@supabase/supabase-js'
 /**
  * project_teams + team_members から社員→プロジェクトのマッピングを構築
  * 旧 employee_projects テーブルの代替
+ *
+ * @param opts.membersOnly true の場合、team_managers（リーダー）は含めず
+ *   team_members（メンバー）のみを対象にする。育成対象（＝メンバー）の判定に使う。
  */
-export async function getEmployeeProjectMapping(db: SupabaseClient | ReturnType<any>) {
+export async function getEmployeeProjectMapping(
+  db: SupabaseClient | ReturnType<any>,
+  opts?: { membersOnly?: boolean },
+) {
+  const membersOnly = opts?.membersOnly ?? false
   const [{ data: projectTeams }, { data: teamMembers }, { data: teamManagers }] = await Promise.all([
     db.from('project_teams').select('project_id, team_id'),
     db.from('team_members').select('team_id, employee_id'),
-    db.from('team_managers').select('team_id, employee_id'),
+    membersOnly
+      ? Promise.resolve({ data: [] as { team_id: string; employee_id: string }[] })
+      : db.from('team_managers').select('team_id, employee_id'),
   ])
 
   // team_id → project_ids マップ

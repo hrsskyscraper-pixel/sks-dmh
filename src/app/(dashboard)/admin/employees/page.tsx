@@ -59,7 +59,8 @@ export default async function EmployeesPage() {
     // project_teams + team_members 経由で employee→project マッピング
     (async () => {
       const { getEmployeeProjectMapping } = await import('@/lib/project-members')
-      return { data: await getEmployeeProjectMapping(db) }
+      // 育成対象＝チームの「メンバー」。リーダー(team_managers)は対象に含めない
+      return { data: await getEmployeeProjectMapping(db, { membersOnly: true }) }
     })(),
     db.from('project_phases').select('id, project_id, name, order_index, end_hours'),
     db.from('project_skills').select('project_id, skill_id, project_phase_id'),
@@ -123,7 +124,8 @@ export default async function EmployeesPage() {
   const employeeStats: Record<string, { certifiedPct: number; standardPct: number }> = {}
 
   for (const emp of employees ?? []) {
-    if (emp.role !== 'employee') continue
+    // 育成対象＝プロジェクトに紐づくチームの「メンバー」（ロール不問）。メンバーでなければ進捗は出さない
+    if (!(empProjects[emp.id]?.length)) continue
 
     // 所属プロジェクトのうち空でないものから、本人の認定が最も多いものを採用
     // （空プロジェクトの誤選択で 0% になるのを防ぐ）
