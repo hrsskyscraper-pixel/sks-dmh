@@ -9,7 +9,7 @@ import {
   LayoutDashboard, CheckSquare, BadgeCheck, Building2, Users2, Settings,
   Award, MessageCircle, UserPlus, Pencil, Bell, LogIn, Mail,
   ChevronRight, HelpCircle, ShieldCheck, Sparkles, Target, TrendingUp, FileText,
-  Cog, Tag, BookOpen, Database, Upload, FolderKanban, Search, X, ClipboardList,
+  Cog, Tag, BookOpen, Database, Upload, FolderKanban, Search, X, ClipboardList, Type,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Input } from '@/components/ui/input'
@@ -565,12 +565,29 @@ SNSリンクを入れると、他のメンバーからアイコンで繋がれ�
 LINE連携がまだなら、画面下部の緑ボタンから設定してください（認定結果をすぐ知れて便利です）。`,
   },
   {
+    id: 'm-fontsize',
+    title: '文字を大きくしたい',
+    icon: Type,
+    content: `画面の文字が小さく感じる場合は、自分の見やすいサイズに変えられます。
+
+**変え方**
+1. 画面下部のナビ右端「**My**」をタップ
+2. メニュー内の「**文字サイズ**」で **小 / 標準 / 大 / 特大** を選ぶ
+3. その場でアプリ全体の文字サイズが変わります（保存ボタンは不要）
+
+**ポイント**
+- 設定は **あなたのアカウントに保存** されます。スマホ・PCなど別の端末でログインしても同じサイズで表示されます
+- 文字だけでなくボタンや余白も一緒に拡大・縮小するので、レイアウトが崩れません
+- いつでも「標準」に戻せます`,
+  },
+  {
     id: 'm-help',
     title: '困った時は',
     icon: HelpCircle,
     content: `- このガイドをいつでも見られます（下部ナビ「My」→「使い方ガイド」）
 - リーダー・仲間に気軽に声をかける
 - 通知が届かない → LINE連携を確認（画面下部のボタン）
+- 文字が小さくて見づらい → 「My」→「文字サイズ」で大きくできる
 - ログインできない → ブラウザをSafari / Chrome に変えて試す`,
   },
 ]
