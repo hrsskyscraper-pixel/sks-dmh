@@ -253,7 +253,6 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
   // テストアカウントは通常は隠し、トグルで末尾に展開
   const realEmployees = filteredEmployees.filter(emp => !emp.is_test)
   const testEmployees = filteredEmployees.filter(emp => emp.is_test)
-  const visibleEmployees = showTest ? [...realEmployees, ...testEmployees] : realEmployees
 
   return (
     <div className="p-4 space-y-3">
@@ -380,16 +379,8 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
       <p className="text-xs text-muted-foreground">
         {realEmployees.length}名{selectedTeamId ? ` / 全${employees.length}名` : ''}
       </p>
-      {testEmployees.length > 0 && (
-        <button
-          onClick={() => setShowTest(v => !v)}
-          className="w-full flex items-center gap-1.5 text-xs font-semibold text-gray-400 hover:text-gray-600 transition-colors py-1"
-        >
-          {showTest ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-          テストアカウント（{testEmployees.length}）
-        </button>
-      )}
-      {visibleEmployees.map(employee => {
+      {(() => {
+        const renderCard = (employee: Employee) => {
         const displayRole = getDisplayRole(employee)
         const canEditThis = canEdit || (isTeamManager && managedSet.has(employee.id))
         const availableRoles = canEdit ? ALL_DISPLAY_ROLES : TEAM_MANAGER_ROLES
@@ -620,7 +611,23 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
             </CardContent>
           </Card>
         )
-      })}
+        }
+        return (
+          <>
+            {realEmployees.map(renderCard)}
+            {testEmployees.length > 0 && (
+              <button
+                onClick={() => setShowTest(v => !v)}
+                className="w-full flex items-center gap-1.5 text-xs font-semibold text-gray-400 hover:text-gray-600 transition-colors py-1 mt-1"
+              >
+                {showTest ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                テストアカウント（{testEmployees.length}）
+              </button>
+            )}
+            {showTest && testEmployees.map(renderCard)}
+          </>
+        )
+      })()}
 
       {/* アバター拡大プレビューダイアログ */}
       {avatarPreview && (
