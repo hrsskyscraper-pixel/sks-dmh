@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/select'
 import { Plus, Pencil, Archive, ArchiveRestore, Trash2, GripVertical, UserMinus, UserPlus, ChevronDown, ChevronRight, MapPin, Store, FolderKanban, Building2, Copy, Upload, AlertTriangle } from 'lucide-react'
 import { SkillCsvImportDialog } from './skill-csv-import-dialog'
+import type { CsvSkillRow } from '@/app/(dashboard)/admin/projects/csv-actions'
 import { createClient } from '@/lib/supabase/client'
 import { updateSkillCategory, updateSkillStandardHours, updateSkillName, toggleSkillCheckpoint, createSkill, deleteSkill, reorderSkills, updateSkillTargetDate } from '@/app/(dashboard)/actions'
 import { sortCategories } from '@/lib/category-order'
@@ -125,6 +126,21 @@ export function ProjectManager({
   for (const ps of projectSkills.filter(ps => ps.project_id === selectedProjectId)) {
     skillPhaseMap[ps.skill_id] = ps.project_phase_id
   }
+  // CSV書き出し用: 現在このプロジェクトに割り当て済みのスキル（取込と同じ列構成）
+  const phaseNameById = Object.fromEntries(selectedPhases.map(p => [p.id, p.name]))
+  const currentSkillRows: CsvSkillRow[] = skillsState
+    .filter(s => selectedProjectSkillIds.has(s.id))
+    .map(s => {
+      const phaseId = skillPhaseMap[s.id]
+      return {
+        name: s.name,
+        category: s.category,
+        phase: phaseId ? (phaseNameById[phaseId] ?? undefined) : undefined,
+        standard_hours: s.standard_hours,
+        is_checkpoint: s.is_checkpoint,
+        target_date_hint: s.target_date_hint,
+      }
+    })
   const linkedTeamIds = new Set(
     projectTeamsState.filter(pt => pt.project_id === selectedProjectId).map(pt => pt.team_id)
   )
@@ -1262,6 +1278,7 @@ export function ProjectManager({
           projectId={selectedProject.id}
           projectName={selectedProject.name}
           phaseNames={selectedPhases.map(p => p.name)}
+          currentSkills={currentSkillRows}
           onComplete={() => {
             // ページ再読み込みしてデータ同期
             window.location.reload()

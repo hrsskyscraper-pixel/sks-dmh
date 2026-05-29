@@ -20,12 +20,38 @@ interface Props {
   projectId: string
   projectName: string
   phaseNames: string[]
+  /** 現在このプロジェクトに割り当て済みのスキル（書き出し用） */
+  currentSkills?: CsvSkillRow[]
   onComplete: () => void
 }
 
 const CSV_HEADERS = ['name', 'category', 'phase', 'standard_hours', 'is_checkpoint', 'target_date_hint']
 
-export function SkillCsvImportDialog({ open, onOpenChange, projectId, projectName, phaseNames, onComplete }: Props) {
+// 共通のCSVダウンロード（Excel対応のためBOM付き）
+function downloadCsv(rows: string[][], filename: string) {
+  const csv = Papa.unparse(rows)
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+// CsvSkillRow → CSVの行（取込と同じ列構成）
+function rowToCsv(r: CsvSkillRow): string[] {
+  return [
+    r.name,
+    r.category,
+    r.phase ?? '',
+    r.standard_hours != null ? String(r.standard_hours) : '',
+    r.is_checkpoint ? 'Y' : 'N',
+    r.target_date_hint ?? '',
+  ]
+}
+
+export function SkillCsvImportDialog({ open, onOpenChange, projectId, projectName, phaseNames, currentSkills = [], onComplete }: Props) {
   const [parsedRows, setParsedRows] = useState<CsvSkillRow[] | null>(null)
   const [parseErrors, setParseErrors] = useState<string[]>([])
   const [fileName, setFileName] = useState<string | null>(null)
@@ -56,6 +82,11 @@ export function SkillCsvImportDialog({ open, onOpenChange, projectId, projectNam
     a.download = `skill_template_${projectName}.csv`
     a.click()
     URL.revokeObjectURL(url)
+  }
+
+  // 現在のスキルを書き出し（編集して再取込できる）
+  const downloadCurrent = () => {
+    downloadCsv([CSV_HEADERS, ...currentSkills.map(rowToCsv)], `skills_${projectName}.csv`)
   }
 
   const handleFileSelect = (file: File) => {
@@ -190,13 +221,19 @@ export function SkillCsvImportDialog({ open, onOpenChange, projectId, projectNam
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700 space-y-1">
               <p className="font-medium">「{projectName}」にスキルを一括登録します</p>
               <p className="text-[11px]">
-                まずテンプレートをダウンロードし、Excel等で編集したCSVをアップロードしてください。
+                テンプレート、または「現在のスキル」を書き出して Excel 等で編集し、CSVをアップロードしてください。既存スキル名と同じ行は再作成せず割当のみ行います。
               </p>
             </div>
 
             <Button variant="outline" onClick={downloadTemplate} className="w-full">
-              <Download className="w-4 h-4 mr-2" />テンプレートをダウンロード
+              <Download className="w-4 h-4 mr-2" />テンプレート（記入例つき）をダウンロード
             </Button>
+
+            {currentSkills.length > 0 && (
+              <Button variant="outline" onClick={downloadCurrent} className="w-full">
+                <Download className="w-4 h-4 mr-2" />現在のスキル（{currentSkills.length}件）をCSVで書き出し
+              </Button>
+            )}
 
             <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
               <Upload className="w-8 h-8 mx-auto text-gray-400 mb-2" />
