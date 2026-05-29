@@ -9,7 +9,7 @@ import {
   LayoutDashboard, CheckSquare, BadgeCheck, Building2, Users2, Settings,
   Award, MessageCircle, UserPlus, Pencil, Bell, LogIn, Mail,
   ChevronRight, HelpCircle, ShieldCheck, Sparkles, Target, TrendingUp, FileText,
-  Cog, Tag, BookOpen, Database, Upload, FolderKanban, Search, X, ClipboardList, Type,
+  Cog, Tag, BookOpen, Database, Upload, FolderKanban, Search, X, ClipboardList, Type, FlaskConical,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Input } from '@/components/ui/input'
@@ -1106,6 +1106,37 @@ const adminSections = [
 **テストユーザー**
 - 開発者向け: viewer@growth-driver.test で他ロールの画面をプレビュー可能
 - 運用時は通常使用しないが、UI確認用に用意`,
+  },
+  {
+    id: 'a-testdata',
+    title: 'テストデータ管理',
+    icon: FlaskConical,
+    content: `動作確認用のアカウントや店舗を「テスト」指定すると、**ランキング・タイムライン・各種統計などの公開表示から自動的に除外**され、管理一覧では折りたたみグループにまとまります。本番の数字にテストが混ざるのを防げます。
+
+**テスト指定すると除外される場所**
+- チームランキング（みんなの頑張り）／チェックポイントTOP3記録
+- タイムライン（ホームのプレビュー・全体ページ）
+- チーム確認画面のメンバー・集計
+- 承認センター／参加許諾の一覧、ナビの承認待ちバッジ
+- ブランドの店舗数カウント、業務役職の利用数
+
+**アカウントをテスト指定する**
+1. 下部ナビ「仲間」（アカウント一覧）を開く
+2. 対象メンバーの ⋮ メニュー →「**テスト指定にする**」
+3. 一覧では通常非表示になり、下部の「**テストアカウント（N）**」を開くと確認・解除できる
+- 「テスト」グレーバッジが付く。解除は同じメニューから
+
+**店舗をテスト指定する（所属メンバーも一括除外）**
+1. 下部ナビ「チーム」→「すべてのチーム・部署・店舗」を展開
+2. 対象店舗の **フラスコアイコン（🧪）** をタップ
+3. その店舗は通常リストから外れ、下部の「**テスト店舗（N）**」グループに移動
+4. **その店舗に所属するメンバー・リーダーも自動で公開表示から除外**（カスケード）
+- 解除はテスト店舗グループ内の「解除」ボタンから
+
+**補足**
+- testuser ロールのアカウントは自動的にテスト扱い
+- テスト指定は「表示からの除外」であり、データの削除ではない
+- 個人のスキル・キャリア画面は単一の人の表示なので影響しない`,
   },
   {
     id: 'a-backup',
