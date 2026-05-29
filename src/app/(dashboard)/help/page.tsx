@@ -881,7 +881,7 @@ const adminSections = [
     id: 'a-teams',
     title: 'チーム管理',
     icon: Users2,
-    content: `設定 → **チーム管理** (\`/admin/teams\`)
+    content: `画面下部のボトムナビ → **チーム** (\`/admin/teams\`)
 
 **用途**
 プロジェクト型チームの作成・編集・削除、およびメンバー／担当リーダーの管理を行う。
