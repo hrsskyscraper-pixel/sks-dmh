@@ -9,8 +9,8 @@ import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import dynamic from 'next/dynamic'
-const RadarChart = dynamic(() => import('@/components/charts/radar-chart').then(m => m.RadarChart), { ssr: false })
-const PhaseProgressChart = dynamic(() => import('@/components/charts/phase-progress-chart').then(m => m.PhaseProgressChart), { ssr: false })
+// 2チャートを1つの dynamic 境界に統合し、recharts の二重バンドルを回避
+const DashboardCharts = dynamic(() => import('@/components/charts/dashboard-charts').then(m => m.DashboardCharts), { ssr: false })
 import { cn } from '@/lib/utils'
 import { AlertTriangle, ChevronDown, ChevronUp, Camera, Loader2, CheckCircle2, XCircle, Bell, ClipboardList, Users, Instagram, Target, CalendarDays, Pencil, BookOpen } from 'lucide-react'
 import Link from 'next/link'
@@ -725,23 +725,13 @@ export function DashboardContent({
         </Card>
       )}
 
-      {/* レーダーチャート */}
-      <Card>
-        <CardHeader className="pb-2"><CardTitle className="text-sm font-semibold text-gray-700">スキルバランス</CardTitle></CardHeader>
-        <CardContent><RadarChart data={radarData} /></CardContent>
-      </Card>
-
-      {/* フェーズ別進捗チャート */}
-      <Card>
-        <CardHeader className="pb-2"><CardTitle className="text-sm font-semibold text-gray-700">フェーズ別達成率</CardTitle></CardHeader>
-        <CardContent>
-          <PhaseProgressChart
-            data={phaseStats}
-            cumulativeHours={cumulativeHours}
-            standardHours={projectPhases[projectPhases.length - 1]?.end_hours ?? 0}
-          />
-        </CardContent>
-      </Card>
+      {/* スキルバランス＋フェーズ別達成率（recharts を単一チャンクで遅延ロード） */}
+      <DashboardCharts
+        radarData={radarData}
+        phaseStats={phaseStats}
+        cumulativeHours={cumulativeHours}
+        standardHours={projectPhases[projectPhases.length - 1]?.end_hours ?? 0}
+      />
 
       {/* フェーズ別サマリーカード */}
       <div className={cn('grid gap-3', phaseStats.length <= 3 ? `grid-cols-${phaseStats.length}` : 'grid-cols-3')}>
