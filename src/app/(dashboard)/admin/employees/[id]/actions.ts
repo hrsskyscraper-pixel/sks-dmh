@@ -215,3 +215,43 @@ export async function revokeCertification(params: {
   revalidatePath(`/admin/employees/${params.employeeId}`)
   return {}
 }
+
+/**
+ * メンバーの所属（team_members）を追加する。
+ * team_members の RLS は admin/ops_manager の旧 role 限定で、育成リーダーや役員では
+ * クライアント直 INSERT が拒否される。ここでは権限を明示チェックしたうえで
+ * admin client（service role）で書き込む（アプリの基本パターン）。
+ */
+export async function addTeamMembership(employeeId: string, teamId: string): Promise<{ error?: string }> {
+  const check = await assertCanActOn(employeeId)
+  if ('error' in check) return { error: check.error }
+  const { db } = check
+
+  const { error } = await db.from('team_members').insert({ team_id: teamId, employee_id: employeeId })
+  if (error) {
+    // 既に所属している（unique 制約違反）は成功扱い
+    if (error.code === '23505') {
+      revalidatePath(`/admin/employees/${employeeId}`)
+      return {}
+    }
+    console.error('[addTeamMembership]', error)
+    return { error: '追加に失敗しました' }
+  }
+  revalidatePath(`/admin/employees/${employeeId}`)
+  return {}
+}
+
+/** メンバーの所属（team_members）を解除する。権限チェック後 admin client で削除。 */
+export async function removeTeamMembership(employeeId: string, teamId: string): Promise<{ error?: string }> {
+  const check = await assertCanActOn(employeeId)
+  if ('error' in check) return { error: check.error }
+  const { db } = check
+
+  const { error } = await db.from('team_members').delete().eq('team_id', teamId).eq('employee_id', employeeId)
+  if (error) {
+    console.error('[removeTeamMembership]', error)
+    return { error: '削除に失敗しました' }
+  }
+  revalidatePath(`/admin/employees/${employeeId}`)
+  return {}
+}

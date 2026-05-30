@@ -18,6 +18,7 @@ import { SYSTEM_PERMISSION_LABELS, type BusinessRole, type SystemPermission, typ
 import { Plus, Trash2, ArrowLeft, Users, Briefcase, GraduationCap, MapPin, ArrowRightLeft, FileText, Pencil, Instagram, MessageCircle, X, Store, FolderKanban, Building2, Award, Star, UserCog, LogIn, Camera, Loader2, ChevronDown, ChevronUp, ChevronRight, Target } from 'lucide-react'
 import { CertIcon as CertIconComponent, getCertColorClasses } from '@/components/admin/certification-manager'
 import { addCareerRecord, updateCareerRecord, deleteCareerRecord, updateEmployeeName } from '@/app/(dashboard)/actions'
+import { addTeamMembership, removeTeamMembership } from '@/app/(dashboard)/admin/employees/[id]/actions'
 import Link from 'next/link'
 import type { CareerRecord } from '@/types/database'
 
@@ -230,8 +231,9 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
 
   const handleAddTeam = (teamId: string) => {
     startTransition(async () => {
-      const { error } = await supabase.from('team_members').insert({ team_id: teamId, employee_id: employee.id })
-      if (error) { toast.error('追加に失敗しました'); return }
+      // RLS（admin/ops_manager 限定）を回避するため、権限チェック付きサーバーアクション経由で書き込む
+      const { error } = await addTeamMembership(employee.id, teamId)
+      if (error) { toast.error(error); return }
       setCurrentTeamIds(prev => [...prev, teamId])
       setAddTeamDialogOpen(false)
       toast.success(`${teamMap[teamId]?.name ?? ''}に追加しました`)
@@ -240,8 +242,8 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
 
   const handleRemoveTeam = (teamId: string) => {
     startTransition(async () => {
-      const { error } = await supabase.from('team_members').delete().eq('team_id', teamId).eq('employee_id', employee.id)
-      if (error) { toast.error('削除に失敗しました'); return }
+      const { error } = await removeTeamMembership(employee.id, teamId)
+      if (error) { toast.error(error); return }
       setCurrentTeamIds(prev => prev.filter(id => id !== teamId))
       toast.success(`${teamMap[teamId]?.name ?? ''}から削除しました`)
     })
