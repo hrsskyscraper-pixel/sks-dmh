@@ -364,9 +364,6 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5 flex-wrap">
                 <h2 className="text-xl font-bold text-gray-800">{employeeName}</h2>
-                {currentNameKana && (
-                  <span className="text-xs text-gray-400">{currentNameKana}</span>
-                )}
                 {currentInstagram && (
                   <a href={currentInstagram.startsWith('http') ? currentInstagram : `https://instagram.com/${currentInstagram.replace(/^@/, '')}`} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-pink-500 transition-colors">
                     <Instagram className="w-5 h-5" />
@@ -376,6 +373,21 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
                   <a href={currentLineUrl} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-green-500 transition-colors">
                     <MessageCircle className="w-5 h-5" />
                   </a>
+                )}
+                <button
+                  onClick={() => setProfileExpanded(v => !v)}
+                  aria-label={profileExpanded ? '詳細を閉じる' : '詳細を表示'}
+                  className="ml-auto flex items-center gap-0.5 text-[11px] text-gray-400 hover:text-gray-600"
+                >
+                  {profileExpanded ? '閉じる' : '詳細'}
+                  {profileExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </button>
+              </div>
+              {profileExpanded && (
+              <>
+              <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
+                {currentNameKana && (
+                  <span className="text-xs text-gray-400">{currentNameKana}</span>
                 )}
                 {employee.line_user_id ? (
                   <Badge className="text-[9px] bg-green-100 text-green-700 border-0 flex items-center gap-0.5">
@@ -478,6 +490,8 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
                   <Pencil className="w-3 h-3" />
                   プロフィールを編集
                 </button>
+              )}
+              </>
               )}
             </div>
           </div>

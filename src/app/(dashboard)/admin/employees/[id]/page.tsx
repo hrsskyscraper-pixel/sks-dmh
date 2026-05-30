@@ -1,9 +1,10 @@
 import { redirect } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
-import { TopBar } from '@/components/layout/nav'
+import { TopBar, AccountSettingsMenu } from '@/components/layout/nav'
 import { EmployeeCareerCard } from '@/components/admin/employee-career-card'
 import { SkillGrantSection } from '@/components/admin/skill-grant-dialog'
+import { ColleaguesSection } from '@/components/admin/colleagues-section'
 import { canAdminister, canApprove, isTrainingLeader } from '@/lib/permissions'
 import type { SystemPermission } from '@/types/database'
 
@@ -124,10 +125,21 @@ export default async function EmployeeDetailPage({ params, searchParams }: { par
 
   const employeeMap = Object.fromEntries((allEmployees ?? []).map(e => [e.id, e]))
   const memberTeamIds = (memberTeamRows ?? []).map(m => m.team_id)
+  const isSelf = currentEmployee.id === id
 
   return (
     <>
-      <TopBar title="メンバーキャリア" />
+      <TopBar
+        title="メンバーキャリア"
+        right={isSelf ? (
+          <AccountSettingsMenu
+            employeeId={currentEmployee.id}
+            employeeName={currentEmployee.name}
+            role={currentEmployee.role}
+            fontScale={currentEmployee.font_scale ?? undefined}
+          />
+        ) : undefined}
+      />
       <EmployeeCareerCard
         employee={employee}
         careerRecords={careerRecords ?? []}
@@ -154,6 +166,8 @@ export default async function EmployeeDetailPage({ params, searchParams }: { par
             canGrant={canApprove(currentEmployee)}
           />
         )}
+        {/* Myキャリア（自分のページ）でのみ「仲間」カードを表示 */}
+        {isSelf && <ColleaguesSection embedded />}
       </div>
     </>
   )

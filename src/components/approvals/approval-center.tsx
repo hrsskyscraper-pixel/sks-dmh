@@ -96,6 +96,10 @@ export function ApprovalCenter({
 
   const handleCertify = () => {
     if (!certifyTarget) return
+    if (certifyAction === 'rejected' && !certifyComment.trim()) {
+      toast.error('差し戻しの場合はコメント（理由）が必須です')
+      return
+    }
     startTransition(async () => {
       const res = await fetch('/api/certify-skill', {
         method: 'POST',
@@ -634,14 +638,18 @@ export function ApprovalCenter({
           <Textarea
             value={certifyComment}
             onChange={e => setCertifyComment(e.target.value)}
-            placeholder="コメント（任意）"
+            placeholder={certifyAction === 'rejected' ? '差し戻しの理由を入力（必須）' : 'コメント（任意）'}
             rows={2}
           />
+          {certifyAction === 'rejected' && (
+            <p className="text-[11px] text-red-500 -mt-1">差し戻しには理由の入力が必須です。本人に通知されます。</p>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setCertifyTarget(null)}>キャンセル</Button>
             <Button
               className={certifyAction === 'certified' ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600'}
-              onClick={handleCertify} disabled={isPending}
+              onClick={handleCertify}
+              disabled={isPending || (certifyAction === 'rejected' && !certifyComment.trim())}
             >
               {certifyAction === 'certified' ? '認定する' : '差し戻す'}
             </Button>

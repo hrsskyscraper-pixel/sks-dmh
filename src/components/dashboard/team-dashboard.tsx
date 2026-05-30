@@ -102,6 +102,10 @@ export function TeamDashboard({ currentEmployee, employees, skills, achievements
   }
 
   const handleReject = (achievement: AchievementWithRelations, comment: string) => {
+    if (!comment.trim()) {
+      toast.error('差し戻しの場合はコメント（理由）が必須です')
+      return
+    }
     startTransition(async () => {
       const { data, error } = await supabase
         .from('achievements')

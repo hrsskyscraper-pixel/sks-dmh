@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
-import { LayoutDashboard, CheckSquare, BadgeCheck, Upload, Users2, LogOut, Building2, FolderKanban, MessageSquare, UserPlus, Settings, User, FileText, HelpCircle, Shield, ScrollText, History, Type } from 'lucide-react'
+import { LayoutDashboard, CheckSquare, BadgeCheck, LogOut, Building2, MessageSquare, Settings, User, FileText, HelpCircle, Shield, ScrollText, History, Type } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
@@ -19,7 +19,6 @@ const navItems = [
   { href: '/timeline',         label: 'TL',         icon: MessageSquare,      roles: ['employee', 'store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'] },
   { href: '/approvals',        label: '承認',        icon: BadgeCheck,         roles: ['store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'] },
   { href: '/admin/teams',      label: 'チーム',      icon: Building2,          roles: ['employee', 'store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'] },
-  { href: '/admin/employees',  label: '仲間',        icon: Users2,             roles: ['employee', 'store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'] },
 ] as const
 
 interface NavProps {
@@ -68,27 +67,37 @@ function FontScaleSelector({ fontScale }: { fontScale: number }) {
   )
 }
 
-function AccountMenu({ avatarUrl, employeeId, employeeName, role, fontScale = DEFAULT_FONT_SCALE, onLogout }: { avatarUrl?: string | null; employeeId?: string; employeeName?: string; role?: Role; fontScale?: number; onLogout: () => void }) {
+/**
+ * 設定メニュー（歯車アイコンで開く）。
+ * 以前はフッターの「My」ボタンから上方向に開いていたが、フッターの「My」は
+ * Myキャリアへの直接遷移に変更したため、このメニューは Myキャリアページの
+ * ヘッダー（ベルアイコンの左）に歯車として設置し、下方向に開く。
+ */
+export function AccountSettingsMenu({ employeeId, employeeName, role, fontScale = DEFAULT_FONT_SCALE }: { employeeId?: string; employeeName?: string; role?: Role; fontScale?: number }) {
   const [open, setOpen] = useState(false)
+  const router = useRouter()
+
+  const handleLogout = async () => {
+    // view-as cookie をクリア
+    document.cookie = `${VIEW_AS_COOKIE}=; path=/; max-age=0`
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push('/login')
+  }
+
   return (
-    <div className="relative">
+    <div className="relative flex-shrink-0">
       <button
         onClick={() => setOpen(prev => !prev)}
-        className="flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg transition-colors min-w-[56px]"
+        aria-label="設定メニュー"
+        className="flex items-center justify-center w-9 h-9 rounded-full hover:bg-gray-100 transition-colors"
       >
-        {avatarUrl ? (
-          <img src={avatarUrl} alt="" loading="lazy" decoding="async" className="w-6 h-6 rounded-full object-cover border border-gray-200" />
-        ) : (
-          <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center">
-            <User className="w-3.5 h-3.5 text-gray-500" />
-          </div>
-        )}
-        <span className="text-[10px] font-medium text-gray-400">My</span>
+        <Settings className="w-[18px] h-[18px] text-gray-500" />
       </button>
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute bottom-full right-0 mb-2 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[160px] overflow-hidden">
+          <div className="absolute top-full right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[180px] overflow-hidden">
             {employeeName && (
               <div className="px-3 py-2 border-b border-gray-100">
                 <p className="text-xs font-medium text-gray-700 truncate">{employeeName}</p>
@@ -150,7 +159,7 @@ function AccountMenu({ avatarUrl, employeeId, employeeName, role, fontScale = DE
               </Link>
             </div>
             <button
-              onClick={() => { setOpen(false); onLogout() }}
+              onClick={() => { setOpen(false); handleLogout() }}
               className="flex items-center gap-2 px-3 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors w-full text-left border-t border-gray-100"
             >
               <LogOut className="w-4 h-4" />
@@ -163,20 +172,11 @@ function AccountMenu({ avatarUrl, employeeId, employeeName, role, fontScale = DE
   )
 }
 
-export function BottomNav({ role, avatarUrl, employeeId, employeeName, fontScale = DEFAULT_FONT_SCALE }: NavProps) {
+export function BottomNav({ role, avatarUrl, employeeId }: NavProps) {
   const pathname = usePathname()
-  const router = useRouter()
   const { unreadTeamReqCount, pendingApprovalCount, dashboardBadge, rejectedSkillCount } = useNavData()
   const unreadRequestCount = unreadTeamReqCount
   const visibleItems = navItems.filter(item => (item.roles as readonly string[]).includes(role))
-
-  const handleLogout = async () => {
-    // view-as cookie をクリア
-    document.cookie = `${VIEW_AS_COOKIE}=; path=/; max-age=0`
-    const supabase = createClient()
-    await supabase.auth.signOut()
-    router.push('/login')
-  }
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50 safe-area-pb">
@@ -211,14 +211,22 @@ export function BottomNav({ role, avatarUrl, employeeId, employeeName, fontScale
             </Link>
           )
         })}
-        <AccountMenu
-          avatarUrl={avatarUrl}
-          employeeId={employeeId}
-          employeeName={employeeName}
-          role={role}
-          fontScale={fontScale}
-          onLogout={handleLogout}
-        />
+        <Link
+          href={employeeId ? `/admin/employees/${employeeId}` : '/'}
+          className={cn(
+            'flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg transition-colors min-w-[56px]',
+            pathname.startsWith('/admin/employees') ? 'text-orange-500' : 'text-gray-400 hover:text-gray-600'
+          )}
+        >
+          {avatarUrl ? (
+            <img src={avatarUrl} alt="" loading="lazy" decoding="async" className="w-6 h-6 rounded-full object-cover border border-gray-200" />
+          ) : (
+            <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center">
+              <User className="w-3.5 h-3.5 text-gray-500" />
+            </div>
+          )}
+          <span className="text-[10px] font-medium">My</span>
+        </Link>
       </div>
     </nav>
   )

@@ -26,6 +26,10 @@ export async function POST(request: Request) {
   if (!achievementId || !action || !['certified', 'rejected'].includes(action)) {
     return NextResponse.json({ error: '不正なリクエスト' }, { status: 400 })
   }
+  // 差し戻し（rejected）は理由コメントを必須にする（本人に理由を伝えるため）
+  if (action === 'rejected' && !comment?.trim()) {
+    return NextResponse.json({ error: '差し戻しの場合はコメント（理由）が必須です' }, { status: 400 })
+  }
 
   // 対象の achievement を取得
   const { data: achievement } = await db
