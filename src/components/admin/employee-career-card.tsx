@@ -502,7 +502,7 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
 
       {/* プロフィール編集ダイアログ */}
       <Dialog open={profileDialogOpen} onOpenChange={setProfileDialogOpen}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-sm max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-base">プロフィール編集</DialogTitle>
           </DialogHeader>
@@ -852,7 +852,7 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
 
       {/* 追加ダイアログ */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editingRecordId ? 'キャリア記録を編集' : 'キャリア記録を追加'}</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div>
