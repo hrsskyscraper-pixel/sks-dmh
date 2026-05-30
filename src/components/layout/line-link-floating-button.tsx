@@ -6,6 +6,7 @@ import { MessageCircle, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { buildLineLoginAuthorizeUrl, LINE_OA_FRIEND_ADD_URL } from '@/lib/line-login'
 import { recheckLineFriendship } from '@/app/(dashboard)/line-actions'
+import { useLineFriendAutoRecheck } from '@/lib/use-line-friend-auto-recheck'
 
 /**
  * LineLinkBanner と同じ sessionStorage キーを使い、状態を共有する。
@@ -41,6 +42,11 @@ export function LineLinkFloatingButton({
       setAttempted(true)
     }
   }, [])
+
+  // 連携済みだが友だち未確認のとき、マウント時にセッション1回だけ自動再判定する。
+  // 友だち追加済みなら自動で line_friend=true になり、このボタンは消える。
+  // （hooks は早期 return より前に呼ぶ必要があるため、ここで条件を算出して渡す）
+  useLineFriendAutoRecheck(isLinked && !friendLinked)
 
   // ホームではバナーで案内するので、フローティングは出さない（同じCTAの二重表示を回避）
   if (pathname === '/') return null

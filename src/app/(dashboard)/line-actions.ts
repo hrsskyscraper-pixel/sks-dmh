@@ -49,17 +49,21 @@ export async function recheckLineFriendship(): Promise<
     return { ok: false, error: 'LINE API への接続に失敗しました' }
   }
 
-  const db = createAdminClient()
-  const { error: updateError } = await db
-    .from('employees')
-    .update({ line_friend: isFriend })
-    .eq('id', employee.id)
-  if (updateError) {
-    console.error('[LINE] line_friend 更新失敗:', updateError)
-    return { ok: false, error: 'データベース更新に失敗しました' }
+  // 値が変わったときだけ書き込み＆再検証する。
+  // 自動再判定（マウント時の silent recheck）で friend=false のまま不変な場合に、
+  // 無駄な書き込みとレイアウト全体の再描画を避けるため。
+  if (employee.line_friend !== isFriend) {
+    const db = createAdminClient()
+    const { error: updateError } = await db
+      .from('employees')
+      .update({ line_friend: isFriend })
+      .eq('id', employee.id)
+    if (updateError) {
+      console.error('[LINE] line_friend 更新失敗:', updateError)
+      return { ok: false, error: 'データベース更新に失敗しました' }
+    }
+    // バナー／フローティングボタンの表示状態は line_friend に依存しているので、再評価させる
+    revalidatePath('/', 'layout')
   }
-
-  // バナー／フローティングボタンの表示状態は line_friend に依存しているので、再評価させる
-  revalidatePath('/', 'layout')
   return { ok: true, friend: isFriend }
 }

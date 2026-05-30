@@ -6,6 +6,7 @@ import { MessageCircle, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { buildLineLoginAuthorizeUrl, LINE_OA_FRIEND_ADD_URL } from '@/lib/line-login'
 import { recheckLineFriendship } from '@/app/(dashboard)/line-actions'
+import { useLineFriendAutoRecheck } from '@/lib/use-line-friend-auto-recheck'
 
 /**
  * セッション中、「ユーザーが LINE で友だち追加を試みたか」を覚えるキー。
@@ -30,6 +31,10 @@ export function LineLinkBanner({ needsFriend = false }: { needsFriend?: boolean 
       setAttempted(true)
     }
   }, [])
+
+  // 連携済みだが友だち未確認のとき、マウント時にセッション1回だけ自動再判定する。
+  // 友だち追加済みなら自動で line_friend=true になり、このバナーは消える。
+  useLineFriendAutoRecheck(needsFriend)
 
   if (dismissed) return null
 
