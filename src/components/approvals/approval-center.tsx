@@ -100,26 +100,34 @@ export function ApprovalCenter({
       toast.error('差し戻しの場合はコメント（理由）が必須です')
       return
     }
-    startTransition(async () => {
-      const res = await fetch('/api/certify-skill', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          achievementId: certifyTarget.id,
-          action: certifyAction,
-          comment: certifyComment.trim() || null,
-        }),
-      })
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        toast.error(data.error ?? '更新に失敗しました')
-        return
+    const target = certifyTarget
+    const action = certifyAction
+    const comment = certifyComment.trim() || null
+
+    // ダイアログを即座に閉じてトーストを出す（待たせない＝もっさり解消）
+    setCertifyTarget(null)
+    setCertifyComment('')
+    toast.success(action === 'certified' ? '認定しました' : '差し戻しました')
+
+    // サーバー反映はバックグラウンド（通知は after() でレスポンス後送信なので高速）。
+    // 完了後 router.refresh() でリスト/件数をソフト同期（全画面リロードしない）。
+    ;(async () => {
+      try {
+        const res = await fetch('/api/certify-skill', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ achievementId: target.id, action, comment }),
+        })
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}))
+          toast.error(data.error ?? '更新に失敗しました')
+        }
+      } catch {
+        toast.error('通信に失敗しました')
+      } finally {
+        router.refresh()
       }
-      toast.success(certifyAction === 'certified' ? '認定しました' : '差し戻しました')
-      setCertifyTarget(null)
-      setCertifyComment('')
-      window.location.reload()
-    })
+    })()
   }
 
   // チーム変更

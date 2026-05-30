@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, after } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { sendMail } from '@/lib/notifications/email'
@@ -58,16 +58,19 @@ export async function POST(request: Request) {
     comment: comment?.trim() || null,
   })
 
-  // 通知
-  const emp = achievement.employees as { name: string; email: string; line_user_id: string | null } | null
-  const skill = achievement.skills as { name: string } | null
-  const isCertified = action === 'certified'
-  const statusText = isCertified ? '認定されました' : '差し戻されました'
-  const systemUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://sks-dmh.vercel.app'
+  // 通知（メール / LINE）はレスポンス送出後に実行する。
+  // メール/LINE送信は数秒かかることがあり、待つと操作がもっさりするため。
+  // after() は Vercel 上でレスポンス後も関数を生かして実行を保証する。
+  after(async () => {
+    const emp = achievement.employees as { name: string; email: string; line_user_id: string | null } | null
+    const skill = achievement.skills as { name: string } | null
+    if (!emp || !skill) return
 
-  const skillsUrl = `${systemUrl}/skills?tab=${isCertified ? 'certified' : 'rejected'}`
+    const isCertified = action === 'certified'
+    const statusText = isCertified ? '認定されました' : '差し戻されました'
+    const systemUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://sks-dmh.vercel.app'
+    const skillsUrl = `${systemUrl}/skills?tab=${isCertified ? 'certified' : 'rejected'}`
 
-  if (emp && skill) {
     // メール
     await sendMail({
       to: emp.email,
@@ -92,7 +95,7 @@ export async function POST(request: Request) {
         `【スキル認定 ${isCertified ? '承認' : '差し戻し'}】\nスキル「${skill.name}」が${statusText}。\n${isCertified ? '認定者' : '差し戻し者'}: ${certifier.name}\n${comment?.trim() ? `コメント: ${comment.trim()}\n` : ''}\n確認: ${skillsUrl}\nGrowth Driver`
       ).catch(err => console.error('スキル結果LINE通知失敗:', err))
     }
-  }
+  })
 
   return NextResponse.json({ ok: true })
 }

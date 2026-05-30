@@ -71,33 +71,37 @@ export function TeamDashboard({ currentEmployee, employees, skills, achievements
   const hasPriority = priorityMemberIds && priorityMemberIds.size > 0
 
   const handleCertify = (achievement: AchievementWithRelations, comment: string) => {
+    const c = comment.trim() || null
+    const now = new Date().toISOString()
+    // 楽観的更新（即時反映）: ダイアログを閉じ、リスト上のステータスを更新
+    setAchievements(prev => prev.map(a => a.id === achievement.id
+      ? { ...a, status: 'certified', certify_comment: c, certified_by: currentEmployee.id, certified_at: now, is_read: false }
+      : a))
+    setSelectedAchievement(null)
+    setCertifyComment('')
+    toast.success(`「${achievement.skills?.name}」を認定しました！`)
+    // サーバー反映はバックグラウンドで（UIはブロックしない）
     startTransition(async () => {
       const { data, error } = await supabase
         .from('achievements')
         .update({
           status: 'certified',
           certified_by: currentEmployee.id,
-          certified_at: new Date().toISOString(),
-          certify_comment: comment.trim() || null,
+          certified_at: now,
+          certify_comment: c,
           is_read: false,
         })
         .eq('id', achievement.id)
         .select('*, skills(*), employees!achievements_employee_id_fkey(*)')
         .single()
-
       if (error) {
-        toast.error('認定に失敗しました')
+        toast.error('認定に失敗しました（元に戻しました）')
+        setAchievements(prev => prev.map(a => a.id === achievement.id ? achievement : a))
         return
       }
-
       if (data) {
-        setAchievements(prev =>
-          prev.map(a => a.id === achievement.id ? { ...a, ...(data as AchievementWithRelations) } : a)
-        )
+        setAchievements(prev => prev.map(a => a.id === achievement.id ? { ...a, ...(data as AchievementWithRelations) } : a))
       }
-      setSelectedAchievement(null)
-      setCertifyComment('')
-      toast.success(`「${achievement.skills?.name}」を認定しました！`)
     })
   }
 
@@ -106,33 +110,37 @@ export function TeamDashboard({ currentEmployee, employees, skills, achievements
       toast.error('差し戻しの場合はコメント（理由）が必須です')
       return
     }
+    const c = comment.trim() || null
+    const now = new Date().toISOString()
+    // 楽観的更新（即時反映）
+    setAchievements(prev => prev.map(a => a.id === achievement.id
+      ? { ...a, status: 'rejected', certify_comment: c, certified_by: currentEmployee.id, certified_at: now, is_read: false }
+      : a))
+    setSelectedAchievement(null)
+    setCertifyComment('')
+    toast.success(`「${achievement.skills?.name}」を差し戻しました`)
+    // サーバー反映はバックグラウンドで
     startTransition(async () => {
       const { data, error } = await supabase
         .from('achievements')
         .update({
           status: 'rejected',
           certified_by: currentEmployee.id,
-          certified_at: new Date().toISOString(),
-          certify_comment: comment.trim() || null,
+          certified_at: now,
+          certify_comment: c,
           is_read: false,
         })
         .eq('id', achievement.id)
         .select('*, skills(*), employees!achievements_employee_id_fkey(*)')
         .single()
-
       if (error) {
-        toast.error('差し戻しに失敗しました')
+        toast.error('差し戻しに失敗しました（元に戻しました）')
+        setAchievements(prev => prev.map(a => a.id === achievement.id ? achievement : a))
         return
       }
-
       if (data) {
-        setAchievements(prev =>
-          prev.map(a => a.id === achievement.id ? { ...a, ...(data as AchievementWithRelations) } : a)
-        )
+        setAchievements(prev => prev.map(a => a.id === achievement.id ? { ...a, ...(data as AchievementWithRelations) } : a))
       }
-      setSelectedAchievement(null)
-      setCertifyComment('')
-      toast.success(`「${achievement.skills?.name}」を差し戻しました`)
     })
   }
 
