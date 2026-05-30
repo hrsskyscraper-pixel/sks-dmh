@@ -68,6 +68,7 @@ export async function ColleaguesSection({ embedded = false }: { embedded?: boole
     // project_teams + team_members 経由で employee→project マッピング
     (async () => {
       const { getEmployeeProjectMapping } = await import('@/lib/project-members')
+      // 育成対象＝チームの「メンバー」。リーダー(team_managers)は対象に含めない
       return { data: await getEmployeeProjectMapping(db, { membersOnly: true }) }
     })(),
     db.from('project_phases').select('id, project_id, name, order_index, end_hours'),
@@ -80,37 +81,71 @@ export async function ColleaguesSection({ embedded = false }: { embedded?: boole
     db.from('project_teams').select('team_id'),
   ])
 
-  // 各社員の最大プロジェクト進捗を計算
-  const milestoneMap = buildMilestoneMap(allProjectPhases ?? [])
-  const certifiedByEmp: Record<string, Set<string>> = {}
-  for (const a of allCertified ?? []) {
-    if (!certifiedByEmp[a.employee_id]) certifiedByEmp[a.employee_id] = new Set()
-    certifiedByEmp[a.employee_id].add(a.skill_id)
+  const certifiedSet = new Set<string>((allCertified ?? []).map(a => `${a.employee_id}:${a.skill_id}`))
+
+  const hoursByEmployee = (allWorkHours ?? []).reduce((acc, r) => {
+    acc[r.employee_id] = (acc[r.employee_id] ?? 0) + r.hours
+    return acc
+  }, {} as Record<string, number>)
+
+  // employee→project マッピング（複数所属あり）を事前構築
+  const empProjects: Record<string, string[]> = {}
+  for (const ep of allEmployeeProjects ?? []) {
+    (empProjects[ep.employee_id] ??= []).push(ep.project_id)
   }
 
-  const workHoursByEmp: Record<string, number> = {}
-  for (const w of allWorkHours ?? []) {
-    workHoursByEmp[w.employee_id] = (workHoursByEmp[w.employee_id] ?? 0) + Number(w.hours)
+  // project別のフェーズ・スキルを事前構築
+  const allProjectPhasesArr = allProjectPhases ?? []
+  const phasesByProject: Record<string, typeof allProjectPhasesArr> = {}
+  for (const p of allProjectPhasesArr) {
+    if (!phasesByProject[p.project_id]) phasesByProject[p.project_id] = []
+    phasesByProject[p.project_id].push(p)
+  }
+  const allProjectSkillsArr = allProjectSkills ?? []
+  const skillsByProject: Record<string, typeof allProjectSkillsArr> = {}
+  for (const ps of allProjectSkillsArr) {
+    if (!skillsByProject[ps.project_id]) skillsByProject[ps.project_id] = []
+    skillsByProject[ps.project_id].push(ps)
   }
 
-  // 各社員ごとに「所属プロジェクトのうち最大の達成率」を採用
+  // project別のmilestoneをキャッシュ
+  const projectCache: Record<string, { milestones: ReturnType<typeof buildMilestoneMap>; totalSkills: number; skillsByPhase: Record<string, number> }> = {}
+  function getProjectStats(projectId: string) {
+    if (projectCache[projectId]) return projectCache[projectId]
+    const phases = phasesByProject[projectId] ?? []
+    const pSkills = skillsByProject[projectId] ?? []
+    const phaseById = Object.fromEntries(phases.map(p => [p.id, p]))
+    const sbp: Record<string, number> = {}
+    for (const ps of pSkills) {
+      const phase = phaseById[ps.project_phase_id ?? '']
+      if (phase) sbp[phase.name] = (sbp[phase.name] ?? 0) + 1
+    }
+    const result = { milestones: buildMilestoneMap(phases), totalSkills: pSkills.length, skillsByPhase: sbp }
+    projectCache[projectId] = result
+    return result
+  }
+
+  // 社員ごとの最初の参加PJで標準進捗を計算
   const employeeStats: Record<string, { certifiedPct: number; standardPct: number }> = {}
+
   for (const emp of employees ?? []) {
-    const empProjects = allEmployeeProjects?.[emp.id] ?? []
-    let best: { certifiedCount: number; totalSkills: number; standardPct: number } | null = null
-    for (const projectId of empProjects) {
-      const phaseList = (allProjectPhases ?? []).filter(p => p.project_id === projectId)
-      const phaseIds = new Set(phaseList.map(p => p.id))
-      const projectSkillRows = (allProjectSkills ?? []).filter(ps => phaseIds.has(ps.project_id) || (ps.project_phase_id && phaseIds.has(ps.project_phase_id)))
-      // skills that belong to this project
-      const projectSkillIds = new Set(projectSkillRows.filter(ps => ps.project_id === projectId).map(ps => ps.skill_id))
-      const certifiedForProject = certifiedByEmp[emp.id] ?? new Set()
-      let certifiedCount = 0
-      for (const sid of projectSkillIds) if (certifiedForProject.has(sid)) certifiedCount++
-      const totalSkills = projectSkillIds.size
-      const standardPct = calcStandardPct(milestoneMap, projectId, workHoursByEmp[emp.id] ?? 0)
-      if (!best || (totalSkills > 0 && certifiedCount / totalSkills > best.certifiedCount / Math.max(1, best.totalSkills))) {
-        best = { certifiedCount, totalSkills, standardPct }
+    // 育成対象＝プロジェクトに紐づくチームの「メンバー」（ロール不問）。メンバーでなければ進捗は出さない
+    if (!(empProjects[emp.id]?.length)) continue
+
+    // 所属プロジェクトのうち空でないものから、本人の認定が最も多いものを採用
+    // （空プロジェクトの誤選択で 0% になるのを防ぐ）
+    let best: { totalSkills: number; standardPct: number; certifiedCount: number } | null = null
+    for (const pid of empProjects[emp.id] ?? []) {
+      const stats = getProjectStats(pid)
+      if (stats.totalSkills === 0) continue
+      let cc = 0
+      for (const ps of skillsByProject[pid] ?? []) {
+        if (certifiedSet.has(`${emp.id}:${ps.skill_id}`)) cc++
+      }
+      const sp = calcStandardPct(hoursByEmployee[emp.id] ?? 0, stats.milestones, stats.skillsByPhase, stats.totalSkills)
+      const cand = { totalSkills: stats.totalSkills, standardPct: sp, certifiedCount: cc }
+      if (!best || cand.certifiedCount > best.certifiedCount || (cand.certifiedCount === best.certifiedCount && cand.standardPct > best.standardPct)) {
+        best = cand
       }
     }
 

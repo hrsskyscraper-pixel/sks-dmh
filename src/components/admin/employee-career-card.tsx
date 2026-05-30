@@ -15,7 +15,7 @@ import { cn } from '@/lib/utils'
 import { Checkbox } from '@/components/ui/checkbox'
 import { updateEmployeePermission } from '@/app/(dashboard)/admin/business-roles/actions'
 import { SYSTEM_PERMISSION_LABELS, type BusinessRole, type SystemPermission, type EmploymentType } from '@/types/database'
-import { Plus, Trash2, ArrowLeft, Users, Briefcase, GraduationCap, MapPin, ArrowRightLeft, FileText, Pencil, Instagram, MessageCircle, X, Store, FolderKanban, Building2, Award, Star, UserCog, LogIn, Camera, Loader2, ChevronDown, ChevronRight, Target } from 'lucide-react'
+import { Plus, Trash2, ArrowLeft, Users, Briefcase, GraduationCap, MapPin, ArrowRightLeft, FileText, Pencil, Instagram, MessageCircle, X, Store, FolderKanban, Building2, Award, Star, UserCog, LogIn, Camera, Loader2, ChevronDown, ChevronUp, ChevronRight, Target } from 'lucide-react'
 import { CertIcon as CertIconComponent, getCertColorClasses } from '@/components/admin/certification-manager'
 import { addCareerRecord, updateCareerRecord, deleteCareerRecord, updateEmployeeName } from '@/app/(dashboard)/actions'
 import Link from 'next/link'
@@ -96,6 +96,8 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
   const [isPending, startTransition] = useTransition()
   const [avatarUrl, setAvatarUrl] = useState(employee.avatar_url)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  // プロフィールカードの詳細（名前・SNS以外）の折りたたみ。既定は折りたたみ。
+  const [profileExpanded, setProfileExpanded] = useState(false)
   const [employeeName, setEmployeeName] = useState(employee.name)
   const [nameDialogOpen, setNameDialogOpen] = useState(false)
   const [nameInput, setNameInput] = useState(employee.name)

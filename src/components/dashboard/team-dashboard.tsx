@@ -315,13 +315,14 @@ export function TeamDashboard({ currentEmployee, employees, skills, achievements
                 </div>
               )}
               <div>
-                <p className="text-xs font-medium text-gray-600 mb-1">コメント（任意）</p>
+                <p className="text-xs font-medium text-gray-600 mb-1">コメント（認定は任意・差し戻しは必須）</p>
                 <Textarea
-                  placeholder="認定・差し戻しの理由や補足をご記入ください"
+                  placeholder="認定の補足、または差し戻しの理由をご記入ください"
                   value={certifyComment}
                   onChange={e => setCertifyComment(e.target.value)}
                   className="text-sm min-h-[80px] resize-none"
                 />
+                <p className="text-[11px] text-red-500 mt-1">差し戻しには理由の入力が必須です。本人に通知されます。</p>
               </div>
             </div>
           )}
@@ -339,7 +340,7 @@ export function TeamDashboard({ currentEmployee, employees, skills, achievements
                 variant="outline"
                 className="flex-1 border-red-200 text-red-600 hover:bg-red-50 hover:border-red-400"
                 onClick={() => selectedAchievement && handleReject(selectedAchievement, certifyComment)}
-                disabled={isPending}
+                disabled={isPending || !certifyComment.trim()}
               >
                 <XCircle className="w-4 h-4 mr-1" />
                 差し戻す
