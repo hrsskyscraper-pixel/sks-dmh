@@ -171,7 +171,7 @@ export function NotificationList({ reactions, comments, achievementMap, employee
           avatarEmp = employeeMap[item.employeeId]
           avatarFallback = avatarEmp?.name?.charAt(0) ?? '?'
         } else if (item.kind === 'cert_result') {
-          href = `/skills#achievement-${item.achievementId}`
+          href = `/skills?tab=${('action' in item && item.action === 'certify') ? 'certified' : 'rejected'}#achievement-${item.achievementId}`
           if (item.actorId) avatarEmp = employeeMap[item.actorId]
           avatarFallback = item.action === 'certify' ? '✓' : '!'
           avatarBg = item.action === 'certify' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
