@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useMemo, useState, useTransition } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { CheckCircle2, Clock, Circle, ChevronDown, ChevronRight, ChevronUp, Trophy, XCircle, BookOpen } from 'lucide-react'
@@ -10,6 +10,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -142,6 +143,11 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
   const [applyComment, setApplyComment] = useState('')
   const [reapplyDialogSkill, setReapplyDialogSkill] = useState<Skill | null>(null)
   const [reapplyComment, setReapplyComment] = useState('')
+  // まとめて申請（未申請スキルのみ対象）
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkDialogOpen, setBulkDialogOpen] = useState(false)
+  const [bulkComment, setBulkComment] = useState('')
+  const [bulkSubmitting, setBulkSubmitting] = useState(false)
   const supabase = createClient()
 
   const openChatHistory = async (ach: AchievementWithCertifier) => {
@@ -160,6 +166,78 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
   }
 
   const getAchievement = (skillId: string) => achievements.find(a => a.skill_id === skillId)
+
+  // 未申請（status なし）のスキルのみ、まとめて申請の選択対象
+  const isSelectable = (skillId: string) => getStatus(skillId) === null
+
+  const toggleSelected = (skillId: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      next.has(skillId) ? next.delete(skillId) : next.add(skillId)
+      return next
+    })
+  }
+
+  const selectedSkills = useMemo(
+    () => skills.filter(s => selectedIds.has(s.id)),
+    [skills, selectedIds]
+  )
+
+  const handleSubmitBulkApply = async () => {
+    if (selectedSkills.length === 0) return
+    setBulkSubmitting(true)
+    try {
+      const comment = bulkComment.trim() || null
+      const { data: inserted, error } = await supabase
+        .from('achievements')
+        .insert(
+          selectedSkills.map(skill => ({
+            employee_id: employeeId,
+            skill_id: skill.id,
+            status: 'pending' as const,
+            apply_comment: comment,
+          }))
+        )
+        .select()
+      if (error) throw error
+
+      const rows = inserted ?? []
+      if (rows.length > 0) {
+        await supabase.from('achievement_history').insert(
+          rows.map(r => ({
+            achievement_id: r.id,
+            action: 'apply' as const,
+            actor_id: employeeId,
+            comment,
+          }))
+        )
+      }
+
+      // 承認者へは1通にまとめて通知
+      fetch('/api/skill-notification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          employeeId,
+          skillNames: selectedSkills.map(s => s.name),
+          isReapply: false,
+          comment,
+        }),
+      }).catch(() => {})
+
+      // 楽観的更新
+      setAchievements(prev => [...prev, ...rows])
+      setBulkDialogOpen(false)
+      setBulkComment('')
+      setSelectedIds(new Set())
+      toast.success(`${rows.length}件をまとめて申請しました！`, { description: '認定者の確認をお待ちください' })
+    } catch (err) {
+      console.error('まとめて申請に失敗:', err)
+      toast.error('まとめて申請に失敗しました')
+    } finally {
+      setBulkSubmitting(false)
+    }
+  }
 
   const handleSubmitApply = (skill: Skill, comment: string) => {
     const existing = getAchievement(skill.id)
@@ -234,6 +312,14 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
           !status && 'hover:bg-gray-50'
         )}
       >
+        {!readOnly && isSelectable(skill.id) && (
+          <Checkbox
+            checked={selectedIds.has(skill.id)}
+            onCheckedChange={() => toggleSelected(skill.id)}
+            className="mt-0.5 flex-shrink-0"
+            aria-label={`${skill.name} をまとめて申請に選択`}
+          />
+        )}
         <div className="flex-shrink-0 mt-0.5">
           {status === 'certified' ? (
             <CheckCircle2 className="w-5 h-5 text-green-500" />
@@ -687,6 +773,58 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
         })}
       </Tabs>
       </>}
+
+      {/* まとめて申請の固定ボトムバー（ボトムナビの上） */}
+      {!readOnly && selectedIds.size > 0 && (
+        <div className="fixed inset-x-0 bottom-16 z-40 border-t bg-white/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-white/80">
+          <div className="mx-auto flex max-w-2xl items-center justify-between gap-3">
+            <span className="text-sm font-medium text-gray-700">{selectedIds.size}件を選択中</span>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>解除</Button>
+              <Button
+                size="sm"
+                className="bg-orange-500 hover:bg-orange-600 text-white"
+                onClick={() => { setBulkComment(''); setBulkDialogOpen(true) }}
+              >
+                まとめて申請
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* まとめて申請ダイアログ */}
+      <Dialog open={bulkDialogOpen} onOpenChange={open => { if (!bulkSubmitting) { setBulkDialogOpen(open); if (!open) setBulkComment('') } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle className="text-base">スキルをまとめて申請</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div className="bg-gray-50 rounded-lg p-3">
+              <p className="text-sm font-medium text-gray-700">次の{selectedSkills.length}件を申請します</p>
+              <ul className="mt-1 max-h-40 space-y-0.5 overflow-y-auto text-sm text-gray-600">
+                {selectedSkills.map(s => <li key={s.id}>・{s.name}</li>)}
+              </ul>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-gray-600 mb-1">コメント（任意・全件に適用されます）</p>
+              <Textarea
+                placeholder="習得したポイントや、気付いたこと、学んだことなど、一言コメントをどうぞ"
+                value={bulkComment}
+                onChange={e => setBulkComment(e.target.value)}
+                className="text-sm min-h-[80px] resize-none"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              className="w-full bg-orange-500 hover:bg-orange-600 text-white"
+              onClick={handleSubmitBulkApply}
+              disabled={bulkSubmitting}
+            >
+              {bulkSubmitting ? '申請中...' : `${selectedSkills.length}件を申請する`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* 申請ダイアログ */}
       <Dialog open={applyDialogSkill !== null} onOpenChange={open => { if (!open) { setApplyDialogSkill(null); setApplyComment('') } }}>

@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
 import { StoreSelect } from '@/components/ui/store-select'
 import { CheckCircle, XCircle, UserPlus, GitPullRequest, Award, Inbox } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -93,6 +94,72 @@ export function ApprovalCenter({
   const [certifyComment, setCertifyComment] = useState('')
   const [certifyTarget, setCertifyTarget] = useState<any>(null)
   const [certifyAction, setCertifyAction] = useState<'certified' | 'rejected'>('certified')
+
+  // まとめて認定 / 差し戻し
+  const [selectedAchIds, setSelectedAchIds] = useState<Set<string>>(new Set())
+  const [processedAchIds, setProcessedAchIds] = useState<Set<string>>(new Set())
+  const [bulkAction, setBulkAction] = useState<'certified' | 'rejected'>('certified')
+  const [bulkDialogOpen, setBulkDialogOpen] = useState(false)
+  const [bulkComment, setBulkComment] = useState('')
+  const [bulkSubmitting, setBulkSubmitting] = useState(false)
+
+  // 楽観的に処理済みとしたカードを除外した認定待ち一覧
+  const visiblePendingAchievements = pendingAchievements.filter((a: any) => !processedAchIds.has(a.id))
+
+  const toggleAchSelected = (id: string) => {
+    setSelectedAchIds(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  const handleBulkCertify = async () => {
+    if (selectedAchIds.size === 0) return
+    if (bulkAction === 'rejected' && !bulkComment.trim()) {
+      toast.error('差し戻しの場合はコメント（理由）が必須です')
+      return
+    }
+    const ids = Array.from(selectedAchIds)
+    const action = bulkAction
+    const comment = bulkComment.trim() || null
+
+    // 楽観的に該当カードを隠し、選択を解除
+    setBulkSubmitting(true)
+    setProcessedAchIds(prev => new Set([...prev, ...ids]))
+    setSelectedAchIds(new Set())
+    setBulkDialogOpen(false)
+    setBulkComment('')
+    toast.success(action === 'certified' ? `${ids.length}件を認定しました` : `${ids.length}件を差し戻しました`)
+
+    try {
+      const res = await fetch('/api/certify-skills', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ achievementIds: ids, action, comment }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        // ロールバック
+        setProcessedAchIds(prev => {
+          const next = new Set(prev)
+          for (const id of ids) next.delete(id)
+          return next
+        })
+        toast.error(data.error ?? '更新に失敗しました')
+      }
+    } catch {
+      setProcessedAchIds(prev => {
+        const next = new Set(prev)
+        for (const id of ids) next.delete(id)
+        return next
+      })
+      toast.error('通信に失敗しました')
+    } finally {
+      setBulkSubmitting(false)
+      router.refresh()
+    }
+  }
 
   const handleCertify = () => {
     if (!certifyTarget) return
@@ -190,7 +257,7 @@ export function ApprovalCenter({
   type Item = { type: 'skill' | 'team' | 'join'; date: string; data: any }
   const items: Item[] = []
 
-  for (const a of pendingAchievements) {
+  for (const a of visiblePendingAchievements) {
     items.push({ type: 'skill', date: a.created_at, data: a })
   }
   for (const r of pendingTeamRequests) {
@@ -205,7 +272,7 @@ export function ApprovalCenter({
 
   const counts = {
     all: items.length,
-    skill: pendingAchievements.length,
+    skill: visiblePendingAchievements.length,
     team: pendingTeamRequests.length,
     join: pendingJoins.length,
   }
@@ -525,6 +592,13 @@ export function ApprovalCenter({
                 <Card key={`skill-${a.id}`} className="cursor-pointer hover:shadow-sm transition-shadow" onClick={() => openChat(a.id, skill?.name ?? '')}>
                   <CardContent className="py-3 px-4">
                     <div className="flex items-center gap-3">
+                      <div onClick={e => e.stopPropagation()} className="flex-shrink-0">
+                        <Checkbox
+                          checked={selectedAchIds.has(a.id)}
+                          onCheckedChange={() => toggleAchSelected(a.id)}
+                          aria-label={`${emp?.name ?? ''} の ${skill?.name ?? ''} を選択`}
+                        />
+                      </div>
                       <Avatar className="w-9 h-9 flex-shrink-0">
                         <AvatarImage src={emp?.avatar_url ?? undefined} />
                         <AvatarFallback className="text-xs bg-orange-100 text-orange-700">{emp?.name?.charAt(0)}</AvatarFallback>
@@ -631,6 +705,63 @@ export function ApprovalCenter({
           })}
         </div>
       )}
+
+      {/* まとめて認定 / 差し戻しの固定ボトムバー（ボトムナビの上） */}
+      {selectedAchIds.size > 0 && (
+        <div className="fixed inset-x-0 bottom-16 z-40 border-t bg-white/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-white/80">
+          <div className="mx-auto flex max-w-2xl flex-wrap items-center justify-between gap-2">
+            <span className="text-sm font-medium text-gray-700">{selectedAchIds.size}件を選択中</span>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setSelectedAchIds(new Set())}>解除</Button>
+              <Button
+                size="sm"
+                className="bg-green-500 hover:bg-green-600 text-white"
+                onClick={() => { setBulkAction('certified'); setBulkComment(''); setBulkDialogOpen(true) }}
+              >
+                <CheckCircle className="w-3.5 h-3.5 mr-1" />まとめて認定
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-red-500 border-red-200 hover:bg-red-50"
+                onClick={() => { setBulkAction('rejected'); setBulkComment(''); setBulkDialogOpen(true) }}
+              >
+                <XCircle className="w-3.5 h-3.5 mr-1" />まとめて差し戻し
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* まとめて認定 / 差し戻しダイアログ */}
+      <Dialog open={bulkDialogOpen} onOpenChange={open => { if (!bulkSubmitting) { setBulkDialogOpen(open); if (!open) setBulkComment('') } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-base">
+              {bulkAction === 'certified' ? `${selectedAchIds.size}件をまとめて認定` : `${selectedAchIds.size}件をまとめて差し戻し`}
+            </DialogTitle>
+          </DialogHeader>
+          <Textarea
+            value={bulkComment}
+            onChange={e => setBulkComment(e.target.value)}
+            placeholder={bulkAction === 'rejected' ? '差し戻しの理由を入力（必須・全件に適用）' : 'コメント（任意・全件に適用）'}
+            rows={2}
+          />
+          {bulkAction === 'rejected' && (
+            <p className="text-[11px] text-red-500 -mt-1">差し戻しには理由の入力が必須です。本人に通知されます。</p>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkDialogOpen(false)} disabled={bulkSubmitting}>キャンセル</Button>
+            <Button
+              className={bulkAction === 'certified' ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600'}
+              onClick={handleBulkCertify}
+              disabled={bulkSubmitting || (bulkAction === 'rejected' && !bulkComment.trim())}
+            >
+              {bulkAction === 'certified' ? '認定する' : '差し戻す'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* スキル認定ダイアログ */}
       <Dialog open={!!certifyTarget} onOpenChange={() => setCertifyTarget(null)}>

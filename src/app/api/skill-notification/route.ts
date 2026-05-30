@@ -4,8 +4,16 @@ import { sendMail } from '@/lib/notifications/email'
 import { sendLineMessages } from '@/lib/notifications/line'
 
 export async function POST(request: Request) {
-  const { employeeId, skillName, isReapply, comment } = await request.json()
-  if (!employeeId || !skillName) return NextResponse.json({ ok: false })
+  const { employeeId, skillName, skillNames, isReapply, comment } = await request.json()
+  // 単一の skillName（従来）または skillNames[]（まとめて申請）のどちらかを受け付ける
+  const names: string[] = Array.isArray(skillNames)
+    ? skillNames.filter((n: unknown): n is string => typeof n === 'string')
+    : skillName
+      ? [skillName]
+      : []
+  if (!employeeId || names.length === 0) return NextResponse.json({ ok: false })
+  const skillSummary = names.length === 1 ? names[0] : `${names.length}件のスキル`
+  const skillListText = names.length === 1 ? names[0] : names.map(n => `・${n}`).join('\n')
 
   const db = createAdminClient()
 
@@ -32,11 +40,11 @@ export async function POST(request: Request) {
   if (emails.length > 0) {
     await sendMail({
       to: emails,
-      subject: `【Growth Driver】スキル認定${actionLabel}: ${applicant.name}（${skillName}）`,
+      subject: `【Growth Driver】スキル認定${actionLabel}: ${applicant.name}（${skillSummary}）`,
       body: [
         `${applicant.name} さんからスキル認定の${actionLabel}がありました。`,
         '',
-        `スキル: ${skillName}`,
+        names.length === 1 ? `スキル: ${skillListText}` : `スキル:\n${skillListText}`,
         ...(comment ? [`コメント: ${comment}`] : []),
         '',
         `承認センターで確認してください。`,
@@ -48,7 +56,7 @@ export async function POST(request: Request) {
   if (lineUserIds.length > 0) {
     await sendLineMessages(
       lineUserIds,
-      `【スキル認定 ${actionLabel}】\n${applicant.name} さんが「${skillName}」の認定を${actionLabel}しました。\n${comment ? `コメント: ${comment}\n` : ''}\n確認: ${approvalUrl}\nGrowth Driver`
+      `【スキル認定 ${actionLabel}】\n${applicant.name} さんが次のスキルの認定を${actionLabel}しました。\n${skillListText}\n${comment ? `コメント: ${comment}\n` : ''}\n確認: ${approvalUrl}\nGrowth Driver`
     ).catch(err => console.error('スキル申請LINE通知失敗:', err))
   }
 
