@@ -203,11 +203,6 @@ export default async function DashboardPage({
   const projectSkillRows = (projectSkillsResult as { data: { skill_id: string; project_phase_id: string | null }[] }).data ?? []
   const workHoursSum = (workHoursSumResult as { data: number | null }).data ?? 0
 
-  // unreadNotifications は achievements から生成（別クエリ不要）
-  const unreadNotifications = viewAsId
-    ? []
-    : (achievements ?? []).filter(a => !a.is_read && ['certified', 'rejected'].includes(a.status))
-
   // skillPhaseMap
   const skillPhaseMap: Record<string, string | null> = {}
   for (const ps of projectSkillRows ?? []) {
@@ -262,7 +257,6 @@ export default async function DashboardPage({
         skillPhaseMap={skillPhaseMap}
         currentProject={selectedProject}
         employeeProjects={employeeProjects as { id: string; name: string; is_active: boolean }[]}
-        unreadNotifications={unreadNotifications}
         pendingAchievementsCount={pendingAchievementsCount}
         pendingTeamRequestsCount={pendingTeamRequestsCount}
         currentGoal={(() => {
@@ -295,31 +289,39 @@ export default async function DashboardPage({
         employeeId={employee.id}
         hasGoalRecords={(careerRows ?? []).some(r => r.record_type === '目標')}
         skillManuals={skillManualsMap}
+        rankingSlot={
+          <div className="mt-4">
+            <Suspense fallback={<TeamRankingSkeleton />}>
+              <TeamRankingServer
+                employeeId={employee.id}
+                employeeRole={currentEmployee.role}
+                selectedProjectId={selectedProject?.id ?? null}
+              />
+            </Suspense>
+          </div>
+        }
+        checkpointSlot={
+          <div className="mt-4">
+            <Suspense fallback={null}>
+              <CheckpointRecords
+                employeeId={employee.id}
+                employeeRole={currentEmployee.role}
+                projectSkillIds={[...projectSkillIds]}
+              />
+            </Suspense>
+          </div>
+        }
+        timelineSlot={
+          <div className="mt-4">
+            <Suspense fallback={<div className="px-4 py-8 text-center text-sm text-muted-foreground animate-pulse">タイムラインを読み込み中...</div>}>
+              <TimelineServer
+                employeeId={employee.id}
+                employeeRole={currentEmployee.role}
+              />
+            </Suspense>
+          </div>
+        }
       />
-      <Suspense fallback={<TeamRankingSkeleton />}>
-        <TeamRankingServer
-          employeeId={employee.id}
-          employeeRole={currentEmployee.role}
-          selectedProjectId={selectedProject?.id ?? null}
-        />
-      </Suspense>
-      <div className="mt-4">
-        <Suspense fallback={null}>
-          <CheckpointRecords
-            employeeId={employee.id}
-            employeeRole={currentEmployee.role}
-            projectSkillIds={[...projectSkillIds]}
-          />
-        </Suspense>
-      </div>
-      <div className="mt-4">
-        <Suspense fallback={<div className="px-4 py-8 text-center text-sm text-muted-foreground animate-pulse">タイムラインを読み込み中...</div>}>
-          <TimelineServer
-            employeeId={employee.id}
-            employeeRole={currentEmployee.role}
-          />
-        </Suspense>
-      </div>
     </>
   )
 }

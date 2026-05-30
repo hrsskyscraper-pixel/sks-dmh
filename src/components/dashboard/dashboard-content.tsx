@@ -12,7 +12,7 @@ import dynamic from 'next/dynamic'
 // 2チャートを1つの dynamic 境界に統合し、recharts の二重バンドルを回避
 const DashboardCharts = dynamic(() => import('@/components/charts/dashboard-charts').then(m => m.DashboardCharts), { ssr: false })
 import { cn } from '@/lib/utils'
-import { AlertTriangle, ChevronDown, ChevronUp, Camera, Loader2, CheckCircle2, XCircle, Bell, ClipboardList, Users, Instagram, Target, CalendarDays, Pencil, BookOpen } from 'lucide-react'
+import { AlertTriangle, ChevronDown, ChevronUp, Camera, Loader2, CheckCircle2, ClipboardList, Users, Instagram, Target, CalendarDays, Pencil, BookOpen } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { setSelectedProject } from '@/app/(dashboard)/actions'
@@ -29,8 +29,6 @@ import { sortCategories } from '@/lib/category-order'
 import { Input } from '@/components/ui/input'
 import type { Employee, Skill, Achievement, MilestoneMap, ProjectPhase, Goal } from '@/types/database'
 
-type AchievementWithSkill = Achievement & { skills: Skill | null }
-
 interface Props {
   employee: Employee
   skills: Skill[]
@@ -41,7 +39,6 @@ interface Props {
   skillPhaseMap: Record<string, string | null>
   currentProject: { id: string; name: string; is_active: boolean } | null
   employeeProjects: { id: string; name: string; is_active: boolean }[]
-  unreadNotifications: AchievementWithSkill[]
   pendingAchievementsCount?: number
   pendingTeamRequestsCount?: number
   currentGoal: (Pick<Goal, 'id' | 'content' | 'set_at' | 'deadline'> & { reason?: string }) | null
@@ -53,6 +50,9 @@ interface Props {
   employeeId?: string
   hasGoalRecords?: boolean
   skillManuals?: Record<string, { id: string; title: string; url: string; isPrimary: boolean }[]>
+  rankingSlot?: React.ReactNode
+  checkpointSlot?: React.ReactNode
+  timelineSlot?: React.ReactNode
 }
 
 const PHASE_COLORS = ['bg-orange-500', 'bg-amber-500', 'bg-red-500', 'bg-blue-500', 'bg-green-500', 'bg-purple-500']
@@ -105,10 +105,10 @@ function calcHireYear(hireDate: string | null): number {
 export function DashboardContent({
   employee, skills, achievements: initialAchievements, cumulativeHours, milestones,
   projectPhases, skillPhaseMap, currentProject, employeeProjects,
-  unreadNotifications: initialNotifications,
   pendingAchievementsCount = 0, pendingTeamRequestsCount = 0,
   currentGoal: initialGoal, isOwnDashboard, careerSummary = {}, storeName = null, position = null, internalCerts = [], employeeId, hasGoalRecords = false,
-  skillManuals = {}
+  skillManuals = {},
+  rankingSlot, checkpointSlot, timelineSlot
 }: Props) {
   const [expandedManuals, setExpandedManuals] = useState<Set<string>>(new Set())
   const [switchingProjectId, setSwitchingProjectId] = useState<string | null>(null)
@@ -155,7 +155,6 @@ export function DashboardContent({
     )
   }
   const [achievementList, setAchievementList] = useState(initialAchievements)
-  const [notifications, setNotifications] = useState(initialNotifications)
   const [isPending, startTransition] = useTransition()
   const [applyDialogSkill, setApplyDialogSkill] = useState<Skill | null>(null)
   const [applyComment, setApplyComment] = useState('')
@@ -192,14 +191,6 @@ export function DashboardContent({
       setApplyDialogSkill(null)
       setApplyComment('')
       toast.success(`「${skill.name}」を申請しました！`, { description: '認定者の確認をお待ちください' })
-    })
-  }
-
-  const handleMarkAsRead = (id: string) => {
-    startTransition(async () => {
-      const { error } = await supabase.from('achievements').update({ is_read: true }).eq('id', id)
-      if (error) { toast.error('既読にできませんでした'); return }
-      setNotifications(prev => prev.filter(n => n.id !== id))
     })
   }
 
@@ -542,58 +533,6 @@ export function DashboardContent({
         </CardContent>
       </Card>
 
-      {/* 未読通知 */}
-      {notifications.length > 0 && (
-        <div className="space-y-2">
-          <div className="flex items-center gap-1.5 px-1">
-            <Bell className="w-4 h-4 text-gray-500" />
-            <p className="text-sm font-semibold text-gray-700">お知らせ</p>
-          </div>
-          {notifications.map(notification => {
-            const certEmp = (notification as any).certified_employee
-            const isRejected = notification.status === 'rejected'
-            const fmtCertDate = notification.certified_at ? new Date(notification.certified_at).toLocaleDateString('ja-JP') : ''
-            return (
-              <Card
-                key={notification.id}
-                className={cn('border cursor-pointer hover:shadow-sm transition-shadow', notification.status === 'certified' ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50')}
-                onClick={() => { window.location.href = `/skills?tab=${isRejected ? 'rejected' : 'certified'}` }}
-              >
-                <CardContent className="py-3 px-4">
-                  <div className="flex items-start gap-3">
-                    {certEmp?.avatar_url ? (
-                      <img src={certEmp.avatar_url} alt="" loading="lazy" decoding="async" className="w-9 h-9 rounded-full object-cover flex-shrink-0" />
-                    ) : (
-                      <div className="flex-shrink-0 mt-0.5">
-                        {notification.status === 'certified' ? <CheckCircle2 className="w-5 h-5 text-green-500" /> : <XCircle className="w-5 h-5 text-red-400" />}
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className={cn('text-sm font-medium', notification.status === 'certified' ? 'text-green-700' : 'text-red-600')}>
-                        {notification.status === 'certified' ? '認定されました！' : '差し戻しがあります'}
-                      </p>
-                      <p className="text-sm text-gray-800">{notification.skills?.name}</p>
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        {notification.status === 'certified' ? '認定者' : '差し戻し者'}: {certEmp?.name ?? '不明'}
-                        {fmtCertDate && ` (${fmtCertDate})`}
-                      </p>
-                      {notification.certify_comment && (
-                        <p className="text-xs text-gray-600 mt-1 bg-white/70 rounded px-2 py-1">💬 {notification.certify_comment}</p>
-                      )}
-                    </div>
-                    {isRejected ? (
-                      <Button size="sm" className="h-7 text-xs px-2 flex-shrink-0 bg-orange-500 hover:bg-orange-600 text-white" onClick={(e) => { e.stopPropagation(); handleMarkAsRead(notification.id); window.location.href = '/skills?tab=rejected' }} disabled={isPending}>再申請</Button>
-                    ) : (
-                      <Button size="sm" variant="outline" className="h-7 text-xs px-2 flex-shrink-0" onClick={(e) => { e.stopPropagation(); handleMarkAsRead(notification.id) }} disabled={isPending}>既読</Button>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            )
-          })}
-        </div>
-      )}
-
       {/* 対応が必要 */}
       {(pendingAchievementsCount > 0 || pendingTeamRequestsCount > 0) && (
         <div className="space-y-2">
@@ -690,6 +629,9 @@ export function DashboardContent({
         </Card>
       )}
 
+      {rankingSlot}
+      {checkpointSlot}
+
       {/* 次に取り組むスキル（自分で申請できる遅延スキルがない場合に表示） */}
       {overdueSkills.length === 0 && upcomingSkills.length > 0 && (
         <Card className="border-blue-200 bg-blue-50">
@@ -759,6 +701,8 @@ export function DashboardContent({
           </Link>
         ))}
       </div>
+
+      {timelineSlot}
 
       {/* 申請ダイアログ */}
       <Dialog open={applyDialogSkill !== null} onOpenChange={open => { if (!open) { setApplyDialogSkill(null); setApplyComment('') } }}>

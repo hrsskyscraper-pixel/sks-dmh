@@ -124,7 +124,8 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
   const [achievements, setAchievements] = useState(initialAchievements)
   const categories = sortCategories([...new Set(skills.map(s => s.category))])
   const allKeys = phases.flatMap(p => categories.map(c => `${p.id}-${c}`))
-  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(allKeys))
+  // 既定は全カテゴリ折りたたみ（トグルで開く）。allKeys は全カテゴリ展開用に保持。
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set())
   const [expandedStatusGroups, setExpandedStatusGroups] = useState<Set<string>>(new Set())
   const [expandedManuals, setExpandedManuals] = useState<Set<string>>(new Set())
   const [isPending, startTransition] = useTransition()
