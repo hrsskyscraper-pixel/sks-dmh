@@ -22,7 +22,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { createClient } from '@/lib/supabase/client'
 import type { Employee, Team, TeamMember, TeamManager, TeamChangeRequest, Role } from '@/types/database'
-import { canAdminister, canApprove } from '@/lib/permissions'
+import { canAdminister, canApprove, isTrainingLeader } from '@/lib/permissions'
+import { addTeamMembers, removeTeamMember, reorderTeamMembers } from '@/app/(dashboard)/admin/teams/actions'
 
 interface Props {
   currentEmployee: Employee
@@ -140,6 +141,13 @@ export function TeamManager({
   const isReadOnly = !canApprove(effectiveEmployee)
   // view-as 中は申請操作を無効化（requested_by が admin になってしまうため）
   const isViewAs = currentEmployee.id !== effectiveEmployee.id
+  // 自分が担当リーダーとして登録されているチーム（メンバー直接編集が可能なチーム）
+  const managedTeamIds = new Set(
+    teamManagers.filter(m => m.employee_id === effectiveEmployee.id).map(m => m.team_id)
+  )
+  // チーム単位のメンバー編集可否（管理者は全チーム、リーダーは担当チームのみ）
+  const canEditMembers = (teamId: string) =>
+    isDirectEdit || (isTrainingLeader(effectiveEmployee) && managedTeamIds.has(teamId))
 
   // ===== 汎用確認ダイアログ =====
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -419,17 +427,11 @@ export function TeamManager({
   }
 
   const handleAddMember = (teamId: string, employeeIds: string[]) => {
-    if (!isDirectEdit || employeeIds.length === 0) return
+    if (!canEditMembers(teamId) || employeeIds.length === 0) return
     startTransition(async () => {
-      const { error } = await supabase
-        .from('team_members')
-        .insert(employeeIds.map(id => ({ team_id: teamId, employee_id: id, sort_order: 999 })))
-      if (error) { toast.error('追加に失敗しました'); return }
+      const { error } = await addTeamMembers(teamId, employeeIds)
+      if (error) { toast.error(error); return }
       setTeamMembers(prev => [...prev, ...employeeIds.map(id => ({ team_id: teamId, employee_id: id, sort_order: 999 }))])
-      const teamName = teams.find(t => t.id === teamId)?.name ?? ''
-      for (const empId of employeeIds) {
-        await logDirectAction('add_member', teamId, { team_name: teamName, employee_id: empId, employee_name: getEmployeeName(empId) })
-      }
       setAddDialog(null)
       setSelectedEmployeeIds(new Set())
       toast.success(`${employeeIds.length}名をメンバーに追加しました`)
@@ -437,17 +439,11 @@ export function TeamManager({
   }
 
   const handleRemoveMember = (teamId: string, employeeId: string) => {
-    if (!isDirectEdit) return
+    if (!canEditMembers(teamId)) return
     startTransition(async () => {
-      const { error } = await supabase
-        .from('team_members')
-        .delete()
-        .eq('team_id', teamId)
-        .eq('employee_id', employeeId)
-      if (error) { toast.error('削除に失敗しました'); return }
+      const { error } = await removeTeamMember(teamId, employeeId)
+      if (error) { toast.error(error); return }
       setTeamMembers(prev => prev.filter(m => !(m.team_id === teamId && m.employee_id === employeeId)))
-      const teamName = teams.find(t => t.id === teamId)?.name ?? ''
-      await logDirectAction('remove_member', teamId, { team_name: teamName, employee_id: employeeId, employee_name: getEmployeeName(employeeId) })
       toast.success('メンバーを削除しました')
     })
   }
@@ -533,6 +529,8 @@ export function TeamManager({
     }
 
     if (dragEmp.from === 'member' && target === 'manager') {
+      // メンバー→リーダー昇格は管理者のみ（リーダーの直接編集の範囲外）
+      if (!isDirectEdit) { setDragEmp(null); return }
       setPromoteDialog({ empId: dragEmp.id, teamId })
     } else if (dragEmp.from === 'manager' && target === 'member') {
       startTransition(async () => {
@@ -559,10 +557,8 @@ export function TeamManager({
         const idx = reordered.indexOf(m.employee_id)
         return idx >= 0 ? { ...m, sort_order: idx } : m
       }))
-      // DB更新
-      Promise.all(reordered.map((id, i) =>
-        supabase.from('team_members').update({ sort_order: i }).eq('team_id', teamId).eq('employee_id', id)
-      ))
+      // DB更新（RLS 回避のためサーバーアクション経由）
+      void reorderTeamMembers(teamId, reordered)
     } else {
       const mgrs = teamManagers.filter(m => m.team_id === teamId).sort((a, b) => (a.role === 'primary' ? -1 : b.role === 'primary' ? 1 : 0) || (a.sort_order ?? 0) - (b.sort_order ?? 0))
       const ids = mgrs.map(m => m.employee_id)
@@ -1186,7 +1182,7 @@ export function TeamManager({
                         >
                           <Mail className="w-3 h-3 mr-1" />招待
                         </Button>
-                        {isDirectEdit ? (
+                        {canEditMembers(team.id) ? (
                           <Button
                             variant="ghost"
                             size="sm"
@@ -1231,18 +1227,18 @@ export function TeamManager({
                       const emp = getEmployee(empId)
                       return (
                       <div key={empId}
-                        draggable={isDirectEdit}
-                        onDragStart={() => isDirectEdit && setDragEmp({ id: empId, teamId: team.id, from: 'member' })}
+                        draggable={canEditMembers(team.id)}
+                        onDragStart={() => canEditMembers(team.id) && setDragEmp({ id: empId, teamId: team.id, from: 'member' })}
                         onDragEnd={() => { setDragEmp(null); setDropTarget(null); setDropBeforeId(null) }}
                         onDragOver={e => { e.preventDefault(); e.stopPropagation(); if (dragEmp?.teamId === team.id) { setDropTarget('member'); setDropBeforeId(empId) } }}
-                        className={`flex items-center gap-1 bg-gray-100 rounded-full pl-0.5 pr-2 py-0.5 transition-all ${isDirectEdit ? 'cursor-grab active:cursor-grabbing' : ''} ${dropBeforeId === empId && dragEmp?.from === 'member' && dragEmp?.id !== empId ? 'ring-2 ring-orange-400' : ''}`}
+                        className={`flex items-center gap-1 bg-gray-100 rounded-full pl-0.5 pr-2 py-0.5 transition-all ${canEditMembers(team.id) ? 'cursor-grab active:cursor-grabbing' : ''} ${dropBeforeId === empId && dragEmp?.from === 'member' && dragEmp?.id !== empId ? 'ring-2 ring-orange-400' : ''}`}
                       >
                         <Avatar className="w-4 h-4 flex-shrink-0">
                           <AvatarImage src={emp?.avatar_url ?? undefined} />
                           <AvatarFallback className="text-[8px] bg-gray-300 text-gray-600">{emp?.name.charAt(0)}</AvatarFallback>
                         </Avatar>
                         <Link href={`/admin/employees/${empId}`} className="text-xs text-gray-700 hover:underline hover:text-orange-600" onClick={e => e.stopPropagation()}>{getEmployeeName(empId)}</Link>
-                        {isDirectEdit && (
+                        {canEditMembers(team.id) ? (
                           <button
                             onClick={() => setConfirmDialog({
                               title: '削除の確認',
@@ -1256,8 +1252,7 @@ export function TeamManager({
                           >
                             <X className="w-3 h-3" />
                           </button>
-                        )}
-                        {!isDirectEdit && !isReadOnly && (
+                        ) : !isReadOnly && (
                           <button
                             onClick={() => {
                               setRequestDialog({
@@ -1464,7 +1459,7 @@ export function TeamManager({
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <p className="text-xs font-medium text-gray-600">メンバー</p>
-                    {isDirectEdit && (
+                    {canEditMembers(team.id) && (
                       <Button variant="ghost" size="sm" className="h-6 text-xs text-orange-500 px-2" onClick={() => setAddDialog({ teamId: team.id, type: 'member' })}>
                         <UserPlus className="w-3 h-3 mr-1" />追加
                       </Button>
@@ -1481,7 +1476,7 @@ export function TeamManager({
                             <AvatarFallback className="text-[8px] bg-gray-300 text-gray-600">{emp?.name.charAt(0)}</AvatarFallback>
                           </Avatar>
                           <Link href={`/admin/employees/${empId}`} className="text-xs text-gray-700 hover:underline hover:text-orange-600" onClick={e => e.stopPropagation()}>{getEmployeeName(empId)}</Link>
-                          {isDirectEdit && (
+                          {canEditMembers(team.id) && (
                             <button onClick={() => setConfirmDialog({ title: 'メンバー削除', message: `${getEmployeeName(empId)} をこの部署から削除しますか？`, confirmLabel: '削除', confirmClassName: 'flex-1 bg-red-500 hover:bg-red-600 text-white', onConfirm: () => handleRemoveMember(team.id, empId) })} className="text-gray-300 hover:text-red-500 ml-0.5"><X className="w-3 h-3" /></button>
                           )}
                         </div>
@@ -1630,7 +1625,7 @@ export function TeamManager({
                         <div>
                           <div className="flex items-center justify-between mb-1.5">
                             <p className="text-xs font-medium text-gray-600">メンバー</p>
-                            {isDirectEdit && (
+                            {canEditMembers(storeTeam.id) && (
                               <Button variant="ghost" size="sm" className="h-6 text-xs text-blue-600 hover:text-blue-800 px-2"
                                 onClick={() => { setAddDialog({ type: 'member', teamId: storeTeam.id }); setSelectedEmployeeIds(new Set()) }} disabled={isPending}>
                                 <UserPlus className="w-3 h-3 mr-1" />追加
@@ -1648,18 +1643,18 @@ export function TeamManager({
                               const emp = getEmployee(empId)
                               return (
                                 <div key={empId}
-                                  draggable={isDirectEdit}
-                                  onDragStart={() => isDirectEdit && setDragEmp({ id: empId, teamId: storeTeam.id, from: 'member' })}
+                                  draggable={canEditMembers(storeTeam.id)}
+                                  onDragStart={() => canEditMembers(storeTeam.id) && setDragEmp({ id: empId, teamId: storeTeam.id, from: 'member' })}
                                   onDragEnd={() => { setDragEmp(null); setDropTarget(null); setDropBeforeId(null) }}
                                   onDragOver={e => { e.preventDefault(); e.stopPropagation(); if (dragEmp?.teamId === storeTeam.id) { setDropTarget('member'); setDropBeforeId(empId) } }}
-                                  className={`flex items-center gap-1 bg-gray-100 rounded-full pl-0.5 pr-2 py-0.5 transition-all ${isDirectEdit ? 'cursor-grab active:cursor-grabbing' : ''} ${dropBeforeId === empId && dragEmp?.from === 'member' && dragEmp?.id !== empId ? 'ring-2 ring-orange-400' : ''}`}
+                                  className={`flex items-center gap-1 bg-gray-100 rounded-full pl-0.5 pr-2 py-0.5 transition-all ${canEditMembers(storeTeam.id) ? 'cursor-grab active:cursor-grabbing' : ''} ${dropBeforeId === empId && dragEmp?.from === 'member' && dragEmp?.id !== empId ? 'ring-2 ring-orange-400' : ''}`}
                                 >
                                   <Avatar className="w-4 h-4 flex-shrink-0">
                                     <AvatarImage src={emp?.avatar_url ?? undefined} />
                                     <AvatarFallback className="text-[8px] bg-gray-300 text-gray-600">{emp?.name.charAt(0)}</AvatarFallback>
                                   </Avatar>
                                   <Link href={`/admin/employees/${empId}`} className="text-xs text-gray-700 hover:underline hover:text-orange-600" onClick={e => e.stopPropagation()}>{getEmployeeName(empId)}</Link>
-                                  {isDirectEdit && (
+                                  {canEditMembers(storeTeam.id) && (
                                     <button onClick={() => setConfirmDialog({ title: 'メンバー削除', message: `${getEmployeeName(empId)} を「${storeTeam.name}」から削除しますか？`, confirmLabel: '削除', confirmClassName: 'flex-1 bg-red-500 hover:bg-red-600 text-white', onConfirm: () => handleRemoveMember(storeTeam.id, empId) })} className="text-gray-300 hover:text-red-500 ml-0.5"><X className="w-3 h-3" /></button>
                                   )}
                                 </div>
