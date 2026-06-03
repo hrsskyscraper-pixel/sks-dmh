@@ -6,6 +6,7 @@ import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
 import { TopBar } from '@/components/layout/nav'
 import { TeamManager } from '@/components/admin/team-manager'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
+import { maskEmails } from '@/lib/email-visibility'
 import type { Employee, Role } from '@/types/database'
 
 export default async function AdminTeamsPage() {
@@ -69,6 +70,10 @@ export default async function AdminTeamsPage() {
     phaseCount: phaseCountMap[p.id] ?? 0,
   }))
 
+  // メールアドレスは本人とシステム管理者にのみ表示（個人情報保護）。
+  // 閲覧不可の email は空文字にしてからクライアントへ渡す。
+  const employeesForClient = maskEmails(employees ?? [], effectiveEmployee)
+
   // チーム→プロジェクト名マップ
   const projectNameMap = Object.fromEntries((projectsData ?? []).map(p => [p.id, p.name]))
   const teamProjectNames: Record<string, string[]> = {}
@@ -90,7 +95,7 @@ export default async function AdminTeamsPage() {
         teams={teams ?? []}
         teamMembers={teamMembers ?? []}
         teamManagers={teamManagers ?? []}
-        employees={employees ?? []}
+        employees={employeesForClient}
         changeRequests={changeRequests ?? []}
         teamProjectNames={teamProjectNames}
         brands={brands ?? []}

@@ -517,7 +517,7 @@ export function ApprovalCenter({
                           <span className="text-xs text-gray-400">{j.approved_at ? fmtTime(j.approved_at) : fmtTime(j.updated_at)}</span>
                         </div>
                         <p className="text-sm font-medium text-gray-800 mt-0.5">
-                          {j.name} <span className="text-xs text-gray-500">({j.email})</span>
+                          {j.name} {j.email && <span className="text-xs text-gray-500">({j.email})</span>}
                         </p>
                         {teamName && <p className="text-xs text-blue-500 mt-0.5">店舗: {teamName}</p>}
                         <p className="text-xs text-blue-500">チーム: {projectTeamName || '設定なし'}</p>
@@ -687,7 +687,7 @@ export function ApprovalCenter({
                           <span className="text-xs text-gray-400">{fmtTime(j.created_at)}</span>
                         </div>
                         <p className="text-sm font-medium text-gray-800 mt-0.5">
-                          {j.name} <span className="text-xs text-gray-500">({j.email})</span>
+                          {j.name} {j.email && <span className="text-xs text-gray-500">({j.email})</span>}
                         </p>
                         {teamName && <p className="text-xs text-orange-500">店舗: {teamName}</p>}
                         <p className="text-xs text-orange-500">チーム: {projectTeamName || '設定なし'}</p>

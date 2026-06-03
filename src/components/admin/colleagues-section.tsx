@@ -8,6 +8,7 @@ import { VIEW_AS_COOKIE } from '@/lib/view-as'
 import { buildMilestoneMap, calcStandardPct } from '@/lib/milestone'
 import type { Role, SystemPermission, Team, TeamMember } from '@/types/database'
 import { canAdminister, isTrainingLeader } from '@/lib/permissions'
+import { maskEmails } from '@/lib/email-visibility'
 
 /**
  * 「仲間」一覧（旧 /admin/employees ページの中身）。
@@ -200,9 +201,14 @@ export async function ColleaguesSection({ embedded = false }: { embedded?: boole
     visibleEmployees = visibleEmployees.filter(e => colleagueIds.has(e.id))
   }
 
+  // メールアドレスは本人とシステム管理者にのみ表示（個人情報保護）。
+  // 閲覧不可の email は空文字にしてからクライアントへ渡す。
+  const emailViewer = { id: effectiveEmployeeId, role: effectiveRole, system_permission: effectiveSystemPermission }
+  const visibleEmployeesForClient = maskEmails(visibleEmployees, emailViewer)
+
   const manager = (
     <EmployeeManager
-      employees={visibleEmployees}
+      employees={visibleEmployeesForClient}
       canEdit={canEdit}
       isTeamManager={isTeamManager}
       managedMemberIds={managedMemberIds}

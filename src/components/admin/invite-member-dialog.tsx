@@ -260,7 +260,7 @@ export function InviteMemberDialog({ open, onOpenChange, teamId, teamName, invit
                         </Avatar>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm text-gray-800 truncate">{emp.name}</p>
-                          <p className="text-[10px] text-gray-500 truncate">{emp.email}</p>
+                          {emp.email && <p className="text-[10px] text-gray-500 truncate">{emp.email}</p>}
                         </div>
                       </label>
                     )

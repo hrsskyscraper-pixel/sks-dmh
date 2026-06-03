@@ -401,7 +401,7 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
                   <Badge className="text-[9px] bg-gray-100 text-gray-400 border-0">LINE未連携</Badge>
                 )}
               </div>
-              <p className="text-sm text-gray-500">{employee.email}</p>
+              {employee.email && <p className="text-sm text-gray-500">{employee.email}</p>}
 
               <div className="flex gap-1.5 mt-2 flex-wrap items-center">
                 <Badge className="text-[10px] bg-orange-100 text-orange-700 border-0">{currentEmploymentType}</Badge>

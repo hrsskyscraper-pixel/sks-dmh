@@ -6,6 +6,7 @@ import { EmployeeCareerCard } from '@/components/admin/employee-career-card'
 import { SkillGrantSection } from '@/components/admin/skill-grant-dialog'
 import { ColleaguesSection } from '@/components/admin/colleagues-section'
 import { canAdminister, canApprove, isTrainingLeader } from '@/lib/permissions'
+import { canViewEmail } from '@/lib/email-visibility'
 import type { SystemPermission } from '@/types/database'
 
 export default async function EmployeeDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams?: Promise<{ add?: string }> }) {
@@ -127,6 +128,12 @@ export default async function EmployeeDetailPage({ params, searchParams }: { par
   const memberTeamIds = (memberTeamRows ?? []).map(m => m.team_id)
   const isSelf = currentEmployee.id === id
 
+  // メールアドレスは本人とシステム管理者にのみ表示（個人情報保護）。
+  // リーダーが他メンバーを見るときは空文字にする。
+  const employeeForCard = canViewEmail(currentEmployee, employee.id)
+    ? employee
+    : { ...employee, email: '' }
+
   return (
     <>
       <TopBar
@@ -141,7 +148,7 @@ export default async function EmployeeDetailPage({ params, searchParams }: { par
         ) : undefined}
       />
       <EmployeeCareerCard
-        employee={employee}
+        employee={employeeForCard}
         careerRecords={careerRecords ?? []}
         employeeMap={employeeMap}
         allEmployees={allEmployees ?? []}

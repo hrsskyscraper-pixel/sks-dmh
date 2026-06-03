@@ -484,7 +484,7 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
                     </div>
                   )}
                   <div className="flex items-center gap-1.5">
-                    <p className="text-xs text-muted-foreground truncate">{employee.email}</p>
+                    {employee.email && <p className="text-xs text-muted-foreground truncate">{employee.email}</p>}
                     {storeByEmployee[employee.id] && (
                       <Badge className="text-[9px] bg-blue-50 text-blue-600 border-0 flex-shrink-0">{storeByEmployee[employee.id]}</Badge>
                     )}

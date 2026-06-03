@@ -5,6 +5,7 @@ import { TopBar } from '@/components/layout/nav'
 import { ApprovalCenter } from '@/components/approvals/approval-center'
 import type { Role } from '@/types/database'
 import { canAdminister, canApprove } from '@/lib/permissions'
+import { maskEmails } from '@/lib/email-visibility'
 import { getTestEmployeeIds } from '@/lib/test-data'
 
 export default async function ApprovalsPage() {
@@ -120,6 +121,11 @@ export default async function ApprovalsPage() {
     .filter(e => !testEmpIds.has(e.id))
     .filter(e => isSystemAdmin || (e.requested_team_id && managedTeamIds.includes(e.requested_team_id)))
 
+  // メールアドレスは本人とシステム管理者にのみ表示（個人情報保護）。
+  // 承認者でもリーダーには参加者のメールを見せない。
+  const filteredJoinsForClient = maskEmails(filteredJoins, employee)
+  const recentJoinsForClient = maskEmails(recentJoins ?? [], employee)
+
   // 店舗・チーム名マップ
   const { data: allTeams } = await db.from('teams').select('id, name, type, prefecture').order('name')
   const teamMap = Object.fromEntries((allTeams ?? []).map(t => [t.id, t]))
@@ -133,7 +139,7 @@ export default async function ApprovalsPage() {
       <ApprovalCenter
         pendingAchievements={filteredAchievements as any[]}
         pendingTeamRequests={filteredTeamRequests as any[]}
-        pendingJoins={filteredJoins as any[]}
+        pendingJoins={filteredJoinsForClient as any[]}
         teamMap={teamMap}
         projectTeams={projectTeams ?? []}
         currentEmployeeId={employee.id}
@@ -142,7 +148,7 @@ export default async function ApprovalsPage() {
         storeDeptTeams={(allTeams ?? []).filter(t => t.type === 'store' || t.type === 'department') as any[]}
         recentAchievements={(recentAchievements ?? []) as any[]}
         recentTeamRequests={(recentTeamRequests ?? []) as any[]}
-        recentJoins={(recentJoins ?? []) as any[]}
+        recentJoins={recentJoinsForClient as any[]}
         reviewerMap={reviewerMap as Record<string, { id: string; name: string; avatar_url: string | null }>}
         auditLogs={(auditLogs ?? []) as any[]}
       />

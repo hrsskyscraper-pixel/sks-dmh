@@ -140,7 +140,7 @@ export function ApprovalManager({ pendingEmployees, teams, projectTeams, current
                   </Avatar>
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-gray-800 truncate">{emp.name}</p>
-                    <p className="text-xs text-gray-400 truncate">{emp.email}</p>
+                    {emp.email && <p className="text-xs text-gray-400 truncate">{emp.email}</p>}
                   </div>
                   <div className="text-right flex-shrink-0">
                     <p className="text-xs text-gray-400">{daysSince === 0 ? '今日' : `${daysSince}日前`}</p>
@@ -238,7 +238,7 @@ export function ApprovalManager({ pendingEmployees, teams, projectTeams, current
           <DialogHeader>
             <DialogTitle>参加を承認しますか？</DialogTitle>
             <DialogDescription>
-              {confirmTarget?.name} さん（{confirmTarget?.email}）のシステム参加を承認します。
+              {confirmTarget?.name} さん{confirmTarget?.email ? `（${confirmTarget.email}）` : ''}のシステム参加を承認します。
               承認後、本人にメール通知が送信されます。
             </DialogDescription>
           </DialogHeader>

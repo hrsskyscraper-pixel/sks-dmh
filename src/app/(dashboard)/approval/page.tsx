@@ -5,6 +5,7 @@ import { TopBar } from '@/components/layout/nav'
 import { ApprovalManager } from '@/components/approval/approval-manager'
 import type { Role } from '@/types/database'
 import { canAdminister, canApprove } from '@/lib/permissions'
+import { maskEmails } from '@/lib/email-visibility'
 import { getTestEmployeeIds } from '@/lib/test-data'
 
 export default async function ApprovalPage() {
@@ -45,6 +46,10 @@ export default async function ApprovalPage() {
     .filter(e => !testEmpIds.has(e.id))
     .filter(e => isSystemAdmin || managedTeamIds.includes(e.requested_team_id!))
 
+  // メールアドレスは本人とシステム管理者にのみ表示（個人情報保護）。
+  // 承認者でもリーダーには参加者のメールを見せない。
+  const filteredForClient = maskEmails(filtered, employee)
+
   // 店舗・部署取得
   const { data: teams } = await db.from('teams').select('id, name, type, prefecture').in('type', ['store', 'department']).order('name')
 
@@ -56,7 +61,7 @@ export default async function ApprovalPage() {
       <TopBar title="参加許諾管理" />
       <div className="px-4 py-4">
         <ApprovalManager
-          pendingEmployees={filtered}
+          pendingEmployees={filteredForClient}
           teams={teams ?? []}
           projectTeams={projectTeams ?? []}
           currentEmployeeId={employee.id}
