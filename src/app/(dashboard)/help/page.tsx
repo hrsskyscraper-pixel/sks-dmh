@@ -41,9 +41,9 @@ const fontSizeSection = {
 const allSections = [
   {
     id: 'overview',
-    title: 'Growth Driver とは',
+    title: 'Mission Board（ミッションボード）とは',
     icon: HelpCircle,
-    content: `Growth Driver は、スキル習得の進捗管理と成長支援のためのアプリです。
+    content: `Mission Board は、スキル習得の進捗管理と成長支援のためのアプリです。
 
 **「GAPから、次の一歩へ。」**
 
@@ -439,7 +439,7 @@ const allSections = [
 const memberSections = [
   {
     id: 'm-welcome',
-    title: 'Growth Driver へようこそ',
+    title: 'Mission Board へようこそ',
     icon: Sparkles,
     content: `このアプリは、あなたのスキル習得を"見える化"して、チームで応援しあうためのものです。
 
@@ -952,7 +952,7 @@ const adminSections = [
 
 **プロジェクトとは**
 育成カリキュラム。どのチームが、どのフェーズ（期間目標）で、どのスキルを習得していくかを定義する単位。
-例: 「店舗新人オンボーディング2026」「店長業務（事務スキル）認定_2026.04-07」
+例: 「ライジング_CoCo壱_v1.0」「店長業務（事務スキル）認定_2026.04-07」
 
 **フェーズ設定**
 - プロジェクト内の段階（例: 1ヶ月目, 2ヶ月目）

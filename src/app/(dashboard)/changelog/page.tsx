@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Clock } from 'lucide-react'
 
 export const metadata = {
-  title: '更新履歴 | Growth Driver',
+  title: '更新履歴 | Mission Board',
 }
 
 export const dynamic = 'force-dynamic'

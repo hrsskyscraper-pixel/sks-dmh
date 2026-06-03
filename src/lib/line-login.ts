@@ -1,8 +1,8 @@
 /**
- * 公式アカウント Growth Driver の友だち追加URL（Basic ID: @556bhmpg）。
+ * 公式アカウント Mission Board の友だち追加URL（Basic ID: @556bhmpg）。
  *
  * 未認証 LINE 公式アカウントは LINE アプリ内検索に表示されないため、
- * ユーザーに「LINEで Growth Driver を検索→追加」を案内しても見つからない。
+ * ユーザーに「LINEで Mission Board を検索→追加」を案内しても見つからない。
  * このURLを直接タップすれば LINE が開き、友だち追加画面が出る。
  *
  * OA を別アカウントに切り替える場合はここを更新する。

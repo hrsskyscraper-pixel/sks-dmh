@@ -1,6 +1,6 @@
 # データベースバックアップ運用ガイド
 
-Growth Driver（sks-dmh）のデータベース（Supabase PostgreSQL）を、
+Mission Board（sks-dmh）のデータベース（Supabase PostgreSQL）を、
 GitHub Actions で毎日自動バックアップし、**別の非公開リポジトリ**に暗号化保存する仕組みです。
 
 ## 🗂 構成

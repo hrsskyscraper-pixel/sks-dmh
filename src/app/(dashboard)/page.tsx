@@ -67,7 +67,7 @@ export default async function DashboardPage({
       .order('name')
     return (
       <>
-        <TopBar title="Growth Driver" />
+        <TopBar title="Mission Board" />
         <TestUserGuide employees={testEmployees ?? []} />
       </>
     )
@@ -224,7 +224,7 @@ export default async function DashboardPage({
     <>
       <Suspense><LineLinkToast /></Suspense>
       <TopBar
-        title="Growth Driver"
+        title="Mission Board"
         right={
           <div className="flex items-end gap-2 sm:gap-3">
             <div className="text-right">

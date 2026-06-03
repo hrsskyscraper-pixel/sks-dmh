@@ -113,7 +113,7 @@ export async function grantSkill(params: {
   const skillsUrl = `${systemUrl}/skills?tab=certified`
   await sendMail({
     to: target.email,
-    subject: `【Growth Driver】スキル認定: ${skill.name}`,
+    subject: `【Mission Board】スキル認定: ${skill.name}`,
     body: [
       `${target.name} 様`,
       '',
@@ -130,7 +130,7 @@ export async function grantSkill(params: {
   if (target.line_user_id) {
     await sendLineMessage(
       target.line_user_id,
-      `【スキル認定】\nスキル「${skill.name}」が認定されました。\n認定者: ${certifier.name}\n${commentClean ? `コメント: ${commentClean}\n` : ''}\n確認: ${skillsUrl}\nGrowth Driver`
+      `【スキル認定】\nスキル「${skill.name}」が認定されました。\n認定者: ${certifier.name}\n${commentClean ? `コメント: ${commentClean}\n` : ''}\n確認: ${skillsUrl}\nMission Board`
     ).catch(err => console.error('スキル付与LINE通知失敗:', err))
   }
 
@@ -190,7 +190,7 @@ export async function revokeCertification(params: {
     const skillsUrl = `${systemUrl}/skills`
     await sendMail({
       to: emp.email,
-      subject: `【Growth Driver】スキル認定が取り消されました: ${skill.name}`,
+      subject: `【Mission Board】スキル認定が取り消されました: ${skill.name}`,
       body: [
         `${emp.name} 様`,
         '',
@@ -207,7 +207,7 @@ export async function revokeCertification(params: {
     if (emp.line_user_id) {
       await sendLineMessage(
         emp.line_user_id,
-        `【スキル認定 取り消し】\nスキル「${skill.name}」の認定が取り消されました。\n操作者: ${actor.name}\n${reason ? `理由: ${reason}\n` : ''}\n必要に応じて再度申請してください: ${skillsUrl}\nGrowth Driver`
+        `【スキル認定 取り消し】\nスキル「${skill.name}」の認定が取り消されました。\n操作者: ${actor.name}\n${reason ? `理由: ${reason}\n` : ''}\n必要に応じて再度申請してください: ${skillsUrl}\nMission Board`
       ).catch(err => console.error('認定取消LINE通知失敗:', err))
     }
   }

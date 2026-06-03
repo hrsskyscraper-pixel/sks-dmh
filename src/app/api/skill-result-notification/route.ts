@@ -18,7 +18,7 @@ export async function POST(request: Request) {
   // メール通知
   await sendMail({
     to: emp.email,
-    subject: `【Growth Driver】スキル${isCertified ? '認定' : '差し戻し'}: ${skillName}`,
+    subject: `【Mission Board】スキル${isCertified ? '認定' : '差し戻し'}: ${skillName}`,
     body: [
       `${emp.name} 様`,
       '',
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
   if (emp.line_user_id) {
     await sendLineMessage(
       emp.line_user_id,
-      `【Growth Driver】\nスキル「${skillName}」が${statusText}。\n${comment ? `コメント: ${comment}\n` : ''}確認: ${systemUrl}`
+      `【Mission Board】\nスキル「${skillName}」が${statusText}。\n${comment ? `コメント: ${comment}\n` : ''}確認: ${systemUrl}`
     ).catch(err => console.error('スキル結果LINE通知失敗:', err))
   }
 

@@ -73,7 +73,7 @@ export function WelcomeContent({
         <div className={`bg-gradient-to-br ${accentColor} rounded-2xl p-5 text-white shadow-lg`}>
           <div className="flex items-center gap-2 mb-2">
             <Sparkles className="w-5 h-5" />
-            <span className="text-xs font-medium opacity-90">Growth Driver へようこそ</span>
+            <span className="text-xs font-medium opacity-90">Mission Board へようこそ</span>
           </div>
           <h1 className="text-xl font-bold leading-tight mb-1">
             {inviterName}さんから<br />
@@ -97,12 +97,12 @@ export function WelcomeContent({
           </Card>
         )}
 
-        {/* Growth Driverとは */}
+        {/* Mission Boardとは */}
         <Card>
           <CardContent className="py-4 px-4 space-y-3">
             <h2 className="text-sm font-bold text-gray-800 flex items-center gap-1.5">
               <Info className="w-4 h-4 text-orange-500" />
-              Growth Driver とは
+              Mission Board（ミッションボード）とは
             </h2>
             <p className="text-sm text-gray-700 leading-relaxed">
               <strong className="text-orange-600">「GAPから、次の一歩へ。」</strong><br />

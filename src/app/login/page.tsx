@@ -67,11 +67,11 @@ function LoginContent() {
       <Card className="w-full max-w-sm shadow-xl">
         <CardHeader className="text-center space-y-2 pb-0">
           <div className="mx-auto w-16 h-16 bg-gradient-to-br from-orange-400 to-red-500 rounded-2xl flex items-center justify-center mb-2">
-            <span className="text-white text-2xl font-bold">G</span>
+            <span className="text-white text-2xl font-bold">M</span>
           </div>
-          <CardTitle className="text-2xl font-bold">Growth Driver</CardTitle>
+          <CardTitle className="text-2xl font-bold">Mission Board</CardTitle>
           <CardDescription className="text-sm leading-relaxed">
-            GAPから、次の一歩へ。
+            ミッションボード
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-0">

@@ -1,7 +1,7 @@
 import Link from 'next/link'
 
 export const metadata = {
-  title: 'プライバシーポリシー | Growth Driver',
+  title: 'プライバシーポリシー | Mission Board',
 }
 
 export default function PrivacyPage() {
@@ -16,7 +16,7 @@ export default function PrivacyPage() {
 
         <div className="prose prose-sm md:prose-base max-w-none text-gray-700 space-y-6 leading-relaxed">
           <p>
-            Growth Driver（以下「本サービス」といいます）は、ユーザーの個人情報の保護を重要視し、
+            Mission Board（以下「本サービス」といいます）は、ユーザーの個人情報の保護を重要視し、
             個人情報の保護に関する法律（個人情報保護法）を遵守します。本プライバシーポリシーは、
             本サービスにおける個人情報の取扱いについて定めるものです。
           </p>
@@ -119,7 +119,7 @@ export default function PrivacyPage() {
               本プライバシーポリシーに関するお問い合わせは、以下の窓口までご連絡ください。
             </p>
             <div className="bg-gray-50 rounded-lg p-4 mt-2">
-              <p className="text-sm">運営者: Growth Driver 運営チーム</p>
+              <p className="text-sm">運営者: Mission Board 運営チーム</p>
               <p className="text-sm">メール: hrs.skyscraper@gmail.com</p>
             </div>
           </section>
@@ -127,7 +127,7 @@ export default function PrivacyPage() {
 
         <footer className="mt-10 pt-6 border-t border-gray-200 text-xs text-gray-500 text-center">
           <Link href="/terms" className="hover:underline mr-4">利用規約</Link>
-          <Link href="/" className="hover:underline">Growth Driver</Link>
+          <Link href="/" className="hover:underline">Mission Board</Link>
         </footer>
       </div>
     </div>

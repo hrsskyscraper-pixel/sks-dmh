@@ -80,12 +80,12 @@ export function LineLinkFloatingButton({
       if (res.friend) {
         sessionStorage.removeItem(STORAGE_KEY)
         toast.success('LINE通知の準備が整いました', {
-          description: '今後はGrowth Driverの通知がLINEに届きます。',
+          description: '今後はMission Boardの通知がLINEに届きます。',
           duration: 6000,
         })
       } else {
         toast.warning('まだ友達追加が確認できません', {
-          description: '公式アカウント「Growth Driver」を友達追加してから、もう一度このボタンをタップしてください。',
+          description: '公式アカウント「Mission Board」を友達追加してから、もう一度このボタンをタップしてください。',
           duration: 14000,
           action: {
             label: 'LINEで開く',

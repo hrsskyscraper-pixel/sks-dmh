@@ -40,7 +40,7 @@ export async function POST(request: Request) {
   if (emails.length > 0) {
     await sendMail({
       to: emails,
-      subject: `【Growth Driver】スキル認定${actionLabel}: ${applicant.name}（${skillSummary}）`,
+      subject: `【Mission Board】スキル認定${actionLabel}: ${applicant.name}（${skillSummary}）`,
       body: [
         `${applicant.name} さんからスキル認定の${actionLabel}がありました。`,
         '',
@@ -56,7 +56,7 @@ export async function POST(request: Request) {
   if (lineUserIds.length > 0) {
     await sendLineMessages(
       lineUserIds,
-      `【スキル認定 ${actionLabel}】\n${applicant.name} さんが次のスキルの認定を${actionLabel}しました。\n${skillListText}\n${comment ? `コメント: ${comment}\n` : ''}\n確認: ${approvalUrl}\nGrowth Driver`
+      `【スキル認定 ${actionLabel}】\n${applicant.name} さんが次のスキルの認定を${actionLabel}しました。\n${skillListText}\n${comment ? `コメント: ${comment}\n` : ''}\n確認: ${approvalUrl}\nMission Board`
     ).catch(err => console.error('スキル申請LINE通知失敗:', err))
   }
 

@@ -16,7 +16,7 @@ interface SendMailParams {
 }
 
 export async function sendMail({ to, cc, subject, body }: SendMailParams) {
-  const from = `Growth Driver <${process.env.GMAIL_USER}>`
+  const from = `Mission Board <${process.env.GMAIL_USER}>`
   const toStr = Array.isArray(to) ? to.join(', ') : to
   const ccStr = cc ? (Array.isArray(cc) ? cc.join(', ') : cc) : undefined
 

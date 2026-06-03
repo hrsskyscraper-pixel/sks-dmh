@@ -1,7 +1,7 @@
 import Link from 'next/link'
 
 export const metadata = {
-  title: '利用規約 | Growth Driver',
+  title: '利用規約 | Mission Board',
 }
 
 export default function TermsPage() {
@@ -16,7 +16,7 @@ export default function TermsPage() {
 
         <div className="prose prose-sm md:prose-base max-w-none text-gray-700 space-y-6 leading-relaxed">
           <p>
-            本利用規約（以下「本規約」といいます）は、Growth Driver（以下「本サービス」といいます）
+            本利用規約（以下「本規約」といいます）は、Mission Board（以下「本サービス」といいます）
             の利用条件を定めるものです。ユーザーは本規約に同意の上で本サービスを利用するものとします。
           </p>
 
@@ -121,7 +121,7 @@ export default function TermsPage() {
           <section>
             <h2 className="text-lg font-semibold text-gray-800 mt-6 mb-3">お問い合わせ窓口</h2>
             <div className="bg-gray-50 rounded-lg p-4 mt-2">
-              <p className="text-sm">運営者: Growth Driver 運営チーム</p>
+              <p className="text-sm">運営者: Mission Board 運営チーム</p>
               <p className="text-sm">メール: hrs.skyscraper@gmail.com</p>
             </div>
           </section>
@@ -129,7 +129,7 @@ export default function TermsPage() {
 
         <footer className="mt-10 pt-6 border-t border-gray-200 text-xs text-gray-500 text-center">
           <Link href="/privacy" className="hover:underline mr-4">プライバシーポリシー</Link>
-          <Link href="/" className="hover:underline">Growth Driver</Link>
+          <Link href="/" className="hover:underline">Mission Board</Link>
         </footer>
       </div>
     </div>

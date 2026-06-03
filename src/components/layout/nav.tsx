@@ -239,8 +239,8 @@ export function TopBar({ title, right, hideNotificationBell = false }: { title: 
       <div className="flex items-center h-14 px-4 max-w-2xl mx-auto gap-2">
         <Link href="/" className="flex-shrink-0">
           <h1 className="text-lg font-bold text-gray-900 leading-tight">{title}</h1>
-          {title === 'Growth Driver' && (
-            <p className="text-[10px] text-gray-400 leading-none mt-1">GAPから、次の一歩へ。</p>
+          {title === 'Mission Board' && (
+            <p className="text-[10px] text-gray-400 leading-none mt-1">ミッションボード</p>
           )}
         </Link>
         <div className="flex-1 min-w-0 flex justify-end">

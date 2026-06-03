@@ -60,7 +60,7 @@ export function LineLinkBanner({ needsFriend = false }: { needsFriend?: boolean 
       if (res.friend) {
         sessionStorage.removeItem(STORAGE_KEY)
         toast.success('LINE通知の準備が整いました', {
-          description: '今後はGrowth Driverの通知がLINEに届きます。',
+          description: '今後はMission Boardの通知がLINEに届きます。',
           duration: 6000,
         })
       } else {
@@ -81,8 +81,8 @@ export function LineLinkBanner({ needsFriend = false }: { needsFriend?: boolean 
             <p className="text-sm font-medium text-green-800">あと一歩でLINE通知が届きます</p>
             <p className="text-xs text-green-700 mt-0.5 leading-relaxed">
               {attempted
-                ? '公式アカウント「Growth Driver」の友達追加が済んだら、下のボタンを押してください。'
-                : '下のボタンから公式アカウント「Growth Driver」を友達追加してください。'}
+                ? '公式アカウント「Mission Board」の友達追加が済んだら、下のボタンを押してください。'
+                : '下のボタンから公式アカウント「Mission Board」を友達追加してください。'}
             </p>
           </div>
           <button

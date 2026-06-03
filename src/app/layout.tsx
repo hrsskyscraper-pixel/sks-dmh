@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Growth Driver",
+  title: "Mission Board",
   description: "GAPから、次の一歩へ。",
 };
 
