@@ -355,7 +355,7 @@ export type Database = {
       team_invitations: {
         Row: {
           id: string
-          team_id: string
+          team_id: string | null
           project_team_id: string | null
           suggested_role: 'mate' | 'employee' | 'store_manager' | 'manager' | null
           invited_by: string
@@ -366,11 +366,14 @@ export type Database = {
           used_at: string | null
           used_by: string | null
           as_manager: boolean
+          is_self_select: boolean
+          allowed_team_types: string[] | null
+          revoked_at: string | null
           created_at: string
         }
         Insert: {
           id?: string
-          team_id: string
+          team_id?: string | null
           project_team_id?: string | null
           suggested_role?: 'mate' | 'employee' | 'store_manager' | 'manager' | null
           invited_by: string
@@ -381,11 +384,14 @@ export type Database = {
           used_at?: string | null
           used_by?: string | null
           as_manager?: boolean
+          is_self_select?: boolean
+          allowed_team_types?: string[] | null
+          revoked_at?: string | null
           created_at?: string
         }
         Update: {
           id?: string
-          team_id?: string
+          team_id?: string | null
           project_team_id?: string | null
           suggested_role?: 'mate' | 'employee' | 'store_manager' | 'manager' | null
           invited_by?: string
@@ -396,6 +402,9 @@ export type Database = {
           used_at?: string | null
           used_by?: string | null
           as_manager?: boolean
+          is_self_select?: boolean
+          allowed_team_types?: string[] | null
+          revoked_at?: string | null
           created_at?: string
         }
         Relationships: []

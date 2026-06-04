@@ -11,9 +11,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { UserPlus, CheckCircle, AlertCircle, HelpCircle, UserCircle, MessageCircle } from 'lucide-react'
-import { acceptInvitation } from '../actions'
+import { UserPlus, CheckCircle, AlertCircle, HelpCircle, UserCircle, MessageCircle, Search, Building2 } from 'lucide-react'
+import { acceptInvitation, acceptSelfSelectInvitation } from '../actions'
 import { buildLineLoginAuthorizeUrl } from '@/lib/line-login'
+
+const TEAM_TYPE_LABEL: Record<string, string> = { store: '店舗', department: '部署', project: 'チーム' }
+const TEAM_TYPE_BADGE: Record<string, string> = {
+  store: 'bg-blue-100 text-blue-700',
+  department: 'bg-purple-100 text-purple-700',
+  project: 'bg-violet-100 text-violet-700',
+}
+
+type TeamOption = { id: string; name: string; type: string; prefecture: string | null }
 
 interface Props {
   invitationId: string
@@ -21,6 +30,10 @@ interface Props {
   initialLastName: string
   initialFirstName: string
   previewMode?: boolean
+  /** 自己選択型リンク: 参加者が所属を選んで参加する */
+  selfSelect?: boolean
+  /** 自己選択型で選択可能な所属一覧 */
+  teams?: TeamOption[]
 }
 
 // 日本語（漢字・ひらがな・カタカナ・半角/全角スペース・々・ー）のみ許可
@@ -42,11 +55,15 @@ function isJapaneseName(s: string): boolean {
   return JP_NAME_REGEX.test(t)
 }
 
-export function AcceptInvitationButton({ invitationId, asManager = false, initialLastName, initialFirstName, previewMode = false }: Props) {
+export function AcceptInvitationButton({ invitationId, asManager = false, initialLastName, initialFirstName, previewMode = false, selfSelect = false, teams = [] }: Props) {
   const [isPending, startTransition] = useTransition()
   const [joined, setJoined] = useState<string | null>(null)
   const router = useRouter()
   const joinLabel = asManager ? 'リーダーとして参加' : 'このチームに参加'
+
+  // 自己選択型: 参加先の所属
+  const [selectedTeamId, setSelectedTeamId] = useState('')
+  const [teamSearch, setTeamSearch] = useState('')
 
   // 氏名（Google登録値で初期化）
   const [lastName, setLastName] = useState(initialLastName ?? '')
@@ -71,9 +88,29 @@ export function AcceptInvitationButton({ invitationId, asManager = false, initia
   const firstNameKanaHasAlphabet = HAS_ALPHABET.test(firstNameKana)
   const lastNameKanaInvalid = !lastNameKana.trim() || lastNameKanaHasAlphabet || !isJapaneseName(lastNameKana)
   const firstNameKanaInvalid = !firstNameKana.trim() || firstNameKanaHasAlphabet || !isJapaneseName(firstNameKana)
-  const canSubmit = !lastNameInvalid && !firstNameInvalid && !lastNameKanaInvalid && !firstNameKanaInvalid
+  const canSubmit = !lastNameInvalid && !firstNameInvalid && !lastNameKanaInvalid && !firstNameKanaInvalid && (!selfSelect || !!selectedTeamId)
+
+  // 自己選択型の所属候補（検索＋並び替え）
+  const filteredTeams = teams
+    .filter(t => {
+      const q = teamSearch.trim().toLowerCase()
+      if (!q) return true
+      return t.name.toLowerCase().includes(q) || (t.prefecture ?? '').toLowerCase().includes(q)
+    })
+    .sort((a, b) => {
+      const order: Record<string, number> = { store: 0, department: 1, project: 2 }
+      const oa = order[a.type] ?? 9, ob = order[b.type] ?? 9
+      if (oa !== ob) return oa - ob
+      const pa = a.prefecture ?? '', pb = b.prefecture ?? ''
+      if (pa !== pb) return pa.localeCompare(pb, 'ja')
+      return a.name.localeCompare(b.name, 'ja')
+    })
 
   const handleAccept = () => {
+    if (selfSelect && !selectedTeamId) {
+      toast.error('参加する所属（店舗・部署・チーム）を選択してください')
+      return
+    }
     if (!canSubmit) {
       toast.error('氏名・ふりがなを漢字・ひらがな・カタカナで入力してください')
       return
@@ -85,19 +122,22 @@ export function AcceptInvitationButton({ invitationId, asManager = false, initia
     }
     startTransition(async () => {
       const kana = [lastNameKana.trim(), firstNameKana.trim()].filter(Boolean).join(' ')
-      const res = await acceptInvitation(invitationId, {
+      const profile = {
         lastName: lastName.trim(),
         firstName: firstName.trim(),
         nameKana: kana || null,
         instagramUrl: instagramUrl.trim() || null,
         lineUrl: lineUrl.trim() || null,
-      })
+      }
+      const res = selfSelect
+        ? await acceptSelfSelectInvitation(invitationId, selectedTeamId, profile)
+        : await acceptInvitation(invitationId, profile)
       if (res.error) {
         toast.error(res.error)
         return
       }
       setJoined(res.teamName ?? '')
-      toast.success('チームに参加しました')
+      toast.success('参加しました')
     })
   }
 
@@ -164,6 +204,52 @@ export function AcceptInvitationButton({ invitationId, asManager = false, initia
 
   return (
     <div className="space-y-3">
+      {/* 所属選択（自己選択型リンクのみ） */}
+      {selfSelect && (
+        <div className="space-y-2 bg-blue-50/70 border border-blue-200 rounded-lg p-3">
+          <div className="flex items-center gap-1.5">
+            <Building2 className="w-4 h-4 text-blue-500" />
+            <p className="text-xs font-bold text-gray-800">所属の選択（必須）</p>
+          </div>
+          <p className="text-[11px] text-gray-600 leading-relaxed">
+            ご自身が{asManager ? '担当リーダー' : 'メンバー'}として参加する所属（店舗・部署・チーム）を選んでください。
+          </p>
+          <div className="relative">
+            <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2 top-1/2 -translate-y-1/2" />
+            <Input
+              value={teamSearch}
+              onChange={e => setTeamSearch(e.target.value)}
+              placeholder="店舗名・都道府県などで検索"
+              className="h-9 text-sm pl-7"
+            />
+          </div>
+          <div className="max-h-56 overflow-y-auto rounded-md border border-gray-200 bg-white divide-y divide-gray-100">
+            {filteredTeams.length === 0 && (
+              <p className="text-xs text-gray-400 px-3 py-3 text-center">該当する所属がありません</p>
+            )}
+            {filteredTeams.map(t => (
+              <label
+                key={t.id}
+                className={`flex items-center gap-2 px-3 py-2 cursor-pointer ${selectedTeamId === t.id ? 'bg-orange-50' : 'hover:bg-gray-50'}`}
+              >
+                <input
+                  type="radio"
+                  name="self-select-team"
+                  checked={selectedTeamId === t.id}
+                  onChange={() => setSelectedTeamId(t.id)}
+                  className="accent-orange-500 flex-shrink-0"
+                />
+                <span className={`text-[9px] px-1.5 py-0.5 rounded-full flex-shrink-0 ${TEAM_TYPE_BADGE[t.type] ?? 'bg-gray-100 text-gray-600'}`}>
+                  {TEAM_TYPE_LABEL[t.type] ?? t.type}
+                </span>
+                <span className="text-sm text-gray-800 truncate flex-1">{t.name}</span>
+                {t.prefecture && <span className="text-[10px] text-gray-400 flex-shrink-0">{t.prefecture}</span>}
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* 氏名確認フォーム */}
       <div className="space-y-2 bg-orange-50/70 border border-orange-200 rounded-lg p-3">
         <div className="flex items-center gap-1.5">

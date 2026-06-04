@@ -26,6 +26,8 @@ interface Props {
   customMessage?: string
   asManager: boolean
   previewMode?: boolean
+  /** 自己選択型リンク: 参加時に本人が所属を選ぶ共通リンク */
+  selfSelect?: boolean
 }
 
 export function WelcomeContent({
@@ -36,6 +38,7 @@ export function WelcomeContent({
   customMessage,
   asManager,
   previewMode = false,
+  selfSelect = false,
 }: Props) {
   const [loading, setLoading] = useState(false)
   const [showGoogleHelp, setShowGoogleHelp] = useState(false)
@@ -75,15 +78,25 @@ export function WelcomeContent({
             <Sparkles className="w-5 h-5" />
             <span className="text-xs font-medium opacity-90">Mission Board へようこそ</span>
           </div>
-          <h1 className="text-xl font-bold leading-tight mb-1">
-            {inviterName}さんから<br />
-            <span className="inline-block mt-1">「{teamName}」への</span><br />
-            <span className="inline-block">{joinLabel}参加のご招待です</span>
-          </h1>
-          {projectTeamName && (
-            <p className="text-sm opacity-90 mt-2">
-              所属チーム: {projectTeamName}
-            </p>
+          {selfSelect ? (
+            <h1 className="text-xl font-bold leading-tight mb-1">
+              {inviterName}さんから<br />
+              <span className="inline-block mt-1">アプリ登録のご案内です</span><br />
+              <span className="inline-block text-sm font-medium opacity-90">参加時にご自身の所属（店舗など）を選べます</span>
+            </h1>
+          ) : (
+            <>
+              <h1 className="text-xl font-bold leading-tight mb-1">
+                {inviterName}さんから<br />
+                <span className="inline-block mt-1">「{teamName}」への</span><br />
+                <span className="inline-block">{joinLabel}参加のご招待です</span>
+              </h1>
+              {projectTeamName && (
+                <p className="text-sm opacity-90 mt-2">
+                  所属チーム: {projectTeamName}
+                </p>
+              )}
+            </>
           )}
         </div>
 
@@ -248,20 +261,37 @@ export function WelcomeContent({
         </div>
 
         {/* 注意事項 */}
-        <Card className="border-red-100 bg-red-50/30">
-          <CardContent className="py-3 px-4">
-            <div className="flex items-start gap-2">
-              <Mail className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-xs font-bold text-red-800 mb-1">このお知らせ文は転送しないでください</p>
-                <p className="text-xs text-red-700 leading-relaxed">
-                  この招待リンクは「{asManager ? 'リーダー' : 'メンバー'}として」あなた宛てに発行されています。
-                  他の方に転送すると、意図しないロールで参加されてしまう場合があります。
-                </p>
+        {selfSelect ? (
+          <Card className="border-blue-100 bg-blue-50/30">
+            <CardContent className="py-3 px-4">
+              <div className="flex items-start gap-2">
+                <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs font-bold text-blue-800 mb-1">店長・リーダー向けの共通リンクです</p>
+                  <p className="text-xs text-blue-700 leading-relaxed">
+                    このリンクは{asManager ? 'リーダー' : 'メンバー'}登録用に共有されています。
+                    参加時にご自身の所属（店舗・部署・チーム）を選んでください。各自おひとりずつご登録ください。
+                  </p>
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card className="border-red-100 bg-red-50/30">
+            <CardContent className="py-3 px-4">
+              <div className="flex items-start gap-2">
+                <Mail className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs font-bold text-red-800 mb-1">このお知らせ文は転送しないでください</p>
+                  <p className="text-xs text-red-700 leading-relaxed">
+                    この招待リンクは「{asManager ? 'リーダー' : 'メンバー'}として」あなた宛てに発行されています。
+                    他の方に転送すると、意図しないロールで参加されてしまう場合があります。
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* CTA ボタン */}
         <div className="sticky bottom-2 z-10">
@@ -285,7 +315,7 @@ export function WelcomeContent({
             )}
           </Button>
           <p className="text-center text-[10px] text-gray-500 mt-1">
-            ログイン後、ワンタップで「{teamName}」に参加できます
+            {selfSelect ? 'ログイン後、ご自身の所属を選んで参加できます' : `ログイン後、ワンタップで「${teamName}」に参加できます`}
           </p>
         </div>
 

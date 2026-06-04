@@ -30,7 +30,7 @@ export default async function InvitePage({
   // 招待取得
   const { data: inv } = await db
     .from('team_invitations')
-    .select('id, team_id, project_team_id, invited_by, target_employee_id, custom_message, expires_at, used_at, as_manager')
+    .select('id, team_id, project_team_id, invited_by, target_employee_id, custom_message, expires_at, used_at, as_manager, is_self_select, allowed_team_types, revoked_at')
     .eq('id', id)
     .maybeSingle()
 
@@ -66,13 +66,36 @@ export default async function InvitePage({
   )
 
   if (!inv) return errorScreen('招待が見つかりません。URLをご確認ください。')
-  if (inv.used_at) return errorScreen('この招待は既に使用済みです。')
+  if (inv.is_self_select) {
+    // 自己選択型（共通1リンク）は再利用可能。used_at では失効させず revoked_at で制御する。
+    if (inv.revoked_at) return errorScreen('この招待リンクは無効化されています。')
+  } else if (inv.used_at) {
+    return errorScreen('この招待は既に使用済みです。')
+  }
   if (new Date(inv.expires_at) < new Date()) return errorScreen('この招待は期限切れです。')
 
   // 未ログイン または プレビュー(step未指定): ウェルカムページを表示
   if (!user || (isPreview && previewStep !== 'accept')) {
+    // 自己選択型（共通1リンク）: 参加先が固定でないため、所属を伴わないウェルカムを出す
+    if (inv.is_self_select) {
+      const { data: ssInviter } = await db.from('employees').select('name').eq('id', inv.invited_by).single()
+      return (
+        <>
+          <InAppBrowserWarning />
+          <WelcomeContent
+            invitationId={id}
+            inviterName={ssInviter?.name ?? '管理者'}
+            teamName=""
+            customMessage={inv.custom_message ?? undefined}
+            asManager={inv.as_manager}
+            previewMode={isPreview}
+            selfSelect
+          />
+        </>
+      )
+    }
     const [welcomeTeamRes, welcomeProjectTeamRes, welcomeInviterRes] = await Promise.all([
-      db.from('teams').select('id, name, type').eq('id', inv.team_id).single(),
+      db.from('teams').select('id, name, type').eq('id', inv.team_id!).single(),
       inv.project_team_id
         ? db.from('teams').select('name').eq('id', inv.project_team_id).single()
         : Promise.resolve({ data: null }),
@@ -150,9 +173,64 @@ export default async function InvitePage({
 
   if (!me) return errorScreen('ユーザー情報の取得・作成に失敗しました')
 
+  // 自己選択型（共通1リンク）: 所属を選んで参加する画面
+  if (inv.is_self_select) {
+    const allowedTypes = inv.allowed_team_types && inv.allowed_team_types.length > 0
+      ? inv.allowed_team_types
+      : ['store', 'department', 'project']
+    const [pickTeamsRes, ssInviterRes] = await Promise.all([
+      db.from('teams').select('id, name, type, prefecture').in('type', allowedTypes as ('store' | 'department' | 'project')[]).order('name'),
+      db.from('employees').select('name').eq('id', inv.invited_by).single(),
+    ])
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-orange-50 to-red-50 flex flex-col items-center justify-center p-4">
+        <InAppBrowserWarning />
+        {isPreview && (
+          <div className="w-full max-w-sm mb-2 bg-yellow-400 text-yellow-900 text-center py-1.5 text-xs font-semibold rounded-md">
+            🔍 プレビューモード — 参加後の方に見える画面です
+          </div>
+        )}
+        <Card className="w-full max-w-sm shadow-xl">
+          <CardHeader className="text-center space-y-2">
+            <div className="mx-auto w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
+              <Mail className="w-6 h-6 text-orange-500" />
+            </div>
+            <CardTitle className="text-lg">
+              {inv.as_manager ? 'リーダー' : 'メンバー'}登録
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-gray-700">
+              <span className="font-medium">{ssInviterRes.data?.name ?? '管理者'}</span>さんからの案内です。
+              下記から<span className="font-medium text-orange-600">ご自身の所属</span>を選び、氏名を確認して参加してください。
+            </p>
+            {inv.custom_message && (
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                <p className="text-[10px] text-gray-500 font-medium mb-1">メッセージ</p>
+                <p className="text-sm text-gray-700 whitespace-pre-wrap">{inv.custom_message}</p>
+              </div>
+            )}
+            <AcceptInvitationButton
+              invitationId={id}
+              asManager={inv.as_manager}
+              initialLastName={isPreview ? '' : me.last_name}
+              initialFirstName={isPreview ? '' : me.first_name}
+              previewMode={isPreview}
+              selfSelect
+              teams={(pickTeamsRes.data ?? []) as { id: string; name: string; type: string; prefecture: string | null }[]}
+            />
+            <Link href="/">
+              <Button variant="outline" className="w-full">ホームへ戻る</Button>
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   // チーム・招待者情報
   const [teamRes, projectTeamRes, inviterRes] = await Promise.all([
-    db.from('teams').select('id, name, type').eq('id', inv.team_id).single(),
+    db.from('teams').select('id, name, type').eq('id', inv.team_id!).single(),
     inv.project_team_id
       ? db.from('teams').select('id, name').eq('id', inv.project_team_id).single()
       : Promise.resolve({ data: null }),
@@ -166,8 +244,8 @@ export default async function InvitePage({
 
   // 既に所属？
   const [{ data: existingMember }, { data: existingManager }] = await Promise.all([
-    db.from('team_members').select('team_id').eq('team_id', inv.team_id).eq('employee_id', me.id).maybeSingle(),
-    db.from('team_managers').select('team_id').eq('team_id', inv.team_id).eq('employee_id', me.id).maybeSingle(),
+    db.from('team_members').select('team_id').eq('team_id', inv.team_id!).eq('employee_id', me.id).maybeSingle(),
+    db.from('team_managers').select('team_id').eq('team_id', inv.team_id!).eq('employee_id', me.id).maybeSingle(),
   ])
   // リーダー招待: 既にリーダー登録済みなら「既に所属」。メンバーに留まっている場合は昇格できるので false
   // メンバー招待: メンバーでもリーダーでも「既に所属」扱い

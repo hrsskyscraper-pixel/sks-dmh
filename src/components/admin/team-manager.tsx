@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { toast } from 'sonner'
 import { Plus, Trash2, UserPlus, UserMinus, ClipboardList, Check, X, ChevronDown, ChevronUp, ChevronRight, Pencil, MapPin, Mail, FlaskConical } from 'lucide-react'
 import { InviteMemberDialog } from './invite-member-dialog'
+import { SelfSelectInviteDialog } from './self-select-invite-dialog'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -92,6 +93,7 @@ export function TeamManager({
   const [teamProjectNames, setTeamProjectNames] = useState(initialTeamProjectNames)
   const [assignProjectDialog, setAssignProjectDialog] = useState<{ teamId: string; teamName: string } | null>(null)
   const [assignProjectId, setAssignProjectId] = useState<string>('')
+  const [selfSelectInviteOpen, setSelfSelectInviteOpen] = useState(false)
 
   const performAssignProject = (teamId: string, teamName: string, projectId: string, projectName: string) => {
     startTransition(async () => {
@@ -935,6 +937,19 @@ export function TeamManager({
         >
           <Plus className="w-4 h-4 mr-1" />
           新しいチームを作成
+        </Button>
+      )}
+
+      {isDirectEdit && (
+        <Button
+          size="sm"
+          variant="outline"
+          className="w-full h-9 border-orange-300 text-orange-700 hover:bg-orange-50"
+          onClick={() => setSelfSelectInviteOpen(true)}
+          disabled={isPending}
+        >
+          <Mail className="w-4 h-4 mr-1" />
+          リーダー一括招待リンク（所属を選んで参加）
         </Button>
       )}
 
@@ -2687,6 +2702,13 @@ export function TeamManager({
           <Button variant="outline" onClick={() => setPrimaryConflict(null)} className="w-full">キャンセル</Button>
         </DialogContent>
       </Dialog>
+
+      {/* ===== 一括招待リンク（自己選択型）ダイアログ ===== */}
+      <SelfSelectInviteDialog
+        open={selfSelectInviteOpen}
+        onOpenChange={setSelfSelectInviteOpen}
+        inviterName={currentEmployee.name}
+      />
 
       {/* ===== 招待ダイアログ ===== */}
       {inviteDialog && (
