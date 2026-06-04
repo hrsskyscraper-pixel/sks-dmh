@@ -1459,11 +1459,18 @@ export function TeamManager({
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <p className="text-xs font-medium text-gray-600">メンバー</p>
-                    {canEditMembers(team.id) && (
-                      <Button variant="ghost" size="sm" className="h-6 text-xs text-orange-500 px-2" onClick={() => setAddDialog({ teamId: team.id, type: 'member' })}>
-                        <UserPlus className="w-3 h-3 mr-1" />追加
-                      </Button>
-                    )}
+                    <div className="flex items-center gap-1">
+                      {isDirectEdit && (
+                        <Button variant="ghost" size="sm" className="h-6 text-xs text-orange-600 hover:text-orange-800 px-2" onClick={() => setInviteDialog({ teamId: team.id, teamName: team.name, asManager: false })} disabled={isPending}>
+                          <Mail className="w-3 h-3 mr-1" />招待
+                        </Button>
+                      )}
+                      {canEditMembers(team.id) && (
+                        <Button variant="ghost" size="sm" className="h-6 text-xs text-orange-500 px-2" onClick={() => setAddDialog({ teamId: team.id, type: 'member' })}>
+                          <UserPlus className="w-3 h-3 mr-1" />追加
+                        </Button>
+                      )}
+                    </div>
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {memberIds.length === 0 && <p className="text-xs text-muted-foreground">メンバーなし</p>}
@@ -1488,9 +1495,14 @@ export function TeamManager({
                   <div className="flex items-center justify-between mb-1.5">
                     <p className="text-xs font-medium text-gray-600">担当リーダー</p>
                     {isDirectEdit && (
-                      <Button variant="ghost" size="sm" className="h-6 text-xs text-orange-500 px-2" onClick={() => setAddDialog({ teamId: team.id, type: 'manager' })}>
-                        <UserPlus className="w-3 h-3 mr-1" />追加
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="sm" className="h-6 text-xs text-orange-600 hover:text-orange-800 px-2" onClick={() => setInviteDialog({ teamId: team.id, teamName: team.name, asManager: true })} disabled={isPending}>
+                          <Mail className="w-3 h-3 mr-1" />招待
+                        </Button>
+                        <Button variant="ghost" size="sm" className="h-6 text-xs text-orange-500 px-2" onClick={() => setAddDialog({ teamId: team.id, type: 'manager' })}>
+                          <UserPlus className="w-3 h-3 mr-1" />追加
+                        </Button>
+                      </div>
                     )}
                   </div>
                   <div className="flex flex-wrap gap-1.5">
@@ -1625,12 +1637,20 @@ export function TeamManager({
                         <div>
                           <div className="flex items-center justify-between mb-1.5">
                             <p className="text-xs font-medium text-gray-600">メンバー</p>
-                            {canEditMembers(storeTeam.id) && (
-                              <Button variant="ghost" size="sm" className="h-6 text-xs text-blue-600 hover:text-blue-800 px-2"
-                                onClick={() => { setAddDialog({ type: 'member', teamId: storeTeam.id }); setSelectedEmployeeIds(new Set()) }} disabled={isPending}>
-                                <UserPlus className="w-3 h-3 mr-1" />追加
-                              </Button>
-                            )}
+                            <div className="flex items-center gap-1">
+                              {isDirectEdit && (
+                                <Button variant="ghost" size="sm" className="h-6 text-xs text-orange-600 hover:text-orange-800 px-2"
+                                  onClick={() => setInviteDialog({ teamId: storeTeam.id, teamName: storeTeam.name, asManager: false })} disabled={isPending}>
+                                  <Mail className="w-3 h-3 mr-1" />招待
+                                </Button>
+                              )}
+                              {canEditMembers(storeTeam.id) && (
+                                <Button variant="ghost" size="sm" className="h-6 text-xs text-blue-600 hover:text-blue-800 px-2"
+                                  onClick={() => { setAddDialog({ type: 'member', teamId: storeTeam.id }); setSelectedEmployeeIds(new Set()) }} disabled={isPending}>
+                                  <UserPlus className="w-3 h-3 mr-1" />追加
+                                </Button>
+                              )}
+                            </div>
                           </div>
                           <div
                             className={`flex flex-wrap gap-1.5 min-h-[28px] rounded-lg p-1 -m-1 transition-colors ${dropTarget === 'member' && dragEmp?.teamId === storeTeam.id ? 'bg-gray-200 ring-2 ring-gray-400 ring-dashed' : ''}`}
@@ -1666,10 +1686,16 @@ export function TeamManager({
                           <div className="flex items-center justify-between mb-1.5">
                             <p className="text-xs font-medium text-gray-600">担当リーダー</p>
                             {isDirectEdit && (
-                              <Button variant="ghost" size="sm" className="h-6 text-xs text-blue-600 hover:text-blue-800 px-2"
-                                onClick={() => { setAddDialog({ type: 'manager', teamId: storeTeam.id }); setSelectedEmployeeIds(new Set()) }} disabled={isPending}>
-                                <UserPlus className="w-3 h-3 mr-1" />追加
-                              </Button>
+                              <div className="flex items-center gap-1">
+                                <Button variant="ghost" size="sm" className="h-6 text-xs text-orange-600 hover:text-orange-800 px-2"
+                                  onClick={() => setInviteDialog({ teamId: storeTeam.id, teamName: storeTeam.name, asManager: true })} disabled={isPending}>
+                                  <Mail className="w-3 h-3 mr-1" />招待
+                                </Button>
+                                <Button variant="ghost" size="sm" className="h-6 text-xs text-blue-600 hover:text-blue-800 px-2"
+                                  onClick={() => { setAddDialog({ type: 'manager', teamId: storeTeam.id }); setSelectedEmployeeIds(new Set()) }} disabled={isPending}>
+                                  <UserPlus className="w-3 h-3 mr-1" />追加
+                                </Button>
+                              </div>
                             )}
                           </div>
                           <div
