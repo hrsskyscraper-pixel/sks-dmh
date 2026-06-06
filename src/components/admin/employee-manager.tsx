@@ -383,6 +383,10 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
         const renderCard = (employee: Employee) => {
         const displayRole = getDisplayRole(employee)
         const canEditThis = canEdit || (isTeamManager && managedSet.has(employee.id))
+        // 詳細（メンバーキャリア）ページの閲覧可否。/admin/employees/[id] のアクセス制御
+        // （システム管理者は全員・リーダーは管理チームのメンバー・本人は自分のみ）と一致させ、
+        // 閲覧できない相手は名前をリンクにしない（クリックしてもエラー/ホーム送りになるため）。
+        const canViewDetail = canEditThis || employee.id === currentEmployeeId
         const availableRoles = canEdit ? ALL_DISPLAY_ROLES : TEAM_MANAGER_ROLES
         return (
           <Card key={employee.id} className={CARD_BG_COLORS[displayRole]}>
@@ -425,9 +429,13 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
                 <div className="flex-1 min-w-0">
                   {/* 名前 + 役割バッジ */}
                   <div className="flex items-center gap-1.5 mb-1">
-                    <Link href={`/admin/employees/${employee.id}`} className="text-sm font-medium text-gray-800 hover:text-orange-600 hover:underline transition-colors">
-                      {employee.name}
-                    </Link>
+                    {canViewDetail ? (
+                      <Link href={`/admin/employees/${employee.id}`} className="text-sm font-medium text-gray-800 hover:text-orange-600 hover:underline transition-colors">
+                        {employee.name}
+                      </Link>
+                    ) : (
+                      <span className="text-sm font-medium text-gray-800">{employee.name}</span>
+                    )}
                     {employee.instagram_url && (
                       <a href={employee.instagram_url.startsWith('http') ? employee.instagram_url : `https://instagram.com/${employee.instagram_url.replace(/^@/, '')}`} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-pink-500 transition-colors" onClick={e => e.stopPropagation()}>
                         <Instagram className="w-3.5 h-3.5" />
