@@ -797,9 +797,9 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
                       {record.department && (
                         <p className="text-sm font-medium text-gray-800 mb-1">{record.department}</p>
                       )}
-                      {record.related_employee_ids.length > 0 && (
+                      {(record.related_employee_ids ?? []).length > 0 && (
                         <div className="flex items-center gap-1 flex-wrap mb-1">
-                          {record.related_employee_ids.map(eid => {
+                          {(record.related_employee_ids ?? []).map(eid => {
                             const person = employeeMap[eid]
                             return (
                               <div key={eid} className="flex items-center gap-1 bg-white rounded-full pl-0.5 pr-2 py-0.5 border border-gray-200">
