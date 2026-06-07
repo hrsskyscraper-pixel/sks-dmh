@@ -351,7 +351,16 @@ export async function updateCareerRecord(recordId: string, employeeId: string, d
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '認証エラー' }
 
+  const { data: emp } = await supabase.from('employees').select('id, role, system_permission').eq('auth_user_id', user.id).single()
+  if (!emp) return { error: '権限がありません' }
+
   const adminDb = createAdminClient()
+  // 対象レコードを取得して権限判定（リーダー以上、または「自分自身の目標」なら本人も可）
+  const { data: existing } = await adminDb.from('career_records').select('record_type, employee_id').eq('id', recordId).single()
+  if (!existing) return { error: '記録が見つかりません' }
+  const isOwnGoal = existing.record_type === '目標' && existing.employee_id === emp.id && data.record_type === '目標'
+  if (!isOwnGoal && !canApprove(emp)) return { error: '権限がありません' }
+
   const { error } = await adminDb.from('career_records').update(data).eq('id', recordId)
   if (error) return { error: error.message }
   revalidatePath(`/admin/employees/${employeeId}`)
@@ -363,9 +372,72 @@ export async function deleteCareerRecord(recordId: string, employeeId: string): 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '認証エラー' }
 
+  const { data: emp } = await supabase.from('employees').select('id, role, system_permission').eq('auth_user_id', user.id).single()
+  if (!emp) return { error: '権限がありません' }
+
   const adminDb = createAdminClient()
+  const { data: existing } = await adminDb.from('career_records').select('record_type, employee_id').eq('id', recordId).single()
+  if (!existing) return {}
+  const isOwnGoal = existing.record_type === '目標' && existing.employee_id === emp.id
+  if (!isOwnGoal && !canApprove(emp)) return { error: '権限がありません' }
+
   const { error } = await adminDb.from('career_records').delete().eq('id', recordId)
   if (error) return { error: error.message }
+  revalidatePath(`/admin/employees/${employeeId}`)
+  return {}
+}
+
+/**
+ * 基本プロフィール（氏名・ふりがな・誕生日・SNS）の更新。
+ * 本人は自分の情報を編集でき、リーダー以上は対象メンバーの情報を編集できる。
+ * 権限・承認状態などの機微列はここでは扱わない（別アクション + RLS トリガで保護）。
+ * 氏名変更は重要な変更として監査ログに残す。
+ */
+export async function updateEmployeeProfile(employeeId: string, fields: {
+  last_name: string
+  first_name: string
+  name_kana: string | null
+  birth_date: string | null
+  instagram_url: string | null
+  line_url: string | null
+}): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: '認証エラー' }
+
+  const { data: emp } = await supabase.from('employees').select('id, role, system_permission').eq('auth_user_id', user.id).single()
+  if (!emp) return { error: '権限がありません' }
+  const isSelf = emp.id === employeeId
+  if (!isSelf && !canApprove(emp)) return { error: '権限がありません' }
+
+  if (!fields.last_name.trim()) return { error: '姓を入力してください' }
+
+  const adminDb = createAdminClient()
+  // 氏名変更の監査用に変更前の表示名を取得
+  const { data: before } = await adminDb.from('employees').select('name').eq('id', employeeId).single()
+  const newName = `${fields.last_name.trim()} ${fields.first_name.trim()}`.trim()
+
+  // name は last_name/first_name から trigger(trg_sync_employee_name)で自動同期される
+  const { error } = await adminDb.from('employees').update({
+    last_name: fields.last_name.trim(),
+    first_name: fields.first_name.trim(),
+    name_kana: fields.name_kana,
+    birth_date: fields.birth_date,
+    instagram_url: fields.instagram_url,
+    line_url: fields.line_url,
+  }).eq('id', employeeId)
+  if (error) return { error: error.message }
+
+  // 氏名変更は重要な変更として監査ログに残す
+  if (before && before.name !== newName) {
+    await writeAuditLog({
+      action: isSelf ? 'self_update_name' : 'update_name',
+      actorId: emp.id,
+      targetId: employeeId,
+      details: { from: before.name, to: newName },
+    }).catch(() => {})
+  }
+
   revalidatePath(`/admin/employees/${employeeId}`)
   return {}
 }

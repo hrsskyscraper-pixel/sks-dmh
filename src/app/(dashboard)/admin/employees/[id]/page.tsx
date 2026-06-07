@@ -179,6 +179,7 @@ export default async function EmployeeDetailPage({ params, searchParams }: { par
         employeeMap={employeeMap}
         allEmployees={allEmployees ?? []}
         canEdit={canEdit}
+        isSelf={isSelf}
         canEditPermission={canAdminister(currentEmployee)}
         businessRoles={businessRoles ?? []}
         memberTeamIds={memberTeamIds}

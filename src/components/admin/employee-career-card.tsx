@@ -17,7 +17,7 @@ import { updateEmployeePermission } from '@/app/(dashboard)/admin/business-roles
 import { SYSTEM_PERMISSION_LABELS, type BusinessRole, type SystemPermission, type EmploymentType } from '@/types/database'
 import { Plus, Trash2, ArrowLeft, Users, Briefcase, GraduationCap, MapPin, ArrowRightLeft, FileText, Pencil, Instagram, MessageCircle, X, Store, FolderKanban, Building2, Award, Star, UserCog, LogIn, Camera, Loader2, ChevronDown, ChevronUp, ChevronRight, Target } from 'lucide-react'
 import { CertIcon as CertIconComponent, getCertColorClasses } from '@/components/admin/certification-manager'
-import { addCareerRecord, updateCareerRecord, deleteCareerRecord, updateEmployeeName } from '@/app/(dashboard)/actions'
+import { addCareerRecord, updateCareerRecord, deleteCareerRecord, updateEmployeeName, updateEmployeeProfile } from '@/app/(dashboard)/actions'
 import { addTeamMembership, removeTeamMembership } from '@/app/(dashboard)/admin/employees/[id]/actions'
 import Link from 'next/link'
 import type { CareerRecord } from '@/types/database'
@@ -83,6 +83,8 @@ interface Props {
   employeeMap: Record<string, EmployeeInfo>
   allEmployees: EmployeeInfo[]
   canEdit: boolean
+  /** 本人のページか（本人は基本プロフィール・自分の目標を自己編集できる） */
+  isSelf?: boolean
   /** 権限・業務役職の編集権（運用管理者・開発者のみ true） */
   canEditPermission?: boolean
   businessRoles?: BusinessRole[]
@@ -93,7 +95,7 @@ interface Props {
   autoAddType?: string
 }
 
-export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEmployees, canEdit, canEditPermission = false, businessRoles = [], memberTeamIds, allTeams, goal, certifications, autoAddType }: Props) {
+export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEmployees, canEdit, isSelf = false, canEditPermission = false, businessRoles = [], memberTeamIds, allTeams, goal, certifications, autoAddType }: Props) {
   const [isPending, startTransition] = useTransition()
   const [avatarUrl, setAvatarUrl] = useState(employee.avatar_url)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
@@ -170,15 +172,15 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
           if (res.error) { toast.error(res.error); return }
         }
       }
-      const { error } = await supabase.from('employees').update({
+      const res = await updateEmployeeProfile(employee.id, {
         last_name: editLastName.trim(),
         first_name: editFirstName.trim(),
         name_kana: `${editLastNameKana.trim()} ${editFirstNameKana.trim()}`.trim() || null,
         birth_date: editBirthDate || null,
         instagram_url: editInstagram || null,
         line_url: editLineUrl || null,
-      }).eq('id', employee.id)
-      if (error) { toast.error('更新に失敗しました'); return }
+      })
+      if (res.error) { toast.error(res.error); return }
       setEmployeeName(`${editLastName.trim()} ${editFirstName.trim()}`.trim())
       setCurrentNameKana(`${editLastNameKana.trim()} ${editFirstNameKana.trim()}`.trim() || null)
       if (canEditPermission) {
@@ -472,7 +474,7 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
                 )
               })()}
 
-              {canEdit && (
+              {(canEdit || isSelf) && (
                 <button
                   onClick={() => {
                     const parts = employeeName.split(' ')
@@ -825,7 +827,7 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
                         {new Date(record.created_at).toLocaleDateString('ja-JP')}
                       </p>
                     </div>
-                    {canEdit && (
+                    {(canEdit || (isSelf && record.record_type === '目標')) && (
                       <div className="flex gap-0.5 flex-shrink-0">
                         <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-gray-300 hover:text-orange-500"
                           onClick={() => openEditDialog(record)} disabled={isPending}>
@@ -974,7 +976,7 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
                 <div className="px-4 py-3 text-center">
                   <p className="text-sm font-medium text-gray-800">{employeeName}</p>
                 </div>
-                {canEdit && (
+                {(canEdit || isSelf) && (
                   <div className="px-4 pb-4">
                     <label
                       htmlFor="career-avatar-preview"
