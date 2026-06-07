@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
 import { TopBar, AccountSettingsMenu } from '@/components/layout/nav'
@@ -21,7 +22,10 @@ export default async function EmployeeDetailPage({ params, searchParams }: { par
   const isTeamAccess = isTrainingLeader(currentEmployee)
   const isSelfOnly = !isFullAccess && !isTeamAccess
 
-  if (isSelfOnly && currentEmployee.id !== id) redirect('/')
+  // 権限が無い相手でも redirect() せず、画面内で「権限がありません」を描画する。
+  // soft-navigation 中の redirect() はクライアント例外（Application error）を
+  // 引き起こすため、リダイレクトを使わない。
+  let accessDenied = isSelfOnly && currentEmployee.id !== id
 
   // マネジャー・店長: 自チーム/プロジェクトのメンバーのみ
   if (isTeamAccess && currentEmployee.id !== id) {
@@ -36,7 +40,19 @@ export default async function EmployeeDetailPage({ params, searchParams }: { par
       ...(teamMembersAccess ?? []).map(m => m.employee_id),
       currentEmployee.id,
     ])
-    if (!accessibleIds.has(id)) redirect('/admin/employees')
+    if (!accessibleIds.has(id)) accessDenied = true
+  }
+
+  if (accessDenied) {
+    return (
+      <>
+        <TopBar title="メンバーキャリア" />
+        <div className="px-6 py-16 text-center space-y-3">
+          <p className="text-sm text-gray-500">このメンバーを閲覧する権限がありません。</p>
+          <Link href="/" className="inline-block text-sm text-orange-600 hover:underline">ホームに戻る</Link>
+        </div>
+      </>
+    )
   }
 
   const canEdit = isFullAccess || isTeamAccess
@@ -122,7 +138,17 @@ export default async function EmployeeDetailPage({ params, searchParams }: { par
     }
   })
 
-  if (!employee) redirect('/admin/employees')
+  if (!employee) {
+    return (
+      <>
+        <TopBar title="メンバーキャリア" />
+        <div className="px-6 py-16 text-center space-y-3">
+          <p className="text-sm text-gray-500">このメンバーは見つかりませんでした。</p>
+          <Link href="/" className="inline-block text-sm text-orange-600 hover:underline">ホームに戻る</Link>
+        </div>
+      </>
+    )
+  }
 
   const employeeMap = Object.fromEntries((allEmployees ?? []).map(e => [e.id, e]))
   const memberTeamIds = (memberTeamRows ?? []).map(m => m.team_id)
