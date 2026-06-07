@@ -323,7 +323,11 @@ export async function addCareerRecord(data: {
   if (!user) return { error: '認証エラー' }
 
   const { data: emp } = await supabase.from('employees').select('id, role, system_permission').eq('auth_user_id', user.id).single()
-  if (!emp || !canApprove(emp)) return { error: '権限がありません' }
+  if (!emp) return { error: '権限がありません' }
+  // 自分自身の「目標」記録は本人（メンバーを含む）も作成できる。
+  // それ以外（他人の記録・目標以外の種別）はリーダー以上（canApprove）が必要。
+  const isOwnGoal = data.record_type === '目標' && data.employee_id === emp.id
+  if (!isOwnGoal && !canApprove(emp)) return { error: '権限がありません' }
 
   const adminDb = createAdminClient()
   const { error } = await adminDb.from('career_records').insert({
