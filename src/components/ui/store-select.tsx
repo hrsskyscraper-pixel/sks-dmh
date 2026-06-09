@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useLayoutEffect, useCallback } from 'react'
 import { Building2, ChevronDown, ChevronRight, MapPin } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -26,6 +26,43 @@ const REGION_ORDER = [
 export function StoreSelect({ teams, value, onChange, placeholder = '店舗／部署を選択' }: Props) {
   const [isOpen, setIsOpen] = useState(false)
   const [expandedPref, setExpandedPref] = useState<string | null>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  // 開いたドロップダウンが画面外（特に下端）にはみ出して下位の都道府県まで
+  // スクロールできない問題を防ぐため、トリガー位置を計測して fixed 配置する。
+  // 下に十分な余白が無ければ上向きに開き、高さも画面内に収まるよう制限する。
+  const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({ visibility: 'hidden' })
+
+  const updatePosition = useCallback(() => {
+    const el = triggerRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    const margin = 8
+    const spaceBelow = window.innerHeight - rect.bottom - margin
+    const spaceAbove = rect.top - margin
+    const openUp = spaceAbove > spaceBelow
+    const maxHeight = Math.min(288, Math.max(120, openUp ? spaceAbove : spaceBelow))
+    setMenuStyle({
+      position: 'fixed',
+      left: rect.left,
+      width: rect.width,
+      maxHeight,
+      visibility: 'visible',
+      ...(openUp
+        ? { bottom: window.innerHeight - rect.top + 4 }
+        : { top: rect.bottom + 4 }),
+    })
+  }, [])
+
+  useLayoutEffect(() => {
+    if (!isOpen) return
+    updatePosition()
+    window.addEventListener('resize', updatePosition)
+    window.addEventListener('scroll', updatePosition, true)
+    return () => {
+      window.removeEventListener('resize', updatePosition)
+      window.removeEventListener('scroll', updatePosition, true)
+    }
+  }, [isOpen, updatePosition])
 
   // 部署と店舗を分離
   const departments = teams.filter(t => t.type === 'department')
@@ -58,6 +95,7 @@ export function StoreSelect({ teams, value, onChange, placeholder = '店舗／�
   return (
     <div className="relative">
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
@@ -81,7 +119,10 @@ export function StoreSelect({ teams, value, onChange, placeholder = '店舗／�
       {isOpen && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-          <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-72 overflow-y-auto">
+          <div
+            style={menuStyle}
+            className="z-50 bg-white border border-gray-200 rounded-lg shadow-lg overflow-y-auto overscroll-contain"
+          >
             <button
               type="button"
               onClick={() => handleSelect('__none__')}
