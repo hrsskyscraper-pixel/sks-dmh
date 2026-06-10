@@ -69,8 +69,13 @@ export default async function InvitePage({
   if (inv.is_self_select) {
     // 自己選択型（共通1リンク）は再利用可能。used_at では失効させず revoked_at で制御する。
     if (inv.revoked_at) return errorScreen('この招待リンクは無効化されています。')
-  } else if (inv.used_at) {
-    return errorScreen('この招待は既に使用済みです。')
+  } else if (inv.target_employee_id) {
+    // 特定メンバー宛の個別招待のみ単発（1回使ったら失効）。
+    if (inv.used_at) return errorScreen('この招待は既に使用済みです。')
+  } else {
+    // チーム共有リンク（宛先未指定）は複数人が参加できる再利用リンク。
+    // used_at では失効させず、無効化（revoked_at）・期限切れでのみ失効する。
+    if (inv.revoked_at) return errorScreen('この招待リンクは無効化されています。')
   }
   if (new Date(inv.expires_at) < new Date()) return errorScreen('この招待は期限切れです。')
 

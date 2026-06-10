@@ -287,6 +287,10 @@ export function InviteMemberDialog({ open, onOpenChange, teamId, teamName, invit
                   リンクを開いてGoogleログインすると、自動的にアカウントが作成され、
                   このチームに参加できます（承認不要）。
                 </p>
+                <p className="text-[11px]">
+                  このリンクは<span className="font-medium">複数人が使えます</span>。
+                  同じ店舗・チームに入る方みんなに、同じリンクを配ってOKです（30日間有効）。
+                </p>
               </div>
 
               <div>

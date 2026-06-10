@@ -170,7 +170,9 @@ export async function acceptInvitation(
     .eq('id', invitationId)
     .single()
   if (!inv) return { error: '招待が見つかりません' }
-  if (inv.used_at) return { error: 'この招待は既に使用済みです' }
+  // 単発で失効するのは特定メンバー宛の個別招待のみ。
+  // チーム共有リンク（宛先未指定）は複数人が使える再利用リンクなので used_at では弾かない。
+  if (inv.target_employee_id && inv.used_at) return { error: 'この招待は既に使用済みです' }
   if (new Date(inv.expires_at) < new Date()) return { error: 'この招待は期限切れです' }
   if (inv.target_employee_id && inv.target_employee_id !== me.id) {
     return { error: 'この招待はあなた宛ではありません' }
@@ -224,11 +226,14 @@ export async function acceptInvitation(
     }
   }
 
-  // 招待を使用済みにする
-  await db
-    .from('team_invitations')
-    .update({ used_at: new Date().toISOString(), used_by: me.id })
-    .eq('id', invitationId)
+  // 個別招待（特定メンバー宛）のみ使用済みにして失効させる。
+  // チーム共有リンクは複数人が使えるよう消費しない（再利用可能）。
+  if (inv.target_employee_id) {
+    await db
+      .from('team_invitations')
+      .update({ used_at: new Date().toISOString(), used_by: me.id })
+      .eq('id', invitationId)
+  }
 
   // 氏名・プロフィール情報を employees に反映
   if (profile) {
