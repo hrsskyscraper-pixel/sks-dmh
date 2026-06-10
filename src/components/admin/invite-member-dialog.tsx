@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useMemo, useTransition } from 'react'
+import { useState, useMemo, useTransition, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
-import { Mail, Check, Copy, Link as LinkIcon, Send, Eye } from 'lucide-react'
+import { Mail, Check, Copy, Link as LinkIcon, Send, Eye, Ban } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import {
@@ -15,7 +15,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import { createInvitation, createInvitationLink } from '@/app/invite/actions'
+import { createInvitation, createInvitationLink, listTeamShareLinks, revokeInviteLink } from '@/app/invite/actions'
 import type { Employee } from '@/types/database'
 
 interface Props {
@@ -45,6 +45,30 @@ export function InviteMemberDialog({ open, onOpenChange, teamId, teamName, invit
   // リンク発行モード
   const [generatedUrl, setGeneratedUrl] = useState<string | null>(null)
 
+  // 現在有効な共有リンク一覧（再利用可能リンク）
+  type ShareLink = { id: string; asManager: boolean; createdAt: string; expiresAt: string }
+  const [activeLinks, setActiveLinks] = useState<ShareLink[]>([])
+  const [confirmingRevokeId, setConfirmingRevokeId] = useState<string | null>(null)
+
+  const loadLinks = useCallback(async () => {
+    const res = await listTeamShareLinks(teamId)
+    if (!res.error) setActiveLinks(res.links ?? [])
+  }, [teamId])
+
+  useEffect(() => {
+    if (open && mode === 'link') loadLinks()
+  }, [open, mode, loadLinks])
+
+  const handleRevoke = (id: string) => {
+    startTransition(async () => {
+      const res = await revokeInviteLink(id)
+      if (res.error) { toast.error(res.error); return }
+      toast.success('リンクを無効化しました')
+      setConfirmingRevokeId(null)
+      await loadLinks()
+    })
+  }
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     if (!q) return candidates
@@ -61,6 +85,7 @@ export function InviteMemberDialog({ open, onOpenChange, teamId, teamName, invit
     setSearch('')
     setSentInviteUrl(null)
     setGeneratedUrl(null)
+    setConfirmingRevokeId(null)
     setMode('member')
   }
 
@@ -97,6 +122,7 @@ export function InviteMemberDialog({ open, onOpenChange, teamId, teamName, invit
       const url = `${window.location.origin}/invite/${res.invitationId}`
       setGeneratedUrl(url)
       toast.success('招待リンクを発行しました')
+      loadLinks()
     })
   }
 
@@ -303,6 +329,68 @@ export function InviteMemberDialog({ open, onOpenChange, teamId, teamName, invit
                   className="text-sm"
                 />
               </div>
+
+              {activeLinks.length > 0 && (
+                <div className="space-y-2 border-t border-gray-100 pt-3">
+                  <p className="text-xs font-medium text-gray-600">現在有効な共有リンク</p>
+                  <p className="text-[11px] text-gray-400">
+                    漏れた・配り直したい時は「無効化」で停止できます（既に参加済みの方には影響しません）。
+                  </p>
+                  {activeLinks.map(l => {
+                    const url = appendLineOpenExternal(`${window.location.origin}/invite/${l.id}`)
+                    return (
+                      <div key={l.id} className="border border-gray-200 rounded-lg p-2 space-y-1.5">
+                        <p className="text-[11px] text-gray-500">
+                          {l.asManager ? 'リーダー' : 'メンバー'}用 ・ {new Date(l.createdAt).toLocaleDateString('ja-JP')}発行
+                        </p>
+                        <div className="flex items-center gap-1.5">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-7 px-2 text-[11px]"
+                            onClick={() => copy(url, '招待リンク')}
+                          >
+                            <Copy className="w-3 h-3 mr-1" />コピー
+                          </Button>
+                          {confirmingRevokeId === l.id ? (
+                            <>
+                              <Button
+                                type="button"
+                                size="sm"
+                                className="h-7 px-2 text-[11px] bg-red-600 hover:bg-red-700"
+                                disabled={isPending}
+                                onClick={() => handleRevoke(l.id)}
+                              >
+                                無効化する
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2 text-[11px]"
+                                onClick={() => setConfirmingRevokeId(null)}
+                              >
+                                やめる
+                              </Button>
+                            </>
+                          ) : (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-[11px] text-red-600 hover:bg-red-50"
+                              onClick={() => setConfirmingRevokeId(l.id)}
+                            >
+                              <Ban className="w-3 h-3 mr-1" />無効化
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </TabsContent>
           </Tabs>
         )}

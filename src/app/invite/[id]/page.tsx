@@ -48,6 +48,8 @@ export default async function InvitePage({
 
   const errorScreen = (message: string) => (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 to-red-50 flex items-center justify-center p-4">
+      {/* LINE等のアプリ内ブラウザなら外部ブラウザ誘導を出す（ログイン不可の行き止まり対策） */}
+      <InAppBrowserWarning />
       <Card className="w-full max-w-sm shadow-xl">
         <CardHeader className="text-center">
           <div className="mx-auto w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-2">
@@ -57,8 +59,14 @@ export default async function InvitePage({
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-sm text-gray-600 text-center">{message}</p>
+          <p className="text-xs text-gray-400 text-center">
+            既に参加済みの場合は、下のボタンからアプリにログインしてください。
+          </p>
+          <Link href="/login">
+            <Button className="w-full">アプリにログイン</Button>
+          </Link>
           <Link href="/">
-            <Button className="w-full">ホームへ戻る</Button>
+            <Button variant="outline" className="w-full">ホームへ戻る</Button>
           </Link>
         </CardContent>
       </Card>

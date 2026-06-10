@@ -297,7 +297,59 @@ export async function createSelfSelectInviteLink(params: {
 }
 
 /**
- * 招待リンクを無効化（手動失効）。運用管理者以上のみ。
+ * チーム共有リンク（再利用可能・宛先未指定）の有効な一覧を取得。
+ * 運用管理者は全チーム、それ以外は canApprove かつ当該チームのリーダー/管理者のみ。
+ */
+export async function listTeamShareLinks(teamId: string): Promise<{
+  error?: string
+  links?: Array<{ id: string; asManager: boolean; createdAt: string; expiresAt: string }>
+}> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: '認証エラー' }
+
+  const db = createAdminClient()
+  const { data: actor } = await db
+    .from('employees')
+    .select('id, role, system_permission')
+    .eq('auth_user_id', user.id)
+    .eq('status', 'approved')
+    .single()
+  if (!actor || !canApprove(actor)) return { error: '権限がありません' }
+  if (!canAdminister(actor)) {
+    const { data: mgr } = await db
+      .from('team_managers')
+      .select('team_id')
+      .eq('team_id', teamId)
+      .eq('employee_id', actor.id)
+      .maybeSingle()
+    if (!mgr) return { error: '権限がありません' }
+  }
+
+  const { data: rows } = await db
+    .from('team_invitations')
+    .select('id, as_manager, created_at, expires_at')
+    .eq('team_id', teamId)
+    .is('target_employee_id', null)
+    .eq('is_self_select', false)
+    .is('revoked_at', null)
+    .gt('expires_at', new Date().toISOString())
+    .order('created_at', { ascending: false })
+
+  return {
+    links: (rows ?? []).map(r => ({
+      id: r.id,
+      asManager: r.as_manager,
+      createdAt: r.created_at,
+      expiresAt: r.expires_at,
+    })),
+  }
+}
+
+/**
+ * 招待リンクを無効化（手動失効）。
+ * 運用管理者は全リンク可。それ以外は canApprove かつ当該チームのリーダー/管理者なら
+ * そのチームのリンクのみ無効化できる（自己選択型＝team_id なしは運用管理者のみ）。
  */
 export async function revokeInviteLink(invitationId: string): Promise<{ error?: string }> {
   const supabase = await createClient()
@@ -311,7 +363,25 @@ export async function revokeInviteLink(invitationId: string): Promise<{ error?: 
     .eq('auth_user_id', user.id)
     .eq('status', 'approved')
     .single()
-  if (!actor || !canAdminister(actor)) return { error: '権限がありません' }
+  if (!actor) return { error: '権限がありません' }
+
+  const { data: inv } = await db
+    .from('team_invitations')
+    .select('team_id')
+    .eq('id', invitationId)
+    .single()
+
+  let allowed = canAdminister(actor)
+  if (!allowed && canApprove(actor) && inv?.team_id) {
+    const { data: mgr } = await db
+      .from('team_managers')
+      .select('team_id')
+      .eq('team_id', inv.team_id)
+      .eq('employee_id', actor.id)
+      .maybeSingle()
+    allowed = !!mgr
+  }
+  if (!allowed) return { error: '権限がありません' }
 
   const { error } = await db
     .from('team_invitations')
