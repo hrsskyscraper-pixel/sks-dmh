@@ -12,6 +12,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { NavDataProvider } from '@/components/layout/nav-data-context'
 import { OnboardingDialog } from '@/components/onboarding/onboarding-dialog'
 import { PendingScreen } from '@/components/onboarding/pending-screen'
+import { JoinCompletionBanner } from '@/components/onboarding/join-completion-banner'
+import { canAdminister } from '@/lib/permissions'
 import { LineLinkFloatingButton } from '@/components/layout/line-link-floating-button'
 import { FontScaleSync } from '@/components/layout/font-scale-sync'
 import { normalizeFontScale } from '@/lib/font-scale'
@@ -124,6 +126,20 @@ export default async function DashboardLayout({
   // 文字サイズは「自分の」表示設定なので、view-as 対象ではなくログイン本人の値を使う
   const fontScale = normalizeFontScale(employee.font_scale)
 
+  // 「承認済みだが所属0」= 招待リンクで「参加する」を押さず離脱した人を検知し、
+  // 参加完了を促すバナーを出す。運用管理者は店舗所属が無くても正常なので除外。
+  let joinCompletionTeamName: string | null = null
+  if (!canAdminister(employee) && employee.requested_team_id) {
+    const [{ data: tmRows }, { data: tgRows }] = await Promise.all([
+      db.from('team_members').select('team_id').eq('employee_id', employee.id).limit(1),
+      db.from('team_managers').select('team_id').eq('employee_id', employee.id).limit(1),
+    ])
+    if ((tmRows ?? []).length === 0 && (tgRows ?? []).length === 0) {
+      const { data: t } = await db.from('teams').select('name').eq('id', employee.requested_team_id).single()
+      joinCompletionTeamName = t?.name ?? null
+    }
+  }
+
   // バッジ系のカウント（通知・承認待ち・遅れ等）はここでは取得しない。
   // 以前は毎遷移で 16〜23 クエリ＋RPC を直列実行してページ描画をブロックしていた。
   // NavDataProvider が描画後にクライアントから getNavCounts() を呼び、非同期で差し込む。
@@ -132,6 +148,14 @@ export default async function DashboardLayout({
       <FontScaleSync scale={fontScale} />
       <div className="min-h-screen bg-gray-50" style={viewAsEmployee ? { '--banner-h': '2.5rem' } as React.CSSProperties : undefined}>
         {viewAsEmployee && <ViewAsBanner employeeName={viewAsEmployee.name} />}
+        {joinCompletionTeamName && !viewAsEmployee && (
+          <JoinCompletionBanner
+            teamName={joinCompletionTeamName}
+            defaultLastName={employee.last_name}
+            defaultFirstName={employee.first_name}
+            defaultNameKana={employee.name_kana}
+          />
+        )}
         <main className="pb-20 max-w-2xl mx-auto">
           {children}
         </main>

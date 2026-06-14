@@ -3,6 +3,7 @@ import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { TopBar } from '@/components/layout/nav'
 import { ApprovalCenter } from '@/components/approvals/approval-center'
+import { UnjoinedMembersCard } from '@/components/approvals/unjoined-members-card'
 import type { Role } from '@/types/database'
 import { canAdminister, canApprove } from '@/lib/permissions'
 import { maskEmails } from '@/lib/email-visibility'
@@ -126,6 +127,30 @@ export default async function ApprovalsPage() {
   const filteredJoinsForClient = maskEmails(filteredJoins, employee)
   const recentJoinsForClient = maskEmails(recentJoins ?? [], employee)
 
+  // 未参加（承認済みだが所属0）= 招待で「参加する」を押さず離脱した人。
+  const { data: approvedWithReq } = await db
+    .from('employees')
+    .select('id, name, email, avatar_url, requested_team_id, requested_project_team_id, created_at')
+    .eq('status', 'approved')
+    .not('requested_team_id', 'is', null)
+  const candidateIds = (approvedWithReq ?? []).map(e => e.id)
+  let joinedIds = new Set<string>()
+  if (candidateIds.length > 0) {
+    const [{ data: tmJoined }, { data: tgJoined }] = await Promise.all([
+      db.from('team_members').select('employee_id').in('employee_id', candidateIds),
+      db.from('team_managers').select('employee_id').in('employee_id', candidateIds),
+    ])
+    joinedIds = new Set([
+      ...(tmJoined ?? []).map(r => r.employee_id),
+      ...(tgJoined ?? []).map(r => r.employee_id),
+    ])
+  }
+  const unjoinedMembers = (approvedWithReq ?? [])
+    .filter(e => !joinedIds.has(e.id))
+    .filter(e => !testEmpIds.has(e.id))
+    .filter(e => isSystemAdmin || (e.requested_team_id && managedTeamIds.includes(e.requested_team_id)))
+  const unjoinedForClient = maskEmails(unjoinedMembers, employee)
+
   // 店舗・チーム名マップ
   const { data: allTeams } = await db.from('teams').select('id, name, type, prefecture').order('name')
   const teamMap = Object.fromEntries((allTeams ?? []).map(t => [t.id, t]))
@@ -136,6 +161,11 @@ export default async function ApprovalsPage() {
   return (
     <>
       <TopBar title="承認センター" />
+      {unjoinedForClient.length > 0 && (
+        <div className="px-4 pt-4">
+          <UnjoinedMembersCard members={unjoinedForClient as any[]} teamMap={teamMap} />
+        </div>
+      )}
       <ApprovalCenter
         pendingAchievements={filteredAchievements as any[]}
         pendingTeamRequests={filteredTeamRequests as any[]}
