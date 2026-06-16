@@ -160,9 +160,10 @@ export default async function TeamPage() {
   const testEmpIds = await getTestEmployeeIds()
   const visibleEmployees = (employees ?? []).filter(e => !testEmpIds.has(e.id))
 
-  // 担当チームのメンバーの pending のみに絞る（他チームの申請はリーダーに見せない）＋テスト社員除外
+  // 担当チームのメンバーの pending のみに絞る（他チームの申請はリーダーに見せない）＋テスト社員除外。
+  // 自己承認の禁止: 自分自身の pending は承認キューに出さない（認定済み等の表示には影響しない）。
   const filteredAchievements = (achievements ?? []).filter(
-    a => (a.status !== 'pending' || priorityMemberIds.has(a.employee_id)) && !testEmpIds.has(a.employee_id)
+    a => (a.status !== 'pending' || (priorityMemberIds.has(a.employee_id) && a.employee_id !== effectiveEmployeeId)) && !testEmpIds.has(a.employee_id)
   )
 
   return (

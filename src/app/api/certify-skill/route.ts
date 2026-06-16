@@ -39,6 +39,11 @@ export async function POST(request: Request) {
     .single()
   if (!achievement) return NextResponse.json({ error: '対象が見つかりません' }, { status: 404 })
 
+  // 自己承認の禁止: 自分のスキル申請は自分で承認できない（同一チームの他リーダー or 上長が承認する）
+  if (achievement.employee_id === certifier.id) {
+    return NextResponse.json({ error: '自分のスキル申請は承認できません' }, { status: 403 })
+  }
+
   // 更新
   const { error: updateErr } = await db.from('achievements').update({
     status: action,

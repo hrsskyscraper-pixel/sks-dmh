@@ -49,6 +49,9 @@ export async function grantSkill(params: {
   if ('error' in check) return { error: check.error }
   const { actor: certifier, db } = check
 
+  // 自己承認の禁止: 自分のスキルは自分で付与（承認）できない
+  if (params.employeeId === certifier.id) return { error: '自分のスキルは承認（付与）できません' }
+
   // 対象取得
   const { data: target } = await db
     .from('employees')

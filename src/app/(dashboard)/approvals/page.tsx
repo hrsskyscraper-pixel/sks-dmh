@@ -64,6 +64,7 @@ export default async function ApprovalsPage() {
 
   const filteredAchievements = (pendingAchievements ?? [])
     .filter(a => !testEmpIds.has(a.employee_id))
+    .filter(a => a.employee_id !== employee.id) // 自己承認の禁止: 自分の申請は承認キューに出さない
     .filter(a => isSystemAdmin || managedMemberIds.includes(a.employee_id))
 
   // 処理済みスキル認定（承認権限者全員が閲覧可能・直近30件）

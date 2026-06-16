@@ -200,7 +200,9 @@ export async function acceptInvitation(
     .eq('employee_id', me.id)
     .maybeSingle()
 
-  // リーダー招待: team_managers に secondary として追加（既にメンバーなら移動）
+  // リーダー招待: team_managers に secondary として追加。
+  //   リーダーは同じチームのメンバーにもなる（team_managers INSERT トリガが team_members へ自動追加）。
+  //   以前はここでメンバーから外していたが、承認リーダー兼メンバーを許す方針に変更したため廃止。
   // メンバー招待: team_members に追加
   if (inv.as_manager) {
     if (!existingManager) {
@@ -208,14 +210,6 @@ export async function acceptInvitation(
         .from('team_managers')
         .insert({ team_id: teamId, employee_id: me.id, role: 'secondary', sort_order: 999 })
       if (mgrError) return { error: mgrError.message }
-      // 既にメンバーだった場合はメンバーから外す（リーダーに昇格の意図）
-      if (existingMember) {
-        await db
-          .from('team_members')
-          .delete()
-          .eq('team_id', teamId)
-          .eq('employee_id', me.id)
-      }
     }
   } else {
     if (!existingMember && !existingManager) {
@@ -445,9 +439,7 @@ export async function acceptSelfSelectInvitation(
         .from('team_managers')
         .insert({ team_id: teamId, employee_id: me.id, role: 'secondary', sort_order: 999 })
       if (mgrError) return { error: mgrError.message }
-      if (existingMember) {
-        await db.from('team_members').delete().eq('team_id', teamId).eq('employee_id', me.id)
-      }
+      // リーダーは team_managers INSERT トリガで team_members にも自動追加される（兼任可）。
     }
   } else {
     if (!existingMember && !existingManager) {

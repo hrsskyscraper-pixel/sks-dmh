@@ -45,6 +45,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: '対象が見つかりません' }, { status: 404 })
   }
 
+  // 自己承認の禁止: 自分のスキル申請が混ざっていたら弾く（同一チームの他リーダー or 上長が承認する）
+  if (achievements.some(a => a.employee_id === certifier.id)) {
+    return NextResponse.json({ error: '自分のスキル申請は承認できません' }, { status: 403 })
+  }
+
   const ids = achievements.map(a => a.id)
   const trimmedComment = comment?.trim() || null
 
