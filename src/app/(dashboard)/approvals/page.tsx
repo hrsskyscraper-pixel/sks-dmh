@@ -1,9 +1,11 @@
+import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { TopBar } from '@/components/layout/nav'
 import { ApprovalCenter } from '@/components/approvals/approval-center'
 import { UnjoinedMembersCard } from '@/components/approvals/unjoined-members-card'
+import { UnsetLeadersCard } from '@/components/approvals/unset-leaders-card'
 import type { Role } from '@/types/database'
 import { canAdminister, canApprove } from '@/lib/permissions'
 import { maskEmails } from '@/lib/email-visibility'
@@ -13,7 +15,29 @@ export default async function ApprovalsPage() {
   const employee = await getCurrentEmployee()
   if (!employee) redirect('/login')
   const role = employee.role as Role
-  if (!canApprove(employee)) redirect('/')
+  // 承認権限が無い人がメール内リンクから来た場合、以前は無言で / にリダイレクトしていたため
+  // 「自分のプロフィールに飛ぶ」行き止まりに見えていた。理由が分かる画面を出す。
+  if (!canApprove(employee)) {
+    return (
+      <>
+        <TopBar title="承認センター" />
+        <div className="px-4 py-10 max-w-md mx-auto text-center space-y-4">
+          <p className="text-base font-bold text-gray-800">承認権限がありません</p>
+          <p className="text-sm text-gray-500 leading-relaxed">
+            このアカウントには承認権限（リーダー権限）が設定されていないため、承認センターは利用できません。
+            <br />
+            メンバーの申請を承認する必要がある場合は、運用管理者（上長）にリーダー権限の付与をご依頼ください。
+          </p>
+          <Link
+            href="/"
+            className="inline-flex items-center justify-center h-10 px-5 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium"
+          >
+            ホームに戻る
+          </Link>
+        </div>
+      </>
+    )
+  }
 
   const db = createAdminClient()
   const isSystemAdmin = canAdminister(employee)
@@ -155,15 +179,39 @@ export default async function ApprovalsPage() {
   const { data: allTeams } = await db.from('teams').select('id, name, type, prefecture').order('name')
   const teamMap = Object.fromEntries((allTeams ?? []).map(t => [t.id, t]))
 
+  // 再発防止: チームのリーダー(team_managers)に登録済みなのに「メンバー権限」で承認できない人を検知。
+  // 招待は全員メンバー権限で始まり、リーダー権限は手動付与のため、上げ忘れがここで顕在化する。
+  // 権限付与は運用管理者のみ可能なので一覧もシステム管理者にのみ表示。
+  let unsetLeaders: { id: string; name: string; avatar_url: string | null; teamNames: string[] }[] = []
+  if (isSystemAdmin) {
+    const { data: mgrRows } = await db.from('team_managers').select('employee_id, team_id')
+    const mgrIds = [...new Set((mgrRows ?? []).map(m => m.employee_id))]
+    if (mgrIds.length > 0) {
+      const { data: mgrEmps } = await db
+        .from('employees')
+        .select('id, name, avatar_url, role, system_permission')
+        .in('id', mgrIds)
+      const unset = (mgrEmps ?? []).filter(e => !canApprove(e) && !testEmpIds.has(e.id))
+      const teamsByEmp: Record<string, string[]> = {}
+      for (const m of mgrRows ?? []) {
+        (teamsByEmp[m.employee_id] ??= []).push(teamMap[m.team_id]?.name ?? '—')
+      }
+      unsetLeaders = unset.map(e => ({ id: e.id, name: e.name, avatar_url: e.avatar_url, teamNames: teamsByEmp[e.id] ?? [] }))
+    }
+  }
+
   // プロジェクト（参加許諾用）
   const { data: projectTeams } = await db.from('teams').select('id, name').eq('type', 'project').order('name')
 
   return (
     <>
       <TopBar title="承認センター" />
-      {unjoinedForClient.length > 0 && (
-        <div className="px-4 pt-4">
-          <UnjoinedMembersCard members={unjoinedForClient as any[]} teamMap={teamMap} />
+      {(unsetLeaders.length > 0 || unjoinedForClient.length > 0) && (
+        <div className="px-4 pt-4 space-y-3">
+          {unsetLeaders.length > 0 && <UnsetLeadersCard leaders={unsetLeaders} />}
+          {unjoinedForClient.length > 0 && (
+            <UnjoinedMembersCard members={unjoinedForClient as any[]} teamMap={teamMap} />
+          )}
         </div>
       )}
       <ApprovalCenter

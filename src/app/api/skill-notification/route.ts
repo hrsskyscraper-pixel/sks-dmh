@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendMail } from '@/lib/notifications/email'
 import { sendLineMessages } from '@/lib/notifications/line'
+import { canApprove } from '@/lib/permissions'
 
 export async function POST(request: Request) {
   const { employeeId, skillName, skillNames, isReapply, comment } = await request.json()
@@ -27,11 +28,32 @@ export async function POST(request: Request) {
 
   const { data: managers } = await db.from('team_managers').select('employee_id').in('team_id', teamIds)
   const managerIds = [...new Set((managers ?? []).map(m => m.employee_id).filter(id => id !== employeeId))]
-  if (managerIds.length === 0) return NextResponse.json({ ok: true })
 
-  const { data: managerEmployees } = await db.from('employees').select('email, line_user_id').in('id', managerIds)
-  const emails = (managerEmployees ?? []).map(e => e.email)
-  const lineUserIds = (managerEmployees ?? []).filter(e => e.line_user_id).map(e => e.line_user_id!)
+  // 通知先は「承認権限を持つリーダー」に限定する。リーダー登録だけでは承認できないため、
+  // 権限の無いリーダーに「承認してください」と送ると行き止まりになる（秋田の事例）。
+  let recipients: { email: string; line_user_id: string | null }[] = []
+  if (managerIds.length > 0) {
+    const { data: managerEmployees } = await db
+      .from('employees')
+      .select('email, line_user_id, role, system_permission')
+      .in('id', managerIds)
+    recipients = (managerEmployees ?? []).filter(e => canApprove(e))
+  }
+
+  // 担当チームに承認できるリーダーが1人もいない場合は、申請が宙に浮かないよう
+  // 上長（運用管理者・開発者）にエスカレーションする。
+  if (recipients.length === 0) {
+    const { data: admins } = await db
+      .from('employees')
+      .select('id, email, line_user_id')
+      .in('system_permission', ['ops_admin', 'developer'])
+      .eq('status', 'approved')
+    recipients = (admins ?? []).filter(a => a.id !== employeeId)
+  }
+  if (recipients.length === 0) return NextResponse.json({ ok: true })
+
+  const emails = recipients.map(e => e.email)
+  const lineUserIds = recipients.filter(e => e.line_user_id).map(e => e.line_user_id!)
 
   const systemUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://sks-dmh.vercel.app'
   const approvalUrl = `${systemUrl}/approvals?tab=skill`

@@ -128,3 +128,53 @@ export async function updateEmployeePermission(params: {
   revalidatePath('/admin/employees')
   return {}
 }
+
+/**
+ * チームのリーダー(team_managers)に登録済みなのに「メンバー権限」のままの社員へ
+ * 「リーダー権限(training_leader)」を付与する。再発防止UI（承認センターの未設定リーダー一覧）から呼ぶ。
+ * 業務役職は変更しない（旧 role は deriveLegacyRole の規則で同期）。
+ */
+export async function grantLeaderPermission(employeeId: string): Promise<{ error?: string }> {
+  const check = await assertAdmin()
+  if ('error' in check && check.error) return { error: check.error }
+  if (!('actorId' in check)) return { error: '権限がありません' }
+
+  const db = createAdminClient()
+  const { data: target } = await db
+    .from('employees')
+    .select('id, name, role, system_permission, business_role_ids')
+    .eq('id', employeeId)
+    .single()
+  if (!target) return { error: '対象社員が見つかりません' }
+  if (target.system_permission !== 'training_member') return { error: '既にメンバー以上の権限です' }
+
+  const { data: businessRoles } = await db
+    .from('business_roles')
+    .select('name')
+    .in('id', (target.business_role_ids ?? []).length > 0 ? target.business_role_ids : ['00000000-0000-0000-0000-000000000000'])
+  const roleNames = (businessRoles ?? []).map(r => r.name)
+  const legacyRole = deriveLegacyRole('training_leader', roleNames)
+
+  const { error } = await db.from('employees').update({
+    system_permission: 'training_leader',
+    role: legacyRole,
+    updated_at: new Date().toISOString(),
+  }).eq('id', employeeId)
+  if (error) return { error: error.message }
+
+  await writeAuditLog({
+    action: 'update_employee_permission',
+    actorId: check.actorId,
+    targetId: employeeId,
+    details: {
+      name: target.name,
+      before: { system_permission: target.system_permission, role: target.role },
+      after: { system_permission: 'training_leader', role: legacyRole },
+      source: 'unset_leader_card',
+    },
+  })
+
+  revalidatePath('/approvals')
+  revalidatePath('/admin/employees')
+  return {}
+}
