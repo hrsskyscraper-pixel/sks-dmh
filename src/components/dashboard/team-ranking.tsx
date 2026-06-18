@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { ChevronDown, ChevronUp } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -40,6 +40,15 @@ const TOP_N = 5
 
 export function TeamRanking({ currentEmployeeId, stats }: Props) {
   const [expanded, setExpanded] = useState(false)
+  const cardRef = useRef<HTMLDivElement>(null)
+
+  // 折りたたみは、一番下までスクロールしなくても押せるフロートボタンからも行える。
+  // 折りたたんだ後はランキング先頭へ戻し、長いリストの末尾に取り残されないようにする。
+  const collapse = () => {
+    setExpanded(false)
+    // カードの上端は折りたたみで動かないため、即時スクロールで問題ない。
+    cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
 
   const sorted = [...stats].sort((a, b) => {
     const pctA = a.totalSkills > 0 ? a.certifiedCount / a.totalSkills : 0
@@ -167,7 +176,7 @@ export function TeamRanking({ currentEmployeeId, stats }: Props) {
   }
 
   return (
-    <Card>
+    <Card ref={cardRef} className="scroll-mt-20">
       <CardHeader className="pb-3 pt-4 px-4">
         <CardTitle className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
           <span>🏆</span>
@@ -183,29 +192,34 @@ export function TeamRanking({ currentEmployeeId, stats }: Props) {
         {hasRest && expanded &&
           restMembers.map((member, index) => renderMember(member, index + TOP_N))}
 
-        {hasRest && (
+        {hasRest && !expanded && (
           <button
             type="button"
-            onClick={() => setExpanded((v) => !v)}
+            onClick={() => setExpanded(true)}
             className="w-full flex items-center justify-center gap-1 rounded-xl border border-gray-100 bg-gray-50 py-2.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 transition-colors"
           >
-            {expanded ? (
-              <>
-                <ChevronDown className="w-4 h-4 rotate-180" />
-                上位{TOP_N}人だけ表示
-              </>
-            ) : (
-              <>
-                <ChevronDown className="w-4 h-4" />
-                他{restMembers.length}人を見る
-                {myRestIndex >= 0 && (
-                  <span className="text-orange-600">（あなたは{myRestIndex + TOP_N + 1}位）</span>
-                )}
-              </>
+            <ChevronDown className="w-4 h-4" />
+            他{restMembers.length}人を見る
+            {myRestIndex >= 0 && (
+              <span className="text-orange-600">（あなたは{myRestIndex + TOP_N + 1}位）</span>
             )}
           </button>
         )}
+
       </CardContent>
+
+      {/* 一番下までスクロールしなくても閉じられるフロートボタン（下部ナビの上に浮かぶ） */}
+      {hasRest && expanded && (
+        <button
+          type="button"
+          onClick={collapse}
+          aria-label="みんなの頑張りを折りたたむ"
+          className="fixed z-40 left-1/2 -translate-x-1/2 bottom-20 flex items-center gap-1.5 rounded-full bg-gray-900/90 text-white text-xs font-semibold px-4 py-2.5 shadow-lg backdrop-blur-sm hover:bg-gray-900 active:scale-95 transition"
+        >
+          <ChevronUp className="w-4 h-4" />
+          みんなの頑張りを閉じる
+        </button>
+      )}
     </Card>
   )
 }
