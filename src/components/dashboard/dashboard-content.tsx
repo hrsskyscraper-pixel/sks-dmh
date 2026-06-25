@@ -12,7 +12,7 @@ import dynamic from 'next/dynamic'
 // 2チャートを1つの dynamic 境界に統合し、recharts の二重バンドルを回避
 const DashboardCharts = dynamic(() => import('@/components/charts/dashboard-charts').then(m => m.DashboardCharts), { ssr: false })
 import { cn } from '@/lib/utils'
-import { AlertTriangle, ChevronDown, ChevronUp, Camera, Loader2, CheckCircle2, ClipboardList, Users, Instagram, Target, CalendarDays, Pencil, BookOpen } from 'lucide-react'
+import { AlertTriangle, ChevronDown, ChevronUp, Camera, Loader2, CheckCircle2, ClipboardList, Users, Instagram, Target, CalendarDays, Pencil, BookOpen, Building2 } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { setSelectedProject } from '@/app/(dashboard)/actions'
@@ -39,7 +39,8 @@ interface Props {
   skillPhaseMap: Record<string, string | null>
   currentProject: { id: string; name: string; is_active: boolean } | null
   employeeProjects: { id: string; name: string; is_active: boolean }[]
-  pendingAchievementsCount?: number
+  globalPendingAchievementsCount?: number
+  teamPendingAchievementsCount?: number
   pendingTeamRequestsCount?: number
   currentGoal: (Pick<Goal, 'id' | 'content' | 'set_at' | 'deadline'> & { reason?: string }) | null
   isOwnDashboard: boolean
@@ -105,7 +106,7 @@ function calcHireYear(hireDate: string | null): number {
 export function DashboardContent({
   employee, skills, achievements: initialAchievements, cumulativeHours, milestones,
   projectPhases, skillPhaseMap, currentProject, employeeProjects,
-  pendingAchievementsCount = 0, pendingTeamRequestsCount = 0,
+  globalPendingAchievementsCount = 0, teamPendingAchievementsCount = 0, pendingTeamRequestsCount = 0,
   currentGoal: initialGoal, isOwnDashboard, careerSummary = {}, storeName = null, position = null, internalCerts = [], employeeId, hasGoalRecords = false,
   skillManuals = {},
   rankingSlot, checkpointSlot, timelineSlot
@@ -534,13 +535,31 @@ export function DashboardContent({
       </Card>
 
       {/* 対応が必要 */}
-      {(pendingAchievementsCount > 0 || pendingTeamRequestsCount > 0) && (
+      {(globalPendingAchievementsCount > 0 || teamPendingAchievementsCount > 0 || pendingTeamRequestsCount > 0) && (
         <div className="space-y-2">
           <div className="flex items-center gap-1.5 px-1">
             <ClipboardList className="w-4 h-4 text-blue-500" />
             <p className="text-sm font-semibold text-gray-700">対応が必要です</p>
           </div>
-          {pendingAchievementsCount > 0 && (
+          {globalPendingAchievementsCount > 0 && (
+            <Link href="/approvals">
+              <Card className="border-indigo-200 bg-indigo-50 hover:bg-indigo-100 transition-colors cursor-pointer">
+                <CardContent className="py-3 px-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
+                      <Building2 className="w-4 h-4 text-indigo-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-indigo-800">全社の認定待ちスキル申請</p>
+                      <p className="text-xs text-indigo-600">承認センターで全社の申請を確認できます</p>
+                    </div>
+                    <span className="text-2xl font-black text-indigo-600 flex-shrink-0">{globalPendingAchievementsCount}<span className="text-xs font-normal ml-0.5">件</span></span>
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+          )}
+          {teamPendingAchievementsCount > 0 && (
             <Link href="/team?tab=pending">
               <Card className="border-blue-200 bg-blue-50 hover:bg-blue-100 transition-colors cursor-pointer">
                 <CardContent className="py-3 px-4">
@@ -549,10 +568,10 @@ export function DashboardContent({
                       <Users className="w-4 h-4 text-blue-600" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-blue-800">認定待ちのスキル申請</p>
-                      <p className="text-xs text-blue-600">メンバーからの申請を確認してください</p>
+                      <p className="text-sm font-medium text-blue-800">担当チームの認定待ちスキル申請</p>
+                      <p className="text-xs text-blue-600">あなたが担当するチームのメンバーの申請を認定できます</p>
                     </div>
-                    <span className="text-2xl font-black text-blue-600 flex-shrink-0">{pendingAchievementsCount}<span className="text-xs font-normal ml-0.5">件</span></span>
+                    <span className="text-2xl font-black text-blue-600 flex-shrink-0">{teamPendingAchievementsCount}<span className="text-xs font-normal ml-0.5">件</span></span>
                   </div>
                 </CardContent>
               </Card>

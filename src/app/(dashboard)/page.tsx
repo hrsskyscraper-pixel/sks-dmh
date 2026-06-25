@@ -108,42 +108,49 @@ export default async function DashboardPage({
     ?? employeeProjects[0]
     ?? null
 
-  const effectiveRole = employee.role
-
-  // pending件数（manager は内部で直列クエリが必要なため async IIFE で並列起動）
-  const pendingCountsTask = (async (): Promise<{ pendingAchievementsCount: number; pendingTeamRequestsCount: number }> => {
+  // pending件数（全社／担当チームを分けて算出。担当チームは内部で直列クエリが必要なため async IIFE で並列起動）
+  const pendingCountsTask = (async (): Promise<{ globalPendingAchievementsCount: number; teamPendingAchievementsCount: number; pendingTeamRequestsCount: number }> => {
     if (!canApprove(employee)) {
-      return { pendingAchievementsCount: 0, pendingTeamRequestsCount: 0 }
+      return { globalPendingAchievementsCount: 0, teamPendingAchievementsCount: 0, pendingTeamRequestsCount: 0 }
     }
     const testEmpIds = await getTestEmployeeIds()
-    const achievementsCountP = (effectiveRole === 'store_manager' || effectiveRole === 'manager')
-      ? (async () => {
-          const { data: leaderTeamRows } = await db
-            .from('team_managers').select('team_id').eq('employee_id', employee.id)
-          const myTeamIds = (leaderTeamRows ?? []).map(r => r.team_id)
-          if (!myTeamIds.length) return 0
-          const { data: myMembers } = await db
-            .from('team_members').select('employee_id').in('team_id', myTeamIds)
-          const myMemberIds = (myMembers ?? []).map(r => r.employee_id).filter(id => !testEmpIds.has(id))
-          if (!myMemberIds.length) return 0
-          const { data: pend } = await db
-            .from('achievements').select('employee_id')
-            .eq('status', 'pending').in('employee_id', myMemberIds)
-          return (pend ?? []).length
-        })()
-      : db.from('achievements').select('employee_id')
-          .eq('status', 'pending').then(r => (r.data ?? []).filter(a => !testEmpIds.has(a.employee_id)).length)
+    const isAdmin = canAdminister(employee)
 
-    const teamRequestsCountP = canAdminister(employee)
+    // 全社の認定待ち（システム管理者のみ。テスト社員と自分を除外 → 承認センター(/approvals)の表示と一致）
+    const globalCountP = isAdmin
+      ? db.from('achievements').select('employee_id')
+          .eq('status', 'pending')
+          .then(r => (r.data ?? []).filter(a => !testEmpIds.has(a.employee_id) && a.employee_id !== employee.id).length)
+      : Promise.resolve(0)
+
+    // 担当チームの認定待ち（リーダー以上。自分とテスト社員を除外 → /team?tab=pending の表示と一致）
+    const teamCountP = (async () => {
+      const { data: leaderTeamRows } = await db
+        .from('team_managers').select('team_id').eq('employee_id', employee.id)
+      const leaderTeamIds = (leaderTeamRows ?? []).map(r => r.team_id)
+      if (!leaderTeamIds.length) return 0
+      const { data: myMembers } = await db
+        .from('team_members').select('employee_id').in('team_id', leaderTeamIds)
+      const myMemberIds = [...new Set((myMembers ?? []).map(r => r.employee_id))]
+        .filter(id => !testEmpIds.has(id) && id !== employee.id)
+      if (!myMemberIds.length) return 0
+      const { data: pend } = await db
+        .from('achievements').select('employee_id')
+        .eq('status', 'pending').in('employee_id', myMemberIds)
+      return (pend ?? []).length
+    })()
+
+    const teamRequestsCountP = isAdmin
       ? db.from('team_change_requests').select('requested_by')
           .eq('status', 'pending').then(r => (r.data ?? []).filter(t => !t.requested_by || !testEmpIds.has(t.requested_by)).length)
       : Promise.resolve(0)
 
-    const [pendingAchievementsCount, pendingTeamRequestsCount] = await Promise.all([
-      achievementsCountP,
+    const [globalPendingAchievementsCount, teamPendingAchievementsCount, pendingTeamRequestsCount] = await Promise.all([
+      globalCountP,
+      teamCountP,
       teamRequestsCountP,
     ])
-    return { pendingAchievementsCount, pendingTeamRequestsCount }
+    return { globalPendingAchievementsCount, teamPendingAchievementsCount, pendingTeamRequestsCount }
   })()
 
   // 個人データを並列取得（マニュアル関連も統合して待機時間を短縮）
@@ -156,7 +163,7 @@ export default async function DashboardPage({
     { data: goalRows },
     { data: careerRows },
     { data: teamMemberRows },
-    { pendingAchievementsCount, pendingTeamRequestsCount },
+    { globalPendingAchievementsCount, teamPendingAchievementsCount, pendingTeamRequestsCount },
     { data: skillManualsRows },
     { data: manualsRows },
   ] = await Promise.all([
@@ -257,7 +264,8 @@ export default async function DashboardPage({
         skillPhaseMap={skillPhaseMap}
         currentProject={selectedProject}
         employeeProjects={employeeProjects as { id: string; name: string; is_active: boolean }[]}
-        pendingAchievementsCount={pendingAchievementsCount}
+        globalPendingAchievementsCount={globalPendingAchievementsCount}
+        teamPendingAchievementsCount={teamPendingAchievementsCount}
         pendingTeamRequestsCount={pendingTeamRequestsCount}
         currentGoal={(() => {
           // キャリア記録の「目標」から目標期日が最も近い（今日以降の）ものを取得
