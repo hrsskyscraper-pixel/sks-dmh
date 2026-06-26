@@ -23,7 +23,7 @@ export async function TimelineServer({ employeeId, employeeRole }: Props) {
       .eq('status', 'certified')
       .not('certified_at', 'is', null)
       .order('certified_at', { ascending: false })
-      .limit(20),
+      .limit(40),
     db.from('achievement_comments')
       .select('id, achievement_id, employee_id, content, created_at')
       .order('created_at'),
@@ -36,7 +36,8 @@ export async function TimelineServer({ employeeId, employeeRole }: Props) {
 
   // テスト社員の投稿・反応・コメントは除外（フィルタ後に表示件数へ絞る）
   const testEmpIds = await getTestEmployeeIds()
-  const visibleAchievements = (certifiedAchievements ?? []).filter(a => !testEmpIds.has(a.employee_id)).slice(0, 5)
+  // まとめ表示（同じ人・同じ日）で5グループ前後を出せるよう、少し多めに渡す
+  const visibleAchievements = (certifiedAchievements ?? []).filter(a => !testEmpIds.has(a.employee_id)).slice(0, 25)
   const visibleComments = (comments ?? []).filter(c => !testEmpIds.has(c.employee_id))
   const visibleReactions = (reactions ?? []).filter(r => !testEmpIds.has(r.employee_id))
 
