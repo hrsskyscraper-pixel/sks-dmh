@@ -1,11 +1,17 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { ChevronDown, ChevronUp } from 'lucide-react'
+import { ChevronDown, ChevronUp, Crown } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
+
+export interface TeamAffiliation {
+  name: string
+  type: 'store' | 'department' | 'project'
+  role: 'member' | 'leader'
+}
 
 export interface TeamMemberStat {
   id: string
@@ -13,10 +19,22 @@ export interface TeamMemberStat {
   avatar_url: string | null
   employment_type: string | null
   hire_date: string | null
-  store_name: string | null
+  teams: TeamAffiliation[]
   certifiedCount: number
   totalSkills: number
   standardPct: number
+}
+
+const TEAM_TYPE_LABEL: Record<TeamAffiliation['type'], string> = {
+  store: '店舗',
+  department: '部署',
+  project: 'PJ',
+}
+
+const TEAM_TYPE_COLOR: Record<TeamAffiliation['type'], string> = {
+  store: 'bg-blue-100 text-blue-700',
+  department: 'bg-purple-100 text-purple-700',
+  project: 'bg-teal-100 text-teal-700',
 }
 
 function calcHireYear(hireDate: string | null): number {
@@ -117,9 +135,6 @@ export function TeamRanking({ currentEmployeeId, stats }: Props) {
             ) : (
               <Badge className="bg-green-100 text-green-700 text-[9px] border-0 px-1.5 h-4 flex-shrink-0">社員</Badge>
             )}
-            {member.store_name && (
-              <Badge className="bg-blue-100 text-blue-700 text-[9px] border-0 px-1.5 h-4 flex-shrink-0">{member.store_name}</Badge>
-            )}
             {isMe && (
               <Badge className="bg-orange-500 text-white text-[9px] border-0 px-1.5 h-4 flex-shrink-0">
                 あなた
@@ -136,6 +151,22 @@ export function TeamRanking({ currentEmployeeId, stats }: Props) {
             </span>
           )}
         </div>
+
+        {/* 所属チーム（店舗・部署・プロジェクト／メンバー・リーダー） */}
+        {member.teams.length > 0 && (
+          <div className="flex items-center gap-1 flex-wrap mb-2.5 pl-8">
+            {member.teams.map((t, i) => (
+              <Badge
+                key={`${t.type}:${t.name}:${i}`}
+                className={cn('text-[9px] border-0 px-1.5 h-4 flex-shrink-0 gap-0.5 font-medium', TEAM_TYPE_COLOR[t.type])}
+              >
+                <span className="opacity-60">{TEAM_TYPE_LABEL[t.type]}</span>
+                <span>{t.name}</span>
+                {t.role === 'leader' && <Crown className="w-2.5 h-2.5 text-amber-500" aria-label="リーダー" />}
+              </Badge>
+            ))}
+          </div>
+        )}
 
         {/* 1本バー */}
         <div className="flex items-center gap-2">
@@ -184,6 +215,12 @@ export function TeamRanking({ currentEmployeeId, stats }: Props) {
         </CardTitle>
         <p className="text-[10px] text-muted-foreground/70">
           青い縦線は累計勤務時間から算出した標準進捗率
+        </p>
+        <p className="text-[10px] text-muted-foreground/70 flex items-center gap-x-1.5 gap-y-0.5 flex-wrap mt-0.5">
+          <span>バッジ＝所属チーム（店舗／部署／PJ＝プロジェクト）</span>
+          <span className="inline-flex items-center gap-0.5">
+            <Crown className="w-2.5 h-2.5 text-amber-500" />＝リーダー
+          </span>
         </p>
       </CardHeader>
       <CardContent className="px-4 pb-4 space-y-3">

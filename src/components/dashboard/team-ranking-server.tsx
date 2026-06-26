@@ -1,7 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { TeamRanking } from '@/components/dashboard/team-ranking'
 import { buildMilestoneMap, calcStandardPct } from '@/lib/milestone'
-import type { TeamMemberStat } from '@/components/dashboard/team-ranking'
+import type { TeamMemberStat, TeamAffiliation } from '@/components/dashboard/team-ranking'
 import { getTestEmployeeIds } from '@/lib/test-data'
 
 interface Props {
@@ -22,6 +22,7 @@ export async function TeamRankingServer({ employeeId, employeeRole, selectedProj
     { data: allProjectSkills },
     { data: allTeams },
     { data: allTeamMembers },
+    { data: allTeamManagers },
   ] = await Promise.all([
     db.from('employees').select('id, name, avatar_url, employment_type, hire_date').order('name'),
     db.from('achievements').select('employee_id, skill_id').eq('status', 'certified'),
@@ -35,19 +36,43 @@ export async function TeamRankingServer({ employeeId, employeeRole, selectedProj
     db.from('project_skills').select('project_id, skill_id, project_phase_id'),
     db.from('teams').select('id, name, type'),
     db.from('team_members').select('employee_id, team_id'),
+    db.from('team_managers').select('employee_id, team_id'),
   ])
 
   // テスト社員（is_test / testuser / テスト店舗所属）はランキングから除外
   const testEmpIds = await getTestEmployeeIds()
 
-  // store名マッピング
-  const storeTeams = (allTeams ?? []).filter(t => t.type === 'store')
-  const storeTeamIds = new Set(storeTeams.map(t => t.id))
-  const storeTeamById = Object.fromEntries(storeTeams.map(t => [t.id, t.name]))
-  const storeByEmployee: Record<string, string> = {}
-  for (const m of allTeamMembers ?? []) {
-    if (storeTeamIds.has(m.team_id)) storeByEmployee[m.employee_id] = storeTeamById[m.team_id]
+  // チーム情報（id → 名前・種別）
+  const teamById = Object.fromEntries(
+    (allTeams ?? []).map(t => [t.id, { name: t.name, type: t.type as TeamAffiliation['type'] }])
+  )
+
+  // 表示範囲の基準＝自分が「メンバー or リーダー」として所属するチーム
+  const myTeamIds = new Set<string>()
+  for (const m of allTeamMembers ?? []) if (m.employee_id === employeeId) myTeamIds.add(m.team_id)
+  for (const m of allTeamManagers ?? []) if (m.employee_id === employeeId) myTeamIds.add(m.team_id)
+
+  // 自分のチームを共有する人（メンバー or リーダー）だけを表示対象にする
+  const visibleIds = new Set<string>()
+  for (const m of allTeamMembers ?? []) if (myTeamIds.has(m.team_id)) visibleIds.add(m.employee_id)
+  for (const m of allTeamManagers ?? []) if (myTeamIds.has(m.team_id)) visibleIds.add(m.employee_id)
+
+  // 各社員のチーム所属（種別・役割つき）。同一チームでメンバー兼リーダーならリーダーを優先。
+  const TYPE_ORDER: Record<string, number> = { store: 0, department: 1, project: 2 }
+  const affByEmp: Record<string, Map<string, TeamAffiliation>> = {}
+  const addAff = (empId: string, teamId: string, role: 'member' | 'leader') => {
+    const t = teamById[teamId]
+    if (!t) return
+    const map = (affByEmp[empId] ??= new Map<string, TeamAffiliation>())
+    if (map.get(teamId)?.role === 'leader') return // 既にリーダー登録済みなら据え置き
+    map.set(teamId, { name: t.name, type: t.type, role })
   }
+  for (const m of allTeamMembers ?? []) addAff(m.employee_id, m.team_id, 'member')
+  for (const m of allTeamManagers ?? []) addAff(m.employee_id, m.team_id, 'leader')
+  const affListOf = (empId: string): TeamAffiliation[] =>
+    [...(affByEmp[empId]?.values() ?? [])].sort(
+      (a, b) => (TYPE_ORDER[a.type] - TYPE_ORDER[b.type]) || a.name.localeCompare(b.name, 'ja')
+    )
 
   const hoursByEmployee = (allWorkHours ?? []).reduce((acc, r) => {
     acc[r.employee_id] = (acc[r.employee_id] ?? 0) + r.hours
@@ -100,9 +125,10 @@ export async function TeamRankingServer({ employeeId, employeeRole, selectedProj
     return result
   }
 
-  // 育成対象＝プロジェクトに紐づくチームの「メンバー」になっている社員（ロール不問・テスト除外）
+  // 育成対象＝プロジェクトに紐づくチームの「メンバー」になっている社員（テスト除外）のうち、
+  // 自分のチーム（店舗・部署・プロジェクト）を共有する人だけに絞る
   const teamStats: TeamMemberStat[] = (allEmployees ?? [])
-    .filter(emp => !testEmpIds.has(emp.id) && (empProjects[emp.id]?.length ?? 0) > 0)
+    .filter(emp => !testEmpIds.has(emp.id) && visibleIds.has(emp.id) && (empProjects[emp.id]?.length ?? 0) > 0)
     .map(emp => {
     // 所属プロジェクトのうち「スキルが設定されている（空でない）」ものだけを対象に、
     // 本人の認定が最も多いプロジェクトを採用する（空プロジェクトの誤選択で0%になるのを防ぐ）。
@@ -124,7 +150,7 @@ export async function TeamRankingServer({ employeeId, employeeRole, selectedProj
     return {
       id: emp.id, name: emp.name, avatar_url: emp.avatar_url,
       employment_type: emp.employment_type, hire_date: emp.hire_date,
-      store_name: storeByEmployee[emp.id] ?? null,
+      teams: affListOf(emp.id),
       certifiedCount: best?.certifiedCount ?? 0,
       totalSkills: best?.totalSkills ?? 0,
       standardPct: best?.standardPct ?? 0,
