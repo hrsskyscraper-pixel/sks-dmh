@@ -10,6 +10,7 @@ import type { Role } from '@/types/database'
 import { canAdminister, canApprove } from '@/lib/permissions'
 import { maskEmails } from '@/lib/email-visibility'
 import { getTestEmployeeIds } from '@/lib/test-data'
+import { signSkillPhotoPaths } from '@/lib/skill-photos'
 
 export default async function ApprovalsPage() {
   const employee = await getCurrentEmployee()
@@ -58,14 +59,24 @@ export default async function ApprovalsPage() {
   // 1. スキル認定待ち
   const { data: pendingAchievements } = await db
     .from('achievements')
-    .select('id, employee_id, skill_id, achieved_at, apply_comment, created_at, skills(name), employees!achievements_employee_id_fkey(name, avatar_url)')
+    .select('id, employee_id, skill_id, achieved_at, apply_comment, photo_paths, created_at, skills(name), employees!achievements_employee_id_fkey(name, avatar_url)')
     .eq('status', 'pending')
     .order('created_at', { ascending: false })
 
-  const filteredAchievements = (pendingAchievements ?? [])
+  const filteredAchievementsBase = (pendingAchievements ?? [])
     .filter(a => !testEmpIds.has(a.employee_id))
     .filter(a => a.employee_id !== employee.id) // 自己承認の禁止: 自分の申請は承認キューに出さない
     .filter(a => isSystemAdmin || managedMemberIds.includes(a.employee_id))
+
+  // 申請写真に署名付きURLを付与（非公開バケット）
+  const pendingPhotoMap = await signSkillPhotoPaths(
+    db,
+    filteredAchievementsBase.flatMap(a => (a as { photo_paths?: string[] }).photo_paths ?? [])
+  )
+  const filteredAchievements = filteredAchievementsBase.map(a => ({
+    ...a,
+    photo_urls: ((a as { photo_paths?: string[] }).photo_paths ?? []).map(p => pendingPhotoMap[p]).filter(Boolean),
+  }))
 
   // 処理済みスキル認定（承認権限者全員が閲覧可能・直近30件）
   const { data: recentAchievements } = await db

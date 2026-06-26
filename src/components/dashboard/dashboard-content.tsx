@@ -16,6 +16,8 @@ import { AlertTriangle, ChevronDown, ChevronUp, Camera, Loader2, CheckCircle2, C
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { setSelectedProject } from '@/app/(dashboard)/actions'
+import { SkillPhotoInput } from '@/components/skills/skill-photo-input'
+import { uploadSkillPhotos } from '@/lib/skill-photos'
 import { Textarea } from '@/components/ui/textarea'
 import {
   Dialog,
@@ -159,6 +161,7 @@ export function DashboardContent({
   const [isPending, startTransition] = useTransition()
   const [applyDialogSkill, setApplyDialogSkill] = useState<Skill | null>(null)
   const [applyComment, setApplyComment] = useState('')
+  const [applyPhotos, setApplyPhotos] = useState<File[]>([])
   const [avatarUrl, setAvatarUrl] = useState(employee.avatar_url)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [showAllOverdue, setShowAllOverdue] = useState(false)
@@ -177,12 +180,17 @@ export function DashboardContent({
   const certifiedIds = new Set(achievementList.filter(a => a.status === 'certified').map(a => a.skill_id))
   const pendingIds = new Set(achievementList.filter(a => a.status === 'pending').map(a => a.skill_id))
 
-  const handleRequest = (skill: Skill, comment?: string) => {
+  const handleRequest = (skill: Skill, comment?: string, photos: File[] = []) => {
     if (certifiedIds.has(skill.id) || pendingIds.has(skill.id)) return
     startTransition(async () => {
+      let photoPaths: string[] = []
+      if (photos.length > 0) {
+        try { photoPaths = await uploadSkillPhotos(supabase, employee.id, skill.id, photos) }
+        catch { toast.error('写真のアップロードに失敗しました'); return }
+      }
       const { data, error } = await supabase
         .from('achievements')
-        .insert({ employee_id: employee.id, skill_id: skill.id, status: 'pending', apply_comment: comment?.trim() || null })
+        .insert({ employee_id: employee.id, skill_id: skill.id, status: 'pending', apply_comment: comment?.trim() || null, photo_paths: photoPaths })
         .select()
         .single()
       if (error) { toast.error('申請に失敗しました'); return }
@@ -191,6 +199,7 @@ export function DashboardContent({
       fetch('/api/skill-notification', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ employeeId: employee.id, skillName: skill.name, isReapply: false, comment: applyComment.trim() || null }) }).catch(() => {})
       setApplyDialogSkill(null)
       setApplyComment('')
+      setApplyPhotos([])
       toast.success(`「${skill.name}」を申請しました！`, { description: '認定者の確認をお待ちください' })
     })
   }
@@ -724,7 +733,7 @@ export function DashboardContent({
       {timelineSlot}
 
       {/* 申請ダイアログ */}
-      <Dialog open={applyDialogSkill !== null} onOpenChange={open => { if (!open) { setApplyDialogSkill(null); setApplyComment('') } }}>
+      <Dialog open={applyDialogSkill !== null} onOpenChange={open => { if (!open) { setApplyDialogSkill(null); setApplyComment(''); setApplyPhotos([]) } }}>
         <DialogContent className="max-w-sm">
           <DialogHeader><DialogTitle className="text-base">スキルを申請する</DialogTitle></DialogHeader>
           {applyDialogSkill && (
@@ -739,11 +748,12 @@ export function DashboardContent({
                 <p className="text-xs font-medium text-gray-600 mb-1">コメント（任意）</p>
                 <Textarea placeholder="習得したポイントや、気付いたこと、学んだことなど" value={applyComment} onChange={e => setApplyComment(e.target.value)} className="text-sm min-h-[80px] resize-none" />
               </div>
+              <SkillPhotoInput files={applyPhotos} onChange={setApplyPhotos} disabled={isPending} />
             </div>
           )}
           <DialogFooter>
-            <Button className="w-full bg-orange-500 hover:bg-orange-600 text-white" onClick={() => applyDialogSkill && handleRequest(applyDialogSkill, applyComment)} disabled={isPending}>
-              できました！申請する
+            <Button className="w-full bg-orange-500 hover:bg-orange-600 text-white" onClick={() => applyDialogSkill && handleRequest(applyDialogSkill, applyComment, applyPhotos)} disabled={isPending}>
+              {isPending ? '申請中...' : 'できました！申請する'}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -16,6 +16,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { StoreSelect } from '@/components/ui/store-select'
 import { CheckCircle, XCircle, UserPlus, GitPullRequest, Award, Inbox } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { SkillPhotoGallery } from '@/components/skills/skill-photo-gallery'
 
 type Tab = 'all' | 'skill' | 'team' | 'join' | 'done'
 
@@ -612,6 +613,11 @@ export function ApprovalCenter({
                           {emp?.name} — <span className="text-orange-600">{skill?.name}</span>
                         </p>
                         {a.apply_comment && <p className="text-xs text-gray-500 mt-0.5">{a.apply_comment}</p>}
+                        {a.photo_urls?.length > 0 && (
+                          <div className="mt-1.5" onClick={e => e.stopPropagation()}>
+                            <SkillPhotoGallery urls={a.photo_urls} size="sm" label={null} />
+                          </div>
+                        )}
                       </div>
                       <div className="flex gap-1 flex-shrink-0">
                         <Button size="sm" className="h-7 px-2 bg-green-500 hover:bg-green-600 text-[11px]"
@@ -774,6 +780,12 @@ export function ApprovalCenter({
               {certifyTarget?.employees?.name} — {certifyTarget?.skills?.name}
             </DialogDescription>
           </DialogHeader>
+          {certifyTarget?.apply_comment && (
+            <p className="text-sm text-gray-700 bg-amber-50 rounded-lg px-3 py-2 border border-amber-100">{certifyTarget.apply_comment}</p>
+          )}
+          {certifyTarget?.photo_urls?.length > 0 && (
+            <SkillPhotoGallery urls={certifyTarget.photo_urls} />
+          )}
           <Textarea
             value={certifyComment}
             onChange={e => setCertifyComment(e.target.value)}

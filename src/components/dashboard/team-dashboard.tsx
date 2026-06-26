@@ -19,11 +19,14 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { createClient } from '@/lib/supabase/client'
+import { SkillPhotoGallery } from '@/components/skills/skill-photo-gallery'
 import type { Employee, Skill, Achievement } from '@/types/database'
 
 interface AchievementWithRelations extends Achievement {
   skills: Skill | null
   employees: Employee | null
+  /** 申請写真の署名付きURL（サーバーで付与） */
+  photo_urls?: string[]
 }
 
 interface EmpStat {
@@ -322,6 +325,9 @@ export function TeamDashboard({ currentEmployee, employees, skills, achievements
                   </p>
                 </div>
               )}
+              {(selectedAchievement.photo_urls?.length ?? 0) > 0 && (
+                <SkillPhotoGallery urls={selectedAchievement.photo_urls ?? []} />
+              )}
               <div>
                 <p className="text-xs font-medium text-gray-600 mb-1">コメント（認定は任意・差し戻しは必須）</p>
                 <Textarea
@@ -408,6 +414,11 @@ function AchievementCard({
               <p className="text-xs text-gray-600 mt-1 bg-white rounded px-2 py-1 border border-amber-100">
                 💬 {achievement.apply_comment}
               </p>
+            )}
+            {(achievement.photo_urls?.length ?? 0) > 0 && (
+              <div className="mt-1.5">
+                <SkillPhotoGallery urls={achievement.photo_urls ?? []} size="sm" label={null} />
+              </div>
             )}
           </div>
           <Button

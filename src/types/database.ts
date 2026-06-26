@@ -743,6 +743,7 @@ export type Database = {
           apply_comment: string | null
           certify_comment: string | null
           is_read: boolean
+          photo_paths: string[]
           created_at: string
         }
         Insert: {
@@ -758,6 +759,7 @@ export type Database = {
           apply_comment?: string | null
           certify_comment?: string | null
           is_read?: boolean
+          photo_paths?: string[]
           created_at?: string
         }
         Update: {
@@ -773,6 +775,7 @@ export type Database = {
           apply_comment?: string | null
           certify_comment?: string | null
           is_read?: boolean
+          photo_paths?: string[]
           created_at?: string
         }
         Relationships: [

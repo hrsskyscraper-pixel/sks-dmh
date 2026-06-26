@@ -22,6 +22,9 @@ import { createClient } from '@/lib/supabase/client'
 import { calcPhasePct } from '@/lib/milestone'
 import { sortCategories } from '@/lib/category-order'
 import { cn } from '@/lib/utils'
+import { SkillPhotoInput } from '@/components/skills/skill-photo-input'
+import { SkillPhotoGallery } from '@/components/skills/skill-photo-gallery'
+import { uploadSkillPhotos, deleteSkillPhotos } from '@/lib/skill-photos'
 import type { Skill, Achievement, Category, MilestoneMap, ProjectPhase } from '@/types/database'
 
 type AchievementWithCertifier = Achievement & {
@@ -40,6 +43,8 @@ interface Props {
   cumulativeHours?: number
   milestones?: MilestoneMap
   skillManuals?: Record<string, { id: string; title: string; url: string; isPrimary: boolean }[]>
+  /** 自分の申請写真の署名付きURL（achievement_id → URL配列） */
+  photoUrlsByAchievement?: Record<string, string[]>
 }
 
 function fmtDate(dateStr: string | null | undefined): string {
@@ -119,7 +124,7 @@ function getCategoryProgressColor(category: string, allCategories: string[]): st
   return '[&>div]:bg-gray-500'
 }
 
-export function SkillList({ employeeId, skills, achievements: initialAchievements, readOnly = false, phases, skillPhaseMap, cumulativeHours, milestones, skillManuals = {} }: Props) {
+export function SkillList({ employeeId, skills, achievements: initialAchievements, readOnly = false, phases, skillPhaseMap, cumulativeHours, milestones, skillManuals = {}, photoUrlsByAchievement = {} }: Props) {
   const searchParams = useSearchParams()
   const initialPhaseId = phases.find(p => p.name === searchParams.get('phase'))?.id ?? phases[0]?.id ?? ''
   const [achievements, setAchievements] = useState(initialAchievements)
@@ -141,8 +146,10 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
   const [chatLoading, setChatLoading] = useState(false)
   const [applyDialogSkill, setApplyDialogSkill] = useState<Skill | null>(null)
   const [applyComment, setApplyComment] = useState('')
+  const [applyPhotos, setApplyPhotos] = useState<File[]>([])
   const [reapplyDialogSkill, setReapplyDialogSkill] = useState<Skill | null>(null)
   const [reapplyComment, setReapplyComment] = useState('')
+  const [reapplyPhotos, setReapplyPhotos] = useState<File[]>([])
   // まとめて申請（未申請スキルのみ対象）
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkDialogOpen, setBulkDialogOpen] = useState(false)
@@ -239,11 +246,19 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
     }
   }
 
-  const handleSubmitApply = (skill: Skill, comment: string) => {
+  const handleSubmitApply = (skill: Skill, comment: string, photos: File[]) => {
     const existing = getAchievement(skill.id)
 
     startTransition(async () => {
       if (existing && existing.status === 'rejected') {
+        // 写真を選び直していれば差し替え（未選択なら既存を維持）
+        let photoUpdate: { photo_paths?: string[] } = {}
+        if (photos.length > 0) {
+          try {
+            const paths = await uploadSkillPhotos(supabase, employeeId, skill.id, photos)
+            photoUpdate = { photo_paths: paths }
+          } catch { toast.error('写真のアップロードに失敗しました'); return }
+        }
         const { data, error } = await supabase
           .from('achievements')
           .update({
@@ -251,23 +266,32 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
             achieved_at: new Date().toISOString(),
             apply_comment: comment.trim() || null,
             certify_comment: null,
+            ...photoUpdate,
           })
           .eq('id', existing.id)
           .select()
           .single()
 
         if (error) { toast.error('再申請に失敗しました'); return }
+        if (photoUpdate.photo_paths) await deleteSkillPhotos(supabase, existing.photo_paths ?? [])
         setAchievements(prev => prev.map(a => a.id === existing.id ? { ...a, ...(data as AchievementWithCertifier) } : a))
         await supabase.from('achievement_history').insert({ achievement_id: existing.id, action: 'reapply', actor_id: employeeId, comment: comment.trim() || null })
         setReapplyDialogSkill(null)
         setReapplyComment('')
+        setReapplyPhotos([])
         fetch('/api/skill-notification', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ employeeId, skillName: skill.name, isReapply: true, comment: comment.trim() || null }) }).catch(() => {})
         toast.success(`「${skill.name}」を再申請しました！`, { description: '認定者の確認をお待ちください' })
         setTimeout(() => window.location.reload(), 500)
       } else {
+        let photoPaths: string[] = []
+        if (photos.length > 0) {
+          try {
+            photoPaths = await uploadSkillPhotos(supabase, employeeId, skill.id, photos)
+          } catch { toast.error('写真のアップロードに失敗しました'); return }
+        }
         const { data, error } = await supabase
           .from('achievements')
-          .insert({ employee_id: employeeId, skill_id: skill.id, status: 'pending', apply_comment: comment.trim() || null })
+          .insert({ employee_id: employeeId, skill_id: skill.id, status: 'pending', apply_comment: comment.trim() || null, photo_paths: photoPaths })
           .select()
           .single()
 
@@ -277,6 +301,7 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
         fetch('/api/skill-notification', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ employeeId, skillName: skill.name, isReapply: false, comment: comment.trim() || null }) }).catch(() => {})
         setApplyDialogSkill(null)
         setApplyComment('')
+        setApplyPhotos([])
         toast.success(`「${skill.name}」を申請しました！`, { description: '認定者の確認をお待ちください' })
       }
     })
@@ -827,7 +852,7 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
       </Dialog>
 
       {/* 申請ダイアログ */}
-      <Dialog open={applyDialogSkill !== null} onOpenChange={open => { if (!open) { setApplyDialogSkill(null); setApplyComment('') } }}>
+      <Dialog open={applyDialogSkill !== null} onOpenChange={open => { if (!open) { setApplyDialogSkill(null); setApplyComment(''); setApplyPhotos([]) } }}>
         <DialogContent className="max-w-sm">
           <DialogHeader><DialogTitle className="text-base">スキルを申請する</DialogTitle></DialogHeader>
           {applyDialogSkill && (
@@ -847,22 +872,23 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
                   className="text-sm min-h-[80px] resize-none"
                 />
               </div>
+              <SkillPhotoInput files={applyPhotos} onChange={setApplyPhotos} disabled={isPending} />
             </div>
           )}
           <DialogFooter>
             <Button
               className="w-full bg-orange-500 hover:bg-orange-600 text-white"
-              onClick={() => applyDialogSkill && handleSubmitApply(applyDialogSkill, applyComment)}
+              onClick={() => applyDialogSkill && handleSubmitApply(applyDialogSkill, applyComment, applyPhotos)}
               disabled={isPending}
             >
-              できました！申請する
+              {isPending ? '申請中...' : 'できました！申請する'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* 再申請ダイアログ */}
-      <Dialog open={reapplyDialogSkill !== null} onOpenChange={open => { if (!open) { setReapplyDialogSkill(null); setReapplyComment('') } }}>
+      <Dialog open={reapplyDialogSkill !== null} onOpenChange={open => { if (!open) { setReapplyDialogSkill(null); setReapplyComment(''); setReapplyPhotos([]) } }}>
         <DialogContent className="max-w-sm">
           <DialogHeader><DialogTitle className="text-base">再申請する</DialogTitle></DialogHeader>
           {reapplyDialogSkill && (
@@ -893,15 +919,21 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
                   className="text-sm min-h-[80px] resize-none"
                 />
               </div>
+              <SkillPhotoInput
+                files={reapplyPhotos}
+                onChange={setReapplyPhotos}
+                existingUrls={reapplyDialogSkill ? (photoUrlsByAchievement[getAchievement(reapplyDialogSkill.id)?.id ?? ''] ?? []) : []}
+                disabled={isPending}
+              />
             </div>
           )}
           <DialogFooter>
             <Button
               className="w-full bg-orange-500 hover:bg-orange-600 text-white"
-              onClick={() => reapplyDialogSkill && handleSubmitApply(reapplyDialogSkill, reapplyComment)}
+              onClick={() => reapplyDialogSkill && handleSubmitApply(reapplyDialogSkill, reapplyComment, reapplyPhotos)}
               disabled={isPending}
             >
-              再申請する
+              {isPending ? '再申請中...' : '再申請する'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -915,6 +947,9 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
               {historyDialogAch?.skills?.name ?? ''}の履歴
             </DialogTitle>
           </DialogHeader>
+          {historyDialogAch && (photoUrlsByAchievement[historyDialogAch.id]?.length ?? 0) > 0 && (
+            <SkillPhotoGallery urls={photoUrlsByAchievement[historyDialogAch.id]} size="sm" />
+          )}
           {chatLoading ? (
             <div className="flex justify-center py-8">
               <div className="w-6 h-6 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />

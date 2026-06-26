@@ -8,6 +8,7 @@ import { SkillList } from '@/components/skills/skill-list'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
 import { SELECTED_PROJECT_COOKIE } from '@/lib/selected-project'
 import { buildMilestoneMap } from '@/lib/milestone'
+import { signSkillPhotoPaths } from '@/lib/skill-photos'
 import type { ProjectPhase } from '@/types/database'
 
 export default async function SkillsPage({
@@ -92,6 +93,15 @@ export default async function SkillsPage({
   const skills = (allSkills ?? []).filter(s => projectSkillIds.has(s.id))
   const milestones = buildMilestoneMap(projectPhases)
 
+  // 自分の申請写真に署名付きURLを付与（achievement_id → URL配列）
+  const achRows = (achievements ?? []) as { id: string; photo_paths?: string[] }[]
+  const signedMap = await signSkillPhotoPaths(db, achRows.flatMap(a => a.photo_paths ?? []))
+  const photoUrlsByAchievement: Record<string, string[]> = {}
+  for (const a of achRows) {
+    const urls = (a.photo_paths ?? []).map(p => signedMap[p]).filter(Boolean)
+    if (urls.length) photoUrlsByAchievement[a.id] = urls
+  }
+
   // スキル→マニュアル マップ構築
   const manualById = Object.fromEntries((manualsRows ?? []).map(m => [m.id, m]))
   const skillManualsMap: Record<string, { id: string; title: string; url: string; isPrimary: boolean }[]> = {}
@@ -151,6 +161,7 @@ export default async function SkillsPage({
         cumulativeHours={cumulativeHours ?? 0}
         milestones={milestones}
         skillManuals={skillManualsMap}
+        photoUrlsByAchievement={photoUrlsByAchievement}
       />
     </>
   )
