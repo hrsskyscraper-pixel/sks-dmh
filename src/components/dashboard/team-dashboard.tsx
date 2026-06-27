@@ -46,6 +46,8 @@ interface Props {
   empStatsMap?: Record<string, EmpStat>
   /** 育成対象（プロジェクトに紐づくチームのメンバー）の employee_id 一覧 */
   developmentTargetIds?: string[]
+  /** 申請写真を削除できるか（管理者以上のみ true） */
+  canDeletePhotos?: boolean
 }
 
 function calcHireYear(hireDate: string | null): number {
@@ -57,7 +59,7 @@ function calcHireYear(hireDate: string | null): number {
   return Math.max(1, todayFY - hireFY + 1)
 }
 
-export function TeamDashboard({ currentEmployee, employees, skills, achievements: initialAchievements, priorityMemberIds, managedTeams = [], managedTeamMembers = [], empStatsMap = {}, developmentTargetIds = [] }: Props) {
+export function TeamDashboard({ currentEmployee, employees, skills, achievements: initialAchievements, priorityMemberIds, managedTeams = [], managedTeamMembers = [], empStatsMap = {}, developmentTargetIds = [], canDeletePhotos = false }: Props) {
   const targetIdSet = new Set(developmentTargetIds)
   const searchParams = useSearchParams()
   const initialTab = searchParams.get('tab') === 'pending' ? 'pending' : 'overview'
@@ -225,7 +227,7 @@ export function TeamDashboard({ currentEmployee, employees, skills, achievements
                 <>
                   <p className="text-xs font-semibold text-orange-700 px-1">担当チームのメンバー</p>
                   {priorityPending.map(achievement => (
-                    <AchievementCard key={achievement.id} achievement={achievement} onOpen={openDialog} isPending={isPending} />
+                    <AchievementCard key={achievement.id} achievement={achievement} onOpen={openDialog} isPending={isPending} canDelete={canDeletePhotos} />
                   ))}
                 </>
               )}
@@ -233,14 +235,14 @@ export function TeamDashboard({ currentEmployee, employees, skills, achievements
                 <>
                   <p className="text-xs font-semibold text-gray-500 px-1 mt-3">その他</p>
                   {otherPending.map(achievement => (
-                    <AchievementCard key={achievement.id} achievement={achievement} onOpen={openDialog} isPending={isPending} />
+                    <AchievementCard key={achievement.id} achievement={achievement} onOpen={openDialog} isPending={isPending} canDelete={canDeletePhotos} />
                   ))}
                 </>
               )}
             </>
           ) : (
             sortedPendingAchievements.map(achievement => (
-              <AchievementCard key={achievement.id} achievement={achievement} onOpen={openDialog} isPending={isPending} />
+              <AchievementCard key={achievement.id} achievement={achievement} onOpen={openDialog} isPending={isPending} canDelete={canDeletePhotos} />
             ))
           )}
         </TabsContent>
@@ -326,7 +328,12 @@ export function TeamDashboard({ currentEmployee, employees, skills, achievements
                 </div>
               )}
               {(selectedAchievement.photo_urls?.length ?? 0) > 0 && (
-                <SkillPhotoGallery urls={selectedAchievement.photo_urls ?? []} />
+                <SkillPhotoGallery
+                  urls={selectedAchievement.photo_urls ?? []}
+                  paths={selectedAchievement.photo_paths ?? []}
+                  achievementId={selectedAchievement.id}
+                  canDelete={canDeletePhotos}
+                />
               )}
               <div>
                 <p className="text-xs font-medium text-gray-600 mb-1">コメント（認定は任意・差し戻しは必須）</p>
@@ -380,10 +387,12 @@ function AchievementCard({
   achievement,
   onOpen,
   isPending,
+  canDelete = false,
 }: {
   achievement: AchievementWithRelations & { employees: Employee | null; skills: Skill | null }
   onOpen: (a: AchievementWithRelations) => void
   isPending: boolean
+  canDelete?: boolean
 }) {
   return (
     <Card className="border-amber-200 bg-amber-50">
@@ -417,7 +426,7 @@ function AchievementCard({
             )}
             {(achievement.photo_urls?.length ?? 0) > 0 && (
               <div className="mt-1.5">
-                <SkillPhotoGallery urls={achievement.photo_urls ?? []} size="sm" label={null} />
+                <SkillPhotoGallery urls={achievement.photo_urls ?? []} paths={achievement.photo_paths ?? []} achievementId={achievement.id} canDelete={canDelete} size="sm" label={null} />
               </div>
             )}
           </div>

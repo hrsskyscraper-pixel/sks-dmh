@@ -7,7 +7,7 @@ import { TopBar } from '@/components/layout/nav'
 import { TeamDashboard } from '@/components/dashboard/team-dashboard'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
 import { buildMilestoneMap, calcStandardPct } from '@/lib/milestone'
-import { canApprove } from '@/lib/permissions'
+import { canApprove, canAdminister } from '@/lib/permissions'
 import { getTestEmployeeIds } from '@/lib/test-data'
 import { signSkillPhotoPaths } from '@/lib/skill-photos'
 
@@ -173,10 +173,12 @@ export default async function TeamPage() {
     adminDb,
     filteredAchievements.flatMap(a => (a as { photo_paths?: string[] }).photo_paths ?? [])
   )
-  const achievementsWithPhotos = filteredAchievements.map(a => ({
-    ...a,
-    photo_urls: ((a as { photo_paths?: string[] }).photo_paths ?? []).map(p => teamPhotoMap[p]).filter(Boolean),
-  }))
+  const achievementsWithPhotos = filteredAchievements.map(a => {
+    const pairs = ((a as { photo_paths?: string[] }).photo_paths ?? [])
+      .map(p => ({ path: p, url: teamPhotoMap[p] }))
+      .filter(x => x.url)
+    return { ...a, photo_urls: pairs.map(x => x.url), photo_paths: pairs.map(x => x.path) }
+  })
 
   return (
     <>
@@ -186,6 +188,7 @@ export default async function TeamPage() {
         employees={visibleEmployees}
         skills={skills ?? []}
         achievements={achievementsWithPhotos}
+        canDeletePhotos={canAdminister(currentEmployee)}
         priorityMemberIds={priorityMemberIds}
         managedTeams={managedTeams}
         managedTeamMembers={managedTeamMembers}

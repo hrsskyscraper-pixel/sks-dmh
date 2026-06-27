@@ -73,10 +73,12 @@ export default async function ApprovalsPage() {
     db,
     filteredAchievementsBase.flatMap(a => (a as { photo_paths?: string[] }).photo_paths ?? [])
   )
-  const filteredAchievements = filteredAchievementsBase.map(a => ({
-    ...a,
-    photo_urls: ((a as { photo_paths?: string[] }).photo_paths ?? []).map(p => pendingPhotoMap[p]).filter(Boolean),
-  }))
+  const filteredAchievements = filteredAchievementsBase.map(a => {
+    const pairs = ((a as { photo_paths?: string[] }).photo_paths ?? [])
+      .map(p => ({ path: p, url: pendingPhotoMap[p] }))
+      .filter(x => x.url)
+    return { ...a, photo_urls: pairs.map(x => x.url), photo_paths: pairs.map(x => x.path) }
+  })
 
   // 処理済みスキル認定（承認権限者全員が閲覧可能・直近30件）
   const { data: recentAchievements } = await db
