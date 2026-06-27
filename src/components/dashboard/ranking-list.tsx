@@ -17,7 +17,14 @@ export function RankingList({ ranking, currentEmployeeId }: { ranking: RankEntry
                 {r.name}
                 {isMe && <span className="ml-1 text-[9px] bg-orange-500 text-white rounded px-1 align-middle">あなた</span>}
               </p>
-              {r.store && <p className="text-[10px] text-gray-400 truncate">{r.store}</p>}
+              {(r.store || r.curricula.length > 0) && (
+                <div className="flex items-center gap-1 flex-wrap mt-0.5">
+                  {r.store && <span className="text-[10px] text-gray-400 truncate">{r.store}</span>}
+                  {r.curricula.map(c => (
+                    <span key={c} className="text-[9px] text-blue-600 bg-blue-50 rounded px-1 py-px truncate max-w-[160px]">{c}</span>
+                  ))}
+                </div>
+              )}
             </div>
             <span className="text-sm font-black text-orange-600 flex-shrink-0">{r.count}<span className="text-[10px] font-normal text-gray-400 ml-0.5">個</span></span>
           </div>

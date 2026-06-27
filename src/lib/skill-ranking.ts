@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { getEmployeeProjectMapping } from '@/lib/project-members'
 
-export type RankEntry = { employeeId: string; name: string; store: string | null; count: number }
+export type RankEntry = { employeeId: string; name: string; store: string | null; curricula: string[]; count: number }
 
 /** 期間内の認定（certified）数を社員ごとに集計してランキング化（テスト除外） */
 export async function computeSkillCountRanking(
@@ -32,7 +33,27 @@ export async function computeSkillCountRanking(
     if (t?.type === 'store') storeById[m.employee_id] = t.name
   }
 
-  return ranked.map(([id, count]) => ({ employeeId: id, name: nameById[id] ?? '不明', store: storeById[id] ?? null, count }))
+  // 各社員の所属習得カリキュラム名（project_teams + team_members 経由）
+  const idSet = new Set(ids)
+  const mapping = await getEmployeeProjectMapping(db)
+  const projectIdsByEmp: Record<string, string[]> = {}
+  const allProjectIds = new Set<string>()
+  for (const m of mapping) {
+    if (!idSet.has(m.employee_id)) continue
+    ;(projectIdsByEmp[m.employee_id] ??= []).push(m.project_id)
+    allProjectIds.add(m.project_id)
+  }
+  const { data: projects } = allProjectIds.size > 0
+    ? await db.from('skill_projects').select('id, name').in('id', [...allProjectIds])
+    : { data: [] as { id: string; name: string }[] }
+  const projectNameById: Record<string, string> = Object.fromEntries((projects ?? []).map(p => [p.id, p.name]))
+  const curriculaById: Record<string, string[]> = {}
+  for (const [empId, pids] of Object.entries(projectIdsByEmp)) {
+    curriculaById[empId] = [...new Set(pids.map(pid => projectNameById[pid]).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, 'ja'))
+  }
+
+  return ranked.map(([id, count]) => ({ employeeId: id, name: nameById[id] ?? '不明', store: storeById[id] ?? null, curricula: curriculaById[id] ?? [], count }))
 }
 
 /**
