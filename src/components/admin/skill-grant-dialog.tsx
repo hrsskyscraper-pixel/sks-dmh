@@ -25,9 +25,11 @@ interface Props {
   /** フェーズの表示順（project_phases.order_index に準拠） */
   phaseOrder?: string[]
   canGrant: boolean
+  /** コンパクト表示（カードではなくボタンだけ。戻る行の右端などに置く用） */
+  compact?: boolean
 }
 
-export function SkillGrantSection({ employeeId, employeeName, availableSkills, certifiedSkillIds, certifiedAchievements = [], phaseOrder = [], canGrant }: Props) {
+export function SkillGrantSection({ employeeId, employeeName, availableSkills, certifiedSkillIds, certifiedAchievements = [], phaseOrder = [], canGrant, compact = false }: Props) {
   const [open, setOpen] = useState(false)
   const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null)
   const [comment, setComment] = useState('')
@@ -101,29 +103,43 @@ export function SkillGrantSection({ employeeId, employeeName, availableSkills, c
 
   return (
     <>
-      <Card>
-        <CardHeader className="pb-2 pt-4 px-4">
-          <CardTitle className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
-            <Award className="w-4 h-4" />
+      {compact ? (
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          <Button size="sm" onClick={() => setOpen(true)} disabled={isPending} className="h-8 bg-emerald-500 hover:bg-emerald-600 text-xs px-2.5">
+            <Award className="w-3.5 h-3.5 mr-1" />
             スキル認定
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="px-4 pb-4 space-y-2">
-          <p className="text-xs text-gray-500">
-            リーダー判断で、このメンバーのスキルを直接認定できます。本人に LINE / メール通知が届きます。
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <Button onClick={() => setOpen(true)} disabled={isPending} className="bg-emerald-500 hover:bg-emerald-600">
-              <Award className="w-4 h-4 mr-1" />
-              スキルを付与する
+          </Button>
+          {certifiedAchievements.length > 0 && (
+            <Button size="sm" variant="outline" onClick={() => setRevokeOpen(true)} disabled={isPending} title="認定を取り消す" className="h-8 px-2 border-red-300 text-red-600 hover:bg-red-50">
+              <Undo2 className="w-3.5 h-3.5" />
             </Button>
-            <Button onClick={() => setRevokeOpen(true)} disabled={isPending || certifiedAchievements.length === 0} variant="outline" className="border-red-300 text-red-600 hover:bg-red-50">
-              <Undo2 className="w-4 h-4 mr-1" />
-              認定を取り消す
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+          )}
+        </div>
+      ) : (
+        <Card>
+          <CardHeader className="pb-2 pt-4 px-4">
+            <CardTitle className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
+              <Award className="w-4 h-4" />
+              スキル認定
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-4 space-y-2">
+            <p className="text-xs text-gray-500">
+              リーダー判断で、このメンバーのスキルを直接認定できます。本人に LINE / メール通知が届きます。
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={() => setOpen(true)} disabled={isPending} className="bg-emerald-500 hover:bg-emerald-600">
+                <Award className="w-4 h-4 mr-1" />
+                スキルを付与する
+              </Button>
+              <Button onClick={() => setRevokeOpen(true)} disabled={isPending || certifiedAchievements.length === 0} variant="outline" className="border-red-300 text-red-600 hover:bg-red-50">
+                <Undo2 className="w-4 h-4 mr-1" />
+                認定を取り消す
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Dialog open={open} onOpenChange={v => { if (!v) { setOpen(false); setSelectedSkillId(null); setComment(''); setSearch(''); setSelectedPhase(null) } }}>
         <DialogContent className="max-w-sm">

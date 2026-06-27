@@ -189,19 +189,22 @@ export default async function EmployeeDetailPage({ params, searchParams }: { par
         goal={(goals ?? [])[0] ?? null}
         certifications={(certs ?? []) as { id: string; name: string; icon: 'award' | 'star'; color: string }[]}
         autoAddType={(await (searchParams ?? Promise.resolve({})) as { add?: string })?.add ?? undefined}
+        topRightSlot={
+          canApprove(currentEmployee) && canEdit ? (
+            <SkillGrantSection
+              employeeId={employee.id}
+              employeeName={employee.name}
+              availableSkills={availableSkills}
+              certifiedSkillIds={certifiedSkillIds}
+              certifiedAchievements={certifiedAchievements}
+              phaseOrder={phaseOrder}
+              canGrant={canApprove(currentEmployee)}
+              compact
+            />
+          ) : undefined
+        }
       />
       <div className="px-4 pb-8 space-y-4">
-        {canApprove(currentEmployee) && canEdit && (
-          <SkillGrantSection
-            employeeId={employee.id}
-            employeeName={employee.name}
-            availableSkills={availableSkills}
-            certifiedSkillIds={certifiedSkillIds}
-            certifiedAchievements={certifiedAchievements}
-            phaseOrder={phaseOrder}
-            canGrant={canApprove(currentEmployee)}
-          />
-        )}
         {/* Myキャリア（自分のページ）でのみ表示: スキルバランス／フェーズ別達成率 → 仲間 */}
         {isSelf && (
           <Suspense fallback={null}>

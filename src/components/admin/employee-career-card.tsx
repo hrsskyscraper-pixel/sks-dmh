@@ -93,9 +93,11 @@ interface Props {
   goal: GoalInfo | null
   certifications: { id: string; name: string; icon: 'award' | 'star'; color: string }[]
   autoAddType?: string
+  /** 「メンバー一覧に戻る」行の右端に置くスロット（スキル認定ボタン等） */
+  topRightSlot?: React.ReactNode
 }
 
-export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEmployees, canEdit, isSelf = false, canEditPermission = false, businessRoles = [], memberTeamIds, allTeams, goal, certifications, autoAddType }: Props) {
+export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEmployees, canEdit, isSelf = false, canEditPermission = false, businessRoles = [], memberTeamIds, allTeams, goal, certifications, autoAddType, topRightSlot }: Props) {
   const [isPending, startTransition] = useTransition()
   const [avatarUrl, setAvatarUrl] = useState(employee.avatar_url)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
@@ -346,11 +348,14 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
 
   return (
     <div className="p-4 space-y-4">
-      {/* 戻るリンク */}
-      <Link href="/admin/employees" className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
-        <ArrowLeft className="w-4 h-4" />
-        メンバー一覧に戻る
-      </Link>
+      {/* 戻るリンク + 右端スロット（スキル認定ボタン等） */}
+      <div className="flex items-center justify-between gap-2">
+        <Link href="/admin/employees" className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
+          <ArrowLeft className="w-4 h-4" />
+          メンバー一覧に戻る
+        </Link>
+        {topRightSlot}
+      </div>
 
       {/* プロフィールヘッダー */}
       <Card>
@@ -389,8 +394,7 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
                   {profileExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                 </button>
               </div>
-              {profileExpanded && (
-              <>
+              {/* よみがな・LINE連携（折りたたみ時も表示する） */}
               <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
                 {currentNameKana && (
                   <span className="text-xs text-gray-400">{currentNameKana}</span>
@@ -403,6 +407,8 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
                   <Badge className="text-[9px] bg-gray-100 text-gray-400 border-0">LINE未連携</Badge>
                 )}
               </div>
+              {profileExpanded && (
+              <>
               {employee.email && <p className="text-sm text-gray-500">{employee.email}</p>}
 
               <div className="flex gap-1.5 mt-2 flex-wrap items-center">
@@ -602,6 +608,14 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
         </DialogContent>
       </Dialog>
 
+      {/* 所属・キャリア記録（普段は折りたたんでスッキリ表示） */}
+      <details className="group bg-white border border-gray-200 rounded-lg overflow-hidden">
+        <summary className="flex items-center gap-1.5 px-4 py-3 cursor-pointer list-none [&::-webkit-details-marker]:hidden text-sm font-semibold text-gray-700">
+          <MapPin className="w-4 h-4 text-gray-400" />
+          所属・キャリア記録
+          <ChevronDown className="w-4 h-4 text-gray-400 ml-auto transition-transform group-open:rotate-180" />
+        </summary>
+        <div className="border-t border-gray-100 p-3 space-y-4">
       {/* 所属情報 */}
       <Card>
         <CardHeader className="pb-2 pt-4 px-4">
@@ -853,6 +867,8 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
           まだキャリア記録がありません
         </div>
       )}
+        </div>
+      </details>
 
       {/* 追加ダイアログ */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
