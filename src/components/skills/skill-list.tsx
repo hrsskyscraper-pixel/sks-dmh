@@ -45,6 +45,10 @@ interface Props {
   skillManuals?: Record<string, { id: string; title: string; url: string; isPrimary: boolean }[]>
   /** 自分の申請写真の署名付きURL（achievement_id → URL配列） */
   photoUrlsByAchievement?: Record<string, string[]>
+  /** 申請写真の削除用ストレージパス（URLと同じ並び・管理者の削除に使用） */
+  photoPathsByAchievement?: Record<string, string[]>
+  /** 申請写真を削除できるか（管理者以上のみ true） */
+  canDeletePhotos?: boolean
   /** view-as（他の人としてプレビュー中）なら申請操作を禁止 */
   viewAs?: boolean
 }
@@ -126,7 +130,7 @@ function getCategoryProgressColor(category: string, allCategories: string[]): st
   return '[&>div]:bg-gray-500'
 }
 
-export function SkillList({ employeeId, skills, achievements: initialAchievements, readOnly = false, phases, skillPhaseMap, cumulativeHours, milestones, skillManuals = {}, photoUrlsByAchievement = {}, viewAs = false }: Props) {
+export function SkillList({ employeeId, skills, achievements: initialAchievements, readOnly = false, phases, skillPhaseMap, cumulativeHours, milestones, skillManuals = {}, photoUrlsByAchievement = {}, photoPathsByAchievement = {}, canDeletePhotos = false, viewAs = false }: Props) {
   const searchParams = useSearchParams()
   const initialPhaseId = phases.find(p => p.name === searchParams.get('phase'))?.id ?? phases[0]?.id ?? ''
   const [achievements, setAchievements] = useState(initialAchievements)
@@ -951,7 +955,13 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
             </DialogTitle>
           </DialogHeader>
           {historyDialogAch && (photoUrlsByAchievement[historyDialogAch.id]?.length ?? 0) > 0 && (
-            <SkillPhotoGallery urls={photoUrlsByAchievement[historyDialogAch.id]} size="sm" />
+            <SkillPhotoGallery
+              urls={photoUrlsByAchievement[historyDialogAch.id]}
+              paths={photoPathsByAchievement[historyDialogAch.id]}
+              achievementId={historyDialogAch.id}
+              canDelete={canDeletePhotos}
+              size="sm"
+            />
           )}
           {chatLoading ? (
             <div className="flex justify-center py-8">
