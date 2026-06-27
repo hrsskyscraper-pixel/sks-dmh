@@ -28,9 +28,17 @@ export async function computeSkillCountRanking(
   const nameById: Record<string, string> = Object.fromEntries((emps ?? []).map(e => [e.id, e.name]))
   const { data: tm } = await db.from('team_members').select('employee_id, teams(name, type)').in('employee_id', ids)
   const storeById: Record<string, string> = {}
+  const deptById: Record<string, string> = {}
   for (const m of (tm ?? []) as { employee_id: string; teams: { name: string; type: string } | { name: string; type: string }[] | null }[]) {
     const t = Array.isArray(m.teams) ? m.teams[0] : m.teams
-    if (t?.type === 'store') storeById[m.employee_id] = t.name
+    if (t?.type === 'store' && !storeById[m.employee_id]) storeById[m.employee_id] = t.name
+    if (t?.type === 'department' && !deptById[m.employee_id]) deptById[m.employee_id] = t.name
+  }
+  // 店舗が無ければ部署を表示
+  const affById: Record<string, string> = {}
+  for (const id of ids) {
+    const aff = storeById[id] ?? deptById[id]
+    if (aff) affById[id] = aff
   }
 
   // 各社員の所属習得カリキュラム名（project_teams + team_members 経由）
@@ -53,7 +61,7 @@ export async function computeSkillCountRanking(
       .sort((a, b) => a.localeCompare(b, 'ja'))
   }
 
-  return ranked.map(([id, count]) => ({ employeeId: id, name: nameById[id] ?? '不明', store: storeById[id] ?? null, curricula: curriculaById[id] ?? [], count }))
+  return ranked.map(([id, count]) => ({ employeeId: id, name: nameById[id] ?? '不明', store: affById[id] ?? null, curricula: curriculaById[id] ?? [], count }))
 }
 
 /**
