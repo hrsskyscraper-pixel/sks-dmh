@@ -116,11 +116,6 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
 
   // 店舗マッピング
   const storeTeams = teams.filter(t => t.type === 'store')
-  const storeTeamById = Object.fromEntries(storeTeams.map(t => [t.id, t.name]))
-  const storeByEmployee: Record<string, string> = {}
-  for (const m of teamMembers) {
-    if (storeTeamById[m.team_id]) storeByEmployee[m.employee_id] = storeTeamById[m.team_id]
-  }
   const departmentTeams = teams.filter(t => t.type === 'department')
   const projectTeams = teams.filter(t => t.type === 'project')
   const PREF_ORDER = ['秋田県','栃木県','群馬県','埼玉県','千葉県','東京都','神奈川県','新潟県','静岡県','茨城県']
@@ -194,6 +189,26 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
       leaderRoleMap[m.employee_id] = m.role
     }
   }
+
+  // 各メンバーの所属（店舗・部署・プロジェクト／メンバー・リーダー）。
+  // 自分と共通の所属は shared=true として強調表示する。
+  type Aff = { name: string; type: 'store' | 'department' | 'project'; role: 'member' | 'leader'; shared: boolean }
+  const teamById = Object.fromEntries(teams.map(t => [t.id, t]))
+  const TYPE_ORDER: Record<string, number> = { store: 0, department: 1, project: 2 }
+  const affByEmployee: Record<string, Map<string, Aff>> = {}
+  const addAff = (empId: string, teamId: string, role: 'member' | 'leader') => {
+    const t = teamById[teamId]
+    if (!t) return
+    const m = (affByEmployee[empId] ??= new Map<string, Aff>())
+    if (m.get(teamId)?.role === 'leader') return // 既にリーダー登録済みなら据え置き
+    m.set(teamId, { name: t.name, type: t.type as Aff['type'], role, shared: myTeamIds.has(teamId) })
+  }
+  for (const tm of teamMembers) addAff(tm.employee_id, tm.team_id, 'member')
+  for (const tm of teamManagersList) addAff(tm.employee_id, tm.team_id, 'leader')
+  const affListOf = (empId: string): Aff[] =>
+    [...(affByEmployee[empId]?.values() ?? [])].sort(
+      (a, b) => (TYPE_ORDER[a.type] - TYPE_ORDER[b.type]) || (Number(b.shared) - Number(a.shared)) || a.name.localeCompare(b.name, 'ja')
+    )
 
   const handleDisplayRoleChange = (employeeId: string, displayRole: DisplayRole) => {
     if (!canEdit && !(isTeamManager && managedSet.has(employeeId))) return
@@ -414,6 +429,11 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
       <p className="text-xs text-muted-foreground">
         {realEmployees.length}名{selectedTeamId ? ` / 全${employees.length}名` : ''}
       </p>
+      {selectedTeamId === 'MINE' && (
+        <p className="text-[10px] text-muted-foreground/80 -mt-1">
+          各カードの所属バッジ（<span className="text-blue-600">店舗</span>／<span className="text-teal-600">部署</span>／<span className="text-purple-600">PJ</span>）のうち、<span className="font-semibold text-gray-600">塗りつぶし＝あなたと共通の所属</span>。<span aria-label="王冠">👑</span>＝リーダー。
+        </p>
+      )}
       {(() => {
         const renderCard = (employee: Employee) => {
         const displayRole = getDisplayRole(employee)
@@ -528,10 +548,35 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
                   )}
                   <div className="flex items-center gap-1.5">
                     {employee.email && <p className="text-xs text-muted-foreground truncate">{employee.email}</p>}
-                    {storeByEmployee[employee.id] && (
-                      <Badge className="text-[9px] bg-blue-50 text-blue-600 border-0 flex-shrink-0">{storeByEmployee[employee.id]}</Badge>
-                    )}
                   </div>
+                  {/* 所属（店舗・部署・プロジェクト）。あなたと共通の所属は塗りつぶしで強調 */}
+                  {(() => {
+                    const affs = affListOf(employee.id)
+                    if (affs.length === 0) return null
+                    return (
+                      <div className="flex flex-wrap items-center gap-1 mt-1">
+                        {affs.map((aff, i) => {
+                          const TypeIcon = aff.type === 'store' ? Store : aff.type === 'department' ? Building2 : FolderKanban
+                          const color = aff.type === 'store'
+                            ? (aff.shared ? 'bg-blue-500 text-white' : 'bg-blue-50 text-blue-600')
+                            : aff.type === 'department'
+                              ? (aff.shared ? 'bg-teal-500 text-white' : 'bg-teal-50 text-teal-600')
+                              : (aff.shared ? 'bg-purple-500 text-white' : 'bg-purple-50 text-purple-600')
+                          return (
+                            <Badge
+                              key={i}
+                              className={cn('text-[9px] border-0 gap-0.5 font-medium', color)}
+                              title={aff.shared ? 'あなたと共通の所属' : undefined}
+                            >
+                              <TypeIcon className="w-2.5 h-2.5" />
+                              {aff.name}
+                              {aff.role === 'leader' && <Crown className="w-2.5 h-2.5" />}
+                            </Badge>
+                          )
+                        })}
+                      </div>
+                    )
+                  })()}
                   {/* 入社日 + 入社X年目バッジ */}
                   {employee.hire_date && (
                     <div className="flex items-center gap-1.5 mt-0.5">
