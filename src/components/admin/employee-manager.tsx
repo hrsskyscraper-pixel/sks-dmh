@@ -59,6 +59,8 @@ interface Props {
   teamManagersList?: { team_id: string; employee_id: string; role: string }[]
   projectTeamIds?: string[]
   currentEmployeeId?: string
+  /** 初期表示を「自分の所属（自分のチーム・部署・店舗の合算）」に絞る */
+  defaultMyTeams?: boolean
 }
 
 const TEAM_MANAGER_ROLES: DisplayRole[] = ['メイト', '社員']
@@ -105,7 +107,7 @@ const DISPLAY_ROLE_ORDER: Record<DisplayRole, number> = {
   '開発者':     6,
 }
 
-export function EmployeeManager({ employees: initialEmployees, canEdit = true, isTeamManager = false, managedMemberIds = [], employeeStats = {}, teams = [], teamMembers = [], positionByEmployee = {}, certsByEmployee = {}, certMaster = [], teamManagersList = [], projectTeamIds = [], currentEmployeeId }: Props) {
+export function EmployeeManager({ employees: initialEmployees, canEdit = true, isTeamManager = false, managedMemberIds = [], employeeStats = {}, teams = [], teamMembers = [], positionByEmployee = {}, certsByEmployee = {}, certMaster = [], teamManagersList = [], projectTeamIds = [], currentEmployeeId, defaultMyTeams = false }: Props) {
   const [employees, setEmployees] = useState(initialEmployees)
   const [isPending, startTransition] = useTransition()
   const [uploadingId, setUploadingId] = useState<string | null>(null)
@@ -136,8 +138,19 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
   const prefOrder = PREF_ORDER.filter(p => storePrefGrouped[p])
   for (const p of Object.keys(storePrefGrouped)) { if (!prefOrder.includes(p)) prefOrder.push(p) }
 
-  // デフォルト選択: すべて（null）
-  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null)
+  // 自分が所属するチーム（メンバー or リーダー。店舗・部署・プロジェクトを含む）
+  const myTeamIds = new Set<string>(
+    currentEmployeeId
+      ? [
+          ...teamMembers.filter(tm => tm.employee_id === currentEmployeeId).map(tm => tm.team_id),
+          ...teamManagersList.filter(tm => tm.employee_id === currentEmployeeId).map(tm => tm.team_id),
+        ]
+      : []
+  )
+  // デフォルト選択: My画面では「自分の所属」(MINE)、それ以外は すべて(null)
+  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(
+    defaultMyTeams && myTeamIds.size > 0 ? 'MINE' : null
+  )
   const [expandedPrefs, setExpandedPrefs] = useState<Set<string>>(new Set())
   const [showTest, setShowTest] = useState(false)
 
@@ -157,16 +170,26 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
   const supabase = createClient()
 
   // リーダーもメンバーとして表示するために統合
-  const memberIdSet = selectedTeamId
-    ? new Set([
-        ...teamMembers.filter(tm => tm.team_id === selectedTeamId).map(tm => tm.employee_id),
-        ...teamManagersList.filter(tm => tm.team_id === selectedTeamId).map(tm => tm.employee_id),
+  const memberIdSet = selectedTeamId === 'MINE'
+    ? new Set<string>([
+        ...(currentEmployeeId ? [currentEmployeeId] : []),
+        ...teamMembers.filter(tm => myTeamIds.has(tm.team_id)).map(tm => tm.employee_id),
+        ...teamManagersList.filter(tm => myTeamIds.has(tm.team_id)).map(tm => tm.employee_id),
       ])
-    : null
+    : selectedTeamId
+      ? new Set([
+          ...teamMembers.filter(tm => tm.team_id === selectedTeamId).map(tm => tm.employee_id),
+          ...teamManagersList.filter(tm => tm.team_id === selectedTeamId).map(tm => tm.employee_id),
+        ])
+      : null
 
   // リーダー情報マップ（employee_id → role）
   const leaderRoleMap: Record<string, string> = {}
-  if (selectedTeamId) {
+  if (selectedTeamId === 'MINE') {
+    for (const m of teamManagersList.filter(tm => myTeamIds.has(tm.team_id))) {
+      leaderRoleMap[m.employee_id] = m.role
+    }
+  } else if (selectedTeamId) {
     for (const m of teamManagersList.filter(tm => tm.team_id === selectedTeamId)) {
       leaderRoleMap[m.employee_id] = m.role
     }
@@ -261,6 +284,18 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
         <div className="space-y-2">
           {/* すべて + チーム + 部署 */}
           <div className="flex flex-wrap gap-1.5">
+            {currentEmployeeId && myTeamIds.size > 0 && (
+              <button
+                onClick={() => { setSelectedTeamId('MINE'); setShowStores(false) }}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                  selectedTeamId === 'MINE'
+                    ? 'bg-orange-500 text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                自分の所属
+              </button>
+            )}
             <button
               onClick={() => { setSelectedTeamId(null); setShowStores(false) }}
               className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${

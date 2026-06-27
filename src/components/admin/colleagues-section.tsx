@@ -221,6 +221,7 @@ export async function ColleaguesSection({ embedded = false }: { embedded?: boole
       teamManagersList={(allTeamManagers ?? []) as { team_id: string; employee_id: string; role: string }[]}
       projectTeamIds={[...new Set((projectTeamsData ?? []).map(pt => pt.team_id))]}
       currentEmployeeId={effectiveEmployeeId}
+      defaultMyTeams={embedded}
     />
   )
 
