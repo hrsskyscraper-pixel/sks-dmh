@@ -45,6 +45,8 @@ interface Props {
   skillManuals?: Record<string, { id: string; title: string; url: string; isPrimary: boolean }[]>
   /** 自分の申請写真の署名付きURL（achievement_id → URL配列） */
   photoUrlsByAchievement?: Record<string, string[]>
+  /** view-as（他の人としてプレビュー中）なら申請操作を禁止 */
+  viewAs?: boolean
 }
 
 function fmtDate(dateStr: string | null | undefined): string {
@@ -124,7 +126,7 @@ function getCategoryProgressColor(category: string, allCategories: string[]): st
   return '[&>div]:bg-gray-500'
 }
 
-export function SkillList({ employeeId, skills, achievements: initialAchievements, readOnly = false, phases, skillPhaseMap, cumulativeHours, milestones, skillManuals = {}, photoUrlsByAchievement = {} }: Props) {
+export function SkillList({ employeeId, skills, achievements: initialAchievements, readOnly = false, phases, skillPhaseMap, cumulativeHours, milestones, skillManuals = {}, photoUrlsByAchievement = {}, viewAs = false }: Props) {
   const searchParams = useSearchParams()
   const initialPhaseId = phases.find(p => p.name === searchParams.get('phase'))?.id ?? phases[0]?.id ?? ''
   const [achievements, setAchievements] = useState(initialAchievements)
@@ -191,6 +193,7 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
   )
 
   const handleSubmitBulkApply = async () => {
+    if (viewAs) { toast.error('プレビュー中は申請できません', { description: 'ご自身のアカウントでお試しください' }); return }
     if (selectedSkills.length === 0) return
     setBulkSubmitting(true)
     try {
@@ -247,6 +250,7 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
   }
 
   const handleSubmitApply = (skill: Skill, comment: string, photos: File[]) => {
+    if (viewAs) { toast.error('プレビュー中は申請できません', { description: 'ご自身のアカウントでお試しください' }); return }
     const existing = getAchievement(skill.id)
 
     startTransition(async () => {
@@ -272,7 +276,7 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
           .select()
           .single()
 
-        if (error) { toast.error('再申請に失敗しました'); return }
+        if (error) { toast.error('再申請に失敗しました', { description: error.message }); return }
         setAchievements(prev => prev.map(a => a.id === existing.id ? { ...a, ...(data as AchievementWithCertifier) } : a))
         await supabase.from('achievement_history').insert({ achievement_id: existing.id, action: 'reapply', actor_id: employeeId, comment: comment.trim() || null })
         setReapplyDialogSkill(null)
@@ -294,7 +298,7 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
           .select()
           .single()
 
-        if (error) { toast.error('申請に失敗しました'); return }
+        if (error) { toast.error('申請に失敗しました', { description: error.message }); return }
         setAchievements(prev => [...prev, data])
         await supabase.from('achievement_history').insert({ achievement_id: data.id, action: 'apply', actor_id: employeeId, comment: comment.trim() || null })
         fetch('/api/skill-notification', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ employeeId, skillName: skill.name, isReapply: false, comment: comment.trim() || null }) }).catch(() => {})

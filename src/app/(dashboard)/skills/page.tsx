@@ -162,6 +162,7 @@ export default async function SkillsPage({
         milestones={milestones}
         skillManuals={skillManualsMap}
         photoUrlsByAchievement={photoUrlsByAchievement}
+        viewAs={!!viewAsId}
       />
     </>
   )

@@ -181,6 +181,10 @@ export function DashboardContent({
   const pendingIds = new Set(achievementList.filter(a => a.status === 'pending').map(a => a.skill_id))
 
   const handleRequest = (skill: Skill, comment?: string, photos: File[] = []) => {
+    if (!isOwnDashboard) {
+      toast.error('プレビュー中は申請できません', { description: 'プレビュー（view-as）を解除し、ご自身のアカウントでお試しください' })
+      return
+    }
     if (certifiedIds.has(skill.id) || pendingIds.has(skill.id)) return
     startTransition(async () => {
       let photoPaths: string[] = []
@@ -193,7 +197,7 @@ export function DashboardContent({
         .insert({ employee_id: employee.id, skill_id: skill.id, status: 'pending', apply_comment: comment?.trim() || null, photo_paths: photoPaths })
         .select()
         .single()
-      if (error) { toast.error('申請に失敗しました'); return }
+      if (error) { toast.error('申請に失敗しました', { description: error.message }); return }
       setAchievementList(prev => [...prev, data])
       await supabase.from('achievement_history').insert({ achievement_id: data.id, action: 'apply' as const, actor_id: employee.id, comment: applyComment.trim() || null })
       fetch('/api/skill-notification', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ employeeId: employee.id, skillName: skill.name, isReapply: false, comment: applyComment.trim() || null }) }).catch(() => {})
