@@ -131,6 +131,11 @@ export function AnnouncementsFeed({
                           <>
                             {item.title && <p className="text-sm font-semibold text-amber-800">{item.title}</p>}
                             {item.body && <p className="text-xs text-gray-700 whitespace-pre-line mt-0.5">{item.body}</p>}
+                            {item.period && (
+                              <Link href={`/ranking?month=${item.period}`} className="inline-block text-xs text-amber-700 font-semibold hover:underline mt-1">
+                                全員のランキングを見る →
+                              </Link>
+                            )}
                           </>
                         ) : (
                           <p className="text-sm text-gray-800">

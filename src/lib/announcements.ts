@@ -9,6 +9,7 @@ export type AnnouncementItem = {
   gradeLabel: string | null
   title: string | null
   body: string | null
+  period: string | null
   createdAt: string
   createdByName: string | null
 }
@@ -21,7 +22,7 @@ export async function getAnnouncementsData(
 ): Promise<{ items: AnnouncementItem[]; reactions: AnnouncementReaction[]; reactorNames: Record<string, string> }> {
   let q = db
     .from('announcements')
-    .select('id, kind, subject_employee_id, grade_label, title, body, created_by, created_at, expires_at')
+    .select('id, kind, subject_employee_id, grade_label, title, body, period, created_by, created_at, expires_at')
     .order('created_at', { ascending: false })
   if (opts.activeOnly) q = q.gt('expires_at', new Date().toISOString())
   if (opts.limit) q = q.limit(opts.limit)
@@ -67,6 +68,7 @@ export async function getAnnouncementsData(
     gradeLabel: a.grade_label,
     title: a.title,
     body: a.body,
+    period: a.period,
     createdAt: a.created_at,
     createdByName: a.created_by ? (nameById[a.created_by] ?? null) : null,
   }))
