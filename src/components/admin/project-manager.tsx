@@ -23,7 +23,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Plus, Pencil, Archive, ArchiveRestore, Trash2, GripVertical, UserMinus, UserPlus, ChevronDown, ChevronRight, MapPin, Store, FolderKanban, Building2, Copy, Upload, AlertTriangle } from 'lucide-react'
+import { Plus, Pencil, Archive, ArchiveRestore, Trash2, GripVertical, UserMinus, UserPlus, ChevronDown, ChevronRight, MapPin, Store, FolderKanban, Building2, Copy, Upload, AlertTriangle, HelpCircle } from 'lucide-react'
+import Link from 'next/link'
 import { SkillCsvImportDialog } from './skill-csv-import-dialog'
 import type { CsvSkillRow } from '@/app/(dashboard)/admin/projects/csv-actions'
 import { createClient } from '@/lib/supabase/client'
@@ -609,6 +610,15 @@ export function ProjectManager({
   return (
     <div className="p-4 space-y-4 max-w-2xl mx-auto">
 
+      {/* タイトル + 使い方ガイド導線 */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-lg font-bold text-gray-900">プロジェクト管理</h1>
+        <Link href="/help?tab=admin#a-projects" className="inline-flex items-center gap-1 text-xs text-orange-600 hover:underline flex-shrink-0">
+          <HelpCircle className="w-4 h-4" />
+          使い方ガイド
+        </Link>
+      </div>
+
       {/* プロジェクト選択 + 作成ボタン */}
       <div className="flex items-center gap-2">
         <Select value={selectedProjectId ?? ''} onValueChange={v => setSelectedProjectId(v)}>
@@ -631,6 +641,26 @@ export function ProjectManager({
           新規
         </Button>
       </div>
+
+      {/* 空状態: 0からの作り方ガイド */}
+      {projects.length === 0 && (
+        <Card className="border-orange-200 bg-orange-50/60">
+          <CardContent className="py-4 px-4 space-y-2">
+            <p className="text-sm font-semibold text-gray-800">はじめに：プロジェクトの作り方</p>
+            <ol className="text-xs text-gray-700 space-y-1 list-decimal list-inside">
+              <li><span className="font-medium">「＋ 新規」</span>でプロジェクトを作成</li>
+              <li><span className="font-medium">「フェーズ」</span>タブで期間（例: 1ヶ月目）と目標時間を設定</li>
+              <li><span className="font-medium">「スキル」</span>タブでスキルを追加（「CSVで一括登録」も可）</li>
+              <li><span className="font-medium">「チーム」</span>タブで実施する店舗・チームを紐付け</li>
+            </ol>
+            <p className="text-[11px] text-gray-500">※「チーム」への紐付けまで済むと、メンバーの画面に表示されます。</p>
+            <Link href="/help?tab=admin#a-projects" className="inline-flex items-center gap-1 text-xs text-orange-600 hover:underline">
+              <HelpCircle className="w-3.5 h-3.5" />
+              詳しい手順を見る
+            </Link>
+          </CardContent>
+        </Card>
+      )}
 
       {selectedProject && (
         <>
@@ -658,7 +688,8 @@ export function ProjectManager({
                   {selectedPhases.length === 0 && (
                     <p className="text-[11px] text-amber-700 mt-1.5 leading-snug">
                       フェーズが未設定のため、メンバーには「準備中」と表示されます。<br />
-                      下の「フェーズ」タブから設定してください。
+                      <span className="font-medium">次の手順:</span>「フェーズ」→「スキル」→「チーム」の順に設定してください。
+                      <Link href="/help?tab=admin#a-projects" className="text-orange-600 hover:underline ml-1">使い方ガイド</Link>
                     </p>
                   )}
                   <p className="text-[10px] text-muted-foreground mt-1">
