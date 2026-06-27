@@ -5,6 +5,7 @@ import { SELECTED_PROJECT_COOKIE } from '@/lib/selected-project'
 import { buildMilestoneMap, calcPhasePct } from '@/lib/milestone'
 import { sortCategories } from '@/lib/category-order'
 import { cn } from '@/lib/utils'
+import { FolderKanban } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { MySkillChartsClient } from '@/components/dashboard/my-skill-charts-client'
@@ -95,6 +96,12 @@ export async function MySkillCharts({ employeeId }: { employeeId: string }) {
 
   return (
     <div className="space-y-4">
+      {/* どのスキル習得プログラムの集計かを明示 */}
+      <div className="flex items-center gap-1.5 px-0.5">
+        <FolderKanban className="w-4 h-4 text-orange-500 flex-shrink-0" />
+        <span className="text-[11px] text-gray-400 flex-shrink-0">スキル習得プログラム</span>
+        <span className="text-sm font-semibold text-gray-800 truncate">{selectedProject.name}</span>
+      </div>
       <MySkillChartsClient
         radarData={radarData}
         phaseStats={phaseStats}
