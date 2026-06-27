@@ -257,7 +257,7 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
           try {
             const paths = await uploadSkillPhotos(supabase, employeeId, skill.id, photos)
             photoUpdate = { photo_paths: paths }
-          } catch { toast.error('写真のアップロードに失敗しました'); return }
+          } catch (e) { toast.error('写真のアップロードに失敗しました', { description: (e as Error)?.message }); return }
         }
         const { data, error } = await supabase
           .from('achievements')
@@ -287,7 +287,7 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
         if (photos.length > 0) {
           try {
             photoPaths = await uploadSkillPhotos(supabase, employeeId, skill.id, photos)
-          } catch { toast.error('写真のアップロードに失敗しました'); return }
+          } catch (e) { toast.error('写真のアップロードに失敗しました', { description: (e as Error)?.message }); return }
         }
         const { data, error } = await supabase
           .from('achievements')

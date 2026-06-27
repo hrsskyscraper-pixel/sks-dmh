@@ -186,7 +186,7 @@ export function DashboardContent({
       let photoPaths: string[] = []
       if (photos.length > 0) {
         try { photoPaths = await uploadSkillPhotos(supabase, employee.id, skill.id, photos) }
-        catch { toast.error('写真のアップロードに失敗しました'); return }
+        catch (e) { toast.error('写真のアップロードに失敗しました', { description: (e as Error)?.message }); return }
       }
       const { data, error } = await supabase
         .from('achievements')

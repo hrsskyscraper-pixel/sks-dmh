@@ -6,8 +6,38 @@ export const SKILL_PHOTOS_BUCKET = 'skill-photos'
 export const MAX_SKILL_PHOTOS = 4
 
 /**
+ * 画像を JPEG に正規化＋長辺を縮小して返す（ブラウザ専用）。
+ * - HEIC/HEIF など非対応 mime を、表示・保存できる JPEG に変換する
+ *   （createImageBitmap は Safari で HEIC をデコード可能）
+ * - 5MB 制限を超えにくいよう長辺を maxDim px に収める
+ * - 変換できない環境では原本のまま返す（フォールバック）
+ */
+async function normalizeToJpeg(file: File, maxDim = 2000, quality = 0.9): Promise<File> {
+  if (typeof document === 'undefined' || typeof createImageBitmap === 'undefined') return file
+  try {
+    const bitmap = await createImageBitmap(file)
+    const scale = Math.min(1, maxDim / Math.max(bitmap.width, bitmap.height))
+    const width = Math.max(1, Math.round(bitmap.width * scale))
+    const height = Math.max(1, Math.round(bitmap.height * scale))
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return file
+    ctx.drawImage(bitmap, 0, 0, width, height)
+    bitmap.close?.()
+    const blob = await new Promise<Blob | null>(res => canvas.toBlob(b => res(b), 'image/jpeg', quality))
+    if (!blob) return file
+    return new File([blob], file.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' })
+  } catch {
+    return file
+  }
+}
+
+/**
  * 申請写真をアップロードし、保存したストレージパスの配列を返す。
  * ブラウザの supabase クライアントから呼ぶ（INSERT ポリシーで許可）。
+ * アップロード前に JPEG へ正規化・縮小する。
  */
 export async function uploadSkillPhotos(
   supabase: SupabaseClient,
@@ -17,13 +47,12 @@ export async function uploadSkillPhotos(
 ): Promise<string[]> {
   const paths: string[] = []
   for (let i = 0; i < files.length; i++) {
-    const file = files[i]
-    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
-    const path = `${employeeId}/${skillId}/${Date.now()}-${i}.${ext}`
+    const jpg = await normalizeToJpeg(files[i])
+    const path = `${employeeId}/${skillId}/${Date.now()}-${i}.jpg`
     const { error } = await supabase.storage
       .from(SKILL_PHOTOS_BUCKET)
-      .upload(path, file, { upsert: true, contentType: file.type })
-    if (error) throw error
+      .upload(path, jpg, { upsert: true, contentType: 'image/jpeg' })
+    if (error) throw new Error(error.message)
     paths.push(path)
   }
   return paths
