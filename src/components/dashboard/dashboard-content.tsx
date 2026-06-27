@@ -185,22 +185,38 @@ export function DashboardContent({
       toast.error('プレビュー中は申請できません', { description: 'プレビュー（view-as）を解除し、ご自身のアカウントでお試しください' })
       return
     }
-    if (certifiedIds.has(skill.id) || pendingIds.has(skill.id)) return
+    // 既存行があるか（差し戻し済みなら再申請＝同じ行を更新。新規INSERTは重複キー違反になる）
+    const existing = achievementList.find(a => a.skill_id === skill.id)
+    if (existing && (existing.status === 'certified' || existing.status === 'pending')) return
     startTransition(async () => {
       let photoPaths: string[] = []
       if (photos.length > 0) {
         try { photoPaths = await uploadSkillPhotos(skill.id, photos) }
         catch (e) { toast.error('写真のアップロードに失敗しました', { description: (e as Error)?.message }); return }
       }
-      const { data, error } = await supabase
-        .from('achievements')
-        .insert({ employee_id: employee.id, skill_id: skill.id, status: 'pending', apply_comment: comment?.trim() || null, photo_paths: photoPaths })
-        .select()
-        .single()
-      if (error) { toast.error('申請に失敗しました', { description: error.message }); return }
-      setAchievementList(prev => [...prev, data])
-      await supabase.from('achievement_history').insert({ achievement_id: data.id, action: 'apply' as const, actor_id: employee.id, comment: applyComment.trim() || null })
-      fetch('/api/skill-notification', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ employeeId: employee.id, skillName: skill.name, isReapply: false, comment: applyComment.trim() || null }) }).catch(() => {})
+      const photoField = photoPaths.length > 0 ? { photo_paths: photoPaths } : {}
+      if (existing) {
+        // 差し戻し → 再申請
+        const { data, error } = await supabase
+          .from('achievements')
+          .update({ status: 'pending', achieved_at: new Date().toISOString(), apply_comment: comment?.trim() || null, certify_comment: null, ...photoField })
+          .eq('id', existing.id)
+          .select()
+          .single()
+        if (error) { toast.error('申請に失敗しました', { description: error.message }); return }
+        setAchievementList(prev => prev.map(a => a.id === existing.id ? data : a))
+        await supabase.from('achievement_history').insert({ achievement_id: existing.id, action: 'reapply' as const, actor_id: employee.id, comment: comment?.trim() || null })
+      } else {
+        const { data, error } = await supabase
+          .from('achievements')
+          .insert({ employee_id: employee.id, skill_id: skill.id, status: 'pending', apply_comment: comment?.trim() || null, photo_paths: photoPaths })
+          .select()
+          .single()
+        if (error) { toast.error('申請に失敗しました', { description: error.message }); return }
+        setAchievementList(prev => [...prev, data])
+        await supabase.from('achievement_history').insert({ achievement_id: data.id, action: 'apply' as const, actor_id: employee.id, comment: comment?.trim() || null })
+      }
+      fetch('/api/skill-notification', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ employeeId: employee.id, skillName: skill.name, isReapply: !!existing, comment: comment?.trim() || null }) }).catch(() => {})
       setApplyDialogSkill(null)
       setApplyComment('')
       setApplyPhotos([])
