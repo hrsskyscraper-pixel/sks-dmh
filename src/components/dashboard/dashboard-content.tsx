@@ -699,33 +699,6 @@ export function DashboardContent({
         </Card>
       )}
 
-      {/* フェーズ別サマリーカード */}
-      <div className={cn('grid gap-3', phaseStats.length <= 3 ? `grid-cols-${phaseStats.length}` : 'grid-cols-3')}>
-        {phaseStats.map(({ phase, phaseId, label, total, certified, pending, pct, standardPct, diff, colorClass }) => (
-          <Link key={phaseId} href={`/skills?phase=${encodeURIComponent(phase)}`}>
-            <Card className="text-center overflow-hidden hover:shadow-md transition-shadow cursor-pointer">
-              <CardContent className="pt-3 pb-3 px-2">
-                <Badge className={`${colorClass} text-white text-[10px] mb-0.5 border-0`}>{label}</Badge>
-                <p className="text-2xl font-black text-gray-800">{pct}<span className="text-xs">%</span></p>
-                {standardPct > 0 ? (
-                  <>
-                    <p className="text-[10px] text-gray-400">標準 {standardPct}%</p>
-                    <p className={cn('text-[11px] font-bold mt-0.5', diff >= 5 ? 'text-green-600' : diff <= -5 ? 'text-red-500' : 'text-gray-500')}>
-                      {diff > 0 ? `▲${diff}pt` : diff < 0 ? `▼${Math.abs(diff)}pt` : '±0'}
-                    </p>
-                  </>
-                ) : (
-                  <p className="text-[10px] text-gray-400">未開始</p>
-                )}
-                <p className="text-[10px] text-gray-400 mt-0.5">{certified}/{total}</p>
-                {pending > 0 && <p className="text-[10px] text-amber-500">申請中 {pending}</p>}
-                {total - certified - pending > 0 && <p className="text-[11px] font-bold text-orange-500">未申請 {total - certified - pending}</p>}
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
-      </div>
-
       {/* 申請ダイアログ */}
       <Dialog open={applyDialogSkill !== null} onOpenChange={open => { if (!open) { setApplyDialogSkill(null); setApplyComment(''); setApplyPhotos([]) } }}>
         <DialogContent className="max-w-sm">
