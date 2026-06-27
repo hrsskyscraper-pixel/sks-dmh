@@ -55,7 +55,7 @@ export default async function AdminTeamsPage() {
   ])
   const { data: brands } = await db.from('brands').select('id, name, color').order('sort_order')
 
-  // 各プロジェクトのフェーズ件数（セットアップ未完了判定用）
+  // 各習得カリキュラムのフェーズ件数（セットアップ未完了判定用）
   const activeProjectIds = (projectsData ?? []).map(p => p.id)
   const { data: phaseRows } = activeProjectIds.length > 0
     ? await db.from('project_phases').select('project_id').in('project_id', activeProjectIds)
@@ -74,7 +74,7 @@ export default async function AdminTeamsPage() {
   // 閲覧不可の email は空文字にしてからクライアントへ渡す。
   const employeesForClient = maskEmails(employees ?? [], effectiveEmployee)
 
-  // チーム→プロジェクト名マップ
+  // チーム→習得カリキュラム名マップ
   const projectNameMap = Object.fromEntries((projectsData ?? []).map(p => [p.id, p.name]))
   const teamProjectNames: Record<string, string[]> = {}
   for (const pt of projectTeamsData ?? []) {

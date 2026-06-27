@@ -37,7 +37,7 @@ export default async function SkillsPage({
   ])
   const employee = (targetEmployeeResult as { data: typeof currentEmployee | null }).data ?? currentEmployee
 
-  // 参加プロジェクト一覧（team_members と team_managers は並列取得）
+  // 参加習得カリキュラム一覧（team_members と team_managers は並列取得）
   const [{ data: sMyTeams }, { data: sMyMgr }] = await Promise.all([
     db.from('team_members').select('team_id').eq('employee_id', employee.id),
     db.from('team_managers').select('team_id').eq('employee_id', employee.id),
@@ -136,7 +136,7 @@ export default async function SkillsPage({
             <div className="text-3xl">🛠️</div>
             <h2 className="text-sm font-bold text-amber-900">スキルを準備中です</h2>
             <p className="text-xs text-amber-800 leading-relaxed">
-              プロジェクト「<span className="font-semibold">{selectedProject.name}</span>」は
+              習得カリキュラム「<span className="font-semibold">{selectedProject.name}</span>」は
               {creatorName ? <>管理者「<span className="font-semibold">{creatorName}</span>」</> : '管理者'}
               が準備中です。<br />
               設定が完了するまで、もうしばらくお待ちください。

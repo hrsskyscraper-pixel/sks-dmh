@@ -10,7 +10,7 @@ import { canAdminister } from '@/lib/permissions'
 /**
  * スキルのブランドを推論
  * skill → project_skills → project_teams → teams.brand_id
- * 複数プロジェクトに所属する場合はユニオン
+ * 複数習得カリキュラムに所属する場合はユニオン
  */
 async function buildSkillBrandsMap(
   db: ReturnType<typeof createAdminClient>

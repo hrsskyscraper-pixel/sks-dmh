@@ -33,7 +33,7 @@ export default async function SettingsPage() {
               <FolderKanban className="w-5 h-5 text-purple-600" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-gray-800">プロジェクト管理</p>
+              <p className="text-sm font-semibold text-gray-800">習得カリキュラム管理</p>
               <p className="text-xs text-gray-500">フェーズ・スキル割当・目標時間の設定</p>
             </div>
             <ChevronRight className="w-4 h-4 text-gray-300" />

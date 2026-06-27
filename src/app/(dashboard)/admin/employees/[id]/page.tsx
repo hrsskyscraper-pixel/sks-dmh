@@ -29,7 +29,7 @@ export default async function EmployeeDetailPage({ params, searchParams }: { par
   // 引き起こすため、リダイレクトを使わない。
   let accessDenied = isSelfOnly && currentEmployee.id !== id
 
-  // マネジャー・店長: 自チーム/プロジェクトのメンバーのみ
+  // マネジャー・店長: 自チーム/習得カリキュラムのメンバーのみ
   if (isTeamAccess && currentEmployee.id !== id) {
     const { data: myTeams } = await db.from('team_managers').select('team_id').eq('employee_id', currentEmployee.id)
     const myTeamIds = (myTeams ?? []).map(t => t.team_id)
@@ -78,10 +78,10 @@ export default async function EmployeeDetailPage({ params, searchParams }: { par
   ])
   const { data: businessRoles } = await db.from('business_roles').select('*').order('sort_order')
 
-  // スキル付与用: 対象社員が所属するプロジェクト経由で付与可能スキル一覧を算出
+  // スキル付与用: 対象社員が所属する習得カリキュラム経由で付与可能スキル一覧を算出
   const { data: empProjectRows } = await db.from('employee_projects').select('project_id').eq('employee_id', id)
   const empProjectIds = (empProjectRows ?? []).map(r => r.project_id)
-  // メンバー所属プロジェクトが空の場合は、team_members/team_managers → project_teams からも取得
+  // メンバー所属習得カリキュラムが空の場合は、team_members/team_managers → project_teams からも取得
   let fallbackProjectIds: string[] = []
   if (empProjectIds.length === 0) {
     const [{ data: teamMemRows }, { data: teamMgrRows }] = await Promise.all([
@@ -104,7 +104,7 @@ export default async function EmployeeDetailPage({ params, searchParams }: { par
       ])
     : [{ data: [] as never[] }, { data: [] as Array<{ id: string; skill_id: string; certified_at: string | null; certified_by: string | null; skills: { name: string } | null }> }, { data: [] as Array<{ name: string; order_index: number; project_id: string }> }]
 
-  // プロジェクトフェーズの順序（同名なら最小 order_index を採用）
+  // 習得カリキュラムフェーズの順序（同名なら最小 order_index を採用）
   const phaseOrderMap = new Map<string, number>()
   for (const p of projectPhases ?? []) {
     const prev = phaseOrderMap.get(p.name)

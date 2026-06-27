@@ -120,7 +120,7 @@ export function TeamManager({
     if ((project.phaseCount ?? 0) === 0) {
       setConfirmDialog({
         title: '⚠️ セットアップ未完了です',
-        message: `プロジェクト「${project.name}」はフェーズが未設定のため、「${teamName}」のメンバーには「準備中」と表示されます。先にフェーズを設定することをお勧めしますが、後から設定することも可能です。このまま割り当てますか？`,
+        message: `習得カリキュラム「${project.name}」はフェーズが未設定のため、「${teamName}」のメンバーには「準備中」と表示されます。先にフェーズを設定することをお勧めしますが、後から設定することも可能です。このまま割り当てますか？`,
         confirmLabel: 'このまま割り当てる',
         confirmClassName: 'flex-1 bg-amber-600 hover:bg-amber-700 text-white',
         onConfirm: () => performAssignProject(teamId, teamName, project.id, project.name),
@@ -984,7 +984,7 @@ export function TeamManager({
       {(() => {
         const isMine = (t: Team) => getTeamManagerIds(t.id).includes(effectiveEmployee.id) || getTeamMemberIds(t.id).includes(effectiveEmployee.id)
         const typeOrder: Record<string, number> = { project: 0, department: 1, store: 2 }
-        // プロジェクトと紐づいているチームを上に、紐づいていないものを下にする
+        // 習得カリキュラムと紐づいているチームを上に、紐づいていないものを下にする
         const hasProject = (t: Team) => (teamProjectNames[t.id]?.length ?? 0) > 0
         const myTeamsList = teams.filter(isMine).sort((a, b) => {
           const aHasProject = hasProject(a)
@@ -1025,8 +1025,8 @@ export function TeamManager({
                     )}
                     {memberIds.length > 0 && !(teamProjectNames[team.id]?.length) && isDirectEdit && (
                       <div className="mt-1.5 flex items-center gap-2 p-2 rounded-lg bg-amber-50 border border-amber-200">
-                        <span className="text-xs text-amber-700 flex-1">プロジェクトの割り当てがありません</span>
-                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setAssignProjectDialog({ teamId: team.id, teamName: team.name }); setAssignProjectId('') }} disabled={isPending}>プロジェクトを割り当てる</Button>
+                        <span className="text-xs text-amber-700 flex-1">習得カリキュラムの割り当てがありません</span>
+                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setAssignProjectDialog({ teamId: team.id, teamName: team.name }); setAssignProjectId('') }} disabled={isPending}>習得カリキュラムを割り当てる</Button>
                       </div>
                     )}
                   </CardHeader>
@@ -1191,8 +1191,8 @@ export function TeamManager({
               )}
               {memberIds.length > 0 && !(teamProjectNames[team.id]?.length) && isDirectEdit && (
                 <div className="mt-1.5 flex items-center gap-2 p-2 rounded-lg bg-amber-50 border border-amber-200">
-                  <span className="text-xs text-amber-700 flex-1">プロジェクトの割り当てがありません</span>
-                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setAssignProjectDialog({ teamId: team.id, teamName: team.name }); setAssignProjectId('') }} disabled={isPending}>プロジェクトを割り当てる</Button>
+                  <span className="text-xs text-amber-700 flex-1">習得カリキュラムの割り当てがありません</span>
+                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setAssignProjectDialog({ teamId: team.id, teamName: team.name }); setAssignProjectId('') }} disabled={isPending}>習得カリキュラムを割り当てる</Button>
                 </div>
               )}
             </CardHeader>
@@ -1483,8 +1483,8 @@ export function TeamManager({
               )}
               {memberIds.length > 0 && !(teamProjectNames[team.id]?.length) && isDirectEdit && (
                 <div className="mt-1.5 flex items-center gap-2 p-2 rounded-lg bg-amber-50 border border-amber-200">
-                  <span className="text-xs text-amber-700 flex-1">プロジェクトの割り当てがありません</span>
-                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setAssignProjectDialog({ teamId: team.id, teamName: team.name }); setAssignProjectId('') }} disabled={isPending}>プロジェクトを割り当てる</Button>
+                  <span className="text-xs text-amber-700 flex-1">習得カリキュラムの割り当てがありません</span>
+                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setAssignProjectDialog({ teamId: team.id, teamName: team.name }); setAssignProjectId('') }} disabled={isPending}>習得カリキュラムを割り当てる</Button>
                 </div>
               )}
             </CardHeader>
@@ -1661,8 +1661,8 @@ export function TeamManager({
                       )}
                       {memberIds.length > 0 && !(teamProjectNames[storeTeam.id]?.length) && isDirectEdit && (
                         <div className="mt-1.5 flex items-center gap-2 p-2 rounded-lg bg-amber-50 border border-amber-200">
-                          <span className="text-xs text-amber-700 flex-1">プロジェクトの割り当てがありません</span>
-                          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setAssignProjectDialog({ teamId: storeTeam.id, teamName: storeTeam.name }); setAssignProjectId('') }} disabled={isPending}>プロジェクトを割り当てる</Button>
+                          <span className="text-xs text-amber-700 flex-1">習得カリキュラムの割り当てがありません</span>
+                          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setAssignProjectDialog({ teamId: storeTeam.id, teamName: storeTeam.name }); setAssignProjectId('') }} disabled={isPending}>習得カリキュラムを割り当てる</Button>
                         </div>
                       )}
                     </CardHeader>
@@ -2642,18 +2642,18 @@ export function TeamManager({
         </DialogContent>
       </Dialog>
 
-      {/* プロジェクト割当ダイアログ */}
+      {/* 習得カリキュラム割当ダイアログ */}
       <Dialog open={!!assignProjectDialog} onOpenChange={open => { if (!open) { setAssignProjectDialog(null); setAssignProjectId('') } }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle className="text-base">プロジェクトを割り当てる</DialogTitle>
+            <DialogTitle className="text-base">習得カリキュラムを割り当てる</DialogTitle>
           </DialogHeader>
           <p className="text-xs text-gray-600">
-            <strong>{assignProjectDialog?.teamName}</strong> に割り当てる、現在アクティブなプロジェクトを選択してください。
+            <strong>{assignProjectDialog?.teamName}</strong> に割り当てる、現在アクティブな習得カリキュラムを選択してください。
           </p>
           <div className="space-y-1 max-h-64 overflow-y-auto">
             {activeProjects.length === 0 ? (
-              <p className="text-xs text-gray-500 py-4 text-center">アクティブなプロジェクトがありません</p>
+              <p className="text-xs text-gray-500 py-4 text-center">アクティブな習得カリキュラムがありません</p>
             ) : (
               activeProjects.map(p => (
                 <label key={p.id} className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer border ${assignProjectId === p.id ? 'bg-orange-50 border-orange-300' : 'border-gray-200 hover:bg-gray-50'}`}>

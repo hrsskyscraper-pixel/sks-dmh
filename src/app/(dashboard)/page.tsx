@@ -84,7 +84,7 @@ export default async function DashboardPage({
   ])
   const employee = (targetEmployeeResult as { data: typeof currentEmployee | null }).data ?? currentEmployee
 
-  // 参加プロジェクト一覧（team_members と team_managers は並列取得）
+  // 参加習得カリキュラム一覧（team_members と team_managers は並列取得）
   const [{ data: myTeamRows }, { data: myManagerRows }] = await Promise.all([
     db.from('team_members').select('team_id').eq('employee_id', employee.id),
     db.from('team_managers').select('team_id').eq('employee_id', employee.id),
@@ -192,7 +192,7 @@ export default async function DashboardPage({
     ? await db.from('employees').select('id, name').in('id', relatedEmployeeIds)
     : { data: [] as { id: string; name: string }[] }
 
-  // スキル→マニュアル紐付け（プロジェクト内スキルのみで構築）
+  // スキル→マニュアル紐付け（習得カリキュラム内スキルのみで構築）
   const manualById = Object.fromEntries((manualsRows ?? []).map(m => [m.id, m]))
   const skillManualsMap: Record<string, { id: string; title: string; url: string; isPrimary: boolean }[]> = {}
   for (const sm of skillManualsRows ?? []) {
@@ -217,7 +217,7 @@ export default async function DashboardPage({
 
   const projectSkillIds = new Set(Object.keys(skillPhaseMap))
   const skills = (allSkills ?? []).filter(s => projectSkillIds.has(s.id))
-  // 選択中プロジェクトのスキルに絞った認定履歴（件数表示用）
+  // 選択中習得カリキュラムのスキルに絞った認定履歴（件数表示用）
   const projectAchievements = (achievements ?? []).filter(a => projectSkillIds.has(a.skill_id))
 
   const projectPhases = projectPhaseRows ?? []

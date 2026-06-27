@@ -33,7 +33,7 @@ export default async function ProjectsPage() {
 
   return (
     <>
-      <TopBar title="プロジェクト管理" />
+      <TopBar title="習得カリキュラム管理" />
       <ProjectManager
         projects={projects ?? []}
         phases={phases ?? []}

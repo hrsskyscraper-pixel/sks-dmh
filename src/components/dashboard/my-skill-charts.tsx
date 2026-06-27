@@ -14,12 +14,12 @@ const PHASE_COLORS = ['bg-orange-500', 'bg-amber-500', 'bg-red-500', 'bg-blue-50
 
 /**
  * 「スキルバランス」「フェーズ別達成率」チャート（ホームから My ページへ移設）。
- * 本人の選択中プロジェクト（Cookie → 先頭）を解決し、ホームと同じ計算で描画する。
+ * 本人の選択中習得カリキュラム（Cookie → 先頭）を解決し、ホームと同じ計算で描画する。
  */
 export async function MySkillCharts({ employeeId }: { employeeId: string }) {
   const db = createAdminClient()
 
-  // 参加プロジェクトを解決（team_members / team_managers → project_teams → 有効な skill_projects）
+  // 参加習得カリキュラムを解決（team_members / team_managers → project_teams → 有効な skill_projects）
   const [{ data: tRows }, { data: mRows }] = await Promise.all([
     db.from('team_members').select('team_id').eq('employee_id', employeeId),
     db.from('team_managers').select('team_id').eq('employee_id', employeeId),
@@ -96,10 +96,10 @@ export async function MySkillCharts({ employeeId }: { employeeId: string }) {
 
   return (
     <div className="space-y-4">
-      {/* どのスキル習得プログラムの集計かを明示 */}
+      {/* どの習得カリキュラムの集計かを明示 */}
       <div className="flex items-center gap-1.5 px-0.5">
         <FolderKanban className="w-4 h-4 text-orange-500 flex-shrink-0" />
-        <span className="text-[11px] text-gray-400 flex-shrink-0">スキル習得プログラム</span>
+        <span className="text-[11px] text-gray-400 flex-shrink-0">習得カリキュラム</span>
         <span className="text-sm font-semibold text-gray-800 truncate">{selectedProject.name}</span>
       </div>
       <MySkillChartsClient

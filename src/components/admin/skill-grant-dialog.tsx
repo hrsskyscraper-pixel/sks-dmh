@@ -188,7 +188,7 @@ export function SkillGrantSection({ employeeId, employeeName, availableSkills, c
           <div className="border border-gray-200 rounded-lg max-h-56 overflow-y-auto divide-y divide-gray-100">
             {filteredSkills.length === 0 ? (
               <p className="text-xs text-gray-500 text-center py-4">
-                {availableSkills.length === 0 ? '付与できるスキルがありません（所属プロジェクトを確認してください）' : '該当するスキルがありません'}
+                {availableSkills.length === 0 ? '付与できるスキルがありません（所属習得カリキュラムを確認してください）' : '該当するスキルがありません'}
               </p>
             ) : (
               filteredSkills.map(s => (

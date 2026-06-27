@@ -81,7 +81,7 @@ export function ProjectManager({
   const [newSkillCategory, setNewSkillCategory] = useState('')
   const [dragSkillId, setDragSkillId] = useState<string | null>(null)
   const [dragOverInfo, setDragOverInfo] = useState<{ skillId: string; position: 'before' | 'after' } | null>(null)
-  // 未割当グループの折りたたみ状態（プロジェクトIDごと、デフォルト折りたたみ）
+  // 未割当グループの折りたたみ状態（習得カリキュラムIDごと、デフォルト折りたたみ）
   const [collapsedUnassignedGroups, setCollapsedUnassignedGroups] = useState<Set<string>>(new Set())
   // CSVインポートダイアログ
   const [showCsvImport, setShowCsvImport] = useState(false)
@@ -96,7 +96,7 @@ export function ProjectManager({
     initialProjects[0]?.id ?? null
   )
 
-  // プロジェクト作成・編集ダイアログ
+  // 習得カリキュラム作成・編集ダイアログ
   const [projectDialog, setProjectDialog] = useState<{ open: boolean; editing: SkillProject | null }>({ open: false, editing: null })
   const [projectName, setProjectName] = useState('')
   const [projectDesc, setProjectDesc] = useState('')
@@ -127,7 +127,7 @@ export function ProjectManager({
   for (const ps of projectSkills.filter(ps => ps.project_id === selectedProjectId)) {
     skillPhaseMap[ps.skill_id] = ps.project_phase_id
   }
-  // CSV書き出し用: 現在このプロジェクトに割り当て済みのスキル（取込と同じ列構成）
+  // CSV書き出し用: 現在この習得カリキュラムに割り当て済みのスキル（取込と同じ列構成）
   const phaseNameById = Object.fromEntries(selectedPhases.map(p => [p.id, p.name]))
   const currentSkillRows: CsvSkillRow[] = skillsState
     .filter(s => selectedProjectSkillIds.has(s.id))
@@ -146,7 +146,7 @@ export function ProjectManager({
     projectTeamsState.filter(pt => pt.project_id === selectedProjectId).map(pt => pt.team_id)
   )
 
-  // ===== プロジェクト操作 =====
+  // ===== 習得カリキュラム操作 =====
 
   function openCreateProject() {
     setProjectName('')
@@ -161,7 +161,7 @@ export function ProjectManager({
   }
 
   function handleSaveProject() {
-    if (!projectName.trim()) { toast.error('プロジェクト名を入力してください'); return }
+    if (!projectName.trim()) { toast.error('習得カリキュラム名を入力してください'); return }
     startTransition(async () => {
       if (projectDialog.editing) {
         const { data, error } = await supabase
@@ -172,7 +172,7 @@ export function ProjectManager({
           .single()
         if (error) { toast.error('更新に失敗しました'); return }
         setProjects(prev => prev.map(p => p.id === data.id ? data : p))
-        toast.success('プロジェクトを更新しました')
+        toast.success('習得カリキュラムを更新しました')
       } else {
         const { data, error } = await supabase
           .from('skill_projects')
@@ -182,7 +182,7 @@ export function ProjectManager({
         if (error) { toast.error('作成に失敗しました'); return }
         setProjects(prev => [...prev, data])
         setSelectedProjectId(data.id)
-        toast.success('プロジェクトを作成しました')
+        toast.success('習得カリキュラムを作成しました')
       }
       setProjectDialog({ open: false, editing: null })
     })
@@ -198,13 +198,13 @@ export function ProjectManager({
         .single()
       if (error) { toast.error('変更に失敗しました'); return }
       setProjects(prev => prev.map(p => p.id === data.id ? data : p))
-      toast.success(data.is_active ? 'プロジェクトを有効化しました' : 'アーカイブしました')
+      toast.success(data.is_active ? '習得カリキュラムを有効化しました' : 'アーカイブしました')
     })
   }
 
   function handleCopyProject(project: SkillProject) {
     startTransition(async () => {
-      // 1. 新プロジェクト作成
+      // 1. 新習得カリキュラム作成
       const { data: newProject, error: pErr } = await supabase
         .from('skill_projects')
         .insert({ name: `${project.name}（コピー）`, description: project.description, created_by: currentEmployeeId })
@@ -241,7 +241,7 @@ export function ProjectManager({
 
       setProjects(prev => [...prev, newProject])
       setSelectedProjectId(newProject.id)
-      toast.success('プロジェクトをコピーしました')
+      toast.success('習得カリキュラムをコピーしました')
     })
   }
 
@@ -612,18 +612,18 @@ export function ProjectManager({
 
       {/* タイトル + 使い方ガイド導線 */}
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-bold text-gray-900">プロジェクト管理</h1>
+        <h1 className="text-lg font-bold text-gray-900">習得カリキュラム管理</h1>
         <Link href="/help?tab=admin#a-projects" className="inline-flex items-center gap-1 text-xs text-orange-600 hover:underline flex-shrink-0">
           <HelpCircle className="w-4 h-4" />
           使い方ガイド
         </Link>
       </div>
 
-      {/* プロジェクト選択 + 作成ボタン */}
+      {/* 習得カリキュラム選択 + 作成ボタン */}
       <div className="flex items-center gap-2">
         <Select value={selectedProjectId ?? ''} onValueChange={v => setSelectedProjectId(v)}>
           <SelectTrigger className="flex-1">
-            <SelectValue placeholder="プロジェクトを選択" />
+            <SelectValue placeholder="習得カリキュラムを選択" />
           </SelectTrigger>
           <SelectContent>
             {projects.map(p => (
@@ -646,9 +646,9 @@ export function ProjectManager({
       {projects.length === 0 && (
         <Card className="border-orange-200 bg-orange-50/60">
           <CardContent className="py-4 px-4 space-y-2">
-            <p className="text-sm font-semibold text-gray-800">はじめに：プロジェクトの作り方</p>
+            <p className="text-sm font-semibold text-gray-800">はじめに：習得カリキュラムの作り方</p>
             <ol className="text-xs text-gray-700 space-y-1 list-decimal list-inside">
-              <li><span className="font-medium">「＋ 新規」</span>でプロジェクトを作成</li>
+              <li><span className="font-medium">「＋ 新規」</span>で習得カリキュラムを作成</li>
               <li><span className="font-medium">「フェーズ」</span>タブで期間（例: 1ヶ月目）と目標時間を設定</li>
               <li><span className="font-medium">「スキル」</span>タブでスキルを追加（「CSVで一括登録」も可）</li>
               <li><span className="font-medium">「チーム」</span>タブで実施する店舗・チームを紐付け</li>
@@ -664,7 +664,7 @@ export function ProjectManager({
 
       {selectedProject && (
         <>
-          {/* プロジェクト情報ヘッダー */}
+          {/* 習得カリキュラム情報ヘッダー */}
           <Card>
             <CardContent className="pt-4 pb-4 px-4">
               <div className="flex items-start justify-between gap-2">
@@ -797,14 +797,14 @@ export function ProjectManager({
                 )
               })}
 
-              {/* ===== 未割当スキル（プロジェクトごとにグループ化） ===== */}
+              {/* ===== 未割当スキル（習得カリキュラムごとにグループ化） ===== */}
               {(() => {
                 const assignedToCurrent = new Set(
                   projectSkills.filter(ps => ps.project_id === selectedProjectId && ps.project_phase_id).map(ps => ps.skill_id)
                 )
                 const unassignedSkills = skillsState.filter(s => !assignedToCurrent.has(s.id))
 
-                // 各スキルが属する他プロジェクト一覧
+                // 各スキルが属する他の習得カリキュラム一覧
                 const skillToOtherProjects: Record<string, string[]> = {}
                 for (const ps of projectSkills) {
                   if (ps.project_id === selectedProjectId) continue
@@ -815,8 +815,8 @@ export function ProjectManager({
                 }
 
                 // グループ分け
-                // - 現プロジェクトで有効化（チェック済み）なら、他プロジェクトにあっても常時表示グループへ
-                // - 無効なスキルのみ、他プロジェクトごとに折りたたみ
+                // - 現習得カリキュラムで有効化（チェック済み）なら、他の習得カリキュラムにあっても常時表示グループへ
+                // - 無効なスキルのみ、他の習得カリキュラムごとに折りたたみ
                 const groupTrulyUnassigned: Skill[] = []
                 const groupByProject: Record<string, Skill[]> = {}
                 for (const s of unassignedSkills) {
@@ -861,7 +861,7 @@ export function ProjectManager({
                       </div>
                     )}
 
-                    {/* 他プロジェクトで使用中（折りたたみ） */}
+                    {/* 他の習得カリキュラムで使用中（折りたたみ） */}
                     {Object.entries(groupByProject).map(([projectId, skills]) => {
                       const proj = projects.find(p => p.id === projectId)
                       if (!proj) return null
@@ -1038,30 +1038,30 @@ export function ProjectManager({
       {projects.length === 0 && (
         <Card>
           <CardContent className="py-12 text-center">
-            <p className="text-sm text-muted-foreground">プロジェクトがありません</p>
+            <p className="text-sm text-muted-foreground">習得カリキュラムがありません</p>
             <Button className="mt-3" onClick={openCreateProject}>
               <Plus className="w-4 h-4 mr-1" />
-              最初のプロジェクトを作成
+              最初の習得カリキュラムを作成
             </Button>
           </CardContent>
         </Card>
       )}
 
-      {/* ===== プロジェクトコピー確認ダイアログ ===== */}
+      {/* ===== 習得カリキュラムコピー確認ダイアログ ===== */}
       <Dialog open={!!copyConfirmProject} onOpenChange={open => { if (!open) setCopyConfirmProject(null) }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>プロジェクトをコピーしますか？</DialogTitle>
+            <DialogTitle>習得カリキュラムをコピーしますか？</DialogTitle>
           </DialogHeader>
           <div className="text-sm text-gray-600 space-y-2">
-            <p>「<strong>{copyConfirmProject?.name}</strong>」を元に新しいプロジェクトを作成します。</p>
+            <p>「<strong>{copyConfirmProject?.name}</strong>」を元に新しい習得カリキュラムを作成します。</p>
             <ul className="list-disc pl-5 space-y-1 text-xs text-gray-500">
               <li>フェーズ構成とスキル割当がコピーされます</li>
               <li>チーム紐付けはコピーされません</li>
               <li>社員の実績データはコピーされません</li>
             </ul>
             <p className="text-xs text-amber-600 bg-amber-50 rounded px-3 py-2">
-              作成後のプロジェクトは削除できません（アーカイブのみ）。コピー後に名前や内容を編集してください。
+              作成後の習得カリキュラムは削除できません（アーカイブのみ）。コピー後に名前や内容を編集してください。
             </p>
           </div>
           <DialogFooter>
@@ -1073,7 +1073,7 @@ export function ProjectManager({
         </DialogContent>
       </Dialog>
 
-      {/* ===== セットアップ未完了プロジェクトのチーム割当確認ダイアログ ===== */}
+      {/* ===== セットアップ未完了習得カリキュラムのチーム割当確認ダイアログ ===== */}
       <Dialog open={!!teamAssignConfirm} onOpenChange={open => { if (!open) setTeamAssignConfirm(null) }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
@@ -1084,7 +1084,7 @@ export function ProjectManager({
           </DialogHeader>
           <div className="text-sm text-gray-700 space-y-2">
             <p>
-              プロジェクト「<strong>{selectedProject?.name}</strong>」は<strong>フェーズが未設定</strong>のため、
+              習得カリキュラム「<strong>{selectedProject?.name}</strong>」は<strong>フェーズが未設定</strong>のため、
               「<strong>{teamAssignConfirm?.teamName}</strong>」のメンバーには「準備中」と表示されます。
             </p>
             <p className="text-xs text-gray-500">
@@ -1104,15 +1104,15 @@ export function ProjectManager({
         </DialogContent>
       </Dialog>
 
-      {/* ===== プロジェクト作成・編集ダイアログ ===== */}
+      {/* ===== 習得カリキュラム作成・編集ダイアログ ===== */}
       <Dialog open={projectDialog.open} onOpenChange={open => { if (!open) setProjectDialog({ open: false, editing: null }) }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>{projectDialog.editing ? 'プロジェクトを編集' : '新規プロジェクト'}</DialogTitle>
+            <DialogTitle>{projectDialog.editing ? '習得カリキュラムを編集' : '新規習得カリキュラム'}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <p className="text-xs font-medium text-gray-600 mb-1">プロジェクト名 *</p>
+              <p className="text-xs font-medium text-gray-600 mb-1">習得カリキュラム名 *</p>
               <Input
                 placeholder="例: 社員オンボーディング"
                 value={projectName}
@@ -1122,7 +1122,7 @@ export function ProjectManager({
             <div>
               <p className="text-xs font-medium text-gray-600 mb-1">説明（任意）</p>
               <Textarea
-                placeholder="プロジェクトの説明"
+                placeholder="習得カリキュラムの説明"
                 value={projectDesc}
                 onChange={e => setProjectDesc(e.target.value)}
                 className="min-h-[72px] resize-none text-sm"

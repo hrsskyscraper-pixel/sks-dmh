@@ -130,11 +130,11 @@ export async function ColleaguesSection({ embedded = false }: { embedded?: boole
   const employeeStats: Record<string, { certifiedPct: number; standardPct: number }> = {}
 
   for (const emp of employees ?? []) {
-    // 育成対象＝プロジェクトに紐づくチームの「メンバー」（ロール不問）。メンバーでなければ進捗は出さない
+    // 育成対象＝習得カリキュラムに紐づくチームの「メンバー」（ロール不問）。メンバーでなければ進捗は出さない
     if (!(empProjects[emp.id]?.length)) continue
 
-    // 所属プロジェクトのうち空でないものから、本人の認定が最も多いものを採用
-    // （空プロジェクトの誤選択で 0% になるのを防ぐ）
+    // 所属習得カリキュラムのうち空でないものから、本人の認定が最も多いものを採用
+    // （空習得カリキュラムの誤選択で 0% になるのを防ぐ）
     let best: { totalSkills: number; standardPct: number; certifiedCount: number } | null = null
     for (const pid of empProjects[emp.id] ?? []) {
       const stats = getProjectStats(pid)

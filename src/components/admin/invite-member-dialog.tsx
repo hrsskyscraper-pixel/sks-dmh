@@ -299,7 +299,7 @@ export function InviteMemberDialog({ open, onOpenChange, teamId, teamName, invit
                 <Textarea
                   value={message}
                   onChange={e => setMessage(e.target.value)}
-                  placeholder="例）〇〇プロジェクトで一緒に働きましょう！"
+                  placeholder="例）〇〇習得カリキュラムで一緒に働きましょう！"
                   rows={3}
                   className="text-sm"
                 />
@@ -324,7 +324,7 @@ export function InviteMemberDialog({ open, onOpenChange, teamId, teamName, invit
                 <Textarea
                   value={message}
                   onChange={e => setMessage(e.target.value)}
-                  placeholder="例）〇〇プロジェクトで一緒に働きましょう！"
+                  placeholder="例）〇〇習得カリキュラムで一緒に働きましょう！"
                   rows={3}
                   className="text-sm"
                 />

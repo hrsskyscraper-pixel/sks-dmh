@@ -44,7 +44,7 @@ interface Props {
   managedTeams?: { id: string; name: string }[]
   managedTeamMembers?: { team_id: string; employee_id: string }[]
   empStatsMap?: Record<string, EmpStat>
-  /** 育成対象（プロジェクトに紐づくチームのメンバー）の employee_id 一覧 */
+  /** 育成対象（習得カリキュラムに紐づくチームのメンバー）の employee_id 一覧 */
   developmentTargetIds?: string[]
   /** 申請写真を削除できるか（管理者以上のみ true） */
   canDeletePhotos?: boolean

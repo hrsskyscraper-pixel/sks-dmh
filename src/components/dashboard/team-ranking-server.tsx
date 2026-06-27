@@ -85,7 +85,7 @@ export async function TeamRankingServer({ employeeId, employeeRole, selectedProj
     projectSkillIdMap[ps.project_id].add(ps.skill_id)
   }
 
-  // 社員→所属プロジェクト一覧（複数所属あり）
+  // 社員→所属習得カリキュラム一覧（複数所属あり）
   const empProjects: Record<string, string[]> = {}
   for (const ep of allEmployeeProjects ?? []) {
     (empProjects[ep.employee_id] ??= []).push(ep.project_id)
@@ -125,13 +125,13 @@ export async function TeamRankingServer({ employeeId, employeeRole, selectedProj
     return result
   }
 
-  // 育成対象＝プロジェクトに紐づくチームの「メンバー」になっている社員（テスト除外）のうち、
-  // 自分のチーム（店舗・部署・プロジェクト）を共有する人だけに絞る
+  // 育成対象＝習得カリキュラムに紐づくチームの「メンバー」になっている社員（テスト除外）のうち、
+  // 自分のチーム（店舗・部署・PJチーム）を共有する人だけに絞る
   const teamStats: TeamMemberStat[] = (allEmployees ?? [])
     .filter(emp => !testEmpIds.has(emp.id) && visibleIds.has(emp.id) && (empProjects[emp.id]?.length ?? 0) > 0)
     .map(emp => {
-    // 所属プロジェクトのうち「スキルが設定されている（空でない）」ものだけを対象に、
-    // 本人の認定が最も多いプロジェクトを採用する（空プロジェクトの誤選択で0%になるのを防ぐ）。
+    // 所属習得カリキュラムのうち「スキルが設定されている（空でない）」ものだけを対象に、
+    // 本人の認定が最も多い習得カリキュラムを採用する（空習得カリキュラムの誤選択で0%になるのを防ぐ）。
     let best: { certifiedCount: number; totalSkills: number; standardPct: number } | null = null
     for (const pid of empProjects[emp.id] ?? []) {
       const skillSet = projectSkillIdMap[pid] ?? new Set<string>()

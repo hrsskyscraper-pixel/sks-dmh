@@ -1,7 +1,7 @@
 import { SupabaseClient } from '@supabase/supabase-js'
 
 /**
- * project_teams + team_members から社員→プロジェクトのマッピングを構築
+ * project_teams + team_members から社員→習得カリキュラムのマッピングを構築
  * 旧 employee_projects テーブルの代替
  *
  * @param opts.membersOnly true の場合、team_managers（リーダー）は含めず

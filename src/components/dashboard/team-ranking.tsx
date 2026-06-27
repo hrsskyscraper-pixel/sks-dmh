@@ -152,7 +152,7 @@ export function TeamRanking({ currentEmployeeId, stats }: Props) {
           )}
         </div>
 
-        {/* 所属チーム（店舗・部署・プロジェクト／メンバー・リーダー） */}
+        {/* 所属チーム（店舗・部署・PJチーム／メンバー・リーダー） */}
         {member.teams.length > 0 && (
           <div className="flex items-center gap-1 flex-wrap mb-2.5 pl-8">
             {member.teams.map((t, i) => (
@@ -217,7 +217,7 @@ export function TeamRanking({ currentEmployeeId, stats }: Props) {
           青い縦線は累計勤務時間から算出した標準進捗率
         </p>
         <p className="text-[10px] text-muted-foreground/70 flex items-center gap-x-1.5 gap-y-0.5 flex-wrap mt-0.5">
-          <span>バッジ＝所属チーム（店舗／部署／PJ＝プロジェクト）</span>
+          <span>バッジ＝所属チーム（店舗／部署／PJ）</span>
           <span className="inline-flex items-center gap-0.5">
             <Crown className="w-2.5 h-2.5 text-amber-500" />＝リーダー
           </span>

@@ -414,7 +414,7 @@ export function DashboardContent({
             </div>
           </div>
 
-          {/* プロジェクト切り替え */}
+          {/* 習得カリキュラム切り替え */}
           {employeeProjects.length > 1 && (
             <div className="mb-3 flex gap-1.5 flex-wrap">
               {employeeProjects.map(pj => {

@@ -20,7 +20,7 @@ interface Props {
   projectId: string
   projectName: string
   phaseNames: string[]
-  /** 現在このプロジェクトに割り当て済みのスキル（書き出し用） */
+  /** 現在この習得カリキュラムに割り当て済みのスキル（書き出し用） */
   currentSkills?: CsvSkillRow[]
   onComplete: () => void
 }
@@ -159,7 +159,7 @@ export function SkillCsvImportDialog({ open, onOpenChange, projectId, projectNam
             </div>
             <div className="text-sm space-y-1 px-2">
               <p>新規作成したスキル: <span className="font-semibold">{result.created}</span>件</p>
-              <p>プロジェクトに割当: <span className="font-semibold">{result.assigned}</span>件</p>
+              <p>習得カリキュラムに割当: <span className="font-semibold">{result.assigned}</span>件</p>
             </div>
             {result.warnings.length > 0 && (
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5 text-xs text-amber-700 space-y-1 max-h-40 overflow-y-auto">
@@ -212,7 +212,7 @@ export function SkillCsvImportDialog({ open, onOpenChange, projectId, projectNam
               </table>
             </div>
             <p className="text-[10px] text-gray-500">
-              ※ 既存のスキル名と同じ場合は新規作成せず、プロジェクト割当だけ行います
+              ※ 既存のスキル名と同じ場合は新規作成せず、習得カリキュラム割当だけ行います
             </p>
           </div>
         ) : (

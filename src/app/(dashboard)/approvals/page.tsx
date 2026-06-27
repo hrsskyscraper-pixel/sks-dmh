@@ -214,7 +214,7 @@ export default async function ApprovalsPage() {
     }
   }
 
-  // プロジェクト（参加許諾用）
+  // 習得カリキュラム（参加許諾用）
   const { data: projectTeams } = await db.from('teams').select('id, name').eq('type', 'project').order('name')
 
   return (

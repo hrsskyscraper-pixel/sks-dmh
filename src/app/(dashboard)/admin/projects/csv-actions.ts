@@ -22,7 +22,7 @@ export interface CsvImportResult {
 }
 
 /**
- * CSVからスキルを一括作成し、指定プロジェクトに割り当てる
+ * CSVからスキルを一括作成し、指定習得カリキュラムに割り当てる
  */
 export async function importSkillsFromCsv(params: {
   projectId: string
@@ -39,9 +39,9 @@ export async function importSkillsFromCsv(params: {
 
   const db = createAdminClient()
 
-  // プロジェクト & フェーズ確認
+  // 習得カリキュラム & フェーズ確認
   const { data: project } = await db.from('skill_projects').select('id').eq('id', params.projectId).single()
-  if (!project) return { error: 'プロジェクトが見つかりません', created: 0, assigned: 0, warnings: [] }
+  if (!project) return { error: '習得カリキュラムが見つかりません', created: 0, assigned: 0, warnings: [] }
 
   const { data: phases } = await db.from('project_phases').select('id, name').eq('project_id', params.projectId)
   const phaseByName: Record<string, string> = {}
@@ -106,7 +106,7 @@ export async function importSkillsFromCsv(params: {
       }
     }
 
-    // 既にこのプロジェクトに割り当て済みか？
+    // 既にこの習得カリキュラムに割り当て済みか？
     const { data: existingAssignment } = await db
       .from('project_skills')
       .select('skill_id')
@@ -129,7 +129,7 @@ export async function importSkillsFromCsv(params: {
         project_phase_id: phaseId,
       })
       if (asgnErr) {
-        warnings.push(`${lineNo}行目: プロジェクト割当失敗 ${trimName}: ${asgnErr.message}`)
+        warnings.push(`${lineNo}行目: 習得カリキュラム割当失敗 ${trimName}: ${asgnErr.message}`)
         continue
       }
       assigned++

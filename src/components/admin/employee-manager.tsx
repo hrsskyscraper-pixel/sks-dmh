@@ -133,7 +133,7 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
   const prefOrder = PREF_ORDER.filter(p => storePrefGrouped[p])
   for (const p of Object.keys(storePrefGrouped)) { if (!prefOrder.includes(p)) prefOrder.push(p) }
 
-  // 自分が所属するチーム（メンバー or リーダー。店舗・部署・プロジェクトを含む）
+  // 自分が所属するチーム（メンバー or リーダー。店舗・部署・PJチームを含む）
   const myTeamIds = new Set<string>(
     currentEmployeeId
       ? [
@@ -190,7 +190,7 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
     }
   }
 
-  // 各メンバーの所属（店舗・部署・プロジェクト／メンバー・リーダー）。
+  // 各メンバーの所属（店舗・部署・PJチーム／メンバー・リーダー）。
   // 自分と共通の所属は shared=true として強調表示する。
   type Aff = { name: string; type: 'store' | 'department' | 'project'; role: 'member' | 'leader'; shared: boolean }
   const teamById = Object.fromEntries(teams.map(t => [t.id, t]))
@@ -549,7 +549,7 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
                   <div className="flex items-center gap-1.5">
                     {employee.email && <p className="text-xs text-muted-foreground truncate">{employee.email}</p>}
                   </div>
-                  {/* 所属（店舗・部署・プロジェクト）。あなたと共通の所属は塗りつぶしで強調 */}
+                  {/* 所属（店舗・部署・PJチーム）。あなたと共通の所属は塗りつぶしで強調 */}
                   {(() => {
                     const affs = affListOf(employee.id)
                     if (affs.length === 0) return null

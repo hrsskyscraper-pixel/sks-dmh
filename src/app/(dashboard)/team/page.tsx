@@ -99,7 +99,7 @@ export default async function TeamPage() {
   for (const ep of allEmployeeProjects ?? []) {
     (empProjects[ep.employee_id] ??= []).push(ep.project_id)
   }
-  // 認定済みスキル集合（プロジェクト選択の判定用）
+  // 認定済みスキル集合（習得カリキュラム選択の判定用）
   const certifiedSet = new Set<string>()
   for (const a of achievements ?? []) {
     if (a.status === 'certified') certifiedSet.add(`${a.employee_id}:${a.skill_id}`)
@@ -137,8 +137,8 @@ export default async function TeamPage() {
 
   const empStatsMap: Record<string, { standardPct: number; totalSkills: number; storeName: string | null }> = {}
   for (const emp of employees ?? []) {
-    // 所属プロジェクトのうち空でないものから、本人の認定が最も多いものを採用
-    // （空プロジェクトの誤選択で 0% になるのを防ぐ）
+    // 所属習得カリキュラムのうち空でないものから、本人の認定が最も多いものを採用
+    // （空習得カリキュラムの誤選択で 0% になるのを防ぐ）
     let best: { standardPct: number; totalSkills: number; certifiedCount: number } | null = null
     for (const pid of empProjects[emp.id] ?? []) {
       const skills = pSkillsByProject[pid] ?? []
