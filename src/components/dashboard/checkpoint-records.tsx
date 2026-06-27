@@ -88,8 +88,7 @@ export async function CheckpointRecords({ employeeId, employeeRole, projectSkill
   const myCertifiedIds = new Set((myAchievements ?? []).map(a => a.skill_id))
 
   return (
-    <div className="px-4">
-      <Card>
+    <Card>
         <CardHeader className="pb-2 pt-4 px-4">
           <CardTitle className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
             <Trophy className="w-4 h-4 text-yellow-500" />
@@ -144,7 +143,6 @@ export async function CheckpointRecords({ employeeId, employeeRole, projectSkill
             })}
           </div>
         </CardContent>
-      </Card>
-    </div>
+    </Card>
   )
 }

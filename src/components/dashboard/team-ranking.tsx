@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { ChevronDown, ChevronUp, Crown } from 'lucide-react'
+import { ChevronDown, ChevronUp, Crown, Users } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -213,6 +213,10 @@ export function TeamRanking({ currentEmployeeId, stats }: Props) {
           <span>🏆</span>
           みんなの頑張り
         </CardTitle>
+        <p className="text-[11px] text-gray-500 mt-0.5 flex items-center gap-1">
+          <Users className="w-3 h-3 text-gray-400" />
+          あなたが所属するチーム・店舗・部署のメンバーを表示しています
+        </p>
         <p className="text-[10px] text-muted-foreground/70">
           青い縦線は累計勤務時間から算出した標準進捗率
         </p>

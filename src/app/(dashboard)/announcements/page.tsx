@@ -16,7 +16,7 @@ export default async function AnnouncementsPage() {
   return (
     <>
       <TopBar title="お知らせ" />
-      <div className="py-2">
+      <div className="px-4 py-2">
         <AnnouncementsFeed
           items={items}
           reactions={reactions}

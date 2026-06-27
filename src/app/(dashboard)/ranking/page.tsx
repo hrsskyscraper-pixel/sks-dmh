@@ -38,7 +38,7 @@ export default async function RankingPage({ searchParams }: { searchParams?: Pro
       <TopBar title="スキル習得数ランキング" />
       <div className="p-4 max-w-lg mx-auto">
         <p className="text-sm text-gray-600 mb-2">
-          🏆 <span className="font-semibold">{label}</span>・全店の認定数（全員 / {ranking.length}名）
+          🏆 <span className="font-semibold">{label}</span>・全社・全メンバーの認定数（{ranking.length}名）
         </p>
         <Card>
           <CardContent className="py-3 px-3">

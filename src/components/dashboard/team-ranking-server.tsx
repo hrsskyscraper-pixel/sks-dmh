@@ -157,9 +157,5 @@ export async function TeamRankingServer({ employeeId, employeeRole, selectedProj
     }
   })
 
-  return (
-    <div className="px-4">
-      <TeamRanking currentEmployeeId={employeeId} stats={teamStats} />
-    </div>
-  )
+  return <TeamRanking currentEmployeeId={employeeId} stats={teamStats} />
 }

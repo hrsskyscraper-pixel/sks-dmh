@@ -16,8 +16,7 @@ export async function SkillRankingServer() {
   if (ranking.length === 0) return null
 
   return (
-    <div className="px-4">
-      <Card>
+    <Card>
         <CardHeader className="pb-2 pt-4 px-4">
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
@@ -25,12 +24,11 @@ export async function SkillRankingServer() {
             </CardTitle>
             <Link href="/ranking" className="text-xs text-orange-600 hover:underline whitespace-nowrap">全員を見る →</Link>
           </div>
-          <p className="text-[10px] text-muted-foreground/70">過去30日間・全店の認定数</p>
+          <p className="text-[10px] text-muted-foreground/70">過去30日間・全社・全メンバーの認定数</p>
         </CardHeader>
         <CardContent className="px-4 pb-4">
           <RankingList ranking={ranking} currentEmployeeId={me?.id} />
         </CardContent>
-      </Card>
-    </div>
+    </Card>
   )
 }

@@ -90,7 +90,7 @@ export function AnnouncementsFeed({
   }
 
   return (
-    <div className="px-4">
+    <div>
       <Card>
         <CardContent className="py-3 px-4">
           <div className="flex items-center justify-between mb-2">
