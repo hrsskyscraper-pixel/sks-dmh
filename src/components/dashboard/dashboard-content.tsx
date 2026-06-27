@@ -53,6 +53,7 @@ interface Props {
   rankingSlot?: React.ReactNode
   checkpointSlot?: React.ReactNode
   announcementsSlot?: React.ReactNode
+  skillRankingSlot?: React.ReactNode
 }
 
 const PHASE_COLORS = ['bg-orange-500', 'bg-amber-500', 'bg-red-500', 'bg-blue-500', 'bg-green-500', 'bg-purple-500']
@@ -108,7 +109,7 @@ export function DashboardContent({
   globalPendingAchievementsCount = 0, teamPendingAchievementsCount = 0, pendingTeamRequestsCount = 0,
   currentGoal: initialGoal, isOwnDashboard, careerSummary = {}, storeName = null, position = null, internalCerts = [], employeeId, hasGoalRecords = false,
   skillManuals = {},
-  rankingSlot, checkpointSlot, announcementsSlot
+  rankingSlot, checkpointSlot, announcementsSlot, skillRankingSlot
 }: Props) {
   const [expandedManuals, setExpandedManuals] = useState<Set<string>>(new Set())
   const [switchingProjectId, setSwitchingProjectId] = useState<string | null>(null)
@@ -665,6 +666,7 @@ export function DashboardContent({
       )}
 
       {rankingSlot}
+      {skillRankingSlot}
       {checkpointSlot}
 
       {/* 次に取り組むスキル（自分で申請できる遅延スキルがない場合に表示） */}

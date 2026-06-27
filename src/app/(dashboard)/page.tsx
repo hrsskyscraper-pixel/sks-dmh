@@ -12,6 +12,7 @@ import { TestUserGuide } from '@/components/testuser/test-user-guide'
 import { TeamRankingServer } from '@/components/dashboard/team-ranking-server'
 import { CheckpointRecords } from '@/components/dashboard/checkpoint-records'
 import { AnnouncementsServer } from '@/components/announcements/announcements-server'
+import { SkillRankingServer } from '@/components/dashboard/skill-ranking-server'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
 import { SELECTED_PROJECT_COOKIE } from '@/lib/selected-project'
 import { buildMilestoneMap } from '@/lib/milestone'
@@ -301,6 +302,13 @@ export default async function DashboardPage({
           <Suspense fallback={null}>
             <AnnouncementsServer />
           </Suspense>
+        }
+        skillRankingSlot={
+          <div className="mt-4">
+            <Suspense fallback={null}>
+              <SkillRankingServer />
+            </Suspense>
+          </div>
         }
         rankingSlot={
           <div className="mt-4">
