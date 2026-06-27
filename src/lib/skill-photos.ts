@@ -35,27 +35,23 @@ async function normalizeToJpeg(file: File, maxDim = 2000, quality = 0.9): Promis
 }
 
 /**
- * 申請写真をアップロードし、保存したストレージパスの配列を返す。
- * ブラウザの supabase クライアントから呼ぶ（INSERT ポリシーで許可）。
- * アップロード前に JPEG へ正規化・縮小する。
+ * 申請写真をアップロードし、保存したストレージパスの配列を返す（ブラウザから呼ぶ）。
+ * クライアントで JPEG へ正規化・縮小したうえで、サーバー API 経由で
+ * service-role アップロードする（ストレージ RLS に依存しない）。
  */
-export async function uploadSkillPhotos(
-  supabase: SupabaseClient,
-  employeeId: string,
-  skillId: string,
-  files: File[],
-): Promise<string[]> {
-  const paths: string[] = []
-  for (let i = 0; i < files.length; i++) {
-    const jpg = await normalizeToJpeg(files[i])
-    const path = `${employeeId}/${skillId}/${Date.now()}-${i}.jpg`
-    const { error } = await supabase.storage
-      .from(SKILL_PHOTOS_BUCKET)
-      .upload(path, jpg, { upsert: true, contentType: 'image/jpeg' })
-    if (error) throw new Error(error.message)
-    paths.push(path)
+export async function uploadSkillPhotos(skillId: string, files: File[]): Promise<string[]> {
+  if (!files.length) return []
+  const jpegs = await Promise.all(files.map(f => normalizeToJpeg(f)))
+  const form = new FormData()
+  form.append('skillId', skillId)
+  for (const j of jpegs) form.append('files', j)
+  const res = await fetch('/api/skill-photo-upload', { method: 'POST', body: form })
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    throw new Error(data.error || `アップロードに失敗しました (${res.status})`)
   }
-  return paths
+  const { paths } = await res.json()
+  return (paths ?? []) as string[]
 }
 
 /** 古い写真を削除（差し替え時・ベストエフォート） */

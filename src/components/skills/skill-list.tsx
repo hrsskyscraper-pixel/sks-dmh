@@ -24,7 +24,7 @@ import { sortCategories } from '@/lib/category-order'
 import { cn } from '@/lib/utils'
 import { SkillPhotoInput } from '@/components/skills/skill-photo-input'
 import { SkillPhotoGallery } from '@/components/skills/skill-photo-gallery'
-import { uploadSkillPhotos, deleteSkillPhotos } from '@/lib/skill-photos'
+import { uploadSkillPhotos } from '@/lib/skill-photos'
 import type { Skill, Achievement, Category, MilestoneMap, ProjectPhase } from '@/types/database'
 
 type AchievementWithCertifier = Achievement & {
@@ -255,7 +255,7 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
         let photoUpdate: { photo_paths?: string[] } = {}
         if (photos.length > 0) {
           try {
-            const paths = await uploadSkillPhotos(supabase, employeeId, skill.id, photos)
+            const paths = await uploadSkillPhotos(skill.id, photos)
             photoUpdate = { photo_paths: paths }
           } catch (e) { toast.error('写真のアップロードに失敗しました', { description: (e as Error)?.message }); return }
         }
@@ -273,7 +273,6 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
           .single()
 
         if (error) { toast.error('再申請に失敗しました'); return }
-        if (photoUpdate.photo_paths) await deleteSkillPhotos(supabase, existing.photo_paths ?? [])
         setAchievements(prev => prev.map(a => a.id === existing.id ? { ...a, ...(data as AchievementWithCertifier) } : a))
         await supabase.from('achievement_history').insert({ achievement_id: existing.id, action: 'reapply', actor_id: employeeId, comment: comment.trim() || null })
         setReapplyDialogSkill(null)
@@ -286,7 +285,7 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
         let photoPaths: string[] = []
         if (photos.length > 0) {
           try {
-            photoPaths = await uploadSkillPhotos(supabase, employeeId, skill.id, photos)
+            photoPaths = await uploadSkillPhotos(skill.id, photos)
           } catch (e) { toast.error('写真のアップロードに失敗しました', { description: (e as Error)?.message }); return }
         }
         const { data, error } = await supabase
