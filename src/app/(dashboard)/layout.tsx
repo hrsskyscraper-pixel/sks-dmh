@@ -11,6 +11,7 @@ import { VIEW_AS_COOKIE } from '@/lib/view-as'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { NavDataProvider } from '@/components/layout/nav-data-context'
 import { OnboardingDialog } from '@/components/onboarding/onboarding-dialog'
+import { IntroGuideDialog } from '@/components/onboarding/intro-guide-dialog'
 import { PendingScreen } from '@/components/onboarding/pending-screen'
 import { JoinCompletionBanner } from '@/components/onboarding/join-completion-banner'
 import { canAdminister } from '@/lib/permissions'
@@ -52,7 +53,7 @@ export default async function DashboardLayout({
       // RLS を回避するため admin client で再取得
       const { data: created } = await adminDb
         .from('employees')
-        .select('id, name, last_name, first_name, name_kana, email, role, business_role_ids, system_permission, employment_type, hire_date, birth_date, avatar_url, instagram_url, line_url, status, requested_team_id, requested_project_team_id, line_user_id, line_friend, approved_by, approved_at, notifications_read_at, font_scale, is_test, auth_user_id, created_at, updated_at')
+        .select('id, name, last_name, first_name, name_kana, email, role, business_role_ids, system_permission, employment_type, hire_date, birth_date, avatar_url, instagram_url, line_url, status, requested_team_id, requested_project_team_id, line_user_id, line_friend, approved_by, approved_at, notifications_read_at, font_scale, intro_dismissed_at, is_test, auth_user_id, created_at, updated_at')
         .eq('auth_user_id', user.id)
         .single()
       employee = created
@@ -160,6 +161,9 @@ export default async function DashboardLayout({
           {children}
         </main>
         <LineLinkFloatingButton isLinked={!!employee.line_user_id} friendLinked={employee.line_friend === true} />
+        {employee.role !== 'testuser' && !viewAsEmployee && (
+          <IntroGuideDialog employeeId={employee.id} dismissed={!!employee.intro_dismissed_at} />
+        )}
         <BottomNav role={effectiveRole} avatarUrl={employee.avatar_url} employeeId={employee.id} employeeName={employee.name} fontScale={fontScale} />
         <Toaster position="top-center" richColors />
       </div>

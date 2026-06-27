@@ -36,6 +36,7 @@ export type Database = {
           approved_at: string | null
           notifications_read_at: string | null
           font_scale: number
+          intro_dismissed_at: string | null
           is_test: boolean
           created_at: string
           updated_at: string
@@ -66,6 +67,7 @@ export type Database = {
           approved_at?: string | null
           notifications_read_at?: string | null
           font_scale?: number
+          intro_dismissed_at?: string | null
           is_test?: boolean
           created_at?: string
           updated_at?: string
@@ -96,6 +98,7 @@ export type Database = {
           approved_at?: string | null
           notifications_read_at?: string | null
           font_scale?: number
+          intro_dismissed_at?: string | null
           is_test?: boolean
           created_at?: string
           updated_at?: string
