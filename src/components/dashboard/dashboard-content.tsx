@@ -8,9 +8,6 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import dynamic from 'next/dynamic'
-// 2チャートを1つの dynamic 境界に統合し、recharts の二重バンドルを回避
-const DashboardCharts = dynamic(() => import('@/components/charts/dashboard-charts').then(m => m.DashboardCharts), { ssr: false })
 import { cn } from '@/lib/utils'
 import { AlertTriangle, ChevronDown, ChevronUp, Camera, Loader2, CheckCircle2, ClipboardList, Users, Instagram, Target, CalendarDays, Pencil, BookOpen, Building2 } from 'lucide-react'
 import Link from 'next/link'
@@ -55,7 +52,6 @@ interface Props {
   skillManuals?: Record<string, { id: string; title: string; url: string; isPrimary: boolean }[]>
   rankingSlot?: React.ReactNode
   checkpointSlot?: React.ReactNode
-  timelineSlot?: React.ReactNode
 }
 
 const PHASE_COLORS = ['bg-orange-500', 'bg-amber-500', 'bg-red-500', 'bg-blue-500', 'bg-green-500', 'bg-purple-500']
@@ -111,7 +107,7 @@ export function DashboardContent({
   globalPendingAchievementsCount = 0, teamPendingAchievementsCount = 0, pendingTeamRequestsCount = 0,
   currentGoal: initialGoal, isOwnDashboard, careerSummary = {}, storeName = null, position = null, internalCerts = [], employeeId, hasGoalRecords = false,
   skillManuals = {},
-  rankingSlot, checkpointSlot, timelineSlot
+  rankingSlot, checkpointSlot
 }: Props) {
   const [expandedManuals, setExpandedManuals] = useState<Set<string>>(new Set())
   const [switchingProjectId, setSwitchingProjectId] = useState<string | null>(null)
@@ -291,20 +287,8 @@ export function DashboardContent({
     }
   })
 
-  // カテゴリ一覧をスキルデータから動的取得
+  // カテゴリ一覧をスキルデータから動的取得（スキル行の色分け等で使用）
   const categories = sortCategories([...new Set(skills.map(s => s.category))])
-
-  // カテゴリ別進捗（レーダーチャート用）
-  const radarData = categories.map(category => {
-    const catSkills = skills.filter(s => s.category === category)
-    const certified = catSkills.filter(s => certifiedIds.has(s.id)).length
-    return {
-      category,
-      value: catSkills.length > 0 ? Math.round((certified / catSkills.length) * 100) : 0,
-      total: catSkills.length,
-      certified,
-    }
-  })
 
   const totalCertified = certifiedIds.size
   const totalPending = pendingIds.size
@@ -715,14 +699,6 @@ export function DashboardContent({
         </Card>
       )}
 
-      {/* スキルバランス＋フェーズ別達成率（recharts を単一チャンクで遅延ロード） */}
-      <DashboardCharts
-        radarData={radarData}
-        phaseStats={phaseStats}
-        cumulativeHours={cumulativeHours}
-        standardHours={projectPhases[projectPhases.length - 1]?.end_hours ?? 0}
-      />
-
       {/* フェーズ別サマリーカード */}
       <div className={cn('grid gap-3', phaseStats.length <= 3 ? `grid-cols-${phaseStats.length}` : 'grid-cols-3')}>
         {phaseStats.map(({ phase, phaseId, label, total, certified, pending, pct, standardPct, diff, colorClass }) => (
@@ -749,8 +725,6 @@ export function DashboardContent({
           </Link>
         ))}
       </div>
-
-      {timelineSlot}
 
       {/* 申請ダイアログ */}
       <Dialog open={applyDialogSkill !== null} onOpenChange={open => { if (!open) { setApplyDialogSkill(null); setApplyComment(''); setApplyPhotos([]) } }}>

@@ -7,14 +7,14 @@ import { PhaseProgressChart } from './phase-progress-chart'
 // レーダー／フェーズの2チャートを1つの dynamic import 境界にまとめる。
 // 別々に dynamic import すると recharts が各チャンクへ二重バンドルされる
 // （~90KB gz ×2）。1コンポーネントに統合して recharts を1コピーにする。
-type Props = {
+export type DashboardChartsProps = {
   radarData: React.ComponentProps<typeof RadarChart>['data']
   phaseStats: React.ComponentProps<typeof PhaseProgressChart>['data']
   cumulativeHours: number
   standardHours: number
 }
 
-export function DashboardCharts({ radarData, phaseStats, cumulativeHours, standardHours }: Props) {
+export function DashboardCharts({ radarData, phaseStats, cumulativeHours, standardHours }: DashboardChartsProps) {
   return (
     <>
       {/* レーダーチャート */}

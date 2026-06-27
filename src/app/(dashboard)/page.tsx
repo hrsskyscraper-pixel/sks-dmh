@@ -11,7 +11,6 @@ import { DashboardContent } from '@/components/dashboard/dashboard-content'
 import { TestUserGuide } from '@/components/testuser/test-user-guide'
 import { TeamRankingServer } from '@/components/dashboard/team-ranking-server'
 import { CheckpointRecords } from '@/components/dashboard/checkpoint-records'
-import { TimelineServer } from '@/components/timeline/timeline-server'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
 import { SELECTED_PROJECT_COOKIE } from '@/lib/selected-project'
 import { buildMilestoneMap } from '@/lib/milestone'
@@ -315,16 +314,6 @@ export default async function DashboardPage({
                 employeeId={employee.id}
                 employeeRole={currentEmployee.role}
                 projectSkillIds={[...projectSkillIds]}
-              />
-            </Suspense>
-          </div>
-        }
-        timelineSlot={
-          <div className="mt-4">
-            <Suspense fallback={<div className="px-4 py-8 text-center text-sm text-muted-foreground animate-pulse">タイムラインを読み込み中...</div>}>
-              <TimelineServer
-                employeeId={employee.id}
-                employeeRole={currentEmployee.role}
               />
             </Suspense>
           </div>

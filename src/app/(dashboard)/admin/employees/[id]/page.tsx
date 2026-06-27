@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -6,6 +7,7 @@ import { TopBar, AccountSettingsMenu } from '@/components/layout/nav'
 import { EmployeeCareerCard } from '@/components/admin/employee-career-card'
 import { SkillGrantSection } from '@/components/admin/skill-grant-dialog'
 import { ColleaguesSection } from '@/components/admin/colleagues-section'
+import { MySkillCharts } from '@/components/dashboard/my-skill-charts'
 import { canAdminister, canApprove, isTrainingLeader } from '@/lib/permissions'
 import { canViewEmail } from '@/lib/email-visibility'
 import type { SystemPermission } from '@/types/database'
@@ -200,7 +202,12 @@ export default async function EmployeeDetailPage({ params, searchParams }: { par
             canGrant={canApprove(currentEmployee)}
           />
         )}
-        {/* Myキャリア（自分のページ）でのみ「仲間」カードを表示 */}
+        {/* Myキャリア（自分のページ）でのみ表示: スキルバランス／フェーズ別達成率 → 仲間 */}
+        {isSelf && (
+          <Suspense fallback={null}>
+            <MySkillCharts employeeId={employee.id} />
+          </Suspense>
+        )}
         {isSelf && <ColleaguesSection embedded />}
       </div>
     </>
