@@ -11,6 +11,7 @@ import { DashboardContent } from '@/components/dashboard/dashboard-content'
 import { TestUserGuide } from '@/components/testuser/test-user-guide'
 import { TeamRankingServer } from '@/components/dashboard/team-ranking-server'
 import { CheckpointRecords } from '@/components/dashboard/checkpoint-records'
+import { AnnouncementsServer } from '@/components/announcements/announcements-server'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
 import { SELECTED_PROJECT_COOKIE } from '@/lib/selected-project'
 import { buildMilestoneMap } from '@/lib/milestone'
@@ -296,6 +297,11 @@ export default async function DashboardPage({
         employeeId={employee.id}
         hasGoalRecords={(careerRows ?? []).some(r => r.record_type === '目標')}
         skillManuals={skillManualsMap}
+        announcementsSlot={
+          <Suspense fallback={null}>
+            <AnnouncementsServer />
+          </Suspense>
+        }
         rankingSlot={
           <div className="mt-4">
             <Suspense fallback={<TeamRankingSkeleton />}>

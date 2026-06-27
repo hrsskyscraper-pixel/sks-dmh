@@ -52,6 +52,7 @@ interface Props {
   skillManuals?: Record<string, { id: string; title: string; url: string; isPrimary: boolean }[]>
   rankingSlot?: React.ReactNode
   checkpointSlot?: React.ReactNode
+  announcementsSlot?: React.ReactNode
 }
 
 const PHASE_COLORS = ['bg-orange-500', 'bg-amber-500', 'bg-red-500', 'bg-blue-500', 'bg-green-500', 'bg-purple-500']
@@ -107,7 +108,7 @@ export function DashboardContent({
   globalPendingAchievementsCount = 0, teamPendingAchievementsCount = 0, pendingTeamRequestsCount = 0,
   currentGoal: initialGoal, isOwnDashboard, careerSummary = {}, storeName = null, position = null, internalCerts = [], employeeId, hasGoalRecords = false,
   skillManuals = {},
-  rankingSlot, checkpointSlot
+  rankingSlot, checkpointSlot, announcementsSlot
 }: Props) {
   const [expandedManuals, setExpandedManuals] = useState<Set<string>>(new Set())
   const [switchingProjectId, setSwitchingProjectId] = useState<string | null>(null)
@@ -546,6 +547,8 @@ export function DashboardContent({
           ) : null}
         </CardContent>
       </Card>
+
+      {announcementsSlot}
 
       {/* 対応が必要 */}
       {(globalPendingAchievementsCount > 0 || teamPendingAchievementsCount > 0 || pendingTeamRequestsCount > 0) && (

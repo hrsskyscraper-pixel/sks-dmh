@@ -920,6 +920,69 @@ export type Database = {
         }
         Relationships: []
       }
+      announcements: {
+        Row: {
+          id: string
+          kind: 'grade' | 'ranking'
+          subject_employee_id: string | null
+          grade_label: string | null
+          title: string | null
+          body: string | null
+          period: string | null
+          created_by: string | null
+          created_at: string
+          expires_at: string
+        }
+        Insert: {
+          id?: string
+          kind: 'grade' | 'ranking'
+          subject_employee_id?: string | null
+          grade_label?: string | null
+          title?: string | null
+          body?: string | null
+          period?: string | null
+          created_by?: string | null
+          created_at?: string
+          expires_at?: string
+        }
+        Update: {
+          id?: string
+          kind?: 'grade' | 'ranking'
+          subject_employee_id?: string | null
+          grade_label?: string | null
+          title?: string | null
+          body?: string | null
+          period?: string | null
+          created_by?: string | null
+          created_at?: string
+          expires_at?: string
+        }
+        Relationships: []
+      }
+      announcement_reactions: {
+        Row: {
+          id: string
+          announcement_id: string
+          employee_id: string
+          emoji: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          announcement_id: string
+          employee_id: string
+          emoji?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          announcement_id?: string
+          employee_id?: string
+          emoji?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
       career_records: {
         Row: {
           id: string
