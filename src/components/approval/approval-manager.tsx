@@ -173,15 +173,16 @@ export function ApprovalManager({ pendingEmployees, teams, projectTeams, current
                     </div>
 
                     <div>
-                      <Label className="text-xs text-gray-500">店舗／部署</Label>
-                      <div className="mt-1">
+                      <Label className="text-xs text-gray-500">店舗／部署 <span className="text-red-500">*</span></Label>
+                      <div className={`mt-1 rounded-md ${!s.teamId || s.teamId === '__none__' ? 'ring-1 ring-red-300' : ''}`}>
                         <StoreSelect
                           teams={teams}
                           value={s.teamId}
                           onChange={v => updateSetting(emp, 'teamId', v)}
-                          placeholder="未設定"
+                          placeholder="選択してください"
                         />
                       </div>
+                      {(!s.teamId || s.teamId === '__none__') && <p className="text-[11px] text-red-400 mt-0.5">店舗または部署の設定が必須です</p>}
                     </div>
 
                     <div>
@@ -218,7 +219,7 @@ export function ApprovalManager({ pendingEmployees, teams, projectTeams, current
                       <Button
                         className="flex-1 bg-green-500 hover:bg-green-600"
                         onClick={() => setConfirmTarget(emp)}
-                        disabled={!s.role || !s.lastName.trim()}
+                        disabled={!s.role || !s.lastName.trim() || !s.teamId || s.teamId === '__none__'}
                       >
                         <CheckCircle className="w-4 h-4 mr-1.5" />
                         承認

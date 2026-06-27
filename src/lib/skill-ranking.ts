@@ -26,18 +26,27 @@ export async function computeSkillCountRanking(
 
   const { data: emps } = await db.from('employees').select('id, name').in('id', ids)
   const nameById: Record<string, string> = Object.fromEntries((emps ?? []).map(e => [e.id, e.name]))
-  const { data: tm } = await db.from('team_members').select('employee_id, teams(name, type)').in('employee_id', ids)
-  const storeById: Record<string, string> = {}
-  const deptById: Record<string, string> = {}
-  for (const m of (tm ?? []) as { employee_id: string; teams: { name: string; type: string } | { name: string; type: string }[] | null }[]) {
-    const t = Array.isArray(m.teams) ? m.teams[0] : m.teams
-    if (t?.type === 'store' && !storeById[m.employee_id]) storeById[m.employee_id] = t.name
-    if (t?.type === 'department' && !deptById[m.employee_id]) deptById[m.employee_id] = t.name
+  type TeamJoin = { employee_id: string; teams: { name: string; type: string } | { name: string; type: string }[] | null }
+  const pickAff = (rows: TeamJoin[], store: Record<string, string>, dept: Record<string, string>) => {
+    for (const m of rows) {
+      const t = Array.isArray(m.teams) ? m.teams[0] : m.teams
+      if (t?.type === 'store' && !store[m.employee_id]) store[m.employee_id] = t.name
+      if (t?.type === 'department' && !dept[m.employee_id]) dept[m.employee_id] = t.name
+    }
   }
-  // 店舗が無ければ部署を表示
+  // メンバー所属（team_members）と担当（team_managers）の両方から店舗/部署を集める
+  const [{ data: tm }, { data: tmg }] = await Promise.all([
+    db.from('team_members').select('employee_id, teams(name, type)').in('employee_id', ids),
+    db.from('team_managers').select('employee_id, teams(name, type)').in('employee_id', ids),
+  ])
+  const memStore: Record<string, string> = {}, memDept: Record<string, string> = {}
+  const mgrStore: Record<string, string> = {}, mgrDept: Record<string, string> = {}
+  pickAff((tm ?? []) as TeamJoin[], memStore, memDept)
+  pickAff((tmg ?? []) as TeamJoin[], mgrStore, mgrDept)
+  // 表示の優先順位: メンバー店舗 → メンバー部署 → 担当店舗 → 担当部署
   const affById: Record<string, string> = {}
   for (const id of ids) {
-    const aff = storeById[id] ?? deptById[id]
+    const aff = memStore[id] ?? memDept[id] ?? mgrStore[id] ?? mgrDept[id]
     if (aff) affById[id] = aff
   }
 

@@ -67,6 +67,27 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: '対象の社員が見つかりません' }, { status: 404 })
   }
 
+  // 店舗または部署への「メンバー所属」を必須化（所属が無いまま承認させない）。
+  // 承認で選んだ店舗/部署、または既存の店舗/部署メンバー所属のいずれかが必要。
+  let selectedIsStoreDept = false
+  if (effectiveTeamId) {
+    const { data: selTeam } = await db.from('teams').select('type').eq('id', effectiveTeamId).single()
+    selectedIsStoreDept = selTeam?.type === 'store' || selTeam?.type === 'department'
+  }
+  if (!selectedIsStoreDept) {
+    const { data: existingAff } = await db
+      .from('team_members')
+      .select('teams!inner(type)')
+      .eq('employee_id', employeeId)
+    const hasStoreDept = (existingAff ?? []).some((r: { teams: { type: string } | { type: string }[] | null }) => {
+      const t = Array.isArray(r.teams) ? r.teams[0] : r.teams
+      return t?.type === 'store' || t?.type === 'department'
+    })
+    if (!hasStoreDept) {
+      return NextResponse.json({ error: '店舗または部署を1つ以上設定してください（所属が無いまま承認はできません）' }, { status: 400 })
+    }
+  }
+
   const { dbRole, employmentType } = resolveRole(role)
 
   // 1. employee を approved に更新（承認後は requested_team_id をクリア）

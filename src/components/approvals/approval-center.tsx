@@ -230,6 +230,7 @@ export function ApprovalCenter({
 
   const handleJoinApprove = () => {
     if (!joinTarget || !joinRole) return
+    if (!joinTeamId || joinTeamId === '__none__') { toast.error('店舗または部署を選択してください'); return }
     startTransition(async () => {
       const res = await fetch('/api/approval', {
         method: 'POST',
@@ -820,10 +821,13 @@ export function ApprovalCenter({
               <Input value={joinName} onChange={e => setJoinName(e.target.value)} className="mt-1" />
             </div>
             <div>
-              <Label className="text-xs text-gray-500">店舗／部署</Label>
-              <div className="mt-1">
-                <StoreSelect teams={storeDeptTeams} value={joinTeamId} onChange={setJoinTeamId} placeholder="未設定" />
+              <Label className="text-xs text-gray-500">店舗／部署 <span className="text-red-500">*</span></Label>
+              <div className={`mt-1 rounded-md ${!joinTeamId || joinTeamId === '__none__' ? 'ring-1 ring-red-300' : ''}`}>
+                <StoreSelect teams={storeDeptTeams} value={joinTeamId} onChange={setJoinTeamId} placeholder="選択してください" />
               </div>
+              {(!joinTeamId || joinTeamId === '__none__') && (
+                <p className="text-[10px] text-red-500 mt-0.5">店舗または部署の設定が必須です</p>
+              )}
             </div>
             <div>
               <Label className="text-xs text-gray-500">チーム</Label>
@@ -847,7 +851,7 @@ export function ApprovalCenter({
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setJoinTarget(null)}>キャンセル</Button>
-            <Button className="bg-green-500 hover:bg-green-600" onClick={handleJoinApprove} disabled={isPending || !joinRole}>
+            <Button className="bg-green-500 hover:bg-green-600" onClick={handleJoinApprove} disabled={isPending || !joinRole || !joinTeamId || joinTeamId === '__none__'}>
               承認する
             </Button>
           </DialogFooter>

@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -141,6 +142,21 @@ export default async function InvitePage({
     return errorScreen('この招待はあなた宛ではありません。')
   }
 
+  // この招待が「店舗/部署のメンバー所属」をもたらすか判定。
+  // もたらさない（PJのみ等）場合は、未登録/pending を approved にせず onboarding（店舗/部署選択）へ誘導する。
+  let grantsStoreDept: boolean
+  if (inv.is_self_select) {
+    const allowed = inv.allowed_team_types && inv.allowed_team_types.length > 0
+      ? inv.allowed_team_types
+      : ['store', 'department', 'project']
+    grantsStoreDept = allowed.includes('store') || allowed.includes('department')
+  } else if (inv.team_id) {
+    const { data: invTeam } = await db.from('teams').select('type').eq('id', inv.team_id).single()
+    grantsStoreDept = invTeam?.type === 'store' || invTeam?.type === 'department'
+  } else {
+    grantsStoreDept = false
+  }
+
   // 未アプリ参加者 or pending ユーザーを自動承認（フェーズ2: target_employee_id なしの招待）
   if (!me) {
     // employees レコード未作成 → Googleメタデータから自動作成（status=approved）
@@ -157,18 +173,18 @@ export default async function InvitePage({
         system_permission: 'training_member',
         employment_type: '社員',
         avatar_url: (user.user_metadata.avatar_url as string | undefined) ?? null,
-        status: 'approved',
-        requested_team_id: inv.team_id,
-        requested_project_team_id: inv.project_team_id,
-        approved_by: inv.invited_by,
-        approved_at: new Date().toISOString(),
+        // 店舗/部署をもたらさない招待では approved にせず onboarding へ誘導
+        status: grantsStoreDept ? 'approved' : 'pending',
+        requested_team_id: grantsStoreDept ? inv.team_id : null,
+        requested_project_team_id: grantsStoreDept ? inv.project_team_id : null,
+        ...(grantsStoreDept ? { approved_by: inv.invited_by, approved_at: new Date().toISOString() } : {}),
       })
       .select('id, name, last_name, first_name, status')
       .single()
     if (createError || !created) return errorScreen('アカウント作成に失敗しました: ' + (createError?.message ?? ''))
     me = created
-  } else if (me.status === 'pending') {
-    // 既にレコードあるが pending → 自動承認
+  } else if (me.status === 'pending' && grantsStoreDept) {
+    // 既にレコードあるが pending → 自動承認（店舗/部署をもたらす招待のみ）
     const { data: updated } = await db
       .from('employees')
       .update({
@@ -185,6 +201,10 @@ export default async function InvitePage({
   }
 
   if (!me) return errorScreen('ユーザー情報の取得・作成に失敗しました')
+
+  // 店舗/部署のメンバー所属をもたらさない招待で pending のままなら、
+  // ホームの初期セットアップ（店舗/部署選択が必須）へ誘導する。
+  if (me.status !== 'approved') redirect('/')
 
   // 自己選択型（共通1リンク）: 所属を選んで参加する画面
   if (inv.is_self_select) {

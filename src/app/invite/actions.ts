@@ -427,6 +427,17 @@ export async function acceptSelfSelectInvitation(
     return { error: 'この所属はこのリンクでは選べません' }
   }
 
+  // 店舗/部署のメンバー所属が無い人は、PJ等だけに参加して未所属になるのを防ぐ。
+  // まず店舗または部署を選んで参加してもらう。
+  if (team.type !== 'store' && team.type !== 'department') {
+    const { data: aff } = await db.from('team_members').select('teams!inner(type)').eq('employee_id', me.id)
+    const hasStoreDept = (aff ?? []).some((r: { teams: { type: string } | { type: string }[] | null }) => {
+      const t = Array.isArray(r.teams) ? r.teams[0] : r.teams
+      return t?.type === 'store' || t?.type === 'department'
+    })
+    if (!hasStoreDept) return { error: 'まず所属する店舗または部署を選んで参加してください' }
+  }
+
   // 既存所属の確認
   const { data: existingMember } = await db
     .from('team_members').select('team_id').eq('team_id', teamId).eq('employee_id', me.id).maybeSingle()
