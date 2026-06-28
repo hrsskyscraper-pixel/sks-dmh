@@ -77,7 +77,9 @@ export async function ensureDailyReportAnnouncement(
     .select('employee_id, created_at')
     .gte('created_at', fromISO)
     .lt('created_at', toISO)
-  const applicantIds = new Set((apps ?? []).filter(a => !excludedIds.has(a.employee_id)).map(a => a.employee_id))
+  const appsFiltered = (apps ?? []).filter(a => !excludedIds.has(a.employee_id))
+  const applicantIds = new Set(appsFiltered.map(a => a.employee_id))
+  const appTotal = appsFiltered.length
 
   // 前日に承認された新メンバー
   const { data: newMembers } = await db
@@ -95,18 +97,36 @@ export async function ensureDailyReportAnnouncement(
     : { data: [] as { id: string; name: string }[] }
   const nameById = Object.fromEntries((emps ?? []).map(e => [e.id, e.name]))
 
+  // 習得者の所属店舗/部署（店舗優先、メンバー→担当の順）
+  const storeByEmp: Record<string, string> = {}
+  if (achieverIds.length > 0) {
+    type AffRow = { employee_id: string; teams: { name: string; type: string } | { name: string; type: string }[] | null }
+    const [{ data: tmRows }, { data: tgRows }] = await Promise.all([
+      db.from('team_members').select('employee_id, teams(name, type)').in('employee_id', achieverIds),
+      db.from('team_managers').select('employee_id, teams(name, type)').in('employee_id', achieverIds),
+    ])
+    const pick = (rows: AffRow[] | null, wantType: 'store' | 'department') => {
+      for (const r of rows ?? []) {
+        const t = Array.isArray(r.teams) ? r.teams[0] : r.teams
+        if (t?.type === wantType && !storeByEmp[r.employee_id]) storeByEmp[r.employee_id] = t.name
+      }
+    }
+    pick(tmRows as AffRow[], 'store'); pick(tgRows as AffRow[], 'store')
+    pick(tmRows as AffRow[], 'department'); pick(tgRows as AffRow[], 'department')
+  }
+
   const quiet = totalCerts === 0 && applicantIds.size === 0 && newMemberList.length === 0
 
   let title: string
   let body: string
   if (quiet) {
     // 静かな日: 否定形を避け、丁寧で前向きな招待にする
-    title = `☀️ おはようございます（${monthDay}）`
-    body = '今日はどんな「できた！」が生まれるでしょうか？\n小さな一歩でも、申請から始まります。あなたの挑戦を応援しています ☆'
+    title = `☀️ 今日のMBレポート（${monthDay}）`
+    body = '今日はどんな「できた！」が生まれるでしょうか？\n小さな一歩でも、申請から始まります。あなたの挑戦を応援しています ☆\n\n素敵な１日になりますように (^^)'
   } else {
-    title = `☀️ 昨日のがんばりレポート（${monthDay}）`
+    title = `☀️ 昨日のMBレポート（${monthDay}）`
     const lines: string[] = []
-    lines.push(`昨日は全社で ${totalCerts}件 のスキルが認定されました！挑戦した仲間も、認定した仲間も、ありがとうございます☆`)
+    lines.push(`昨日は全社で ${totalCerts}件 のスキルが認定されました！`)
 
     if (achieverIds.length > 0) {
       const ranked = achieverIds
@@ -114,27 +134,33 @@ export async function ensureDailyReportAnnouncement(
         .sort((a, b) => b.count - a.count || (nameById[a.id] ?? '').localeCompare(nameById[b.id] ?? '', 'ja'))
       const top = ranked.slice(0, 8)
       lines.push('')
-      lines.push('🏅 スキルを習得した仲間')
+      lines.push('🏅 スキルを習得した方✨  おめでとうございます！')
       for (const r of top) {
         const nm = nameById[r.id] ?? '仲間'
-        lines.push(r.count > 1 ? `・${nm}さん（${r.count}件：${r.skill} ほか）` : `・${nm}さん（${r.skill}）`)
+        const store = storeByEmp[r.id] ? `　${storeByEmp[r.id]}` : ''
+        const detail = r.count > 1 ? `（${r.count}件：${r.skill} ほか）` : `（${r.skill}）`
+        lines.push(`・${nm}さん${store}${detail}`)
       }
       if (ranked.length > top.length) lines.push(`・…ほか${ranked.length - top.length}名が習得！`)
     }
 
     if (certifierIds.size > 0) {
-      const names = [...certifierIds].map(id => nameById[id] ?? 'リーダー').slice(0, 8)
       lines.push('')
-      lines.push(`🤝 認定ありがとうございました：${names.join('／')}さん`)
+      lines.push('🤝 認定いただいた方✨ ありがとうございました')
+      for (const id of [...certifierIds].slice(0, 8)) {
+        lines.push(`・${nameById[id] ?? 'リーダー'}さん`)
+      }
     }
 
     if (applicantIds.size > 0) {
       lines.push('')
-      lines.push(`✨ 新しい挑戦 … ${applicantIds.size}名が新しいスキルに申請しました`)
+      lines.push(`✨ 新しい挑戦 … ${applicantIds.size}名が新しいスキル${appTotal}件を申請しました`)
     }
 
     if (newMemberList.length > 0) {
+      lines.push('')
       lines.push(`🎉 新しい仲間 … ${newMemberList.map(e => `${e.name}さん`).join('、')}が仲間入り！`)
+      lines.push('　Mission Board へようこそ！')
     }
 
     const streak = await calcStreak(db, excludedIds, fromMs, toMs)
@@ -145,6 +171,8 @@ export async function ensureDailyReportAnnouncement(
 
     lines.push('')
     lines.push('今日も、あなたの「できた！」をお待ちしています ☆')
+    lines.push('')
+    lines.push('素敵な１日になりますように (^^)')
     body = lines.join('\n')
   }
 
