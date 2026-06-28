@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -113,6 +113,11 @@ export function DashboardContent({
 }: Props) {
   const [expandedManuals, setExpandedManuals] = useState<Set<string>>(new Set())
   const [switchingProjectId, setSwitchingProjectId] = useState<string | null>(null)
+  const [switchPending, startSwitchTransition] = useTransition()
+  // 切り替えトランジション完了（サーバー再描画コミット）でスピナーを解除する
+  useEffect(() => {
+    if (!switchPending) setSwitchingProjectId(null)
+  }, [switchPending])
 
   // マニュアルチップ描画（スキル一覧で再利用）
   function renderManualChips(skillId: string) {
@@ -427,12 +432,13 @@ export function DashboardContent({
                   <button
                     key={pj.id}
                     disabled={disabled}
-                    onClick={async () => {
-                      if (isSelected) return
+                    onClick={() => {
+                      if (isSelected || switchingProjectId) return
                       setSwitchingProjectId(pj.id)
-                      await setSelectedProject(pj.id)
-                      router.push(`/?project_id=${pj.id}`)
-                      router.refresh()
+                      startSwitchTransition(async () => {
+                        await setSelectedProject(pj.id)
+                        router.replace(`/?project_id=${pj.id}`)
+                      })
                     }}
                     className={cn(
                       'text-[11px] rounded-full px-3 py-0.5 transition-all flex items-center gap-1',
