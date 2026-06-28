@@ -50,10 +50,11 @@ const TEAM_TYPE_LABELS: Record<Team['type'], string> = {
   department: '部署',
 }
 
+// 所属タイプの共通カラーに統一（店舗=青 / 部署=紫 / PT=teal）
 const TEAM_TYPE_COLORS: Record<Team['type'], string> = {
   store: 'bg-blue-100 text-blue-700',
-  project: 'bg-purple-100 text-purple-700',
-  department: 'bg-teal-100 text-teal-700',
+  department: 'bg-purple-100 text-purple-700',
+  project: 'bg-teal-100 text-teal-700',
 }
 
 const REQUEST_TYPE_LABELS: Record<RequestType, string> = {

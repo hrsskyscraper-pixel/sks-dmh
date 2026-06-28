@@ -17,8 +17,8 @@ import { StoreSelect } from '@/components/ui/store-select'
 import { CheckCircle, XCircle, UserPlus, GitPullRequest, Award, Inbox } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { SkillPhotoGallery } from '@/components/skills/skill-photo-gallery'
-import { cn } from '@/lib/utils'
-import { TEAM_TYPE_LABEL, TEAM_TYPE_COLOR, type Affiliation } from '@/lib/affiliations'
+import { type Affiliation } from '@/lib/affiliations'
+import { AffiliationBadge, AffiliationLegend } from '@/components/ui/affiliation'
 
 type Tab = 'all' | 'skill' | 'team' | 'join' | 'done'
 
@@ -589,6 +589,9 @@ export function ApprovalCenter({
         </div>
       ) : (
         <div className="space-y-2">
+          {filtered.some(item => item.type === 'skill' && (applicantAff[item.data.employee_id]?.length ?? 0) > 0) && (
+            <AffiliationLegend className="px-1 pb-0.5" />
+          )}
           {filtered.map((item, i) => {
             if (item.type === 'skill') {
               const a = item.data
@@ -620,9 +623,7 @@ export function ApprovalCenter({
                         {((applicantAff[a.employee_id]?.length ?? 0) > 0 || (applicantCurricula[a.skill_id]?.length ?? 0) > 0) && (
                           <div className="flex flex-wrap items-center gap-1 mt-1">
                             {(applicantAff[a.employee_id] ?? []).map(af => (
-                              <span key={`${af.type}:${af.name}`} className={cn('text-[9px] rounded px-1 py-px', TEAM_TYPE_COLOR[af.type])}>
-                                <span className="opacity-60 mr-0.5">{TEAM_TYPE_LABEL[af.type]}</span>{af.name}
-                              </span>
+                              <AffiliationBadge key={`${af.type}:${af.name}`} type={af.type} name={af.name} />
                             ))}
                             {(applicantCurricula[a.skill_id] ?? []).map((c: string) => (
                               <span key={c} className="text-[9px] text-orange-700 bg-orange-50 border border-orange-100 rounded px-1 py-px">{c}</span>

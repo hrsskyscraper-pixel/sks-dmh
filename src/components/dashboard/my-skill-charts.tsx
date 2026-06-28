@@ -5,10 +5,10 @@ import { SELECTED_PROJECT_COOKIE } from '@/lib/selected-project'
 import { buildMilestoneMap, calcPhasePct } from '@/lib/milestone'
 import { sortCategories } from '@/lib/category-order'
 import { cn } from '@/lib/utils'
-import { FolderKanban } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { MySkillChartsClient } from '@/components/dashboard/my-skill-charts-client'
+import { CurriculumSwitcher } from '@/components/skills/curriculum-switcher'
 
 const PHASE_COLORS = ['bg-orange-500', 'bg-amber-500', 'bg-red-500', 'bg-blue-500', 'bg-green-500', 'bg-purple-500']
 
@@ -45,8 +45,17 @@ export async function MySkillCharts({ employeeId }: { employeeId: string }) {
     db.rpc('get_employee_cumulative_hours', { p_employee_id: employeeId, p_as_of_date: new Date().toISOString().split('T')[0] }),
   ])
 
+  const switcherProjects = employeeProjects.map(p => ({ id: p.id, name: p.name }))
   const projectPhases = projectPhaseRows ?? []
-  if (projectPhases.length === 0) return null // フェーズ未設定なら何も出さない
+  if (projectPhases.length === 0) {
+    // フェーズ（時間）未設定でも、他カリキュラムへ移れるよう切替は表示する
+    return (
+      <div className="space-y-2">
+        <CurriculumSwitcher projects={switcherProjects} currentProjectId={selectedProject.id} basePath={`/admin/employees/${employeeId}`} padded={false} />
+        <p className="text-xs text-gray-400 px-0.5">このカリキュラムはフェーズ（時間設定）が未設定のため、グラフは表示できません。</p>
+      </div>
+    )
+  }
 
   const skillPhaseMap: Record<string, string | null> = {}
   for (const ps of projectSkillRows ?? []) skillPhaseMap[ps.skill_id] = ps.project_phase_id
@@ -96,12 +105,13 @@ export async function MySkillCharts({ employeeId }: { employeeId: string }) {
 
   return (
     <div className="space-y-4">
-      {/* どの習得カリキュラムの集計かを明示 */}
-      <div className="flex items-center gap-1.5 px-0.5">
-        <FolderKanban className="w-4 h-4 text-orange-500 flex-shrink-0" />
-        <span className="text-[11px] text-gray-400 flex-shrink-0">習得カリキュラム</span>
-        <span className="text-sm font-semibold text-gray-800 truncate">{selectedProject.name}</span>
-      </div>
+      {/* どの習得カリキュラムの集計か（複数参加時は切替可能） */}
+      <CurriculumSwitcher
+        projects={switcherProjects}
+        currentProjectId={selectedProject.id}
+        basePath={`/admin/employees/${employeeId}`}
+        padded={false}
+      />
       <MySkillChartsClient
         radarData={radarData}
         phaseStats={phaseStats}

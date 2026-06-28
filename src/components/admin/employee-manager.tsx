@@ -560,8 +560,8 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
                           const color = aff.type === 'store'
                             ? (aff.shared ? 'bg-blue-500 text-white' : 'bg-blue-50 text-blue-600')
                             : aff.type === 'department'
-                              ? (aff.shared ? 'bg-teal-500 text-white' : 'bg-teal-50 text-teal-600')
-                              : (aff.shared ? 'bg-purple-500 text-white' : 'bg-purple-50 text-purple-600')
+                              ? (aff.shared ? 'bg-purple-500 text-white' : 'bg-purple-50 text-purple-600')
+                              : (aff.shared ? 'bg-teal-500 text-white' : 'bg-teal-50 text-teal-600')
                           return (
                             <Badge
                               key={i}

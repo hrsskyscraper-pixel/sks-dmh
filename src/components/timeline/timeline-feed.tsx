@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { Heart, MessageCircle, Send, ChevronDown, ChevronUp } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { AffiliationBadge, AffiliationLegend } from '@/components/ui/affiliation'
 
 interface FeedAchievement {
   id: string
@@ -60,12 +61,6 @@ interface Props {
   curriculaBySkill?: Record<string, string[]>
 }
 
-const TEAM_TYPE_LABEL: Record<Affiliation['type'], string> = { store: '店舗', department: '部署', project: 'PJ' }
-const TEAM_TYPE_COLOR: Record<Affiliation['type'], string> = {
-  store: 'bg-blue-100 text-blue-700',
-  department: 'bg-purple-100 text-purple-700',
-  project: 'bg-teal-100 text-teal-700',
-}
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime()
@@ -202,9 +197,7 @@ export function TimelineFeed({ achievements, comments: initialComments, reaction
     return (
       <div className="flex flex-wrap gap-1 mt-1">
         {affs.map(a => (
-          <span key={`${a.type}:${a.name}`} className={cn('text-[9px] rounded px-1 py-px', TEAM_TYPE_COLOR[a.type])}>
-            <span className="opacity-60 mr-0.5">{TEAM_TYPE_LABEL[a.type]}</span>{a.name}
-          </span>
+          <AffiliationBadge key={`${a.type}:${a.name}`} type={a.type} name={a.name} />
         ))}
       </div>
     )
@@ -414,6 +407,9 @@ export function TimelineFeed({ achievements, comments: initialComments, reaction
 
   return (
     <div className={cn('space-y-3', compact ? 'px-0' : 'p-4')}>
+      {!compact && Object.keys(affByEmployee).length > 0 && (
+        <AffiliationLegend className="px-1" />
+      )}
       {displayGroups.map(group => (
         <Wrapper key={group.key} className={wrapperClass}>
           <div className={innerPad}>

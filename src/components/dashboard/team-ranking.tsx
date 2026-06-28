@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
+import { AffiliationBadge, AffiliationLegend } from '@/components/ui/affiliation'
 
 export interface TeamAffiliation {
   name: string
@@ -23,18 +24,6 @@ export interface TeamMemberStat {
   certifiedCount: number
   totalSkills: number
   standardPct: number
-}
-
-const TEAM_TYPE_LABEL: Record<TeamAffiliation['type'], string> = {
-  store: '店舗',
-  department: '部署',
-  project: 'PJ',
-}
-
-const TEAM_TYPE_COLOR: Record<TeamAffiliation['type'], string> = {
-  store: 'bg-blue-100 text-blue-700',
-  department: 'bg-purple-100 text-purple-700',
-  project: 'bg-teal-100 text-teal-700',
 }
 
 function calcHireYear(hireDate: string | null): number {
@@ -152,18 +141,11 @@ export function TeamRanking({ currentEmployeeId, stats }: Props) {
           )}
         </div>
 
-        {/* 所属チーム（店舗・部署・PJチーム／メンバー・リーダー） */}
+        {/* 所属チーム（店舗・部署・PT／色分けで種別を表現） */}
         {member.teams.length > 0 && (
           <div className="flex items-center gap-1 flex-wrap mb-2.5 pl-8">
             {member.teams.map((t, i) => (
-              <Badge
-                key={`${t.type}:${t.name}:${i}`}
-                className={cn('text-[9px] border-0 px-1.5 h-4 flex-shrink-0 gap-0.5 font-medium', TEAM_TYPE_COLOR[t.type])}
-              >
-                <span className="opacity-60">{TEAM_TYPE_LABEL[t.type]}</span>
-                <span>{t.name}</span>
-                {t.role === 'leader' && <Crown className="w-2.5 h-2.5 text-amber-500" aria-label="リーダー" />}
-              </Badge>
+              <AffiliationBadge key={`${t.type}:${t.name}:${i}`} type={t.type} name={t.name} leader={t.role === 'leader'} />
             ))}
           </div>
         )}
@@ -220,12 +202,12 @@ export function TeamRanking({ currentEmployeeId, stats }: Props) {
         <p className="text-[10px] text-muted-foreground/70">
           青い縦線は累計勤務時間から算出した標準進捗率
         </p>
-        <p className="text-[10px] text-muted-foreground/70 flex items-center gap-x-1.5 gap-y-0.5 flex-wrap mt-0.5">
-          <span>バッジ＝所属チーム（店舗／部署／PJ）</span>
-          <span className="inline-flex items-center gap-0.5">
-            <Crown className="w-2.5 h-2.5 text-amber-500" />＝リーダー
+        <div className="flex items-center gap-x-2.5 gap-y-0.5 flex-wrap mt-1">
+          <AffiliationLegend />
+          <span className="inline-flex items-center gap-0.5 text-[10px] text-gray-500">
+            <Crown className="w-2.5 h-2.5 text-amber-500" />リーダー
           </span>
-        </p>
+        </div>
       </CardHeader>
       <CardContent className="px-4 pb-4 space-y-3">
         {topMembers.map((member, index) => renderMember(member, index))}

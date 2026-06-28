@@ -55,9 +55,23 @@ export async function getAffiliationsAndCurricula(
   return { affByEmployee, curriculaBySkill }
 }
 
-export const TEAM_TYPE_LABEL: Record<Affiliation['type'], string> = { store: '店舗', department: '部署', project: 'PJ' }
-export const TEAM_TYPE_COLOR: Record<Affiliation['type'], string> = {
+export type AffiliationType = Affiliation['type']
+
+// ===== 所属タイプの共通カラー（アプリ全体で統一）=====
+// 店舗=青 / 部署=紫 / PT(=PJチーム)=teal。凡例とバッジで同じ色を使い、直感的に分かるようにする。
+export const AFFILIATION_LABEL: Record<AffiliationType, string> = { store: '店舗', department: '部署', project: 'PT' }
+export const AFFILIATION_BADGE_CLASS: Record<AffiliationType, string> = {
   store: 'bg-blue-100 text-blue-700',
   department: 'bg-purple-100 text-purple-700',
   project: 'bg-teal-100 text-teal-700',
 }
+export const AFFILIATION_DOT_CLASS: Record<AffiliationType, string> = {
+  store: 'bg-blue-500',
+  department: 'bg-purple-500',
+  project: 'bg-teal-500',
+}
+export const AFFILIATION_ORDER: AffiliationType[] = ['store', 'department', 'project']
+
+// 後方互換（既存 import 用エイリアス）
+export const TEAM_TYPE_LABEL = AFFILIATION_LABEL
+export const TEAM_TYPE_COLOR = AFFILIATION_BADGE_CLASS

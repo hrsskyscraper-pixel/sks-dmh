@@ -11,6 +11,8 @@ interface Props {
   currentProjectId: string | null
   /** 切替後に遷移するパス（?project_id= が付与される）。既定 /skills */
   basePath?: string
+  /** 親が既に横余白を持つ場合は false にして px-4 を外す（既定 true） */
+  padded?: boolean
 }
 
 /** 「○○カリキュラム　122スキル」のように全スキル数を添える */
@@ -19,17 +21,18 @@ function label(p: { name: string; skillCount?: number }): string {
 }
 
 /** スキルページ上部の「習得カリキュラム」表示＋切替（複数所属時はチップで切替） */
-export function CurriculumSwitcher({ projects, currentProjectId, basePath = '/skills' }: Props) {
+export function CurriculumSwitcher({ projects, currentProjectId, basePath = '/skills', padded = true }: Props) {
   const router = useRouter()
   const [switchingId, setSwitchingId] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
+  const pad = padded ? 'px-4 pt-3 -mb-1' : ''
 
   if (projects.length === 0) return null
   const current = projects.find(p => p.id === currentProjectId) ?? projects[0]
 
   if (projects.length === 1) {
     return (
-      <div className="px-4 pt-3 -mb-1 flex items-center gap-1.5 text-xs text-gray-500">
+      <div className={cn(pad, 'flex items-center gap-1.5 text-xs text-gray-500')}>
         <BookOpen className="w-3.5 h-3.5 text-orange-500 flex-shrink-0" />
         <span>習得カリキュラム</span>
         <span className="font-semibold text-gray-700 truncate">{label(current)}</span>
@@ -38,7 +41,7 @@ export function CurriculumSwitcher({ projects, currentProjectId, basePath = '/sk
   }
 
   return (
-    <div className="px-4 pt-3 -mb-1">
+    <div className={pad}>
       <div className="flex items-center gap-1.5 text-xs text-gray-500 mb-1.5">
         <BookOpen className="w-3.5 h-3.5 text-orange-500 flex-shrink-0" />
         <span>習得カリキュラムを選択</span>
