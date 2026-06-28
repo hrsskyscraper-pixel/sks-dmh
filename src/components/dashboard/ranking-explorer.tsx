@@ -50,17 +50,20 @@ function AffiliationRows({ rows, max }: { rows: { meta: RankRowMeta; count: numb
         return (
           <div
             key={r.meta.id}
-            className="flex items-center gap-2 rounded-lg px-2.5 py-1.5"
-            style={{ background: `linear-gradient(to right, rgba(251,146,60,0.32) ${pct}%, rgba(243,244,246,0.8) ${pct}%)` }}
+            className="relative overflow-hidden rounded-lg"
+            style={{ background: 'rgba(243,244,246,0.8)' }}
           >
-            <span className="w-6 text-center text-sm font-bold text-gray-500 flex-shrink-0">{MEDALS[i] ?? i + 1}</span>
-            <div className={cn('w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0', AFF_CIRCLE[r.meta.affType ?? 'project'])}>
-              <Icon className="w-3.5 h-3.5" />
+            <div className="absolute inset-y-0 left-0 rounded-r-lg" style={{ width: `${pct}%`, background: 'rgba(251,146,60,0.32)' }} aria-hidden />
+            <div className="relative z-10 flex items-center gap-2 px-2.5 py-1.5">
+              <span className="w-6 text-center text-sm font-bold text-gray-500 flex-shrink-0">{MEDALS[i] ?? i + 1}</span>
+              <div className={cn('w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0', AFF_CIRCLE[r.meta.affType ?? 'project'])}>
+                <Icon className="w-3.5 h-3.5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-gray-700 truncate">{r.meta.name}</p>
+              </div>
+              <span className="text-sm font-black text-orange-600 flex-shrink-0">{r.count}<span className="text-[10px] font-normal text-gray-400 ml-0.5">個</span></span>
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm text-gray-700 truncate">{r.meta.name}</p>
-            </div>
-            <span className="text-sm font-black text-orange-600 flex-shrink-0">{r.count}<span className="text-[10px] font-normal text-gray-400 ml-0.5">個</span></span>
           </div>
         )
       })}
@@ -82,33 +85,36 @@ function CompareRows({ rows, maxAbs, isAffiliation }: { rows: { meta: RankRowMet
         return (
           <div
             key={r.meta.id}
-            className="flex items-center gap-2 rounded-lg px-2.5 py-1.5"
-            style={{ background: `linear-gradient(to right, ${fill} ${pct}%, rgba(243,244,246,0.8) ${pct}%)` }}
+            className="relative overflow-hidden rounded-lg"
+            style={{ background: 'rgba(243,244,246,0.8)' }}
           >
-            <span className="w-6 text-center text-sm font-bold text-gray-500 flex-shrink-0">{i + 1}</span>
-            {isAff ? (
-              <div className={cn('w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0', AFF_CIRCLE[r.meta.affType ?? 'project'])}>
-                <Icon className="w-3.5 h-3.5" />
+            <div className="absolute inset-y-0 left-0 rounded-r-lg" style={{ width: `${pct}%`, background: fill }} aria-hidden />
+            <div className="relative z-10 flex items-center gap-2 px-2.5 py-1.5">
+              <span className="w-6 text-center text-sm font-bold text-gray-500 flex-shrink-0">{i + 1}</span>
+              {isAff ? (
+                <div className={cn('w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0', AFF_CIRCLE[r.meta.affType ?? 'project'])}>
+                  <Icon className="w-3.5 h-3.5" />
+                </div>
+              ) : (
+                <Avatar className="w-7 h-7 flex-shrink-0">
+                  <AvatarImage src={r.meta.avatarUrl ?? undefined} />
+                  <AvatarFallback className="text-[10px] font-bold bg-gray-200 text-gray-500">{r.meta.name.charAt(0)}</AvatarFallback>
+                </Avatar>
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-gray-700 truncate">{r.meta.name}</p>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  {!isAff && r.meta.affName && r.meta.affType && <AffiliationBadge type={r.meta.affType} name={r.meta.affName} />}
+                  <span className="text-[9px] text-gray-400">前月 {r.prev} → 当月 {r.count}</span>
+                </div>
               </div>
-            ) : (
-              <Avatar className="w-7 h-7 flex-shrink-0">
-                <AvatarImage src={r.meta.avatarUrl ?? undefined} />
-                <AvatarFallback className="text-[10px] font-bold bg-gray-200 text-gray-500">{r.meta.name.charAt(0)}</AvatarFallback>
-              </Avatar>
-            )}
-            <div className="flex-1 min-w-0">
-              <p className="text-sm text-gray-700 truncate">{r.meta.name}</p>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                {!isAff && r.meta.affName && r.meta.affType && <AffiliationBadge type={r.meta.affType} name={r.meta.affName} />}
-                <span className="text-[9px] text-gray-400">前月 {r.prev} → 当月 {r.count}</span>
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <span className={cn('flex items-center text-sm font-black', up ? 'text-green-600' : down ? 'text-red-500' : 'text-gray-400')}>
+                  {up ? <ArrowUp className="w-3.5 h-3.5" /> : down ? <ArrowDown className="w-3.5 h-3.5" /> : <Minus className="w-3.5 h-3.5" />}
+                  {Math.abs(r.delta)}
+                </span>
+                <span className={cn('text-[10px] w-10 text-right', up ? 'text-green-600' : down ? 'text-red-500' : 'text-gray-400')}>{rate}</span>
               </div>
-            </div>
-            <div className="flex items-center gap-1.5 flex-shrink-0">
-              <span className={cn('flex items-center text-sm font-black', up ? 'text-green-600' : down ? 'text-red-500' : 'text-gray-400')}>
-                {up ? <ArrowUp className="w-3.5 h-3.5" /> : down ? <ArrowDown className="w-3.5 h-3.5" /> : <Minus className="w-3.5 h-3.5" />}
-                {Math.abs(r.delta)}
-              </span>
-              <span className={cn('text-[10px] w-10 text-right', up ? 'text-green-600' : down ? 'text-red-500' : 'text-gray-400')}>{rate}</span>
             </div>
           </div>
         )

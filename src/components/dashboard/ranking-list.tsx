@@ -38,9 +38,11 @@ export function RankingList({ ranking, currentEmployeeId }: { ranking: RankEntry
         return (
           <div key={r.employeeId}>
             <div
-              className={cn('flex items-center gap-2 rounded-lg px-2.5 py-1.5', isMe && 'border border-orange-300')}
-              style={{ background: `linear-gradient(to right, ${fill} ${pct}%, ${base} ${pct}%)` }}
+              className={cn('relative overflow-hidden rounded-lg', isMe && 'border border-orange-300')}
+              style={{ background: base }}
             >
+              <div className="absolute inset-y-0 left-0 rounded-r-lg" style={{ width: `${pct}%`, background: fill }} aria-hidden />
+              <div className="relative z-10 flex items-center gap-2 px-2.5 py-1.5">
               <span className="w-6 text-center text-sm font-bold text-gray-500 flex-shrink-0">{MEDALS[i] ?? i + 1}</span>
               <Avatar className="w-7 h-7 flex-shrink-0">
                 <AvatarImage src={r.avatarUrl ?? undefined} />
@@ -69,6 +71,7 @@ export function RankingList({ ranking, currentEmployeeId }: { ranking: RankEntry
               ) : (
                 <span className="text-sm font-black text-orange-600 flex-shrink-0">{r.count}<span className="text-[10px] font-normal text-gray-400 ml-0.5">個</span></span>
               )}
+              </div>
             </div>
             {hasBreakdown && isOpen && (
               <div className="mt-1 ml-9 mr-2 space-y-0.5 pb-1">
