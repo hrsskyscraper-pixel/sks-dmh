@@ -43,7 +43,8 @@ export async function updateSession(request: NextRequest) {
     !pathname.startsWith('/auth') &&
     !pathname.startsWith('/privacy') &&
     !pathname.startsWith('/terms') &&
-    !pathname.startsWith('/invite/')
+    !pathname.startsWith('/invite/') &&
+    !pathname.startsWith('/api/daily-report')
   ) {
     const url = request.nextUrl.clone()
     // 元のパス（クエリ含む）を next として保持し、ログイン後に復帰できるようにする
