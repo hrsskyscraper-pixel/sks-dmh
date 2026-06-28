@@ -174,8 +174,10 @@ export function AccountSettingsMenu({ employeeId, employeeName, role, fontScale 
 
 export function BottomNav({ role, avatarUrl, employeeId }: NavProps) {
   const pathname = usePathname()
-  const { unreadTeamReqCount, pendingApprovalCount, dashboardBadge, rejectedSkillCount } = useNavData()
+  const { unreadTeamReqCount, pendingApprovalCount, dashboardBadge, rejectedSkillCount, overdueSkillCount } = useNavData()
   const unreadRequestCount = unreadTeamReqCount
+  // スキルナビ＝遅延スキル＋差し戻し未処理の合計
+  const skillBadgeCount = rejectedSkillCount + overdueSkillCount
   const visibleItems = navItems.filter(item => (item.roles as readonly string[]).includes(role))
 
   return (
@@ -184,9 +186,9 @@ export function BottomNav({ role, avatarUrl, employeeId }: NavProps) {
         {visibleItems.map(({ href, label, icon: Icon }) => {
           const isActive = href === '/' ? pathname === '/' : pathname.startsWith(href)
           const showDashBadge = href === '/' && dashboardBadge && dashboardBadge.count > 0
-          const showSkillBadge = href === '/skills' && rejectedSkillCount > 0
+          const showSkillBadge = href === '/skills' && skillBadgeCount > 0
           const showBadge = showDashBadge || showSkillBadge || (href === '/admin/teams' && unreadRequestCount > 0) || (href === '/approvals' && pendingApprovalCount > 0)
-          const badgeCount = showDashBadge ? dashboardBadge!.count : showSkillBadge ? rejectedSkillCount : href === '/approvals' ? pendingApprovalCount : unreadRequestCount
+          const badgeCount = showDashBadge ? dashboardBadge!.count : showSkillBadge ? skillBadgeCount : href === '/approvals' ? pendingApprovalCount : unreadRequestCount
           const badgeBg = showDashBadge ? (dashboardBadge!.color === 'red' ? 'bg-red-500' : 'bg-blue-500') : showSkillBadge ? 'bg-red-500' : 'bg-red-500'
           return (
             <Link

@@ -13,6 +13,8 @@ import { canAdminister, canApprove } from '@/lib/permissions'
 import { getAuthUser, getCurrentEmployee } from '@/lib/supabase/auth-cache'
 import { EMPTY_NAV_COUNTS, type NavCounts } from '@/lib/nav-counts'
 import { getTestEmployeeIds } from '@/lib/test-data'
+import { buildMilestoneMap } from '@/lib/milestone'
+import { countOverdueSkills } from '@/lib/skill-progress'
 import type { Role, SystemPermission } from '@/types/database'
 
 /**
@@ -147,11 +149,44 @@ export async function getNavCounts(): Promise<NavCounts> {
     return null
   }
 
-  const [notif, rejectedSkillCount, pendingApprovalCount, dashboardBadge] = await Promise.all([
+  // --- ブロック5: 遅延スキル件数（選択中カリキュラム・スキルナビのバッジ用） ---
+  const computeOverdue = async (): Promise<number> => {
+    const [{ data: tRows }, { data: mRows }] = await Promise.all([
+      db.from('team_members').select('team_id').eq('employee_id', targetId),
+      db.from('team_managers').select('team_id').eq('employee_id', targetId),
+    ])
+    const tIds = [...new Set([...(tRows ?? []).map(r => r.team_id), ...(mRows ?? []).map(r => r.team_id)])]
+    if (tIds.length === 0) return 0
+    const { data: ptRows } = await db.from('project_teams').select('project_id').in('team_id', tIds)
+    const projIds = [...new Set((ptRows ?? []).map(r => r.project_id))]
+    if (projIds.length === 0) return 0
+    const cookieProjId = cookieStore.get(SELECTED_PROJECT_COOKIE)?.value ?? null
+    const projId = cookieProjId && projIds.includes(cookieProjId) ? cookieProjId : projIds[0]
+    const [{ data: phases }, { data: pSkills }, { data: skillRows }, { data: certAch }, { data: pendAch }, whResult] = await Promise.all([
+      db.from('project_phases').select('id, name, order_index, end_hours').eq('project_id', projId).order('order_index'),
+      db.from('project_skills').select('skill_id, project_phase_id').eq('project_id', projId),
+      db.from('skills').select('id, order_index'),
+      db.from('achievements').select('skill_id').eq('employee_id', targetId).eq('status', 'certified'),
+      db.from('achievements').select('skill_id').eq('employee_id', targetId).eq('status', 'pending'),
+      db.rpc('get_employee_cumulative_hours', { p_employee_id: targetId, p_as_of_date: new Date().toISOString().split('T')[0] }),
+    ])
+    const cumHours = (whResult as { data: number | null }).data ?? 0
+    const skillPhaseMap: Record<string, string | null> = {}
+    for (const ps of pSkills ?? []) skillPhaseMap[ps.skill_id] = ps.project_phase_id
+    const projSkillIds = new Set(Object.keys(skillPhaseMap))
+    const skills = (skillRows ?? []).filter(s => projSkillIds.has(s.id))
+    const milestones = buildMilestoneMap(phases ?? [])
+    const certifiedIds = new Set((certAch ?? []).map(a => a.skill_id))
+    const pendingIds = new Set((pendAch ?? []).map(a => a.skill_id))
+    return countOverdueSkills(skills, certifiedIds, pendingIds, skillPhaseMap, phases ?? [], milestones, cumHours)
+  }
+
+  const [notif, rejectedSkillCount, pendingApprovalCount, dashboardBadge, overdueSkillCount] = await Promise.all([
     computeNotif(),
     computeRejected(),
     computePendingApproval(),
     computeDashboardBadge(),
+    computeOverdue(),
   ])
 
   return {
@@ -159,6 +194,7 @@ export async function getNavCounts(): Promise<NavCounts> {
     unreadTeamReqCount: notif.unreadTeamReqCount,
     pendingApprovalCount,
     rejectedSkillCount,
+    overdueSkillCount,
     dashboardBadge,
   }
 }

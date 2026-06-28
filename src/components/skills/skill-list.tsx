@@ -19,7 +19,8 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { createClient } from '@/lib/supabase/client'
-import { calcPhasePct } from '@/lib/milestone'
+import { calcPhasePct, calcStandardPct } from '@/lib/milestone'
+import { SkillStatsContent } from '@/components/skills/skill-stats-content'
 import { sortCategories } from '@/lib/category-order'
 import { cn } from '@/lib/utils'
 import { SkillPhotoInput } from '@/components/skills/skill-photo-input'
@@ -486,8 +487,39 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
     (a, b) => new Date(b.achieved_at ?? '').getTime() - new Date(a.achieved_at ?? '').getTime()
   )
 
+  // ホームと同じ「数値＋実績/標準バー」（選択中カリキュラム）
+  const sTotal = skills.length
+  const sCertified = skills.filter(s => getStatus(s.id) === 'certified').length
+  const sPending = skills.filter(s => getStatus(s.id) === 'pending').length
+  const sRejected = skills.filter(s => getStatus(s.id) === 'rejected').length
+  const sUnapplied = sTotal - sCertified - sPending - sRejected
+  const sSkillsByPhase: Record<string, number> = {}
+  for (const s of skills) {
+    const ph = phases.find(p => p.id === skillPhaseMap[s.id])
+    if (ph) sSkillsByPhase[ph.name] = (sSkillsByPhase[ph.name] ?? 0) + 1
+  }
+  const sStandardPct = milestones ? calcStandardPct(cumulativeHours ?? 0, milestones, sSkillsByPhase, sTotal) : 0
+
   return (
     <div className="p-4 space-y-4">
+      {/* 数値＋実績/標準バー（ホームと同じ・選択中カリキュラム） */}
+      {sTotal > 0 && (
+        <Card className="bg-gradient-to-br from-orange-400 to-red-500 text-white border-0 shadow-lg">
+          <CardContent className="pt-5 pb-5">
+            <SkillStatsContent
+              totalPct={sTotal > 0 ? Math.round(sCertified / sTotal * 100) : 0}
+              totalCertified={sCertified}
+              totalSkills={sTotal}
+              totalPending={sPending}
+              totalRejected={sRejected}
+              totalUnapplied={sUnapplied}
+              totalPendingPct={sTotal > 0 ? Math.round(sPending / sTotal * 100) : 0}
+              standardPct={sStandardPct}
+            />
+          </CardContent>
+        </Card>
+      )}
+
       {/* ビュー切替 */}
       {(() => {
         const inProject = achievements.filter(a => projectSkillIds.has(a.skill_id))

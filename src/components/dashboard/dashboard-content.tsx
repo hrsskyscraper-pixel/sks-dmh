@@ -6,13 +6,13 @@ import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Progress } from '@/components/ui/progress'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { cn } from '@/lib/utils'
-import { AlertTriangle, ChevronDown, ChevronUp, Camera, Loader2, CheckCircle2, ClipboardList, Users, Instagram, Target, CalendarDays, Pencil, BookOpen, Building2 } from 'lucide-react'
+import { AlertTriangle, ChevronDown, ChevronUp, ChevronRight, Camera, Loader2, CheckCircle2, ClipboardList, Users, Instagram, Target, CalendarDays, Pencil, BookOpen, Building2 } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { setSelectedProject } from '@/app/(dashboard)/actions'
+import { SkillStatsContent } from '@/components/skills/skill-stats-content'
 import { SkillPhotoInput } from '@/components/skills/skill-photo-input'
 import { uploadSkillPhotos } from '@/lib/skill-photos'
 import { Textarea } from '@/components/ui/textarea'
@@ -457,63 +457,16 @@ export function DashboardContent({
             </div>
           )}
 
-          <div className="flex items-end gap-4">
-            <div>
-              <p className="text-orange-100 text-xs">全体達成率</p>
-              <p className="text-4xl font-black">{totalPct}<span className="text-xl">%</span></p>
-            </div>
-            <div className="ml-3">
-              <p className="text-orange-100 text-xs">認定済み</p>
-              <p className="text-2xl font-bold">{totalCertified}<span className="text-base text-orange-100">/{totalSkills}</span></p>
-            </div>
-            {(() => {
-              const rejectedCount = achievementList.filter(a => a.status === 'rejected').length
-              const pendingOnly = pendingIds.size
-              const unapplied = totalSkills - totalCertified - pendingOnly - rejectedCount
-              return (
-                <>
-                  {rejectedCount > 0 && (
-                    <div className="ml-5">
-                      <p className="text-red-200 text-xs">差し戻し</p>
-                      <p className="text-2xl font-bold text-red-200">{rejectedCount}</p>
-                    </div>
-                  )}
-                  <div className={rejectedCount > 0 ? '' : 'ml-5'}>
-                    <p className="text-orange-100 text-xs">申請中</p>
-                    <p className="text-2xl font-bold">{pendingOnly}</p>
-                  </div>
-                  <div>
-                    <p className="text-orange-100 text-xs">未申請</p>
-                    <p className="text-2xl font-bold">{unapplied}</p>
-                  </div>
-                </>
-              )
-            })()}
-          </div>
-          <div className="mt-3 space-y-1.5">
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] text-orange-100 w-7 text-right flex-shrink-0">実績</span>
-              <div className="flex-1 h-2.5 bg-white/30 rounded-full overflow-hidden flex">
-                <div className="h-full bg-white transition-all" style={{ width: `${totalPct}%` }} />
-                {totalPendingPct > 0 && (
-                  <div className="h-full bg-yellow-300/70 transition-all" style={{ width: `${totalPendingPct}%` }} />
-                )}
-              </div>
-              <span className="text-xs font-bold w-8 text-right flex-shrink-0">{totalPct}%</span>
-            </div>
-            {totalExpected > 0 && (
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] text-orange-100 w-7 text-right flex-shrink-0">標準</span>
-                <Progress
-                  value={totalSkills > 0 ? Math.round(totalExpected / totalSkills * 100) : 0}
-                  className="flex-1 h-2.5 bg-white/20 [&>div]:bg-white/50"
-                />
-                <span className="text-xs font-bold text-white/70 w-8 text-right flex-shrink-0">
-                  {totalSkills > 0 ? Math.round(totalExpected / totalSkills * 100) : 0}%
-                </span>
-              </div>
-            )}
-          </div>
+          <SkillStatsContent
+            totalPct={totalPct}
+            totalCertified={totalCertified}
+            totalSkills={totalSkills}
+            totalPending={totalPending}
+            totalRejected={achievementList.filter(a => a.status === 'rejected').length}
+            totalUnapplied={totalSkills - totalCertified - totalPending - achievementList.filter(a => a.status === 'rejected').length}
+            totalPendingPct={totalPendingPct}
+            standardPct={totalExpected > 0 && totalSkills > 0 ? Math.round(totalExpected / totalSkills * 100) : 0}
+          />
           {totalExpected > 0 && (
             <div className={cn('mt-2 rounded-md px-3 py-1.5', gapSkills >= 0 ? 'bg-green-500/30 text-green-100' : 'bg-red-500/30 text-red-100')}>
               <p className="text-sm font-medium">
@@ -617,6 +570,22 @@ export function DashboardContent({
             </Link>
           )}
         </div>
+      )}
+
+      {/* 遅れアラート（遅延スキルがある時だけ・本日のお知らせの上に表示） */}
+      {overdueSkills.length > 0 && currentProject && (
+        <Link href="/skills" className="block">
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 hover:bg-red-100 transition-colors flex items-center gap-3">
+            <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-red-700">
+                「{currentProject.name}」のスキル習得が <span className="text-red-600">{overdueSkills.length}件</span> 遅れています
+              </p>
+              <p className="text-xs text-red-500">タップして、今やるべきスキルを確認しましょう</p>
+            </div>
+            <ChevronRight className="w-4 h-4 text-red-400 flex-shrink-0" />
+          </div>
+        </Link>
       )}
 
       {announcementsSlot}

@@ -11,6 +11,8 @@ export type NavCounts = {
   pendingApprovalCount: number
   /** 差し戻しスキル件数（スキルナビのバッジ） */
   rejectedSkillCount: number
+  /** 遅延スキル件数（選択中カリキュラム・スキルナビのバッジに加算） */
+  overdueSkillCount: number
   /** ホームのバッジ（遅れ/次の一歩） */
   dashboardBadge: { count: number; color: 'red' | 'blue' } | null
 }
@@ -20,5 +22,6 @@ export const EMPTY_NAV_COUNTS: NavCounts = {
   unreadTeamReqCount: 0,
   pendingApprovalCount: 0,
   rejectedSkillCount: 0,
+  overdueSkillCount: 0,
   dashboardBadge: null,
 }
