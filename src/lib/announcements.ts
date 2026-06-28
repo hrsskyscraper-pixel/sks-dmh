@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 export type AnnouncementItem = {
   id: string
-  kind: 'grade' | 'ranking' | 'welcome'
+  kind: 'grade' | 'ranking' | 'welcome' | 'daily'
   subjectId: string | null
   subjectName: string | null
   subjectStore: string | null

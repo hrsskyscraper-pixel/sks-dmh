@@ -4,6 +4,7 @@ import { canApprove, canAdminister } from '@/lib/permissions'
 import { getTestEmployeeIds, getRankingExcludedIds } from '@/lib/test-data'
 import { getAnnouncementsData } from '@/lib/announcements'
 import { ensureMonthlyRankingAnnouncement } from '@/lib/skill-ranking'
+import { ensureDailyReportAnnouncement } from '@/lib/daily-report'
 import { AnnouncementsFeed } from '@/components/announcements/announcements-feed'
 
 /** ホームの「本日のお知らせ」（表示期限内のもの）。リーダー以上には投稿ボタンも出す。 */
@@ -15,6 +16,14 @@ export async function AnnouncementsServer() {
   // 月が替わっていれば前月のスキル習得数ランキングを自動掲載（未掲載時のみ）
   const rankingExcluded = await getRankingExcludedIds()
   await ensureMonthlyRankingAnnouncement(db, rankingExcluded)
+
+  // 毎朝7時(JST)以降、前日のデイリーレポートを自動投稿（未投稿時のみ）。
+  // cron が主トリガだが、cron 不発でも最初の朝のアクセスで投稿されるフォールバック。
+  const nowForReport = new Date()
+  const jstHour = new Date(nowForReport.getTime() + 9 * 3600 * 1000).getUTCHours()
+  if (jstHour >= 7) {
+    await ensureDailyReportAnnouncement(db, rankingExcluded, nowForReport)
+  }
 
   const { items, reactions, comments, reactorNames, reactorAvatars } = await getAnnouncementsData(db, { activeOnly: true })
   const canPost = canApprove(me)

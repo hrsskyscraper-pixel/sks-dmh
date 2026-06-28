@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
-import { Heart, MessageCircle, Send, Trophy, Award, PartyPopper } from 'lucide-react'
+import { Heart, MessageCircle, Send, Trophy, Award, PartyPopper, Sunrise } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -50,6 +50,7 @@ export function AnnouncementCard({ item, reactions: initReactions, comments: ini
 
   const isRanking = item.kind === 'ranking'
   const isWelcome = item.kind === 'welcome'
+  const isDaily = item.kind === 'daily'
 
   const toggleLike = () => {
     startTransition(async () => {
@@ -81,13 +82,19 @@ export function AnnouncementCard({ item, reactions: initReactions, comments: ini
   }
 
   return (
-    <div className={cn('rounded-lg px-3 py-2.5 border', isRanking ? 'bg-amber-50 border-amber-200' : isWelcome ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50/60 border-rose-100')}>
+    <div className={cn('rounded-lg px-3 py-2.5 border', isDaily ? 'bg-orange-50 border-orange-200' : isRanking ? 'bg-amber-50 border-amber-200' : isWelcome ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50/60 border-rose-100')}>
       <div className="flex items-start gap-2">
-        {isRanking ? <Trophy className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+        {isDaily ? <Sunrise className="w-4 h-4 text-orange-500 flex-shrink-0 mt-0.5" />
+          : isRanking ? <Trophy className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
           : isWelcome ? <PartyPopper className="w-4 h-4 text-emerald-500 flex-shrink-0 mt-0.5" />
           : <Award className="w-4 h-4 text-rose-500 flex-shrink-0 mt-0.5" />}
         <div className="flex-1 min-w-0">
-          {isRanking ? (
+          {isDaily ? (
+            <>
+              {item.title && <p className="text-sm font-semibold text-orange-800">{item.title}</p>}
+              {item.body && <p className="text-xs text-gray-700 whitespace-pre-line mt-0.5 leading-relaxed">{item.body}</p>}
+            </>
+          ) : isRanking ? (
             <>
               {item.title && <p className="text-sm font-semibold text-amber-800">{item.title}</p>}
               {item.body && <p className="text-xs text-gray-700 whitespace-pre-line mt-0.5">{item.body}</p>}
