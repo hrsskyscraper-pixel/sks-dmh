@@ -16,13 +16,15 @@ export async function SetupIncompleteNotice({ employeeId }: { employeeId: string
   const projIds = [...new Set((pt ?? []).map(p => p.project_id))]
   if (projIds.length === 0) return null
 
-  const [{ data: projects }, { data: phaseRows }, { data: teams }] = await Promise.all([
+  const [{ data: projects }, { data: phaseRows }, { data: teams }, { data: opsRows }] = await Promise.all([
     db.from('skill_projects').select('id, name, is_active').in('id', projIds),
     db.from('project_phases').select('project_id').in('project_id', projIds),
     db.from('teams').select('id, name').in('id', teamIds),
+    db.from('employees').select('name').eq('role', 'ops_manager').eq('status', 'approved'),
   ])
   const hasPhases = new Set((phaseRows ?? []).map(r => r.project_id))
   const teamNameById = Object.fromEntries((teams ?? []).map(t => [t.id, t.name]))
+  const recipients = (opsRows ?? []).map(o => o.name)
 
   // セットアップ未完了 = 有効だがフェーズ未設定
   const incomplete = (projects ?? []).filter(p => p.is_active && !hasPhases.has(p.id))
@@ -41,5 +43,5 @@ export async function SetupIncompleteNotice({ employeeId }: { employeeId: string
   }
   if (items.length === 0) return null
 
-  return <SetupRequestCard items={items} />
+  return <SetupRequestCard items={items} recipients={recipients} />
 }

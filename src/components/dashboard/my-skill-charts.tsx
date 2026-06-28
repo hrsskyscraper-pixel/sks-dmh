@@ -52,15 +52,19 @@ export async function MySkillCharts({ employeeId }: { employeeId: string }) {
   if (projectPhases.length === 0) {
     // セットアップ未完了（フェーズ未設定）: グラフは出せないが、運営管理者へセットアップ依頼ができる
     const linkedTeamIds = [...new Set((ptRows ?? []).filter(r => r.project_id === selectedProject.id).map(r => r.team_id))]
-    const { data: teamRows } = linkedTeamIds.length > 0
-      ? await db.from('teams').select('id, name').in('id', linkedTeamIds)
-      : { data: [] as { id: string; name: string }[] }
+    const [{ data: teamRows }, { data: opsRows }] = await Promise.all([
+      linkedTeamIds.length > 0
+        ? db.from('teams').select('id, name').in('id', linkedTeamIds)
+        : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+      db.from('employees').select('name').eq('role', 'ops_manager').eq('status', 'approved'),
+    ])
     const setupItems = (teamRows ?? []).map(t => ({ teamName: t.name, curriculumName: selectedProject.name }))
+    const recipients = (opsRows ?? []).map(o => o.name)
     return (
       <div className="space-y-2">
         <CurriculumSwitcher projects={switcherProjects} currentProjectId={selectedProject.id} basePath={`/admin/employees/${employeeId}`} padded={false} />
         <p className="text-xs text-gray-400 px-0.5">このカリキュラムはフェーズ（時間設定）が未設定のため、グラフは表示できません。</p>
-        {setupItems.length > 0 && <SetupRequestCard items={setupItems} padded={false} />}
+        {setupItems.length > 0 && <SetupRequestCard items={setupItems} recipients={recipients} padded={false} />}
       </div>
     )
   }
