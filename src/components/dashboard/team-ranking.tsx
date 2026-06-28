@@ -99,115 +99,70 @@ export function TeamRanking({ currentEmployeeId, stats }: Props) {
     const diff = actualPct - stdPct
     const isMe = member.id === currentEmployeeId
     const medal = MEDALS[index] ?? null
+    // スキル習得ランキングと同じ「行全体が棒グラフ」スタイル（塗り＝達成率・右端角丸）。色はブルー系（自分はオレンジ）。
+    const fill = isMe ? 'rgba(251,146,60,0.45)' : 'rgba(96,165,250,0.40)'
+    const base = isMe ? 'rgba(255,237,213,0.9)' : 'rgba(243,244,246,0.8)'
 
     return (
-      <div
-        key={member.id}
-        className={cn(
-          'rounded-xl px-3 py-3',
-          isMe
-            ? 'bg-orange-50 border-2 border-orange-300 shadow-sm'
-            : 'bg-gray-50 border border-gray-100'
-        )}
-      >
-        {/* ヘッダー行: 順位・アバター・名前 */}
-        <div className="flex items-center gap-2 mb-2.5">
-          <div className="w-6 text-center flex-shrink-0">
-            {medal ? (
-              <span className="text-base leading-none">{medal}</span>
-            ) : (
-              <span className="text-xs font-bold text-gray-400">{index + 1}</span>
-            )}
-          </div>
-          <Avatar className="w-7 h-7 flex-shrink-0">
-            <AvatarImage src={member.avatar_url ?? undefined} />
-            <AvatarFallback className={cn(
-              'text-xs font-bold',
-              isMe ? 'bg-orange-200 text-orange-700' : 'bg-gray-200 text-gray-600'
-            )}>
-              {member.name.charAt(0)}
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex-1 min-w-0 flex items-center gap-1 flex-wrap">
-            <p className={cn(
-              'text-xs font-semibold',
-              isMe ? 'text-orange-700' : 'text-gray-700'
-            )}>
-              {member.name}
-            </p>
-            <Badge className="bg-orange-100 text-orange-700 text-[9px] border-0 px-1.5 h-4 flex-shrink-0">
-              {calcHireYear(member.hire_date)}年目
-            </Badge>
-            {member.employment_type === 'メイト' ? (
-              <Badge className="bg-pink-100 text-pink-700 text-[9px] border-0 px-1.5 h-4 flex-shrink-0">メイト</Badge>
-            ) : (
-              <Badge className="bg-green-100 text-green-700 text-[9px] border-0 px-1.5 h-4 flex-shrink-0">社員</Badge>
-            )}
-            {isMe && (
-              <Badge className="bg-orange-500 text-white text-[9px] border-0 px-1.5 h-4 flex-shrink-0">
-                あなた
-              </Badge>
-            )}
-          </div>
-          {/* 差分バッジ */}
+      <div key={member.id}>
+        <div
+          className={cn('relative overflow-hidden rounded-lg', isMe && 'border border-orange-300')}
+          style={{ background: base }}
+        >
+          {/* 実績バー（達成率） */}
+          <div className="absolute inset-y-0 left-0 rounded-r-lg" style={{ width: `${actualPct}%`, background: fill }} aria-hidden />
+          {/* 標準進捗マーカー（青い縦線） */}
           {stdPct > 0 && (
-            <span className={cn(
-              'text-[10px] font-bold flex-shrink-0',
-              diff > 0 ? 'text-green-600' : diff < 0 ? 'text-red-500' : 'text-gray-400'
-            )}>
-              {diff > 0 ? `▲+${diff}` : diff < 0 ? `▼${diff}` : '±0'}
-            </span>
+            <div className="absolute inset-y-0 w-0.5 bg-blue-600/70 z-10" style={{ left: `calc(${stdPct}% - 1px)` }} aria-hidden />
           )}
-        </div>
-
-        {/* 所属（店舗／部署）＋習得カリキュラム */}
-        {(member.teams.length > 0 || member.curricula.length > 0) && (
-          <div className="flex items-center gap-1 flex-wrap mb-2.5 pl-8">
-            {member.teams.map((t, i) => (
-              <AffiliationBadge key={`${t.type}:${t.name}:${i}`} type={t.type} name={t.name} leader={t.role === 'leader'} shared={t.shared} />
-            ))}
-            {member.curricula.map(c => (
-              <span key={c} className="inline-flex items-center text-[9px] text-orange-700 bg-orange-50 border border-orange-100 rounded px-1.5 py-0.5 font-medium max-w-[200px] truncate">{c}</span>
-            ))}
-          </div>
-        )}
-
-        {/* 1本バー */}
-        <div className="flex items-center gap-2">
-          <div className="flex-1 relative h-2 bg-gray-200 rounded-full">
-            {/* 実績バー */}
-            <div
-              className={cn('absolute top-0 left-0 h-full rounded-full', isMe ? 'bg-orange-400' : 'bg-blue-400')}
-              style={{ width: `${actualPct}%` }}
-            />
-            {/* GAP ハイライト */}
-            {Math.abs(diff) > 0 && stdPct > 0 && (
-              <div
-                className="absolute top-0 h-full rounded-sm"
-                style={{
-                  left: `${Math.min(actualPct, stdPct)}%`,
-                  width: `${Math.abs(diff)}%`,
-                  background: diff < 0 ? 'rgba(251,191,36,0.25)' : 'rgba(52,211,153,0.25)',
-                }}
-              />
-            )}
-            {/* 標準マーカー */}
-            {stdPct > 0 && (
-              <div
-                className="absolute top-1/2 -translate-y-1/2 w-0.5 h-3.5 bg-blue-400 rounded-sm z-10"
-                style={{ left: `calc(${stdPct}% - 1px)` }}
-              />
-            )}
-          </div>
-          <div className="text-right flex-shrink-0 w-12">
-            <span className={cn('text-[11px] font-black block leading-none', isMe ? 'text-orange-600' : 'text-blue-600')}>{actualPct}%</span>
-            <span className="text-[9px] text-gray-400 leading-none">{member.certifiedCount}/{member.totalSkills}</span>
+          {/* コンテンツ */}
+          <div className="relative z-20 flex items-center gap-2 px-2.5 py-1.5">
+            <span className="w-6 text-center text-sm font-bold text-gray-500 flex-shrink-0">{medal ?? index + 1}</span>
+            <Avatar className="w-7 h-7 flex-shrink-0">
+              <AvatarImage src={member.avatar_url ?? undefined} />
+              <AvatarFallback className={cn('text-[10px] font-bold', isMe ? 'bg-orange-200 text-orange-700' : 'bg-gray-200 text-gray-600')}>
+                {member.name.charAt(0)}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1 flex-wrap">
+                <p className={cn('text-sm font-semibold truncate', isMe ? 'text-orange-700' : 'text-gray-700')}>{member.name}</p>
+                <Badge className="bg-orange-100 text-orange-700 text-[9px] border-0 px-1 h-3.5 flex-shrink-0">{calcHireYear(member.hire_date)}年目</Badge>
+                {member.employment_type === 'メイト' ? (
+                  <Badge className="bg-pink-100 text-pink-700 text-[9px] border-0 px-1 h-3.5 flex-shrink-0">メイト</Badge>
+                ) : (
+                  <Badge className="bg-green-100 text-green-700 text-[9px] border-0 px-1 h-3.5 flex-shrink-0">社員</Badge>
+                )}
+                {isMe && <Badge className="bg-orange-500 text-white text-[9px] border-0 px-1 h-3.5 flex-shrink-0">あなた</Badge>}
+              </div>
+              {(member.teams.length > 0 || member.curricula.length > 0) && (
+                <div className="flex items-center gap-1 flex-wrap mt-0.5">
+                  {member.teams.map((t, i) => (
+                    <AffiliationBadge key={`${t.type}:${t.name}:${i}`} type={t.type} name={t.name} leader={t.role === 'leader'} shared={t.shared} />
+                  ))}
+                  {member.curricula.map(c => (
+                    <span key={c} className="inline-flex items-center text-[9px] text-orange-700 bg-orange-50 border border-orange-100 rounded px-1 py-px font-medium max-w-[140px] truncate">{c}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="text-right flex-shrink-0">
+              <div className="flex items-center justify-end gap-1 leading-none">
+                {stdPct > 0 && (
+                  <span className={cn('text-[10px] font-bold', diff > 0 ? 'text-green-600' : diff < 0 ? 'text-red-500' : 'text-gray-400')}>
+                    {diff > 0 ? `▲+${diff}` : diff < 0 ? `▼${diff}` : '±0'}
+                  </span>
+                )}
+                <span className={cn('text-sm font-black', isMe ? 'text-orange-600' : 'text-blue-600')}>{actualPct}%</span>
+              </div>
+              <span className="text-[9px] text-gray-400 leading-none">{member.certifiedCount}/{member.totalSkills}</span>
+            </div>
           </div>
         </div>
 
         {/* カリキュラム別の内訳（複数カリキュラム時のみ・展開で表示） */}
         {member.breakdown.length > 1 && (
-          <div className="mt-1.5 pl-8">
+          <div className="mt-1 ml-9 mr-2">
             <button
               onClick={() => toggleBreakdown(member.id)}
               className="text-[10px] text-gray-500 hover:text-gray-700 inline-flex items-center gap-0.5"
@@ -216,7 +171,7 @@ export function TeamRanking({ currentEmployeeId, stats }: Props) {
               カリキュラム別の内訳（{member.breakdown.length}件）
             </button>
             {openBreakdown.has(member.id) && (
-              <div className="mt-1 space-y-1">
+              <div className="mt-1 space-y-1 pb-1">
                 {member.breakdown.map(b => {
                   const bPct = b.totalSkills > 0 ? Math.round((b.certifiedCount / b.totalSkills) * 100) : 0
                   return (
@@ -225,7 +180,7 @@ export function TeamRanking({ currentEmployeeId, stats }: Props) {
                       <div className="flex-1 relative h-1.5 bg-gray-200 rounded-full">
                         <div className="absolute top-0 left-0 h-full rounded-full bg-blue-300" style={{ width: `${bPct}%` }} />
                         {b.standardPct > 0 && (
-                          <div className="absolute top-1/2 -translate-y-1/2 w-0.5 h-2 bg-blue-400 rounded-sm" style={{ left: `calc(${b.standardPct}% - 1px)` }} />
+                          <div className="absolute top-1/2 -translate-y-1/2 w-0.5 h-2 bg-blue-600/70 rounded-sm" style={{ left: `calc(${b.standardPct}% - 1px)` }} />
                         )}
                       </div>
                       <span className="text-[9px] text-gray-500 w-10 text-right flex-shrink-0">{b.certifiedCount}/{b.totalSkills}</span>
@@ -259,7 +214,7 @@ export function TeamRanking({ currentEmployeeId, stats }: Props) {
           <span className="ml-1">／ 濃い色のバッジ＝あなたと共通の所属</span>
         </p>
       </CardHeader>
-      <CardContent className="px-4 pb-4 space-y-3">
+      <CardContent className="px-4 pb-4 space-y-1.5">
         {topMembers.map((member, index) => renderMember(member, index))}
 
         {hasRest && expanded &&
@@ -269,7 +224,7 @@ export function TeamRanking({ currentEmployeeId, stats }: Props) {
           <button
             type="button"
             onClick={() => setExpanded(true)}
-            className="w-full flex items-center justify-center gap-1 rounded-xl border border-gray-100 bg-gray-50 py-2.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 transition-colors"
+            className="w-full flex items-center justify-center gap-1 rounded-lg border border-gray-100 bg-gray-50 py-2.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 transition-colors"
           >
             <ChevronDown className="w-4 h-4" />
             他{restMembers.length}人を見る
