@@ -5,6 +5,7 @@ import { ChevronDown, ChevronUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { AffiliationBadge } from '@/components/ui/affiliation'
+import { MemberNameLink } from '@/components/layout/member-name-link'
 import type { RankEntry } from '@/lib/skill-ranking'
 
 const MEDALS = ['🥇', '🥈', '🥉']
@@ -50,7 +51,7 @@ export function RankingList({ ranking, currentEmployeeId }: { ranking: RankEntry
               </Avatar>
               <div className="flex-1 min-w-0">
                 <p className={cn('text-sm truncate', isMe ? 'font-bold text-orange-700' : 'text-gray-700')}>
-                  {r.name}
+                  <MemberNameLink employeeId={r.employeeId}>{r.name}</MemberNameLink>
                   {r.joinDate && <span className="ml-1.5 text-[9px] text-gray-400 font-normal">MB参加 {fmtJoin(r.joinDate)}</span>}
                   {isMe && <span className="ml-1 text-[9px] bg-orange-500 text-white rounded px-1 align-middle">あなた</span>}
                 </p>

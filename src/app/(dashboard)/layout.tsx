@@ -14,7 +14,8 @@ import { OnboardingDialog } from '@/components/onboarding/onboarding-dialog'
 import { IntroGuideDialog } from '@/components/onboarding/intro-guide-dialog'
 import { PendingScreen } from '@/components/onboarding/pending-screen'
 import { JoinCompletionBanner } from '@/components/onboarding/join-completion-banner'
-import { canAdminister } from '@/lib/permissions'
+import { canAdminister, isTrainingLeader } from '@/lib/permissions'
+import { MemberLinkProvider } from '@/components/layout/member-link-context'
 import { LineLinkFloatingButton } from '@/components/layout/line-link-floating-button'
 import { FontScaleSync } from '@/components/layout/font-scale-sync'
 import { normalizeFontScale } from '@/lib/font-scale'
@@ -158,7 +159,9 @@ export default async function DashboardLayout({
           />
         )}
         <main className="pb-20 max-w-2xl mx-auto">
-          {children}
+          <MemberLinkProvider canView={canAdminister(employee) || isTrainingLeader(employee)}>
+            {children}
+          </MemberLinkProvider>
         </main>
         <LineLinkFloatingButton isLinked={!!employee.line_user_id} friendLinked={employee.line_friend === true} />
         {employee.role !== 'testuser' && !viewAsEmployee && (

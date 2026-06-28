@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { AffiliationBadge } from '@/components/ui/affiliation'
 import { RankingList } from '@/components/dashboard/ranking-list'
+import { MemberNameLink } from '@/components/layout/member-name-link'
 import type { RankingDataset, RankRowMeta, AffType } from '@/lib/ranking-data'
 import type { RankEntry } from '@/lib/skill-ranking'
 
@@ -102,7 +103,9 @@ function CompareRows({ rows, maxAbs, isAffiliation }: { rows: { meta: RankRowMet
                 </Avatar>
               )}
               <div className="flex-1 min-w-0">
-                <p className="text-sm text-gray-700 truncate">{r.meta.name}</p>
+                <p className="text-sm text-gray-700 truncate">
+                  {isAff ? r.meta.name : <MemberNameLink employeeId={r.meta.id}>{r.meta.name}</MemberNameLink>}
+                </p>
                 <div className="flex items-center gap-1.5 mt-0.5">
                   {!isAff && r.meta.affName && r.meta.affType && <AffiliationBadge type={r.meta.affType} name={r.meta.affName} />}
                   <span className="text-[9px] text-gray-400">前月 {r.prev} → 当月 {r.count}</span>

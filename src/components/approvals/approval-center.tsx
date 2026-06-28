@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { MemberNameLink } from '@/components/layout/member-name-link'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -453,7 +454,7 @@ export function ApprovalCenter({
                           <span className="text-xs text-gray-400">{fmtTime(a.certified_at)}</span>
                         </div>
                         <p className="text-sm font-medium text-gray-800 mt-0.5">
-                          {emp?.name} — <span className={isCertified ? 'text-green-600' : 'text-red-500'}>{skill?.name}</span>
+                          <MemberNameLink employeeId={a.employee_id}>{emp?.name}</MemberNameLink> — <span className={isCertified ? 'text-green-600' : 'text-red-500'}>{skill?.name}</span>
                         </p>
                         {a.certify_comment && <p className="text-xs text-gray-500 mt-0.5">{a.certify_comment}</p>}
                         <div className="flex items-center gap-3 mt-0.5 text-[11px] text-gray-400">
@@ -615,7 +616,7 @@ export function ApprovalCenter({
                           <span className="text-xs text-gray-400">{fmtTime(a.created_at)}</span>
                         </div>
                         <p className="text-sm font-medium text-gray-800 mt-0.5">
-                          {emp?.name} — <span className="text-orange-600">{skill?.name}</span>
+                          <MemberNameLink employeeId={a.employee_id}>{emp?.name}</MemberNameLink> — <span className="text-orange-600">{skill?.name}</span>
                         </p>
                         {((applicantAff[a.employee_id]?.length ?? 0) > 0 || (applicantCurricula[a.skill_id]?.length ?? 0) > 0) && (
                           <div className="flex flex-wrap items-center gap-1 mt-1">

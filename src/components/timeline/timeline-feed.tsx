@@ -11,6 +11,7 @@ import { Heart, MessageCircle, Send, ChevronDown, ChevronUp, Loader2 } from 'luc
 import { createClient } from '@/lib/supabase/client'
 import { AffiliationBadge } from '@/components/ui/affiliation'
 import { AnnouncementCard } from '@/components/announcements/announcement-card'
+import { MemberNameLink } from '@/components/layout/member-name-link'
 import type { AnnouncementItem, AnnouncementReaction, AnnouncementComment } from '@/lib/announcements'
 
 interface FeedAchievement {
@@ -326,7 +327,7 @@ export function TimelineFeed({
                   </Avatar>
                   <div className="flex-1 min-w-0">
                     <p className="text-xs">
-                      <span className="font-semibold text-gray-700">{commenter?.name ?? '不明'}</span>
+                      <MemberNameLink employeeId={comment.employee_id} className="font-semibold text-gray-700">{commenter?.name ?? '不明'}</MemberNameLink>
                       <span className="text-gray-400 ml-1">{timeAgo(comment.created_at)}</span>
                     </p>
                     <p className="text-sm text-gray-700 mt-0.5">{comment.content}</p>
@@ -389,7 +390,7 @@ export function TimelineFeed({
                 </>
               ) : (
                 <>
-                  <span className="font-semibold text-gray-800">{emp?.name ?? '不明'}</span>
+                  <MemberNameLink employeeId={achievement.employee_id} className="font-semibold text-gray-800">{emp?.name ?? '不明'}</MemberNameLink>
                   <span className="text-gray-500"> さんが </span>
                   <span className="font-semibold text-orange-600">{achievement.skills?.name ?? '不明'}</span>
                   <span className="text-gray-500"> を習得しました！</span>
@@ -401,7 +402,7 @@ export function TimelineFeed({
                 {achievement.certified_at ? timeAgo(achievement.certified_at) : ''}
               </span>
               {certifier && (
-                <span className="text-[10px] text-gray-400">認定: {certifier.name}</span>
+                <span className="text-[10px] text-gray-400">認定: <MemberNameLink employeeId={achievement.certified_by}>{certifier.name}</MemberNameLink></span>
               )}
             </div>
             {!nested && renderAffiliations(achievement.employee_id)}

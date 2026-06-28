@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import { AffiliationBadge } from '@/components/ui/affiliation'
+import { MemberNameLink } from '@/components/layout/member-name-link'
 
 export interface TeamAffiliation {
   name: string
@@ -128,7 +129,9 @@ export function TeamRanking({ currentEmployeeId, stats }: Props) {
             </Avatar>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1 flex-wrap">
-                <p className={cn('text-sm font-semibold truncate', isMe ? 'text-orange-700' : 'text-gray-700')}>{member.name}</p>
+                <p className={cn('text-sm font-semibold truncate', isMe ? 'text-orange-700' : 'text-gray-700')}>
+                  <MemberNameLink employeeId={member.id}>{member.name}</MemberNameLink>
+                </p>
                 <Badge className="bg-orange-100 text-orange-700 text-[9px] border-0 px-1 h-3.5 flex-shrink-0">{calcHireYear(member.hire_date)}年目</Badge>
                 {member.employment_type === 'メイト' ? (
                   <Badge className="bg-pink-100 text-pink-700 text-[9px] border-0 px-1 h-3.5 flex-shrink-0">メイト</Badge>

@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
+import { MemberNameLink } from '@/components/layout/member-name-link'
 import type { AnnouncementItem, AnnouncementReaction, AnnouncementComment } from '@/lib/announcements'
 
 const HEART = '❤️'
@@ -104,14 +105,14 @@ export function AnnouncementCard({ item, reactions: initReactions, comments: ini
               </Avatar>
               <p className="text-sm text-gray-800">
                 🎉 {item.subjectStore && <span className="text-gray-500">{item.subjectStore}の </span>}
-                <span className="font-semibold">{item.subjectName}</span>
+                <MemberNameLink employeeId={item.subjectId} className="font-semibold">{item.subjectName}</MemberNameLink>
                 <span> さんが仲間入りしました！</span>
               </p>
             </div>
           ) : (
             <p className="text-sm text-gray-800">
               {item.subjectStore && <span className="text-gray-500">{item.subjectStore}の </span>}
-              <span className="font-semibold">{item.subjectName}</span>
+              <MemberNameLink employeeId={item.subjectId} className="font-semibold">{item.subjectName}</MemberNameLink>
               <span> さんが </span>
               <span className="font-semibold text-rose-600">{item.gradeLabel}</span>
               <span> 合格しました！🎉</span>
@@ -152,7 +153,7 @@ export function AnnouncementCard({ item, reactions: initReactions, comments: ini
               </Avatar>
               <div className="flex-1 min-w-0">
                 <p className="text-xs">
-                  <span className="font-semibold text-gray-700">{reactorNames[c.employee_id] ?? '不明'}</span>
+                  <MemberNameLink employeeId={c.employee_id} className="font-semibold text-gray-700">{reactorNames[c.employee_id] ?? '不明'}</MemberNameLink>
                   <span className="text-gray-400 ml-1">{timeAgo(c.created_at)}</span>
                 </p>
                 <p className="text-sm text-gray-700 mt-0.5">{c.content}</p>
