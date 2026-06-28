@@ -224,19 +224,100 @@ export function TimelineFeed({ achievements, comments: initialComments, reaction
     )
   }
 
-  // 1件分の中身（nested=まとめカード内では「人名」を省きスキル中心に表示）
-  const renderAchievementInner = (achievement: FeedAchievement, nested: boolean) => {
-    const emp = employeeMap[achievement.employee_id]
-    const certifier = achievement.certified_by ? employeeMap[achievement.certified_by] : null
+  // いいね・コメント欄（個別カードと、まとめカードの代表認定で共用）
+  const renderEngagement = (achievement: FeedAchievement) => {
     const achComments = commentsByAchievement[achievement.id] ?? []
     const achReactions = reactionsByAchievement[achievement.id] ?? []
     const isCmtExpanded = expandedComments.has(achievement.id)
-
     const hasOwnLike = achReactions.some(r => r.employee_id === currentEmployeeId)
     const likeCount = achReactions.length
     const likerNames = achReactions
       .map(r => employeeMap[r.employee_id]?.name ?? '不明')
       .filter((name, i, arr) => arr.indexOf(name) === i)
+    return (
+      <>
+        {/* いいね & コメントアイコン */}
+        <div className="flex items-center gap-4 mt-2">
+          <button
+            onClick={() => handleReaction(achievement.id, '❤️')}
+            disabled={isPending}
+            className="flex items-center gap-1 transition-colors"
+          >
+            <Heart className={cn('w-5 h-5', hasOwnLike ? 'fill-red-500 text-red-500' : 'text-gray-400 hover:text-red-400')} />
+            {likeCount > 0 && <span className={cn('text-xs font-medium', hasOwnLike ? 'text-red-500' : 'text-gray-500')}>{likeCount}</span>}
+          </button>
+          <button
+            onClick={() => setExpandedComments(prev => {
+              const next = new Set(prev)
+              next.has(achievement.id) ? next.delete(achievement.id) : next.add(achievement.id)
+              return next
+            })}
+            className="flex items-center gap-1 text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <MessageCircle className="w-5 h-5" />
+            {achComments.length > 0 && <span className="text-xs font-medium text-gray-500">{achComments.length}</span>}
+          </button>
+        </div>
+        {/* いいねした人 */}
+        {likerNames.length > 0 && (
+          <p className="text-[11px] text-gray-500 mt-1">
+            <span className="font-semibold">{likerNames.slice(0, 3).join('、')}</span>
+            {likerNames.length > 3 && `、他${likerNames.length - 3}人`}
+            が❤️しました
+          </p>
+        )}
+        {/* コメント */}
+        {(isCmtExpanded || (!compact && achComments.length > 0)) && (
+          <div className="mt-3 space-y-2 border-t pt-2">
+            {achComments.map(comment => {
+              const commenter = employeeMap[comment.employee_id]
+              return (
+                <div key={comment.id} className="flex items-start gap-2">
+                  <Avatar className="w-6 h-6 flex-shrink-0 mt-0.5">
+                    <AvatarImage src={commenter?.avatar_url ?? undefined} />
+                    <AvatarFallback className="bg-gray-100 text-gray-600 text-[10px] font-bold">
+                      {commenter?.name?.charAt(0) ?? '?'}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs">
+                      <span className="font-semibold text-gray-700">{commenter?.name ?? '不明'}</span>
+                      <span className="text-gray-400 ml-1">{timeAgo(comment.created_at)}</span>
+                    </p>
+                    <p className="text-sm text-gray-700 mt-0.5">{comment.content}</p>
+                  </div>
+                </div>
+              )
+            })}
+            {/* コメント入力 */}
+            <div className="flex items-center gap-2 mt-1">
+              <Input
+                placeholder="お祝いコメントを送る..."
+                value={commentInputs[achievement.id] ?? ''}
+                onChange={e => setCommentInputs(prev => ({ ...prev, [achievement.id]: e.target.value }))}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) handleComment(achievement.id) }}
+                className="text-sm h-8 flex-1"
+                disabled={isPending}
+              />
+              <Button
+                size="sm"
+                className="h-8 w-8 p-0 bg-orange-500 hover:bg-orange-600"
+                onClick={() => handleComment(achievement.id)}
+                disabled={isPending || !commentInputs[achievement.id]?.trim()}
+              >
+                <Send className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+          </div>
+        )}
+      </>
+    )
+  }
+
+  // 1件分の中身（nested=まとめカード内では「人名」を省きスキル中心に表示）
+  const renderAchievementInner = (achievement: FeedAchievement, nested: boolean) => {
+    const emp = employeeMap[achievement.employee_id]
+    const certifier = achievement.certified_by ? employeeMap[achievement.certified_by] : null
 
     return (
       <div
@@ -283,82 +364,7 @@ export function TimelineFeed({ achievements, comments: initialComments, reaction
           </div>
         </div>
 
-        {/* いいね & コメントアイコン */}
-        <div className="flex items-center gap-4 mt-2">
-          <button
-            onClick={() => handleReaction(achievement.id, '❤️')}
-            disabled={isPending}
-            className="flex items-center gap-1 transition-colors"
-          >
-            <Heart className={cn('w-5 h-5', hasOwnLike ? 'fill-red-500 text-red-500' : 'text-gray-400 hover:text-red-400')} />
-            {likeCount > 0 && <span className={cn('text-xs font-medium', hasOwnLike ? 'text-red-500' : 'text-gray-500')}>{likeCount}</span>}
-          </button>
-          <button
-            onClick={() => setExpandedComments(prev => {
-              const next = new Set(prev)
-              next.has(achievement.id) ? next.delete(achievement.id) : next.add(achievement.id)
-              return next
-            })}
-            className="flex items-center gap-1 text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            <MessageCircle className="w-5 h-5" />
-            {achComments.length > 0 && <span className="text-xs font-medium text-gray-500">{achComments.length}</span>}
-          </button>
-        </div>
-        {/* いいねした人 */}
-        {likerNames.length > 0 && (
-          <p className="text-[11px] text-gray-500 mt-1">
-            <span className="font-semibold">{likerNames.slice(0, 3).join('、')}</span>
-            {likerNames.length > 3 && `、他${likerNames.length - 3}人`}
-            が❤️しました
-          </p>
-        )}
-
-        {/* コメント */}
-        {(isCmtExpanded || (!compact && achComments.length > 0)) && (
-          <div className="mt-3 space-y-2 border-t pt-2">
-            {achComments.map(comment => {
-              const commenter = employeeMap[comment.employee_id]
-              return (
-                <div key={comment.id} className="flex items-start gap-2">
-                  <Avatar className="w-6 h-6 flex-shrink-0 mt-0.5">
-                    <AvatarImage src={commenter?.avatar_url ?? undefined} />
-                    <AvatarFallback className="bg-gray-100 text-gray-600 text-[10px] font-bold">
-                      {commenter?.name?.charAt(0) ?? '?'}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs">
-                      <span className="font-semibold text-gray-700">{commenter?.name ?? '不明'}</span>
-                      <span className="text-gray-400 ml-1">{timeAgo(comment.created_at)}</span>
-                    </p>
-                    <p className="text-sm text-gray-700 mt-0.5">{comment.content}</p>
-                  </div>
-                </div>
-              )
-            })}
-
-            {/* コメント入力 */}
-            <div className="flex items-center gap-2 mt-1">
-              <Input
-                placeholder="お祝いコメントを送る..."
-                value={commentInputs[achievement.id] ?? ''}
-                onChange={e => setCommentInputs(prev => ({ ...prev, [achievement.id]: e.target.value }))}
-                onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) handleComment(achievement.id) }}
-                className="text-sm h-8 flex-1"
-                disabled={isPending}
-              />
-              <Button
-                size="sm"
-                className="h-8 w-8 p-0 bg-orange-500 hover:bg-orange-600"
-                onClick={() => handleComment(achievement.id)}
-                disabled={isPending || !commentInputs[achievement.id]?.trim()}
-              >
-                <Send className="w-3.5 h-3.5" />
-              </Button>
-            </div>
-          </div>
-        )}
+        {renderEngagement(achievement)}
       </div>
     )
   }
@@ -366,8 +372,6 @@ export function TimelineFeed({ achievements, comments: initialComments, reaction
   // まとめカードのヘッダー（同じ人が同じ日に複数習得）
   const renderGroupHeader = (group: TimelineGroup) => {
     const emp = employeeMap[group.employeeId]
-    const totalLikes = group.items.reduce((s, a) => s + (reactionsByAchievement[a.id]?.length ?? 0), 0)
-    const totalComments = group.items.reduce((s, a) => s + (commentsByAchievement[a.id]?.length ?? 0), 0)
     const isOpen = expandedGroups.has(group.key)
     return (
       <button onClick={() => toggleGroup(group.key)} className="w-full flex items-center gap-2.5 text-left">
@@ -386,8 +390,6 @@ export function TimelineFeed({ achievements, comments: initialComments, reaction
           </p>
           <div className="flex items-center gap-2 mt-0.5 text-[10px] text-gray-400">
             <span>{group.latestAt ? timeAgo(group.latestAt) : ''}</span>
-            {totalLikes > 0 && <span className="flex items-center gap-0.5"><Heart className="w-3 h-3" />{totalLikes}</span>}
-            {totalComments > 0 && <span className="flex items-center gap-0.5"><MessageCircle className="w-3 h-3" />{totalComments}</span>}
           </div>
           {renderAffiliations(group.employeeId)}
         </div>
@@ -420,6 +422,8 @@ export function TimelineFeed({ achievements, comments: initialComments, reaction
             ) : (
               <>
                 {renderGroupHeader(group)}
+                {/* まとめカード（折りたたみ時）にも、いいね・コメントを表示（代表＝最新の認定に紐づく） */}
+                {!expandedGroups.has(group.key) && renderEngagement(group.items[0])}
                 {expandedGroups.has(group.key) && (
                   <div className="mt-2.5 space-y-2 border-l-2 border-orange-100 pl-2">
                     {group.items.map(a => renderAchievementInner(a, true))}
