@@ -207,7 +207,11 @@ export default async function EmployeeDetailPage({ params, searchParams }: { par
       <div className="px-4 pb-8 space-y-4">
         {/* スキルバランス／フェーズ別達成率: 本人＋閲覧権限のあるメンバー（管理者・リーダー）両方で表示 */}
         <Suspense fallback={null}>
-          <MySkillCharts employeeId={employee.id} />
+          <MySkillCharts
+            employeeId={employee.id}
+            canEditParticipation={isSelf || canAdminister(currentEmployee)}
+            selfView={isSelf}
+          />
         </Suspense>
         {/* 仲間は閲覧者本人の文脈のため、自分のページのみ表示 */}
         {isSelf && <ColleaguesSection embedded />}

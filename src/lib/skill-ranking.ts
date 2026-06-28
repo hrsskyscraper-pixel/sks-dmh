@@ -37,7 +37,7 @@ export async function computeSkillCountRanking(
   }
 
   // 社員→所属カリキュラム
-  const mapping = await getEmployeeProjectMapping(db)
+  const mapping = await getEmployeeProjectMapping(db, { excludeOptOuts: true })
   const projectIdsByEmp: Record<string, string[]> = {}
   const allProjectIds = new Set<string>()
   for (const m of mapping) {

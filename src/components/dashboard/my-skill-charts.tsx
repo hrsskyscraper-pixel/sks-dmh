@@ -11,6 +11,7 @@ import { MySkillChartsClient } from '@/components/dashboard/my-skill-charts-clie
 import { CurriculumSwitcher } from '@/components/skills/curriculum-switcher'
 import { SkillStatsContent } from '@/components/skills/skill-stats-content'
 import { SetupRequestCard } from '@/components/dashboard/setup-request-card'
+import { CurriculumParticipationToggle } from '@/components/dashboard/curriculum-participation-toggle'
 
 const PHASE_COLORS = ['bg-orange-500', 'bg-amber-500', 'bg-red-500', 'bg-blue-500', 'bg-green-500', 'bg-purple-500']
 
@@ -18,7 +19,9 @@ const PHASE_COLORS = ['bg-orange-500', 'bg-amber-500', 'bg-red-500', 'bg-blue-50
  * 「スキルバランス」「フェーズ別達成率」チャート（ホームから My ページへ移設）。
  * 本人の選択中習得カリキュラム（Cookie → 先頭）を解決し、ホームと同じ計算で描画する。
  */
-export async function MySkillCharts({ employeeId }: { employeeId: string }) {
+export async function MySkillCharts({
+  employeeId, canEditParticipation = false, selfView = false,
+}: { employeeId: string; canEditParticipation?: boolean; selfView?: boolean }) {
   const db = createAdminClient()
 
   // 参加習得カリキュラムを解決（team_members / team_managers → project_teams → 有効な skill_projects）
@@ -26,6 +29,7 @@ export async function MySkillCharts({ employeeId }: { employeeId: string }) {
     db.from('team_members').select('team_id').eq('employee_id', employeeId),
     db.from('team_managers').select('team_id').eq('employee_id', employeeId),
   ])
+  const managerTeamIds = new Set((mRows ?? []).map(r => r.team_id))
   const teamIds = [...new Set([...(tRows ?? []).map(r => r.team_id), ...(mRows ?? []).map(r => r.team_id)])]
   if (teamIds.length === 0) return null
   const { data: ptRows } = await db.from('project_teams').select('project_id, team_id').in('team_id', teamIds)
@@ -39,13 +43,19 @@ export async function MySkillCharts({ employeeId }: { employeeId: string }) {
   const cookieProjectId = cookieStore.get(SELECTED_PROJECT_COOKIE)?.value ?? null
   const selectedProject = employeeProjects.find(p => p.id === cookieProjectId) ?? employeeProjects[0]
 
-  const [{ data: projectPhaseRows }, { data: projectSkillRows }, { data: allSkills }, { data: achievements }, whResult] = await Promise.all([
+  const [{ data: projectPhaseRows }, { data: projectSkillRows }, { data: allSkills }, { data: achievements }, whResult, { data: optOutRow }] = await Promise.all([
     db.from('project_phases').select('id, project_id, name, order_index, end_hours, created_at').eq('project_id', selectedProject.id).order('order_index'),
     db.from('project_skills').select('skill_id, project_phase_id').eq('project_id', selectedProject.id),
     db.from('skills').select('id, category'),
     db.from('achievements').select('skill_id, status').eq('employee_id', employeeId),
     db.rpc('get_employee_cumulative_hours', { p_employee_id: employeeId, p_as_of_date: new Date().toISOString().split('T')[0] }),
+    db.from('curriculum_opt_outs').select('employee_id').eq('employee_id', employeeId).eq('project_id', selectedProject.id).maybeSingle(),
   ])
+
+  // 担当リーダーが選択中カリキュラムを「育成対象として参加する／しない」を切り替えられるか
+  const isLeaderOfSelected = (ptRows ?? []).some(r => r.project_id === selectedProject.id && managerTeamIds.has(r.team_id))
+  const showParticipationToggle = canEditParticipation && isLeaderOfSelected
+  const participatesInSelected = !optOutRow
 
   const switcherProjects = employeeProjects.map(p => ({ id: p.id, name: p.name }))
   const projectPhases = projectPhaseRows ?? []
@@ -140,6 +150,17 @@ export async function MySkillCharts({ employeeId }: { employeeId: string }) {
         basePath={`/admin/employees/${employeeId}`}
         padded={false}
       />
+
+      {/* 担当リーダー: このカリキュラムで育成対象として参加する／しない（しない＝ランキング非表示） */}
+      {showParticipationToggle && (
+        <CurriculumParticipationToggle
+          employeeId={employeeId}
+          projectId={selectedProject.id}
+          projectName={selectedProject.name}
+          initialParticipate={participatesInSelected}
+          selfView={selfView}
+        />
+      )}
 
       {/* 全体達成率（ホーム・スキルページと同じカード） */}
       {sTotal > 0 && (

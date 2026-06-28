@@ -30,7 +30,9 @@ export async function TeamRankingServer({ employeeId, employeeRole, selectedProj
     (async () => {
       const { getEmployeeProjectMapping } = await import('@/lib/project-members')
       // 育成対象＝チームの「メンバー」。リーダー(team_managers)は対象に含めない
-      return { data: await getEmployeeProjectMapping(db, { membersOnly: true }) }
+      // （リーダーはトリガで team_members にも入るため membersOnly でも対象。excludeOptOuts で
+      //  「育成対象として参加しない」カリキュラムを除外する）
+      return { data: await getEmployeeProjectMapping(db, { membersOnly: true, excludeOptOuts: true }) }
     })(),
     db.from('project_phases').select('id, project_id, name, order_index, end_hours, created_at'),
     db.from('project_skills').select('project_id, skill_id, project_phase_id'),

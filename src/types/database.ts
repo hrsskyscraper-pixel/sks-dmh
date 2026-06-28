@@ -1007,6 +1007,27 @@ export type Database = {
         }
         Relationships: []
       }
+      curriculum_opt_outs: {
+        Row: {
+          employee_id: string
+          project_id: string
+          created_at: string
+          created_by: string | null
+        }
+        Insert: {
+          employee_id: string
+          project_id: string
+          created_at?: string
+          created_by?: string | null
+        }
+        Update: {
+          employee_id?: string
+          project_id?: string
+          created_at?: string
+          created_by?: string | null
+        }
+        Relationships: []
+      }
       career_records: {
         Row: {
           id: string

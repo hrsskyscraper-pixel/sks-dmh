@@ -6,19 +6,27 @@ import { SupabaseClient } from '@supabase/supabase-js'
  *
  * @param opts.membersOnly true の場合、team_managers（リーダー）は含めず
  *   team_members（メンバー）のみを対象にする。育成対象（＝メンバー）の判定に使う。
+ * @param opts.excludeOptOuts true の場合、curriculum_opt_outs に登録された
+ *   (employee_id, project_id)（＝リーダーが「育成対象として参加しない」と設定したカリキュラム）を除外する。
+ *   ランキング集計でのみ使う（本人のスキル画面では除外しない）。
  */
 export async function getEmployeeProjectMapping(
   db: SupabaseClient | ReturnType<any>,
-  opts?: { membersOnly?: boolean },
+  opts?: { membersOnly?: boolean; excludeOptOuts?: boolean },
 ) {
   const membersOnly = opts?.membersOnly ?? false
-  const [{ data: projectTeams }, { data: teamMembers }, { data: teamManagers }] = await Promise.all([
+  const excludeOptOuts = opts?.excludeOptOuts ?? false
+  const [{ data: projectTeams }, { data: teamMembers }, { data: teamManagers }, { data: optOuts }] = await Promise.all([
     db.from('project_teams').select('project_id, team_id'),
     db.from('team_members').select('team_id, employee_id'),
     membersOnly
       ? Promise.resolve({ data: [] as { team_id: string; employee_id: string }[] })
       : db.from('team_managers').select('team_id, employee_id'),
+    excludeOptOuts
+      ? db.from('curriculum_opt_outs').select('employee_id, project_id')
+      : Promise.resolve({ data: [] as { employee_id: string; project_id: string }[] }),
   ])
+  const optOutSet = new Set((optOuts ?? []).map((o: { employee_id: string; project_id: string }) => `${o.employee_id}:${o.project_id}`))
 
   // team_id → project_ids マップ
   const teamToProjects: Record<string, string[]> = {}
@@ -35,10 +43,10 @@ export async function getEmployeeProjectMapping(
     const projects = teamToProjects[tm.team_id] ?? []
     for (const projectId of projects) {
       const key = `${tm.employee_id}:${projectId}`
-      if (!seen.has(key)) {
-        seen.add(key)
-        result.push({ employee_id: tm.employee_id, project_id: projectId })
-      }
+      if (seen.has(key)) continue
+      if (optOutSet.has(key)) continue // 「育成対象として参加しない」カリキュラムはランキングから除外
+      seen.add(key)
+      result.push({ employee_id: tm.employee_id, project_id: projectId })
     }
   }
 
