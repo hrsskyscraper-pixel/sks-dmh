@@ -53,8 +53,9 @@ export function AnnouncementCard({ item, reactions: initReactions, comments: ini
   const toggleLike = () => {
     startTransition(async () => {
       if (reacted) {
+        // 旧🎉も含め本人の反応を解除（絵文字非依存）
         const { error } = await supabase.from('announcement_reactions').delete()
-          .eq('announcement_id', item.id).eq('employee_id', currentEmployeeId).eq('emoji', HEART)
+          .eq('announcement_id', item.id).eq('employee_id', currentEmployeeId)
         if (error) { toast.error('取り消しに失敗しました'); return }
         setReactions(prev => prev.filter(r => r.employee_id !== currentEmployeeId))
       } else {

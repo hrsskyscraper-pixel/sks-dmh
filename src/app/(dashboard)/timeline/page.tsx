@@ -4,6 +4,9 @@ import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
 import { TopBar } from '@/components/layout/nav'
 import { TimelineFeed } from '@/components/timeline/timeline-feed'
 import { getTestEmployeeIds } from '@/lib/test-data'
+import { getAnnouncementsData } from '@/lib/announcements'
+
+export const dynamic = 'force-dynamic'
 
 export default async function TimelinePage() {
   const currentEmployee = await getCurrentEmployee()
@@ -33,8 +36,12 @@ export default async function TimelinePage() {
       .order('name'),
   ])
 
+  // お知らせ（級合格・ランキング・歓迎）もタイムラインに流す
+  const { items: anns, reactions: annReactions, comments: annComments, reactorNames: annReactorNames, reactorAvatars: annReactorAvatars } = await getAnnouncementsData(db, {})
+
   // テスト社員の投稿・反応・コメントは除外
   const testEmpIds = await getTestEmployeeIds()
+  const rawCount = (certifiedAchievements ?? []).length
   const visibleAchievements = (certifiedAchievements ?? []).filter(a => !testEmpIds.has(a.employee_id))
   const visibleComments = (comments ?? []).filter(c => !testEmpIds.has(c.employee_id))
   const visibleReactions = (reactions ?? []).filter(r => !testEmpIds.has(r.employee_id))
@@ -95,6 +102,12 @@ export default async function TimelinePage() {
         currentEmployeeId={currentEmployee.id}
         affByEmployee={affByEmployee}
         curriculaBySkill={curriculaBySkill}
+        announcements={anns}
+        annReactions={annReactions}
+        annComments={annComments}
+        reactorNames={annReactorNames}
+        reactorAvatars={annReactorAvatars}
+        hasMore={rawCount === 50}
       />
     </>
   )

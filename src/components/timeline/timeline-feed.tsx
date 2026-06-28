@@ -1,15 +1,17 @@
 'use client'
 
-import { useState, useTransition, useEffect } from 'react'
+import { useState, useTransition, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { Card } from '@/components/ui/card'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
-import { Heart, MessageCircle, Send, ChevronDown, ChevronUp } from 'lucide-react'
+import { Heart, MessageCircle, Send, ChevronDown, ChevronUp, Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { AffiliationBadge } from '@/components/ui/affiliation'
+import { AnnouncementCard } from '@/components/announcements/announcement-card'
+import type { AnnouncementItem, AnnouncementReaction, AnnouncementComment } from '@/lib/announcements'
 
 interface FeedAchievement {
   id: string
@@ -59,6 +61,14 @@ interface Props {
   compact?: boolean
   affByEmployee?: Record<string, Affiliation[]>
   curriculaBySkill?: Record<string, string[]>
+  /** お知らせ（級合格・ランキング・歓迎）をタイムラインにも流す（フル表示時のみ） */
+  announcements?: AnnouncementItem[]
+  annReactions?: AnnouncementReaction[]
+  annComments?: AnnouncementComment[]
+  reactorNames?: Record<string, string>
+  reactorAvatars?: Record<string, string | null>
+  /** 初期表示の認定がこの件数なら「もっと読む」を有効化 */
+  hasMore?: boolean
 }
 
 
@@ -84,7 +94,12 @@ function dayKey(dateStr: string | null): string {
 /** ホーム（compact）で表示する最大グループ数 */
 const COMPACT_GROUPS = 5
 
-export function TimelineFeed({ achievements, comments: initialComments, reactions: initialReactions, employeeMap, currentEmployeeId, compact = false, affByEmployee = {}, curriculaBySkill = {} }: Props) {
+export function TimelineFeed({
+  achievements: initialAchievements, comments: initialComments, reactions: initialReactions, employeeMap, currentEmployeeId,
+  compact = false, affByEmployee = {}, curriculaBySkill = {},
+  announcements = [], annReactions = [], annComments = [], reactorNames = {}, reactorAvatars = {}, hasMore: initialHasMore = false,
+}: Props) {
+  const [achievements, setAchievements] = useState(initialAchievements)
   const [comments, setComments] = useState(initialComments)
   const [reactions, setReactions] = useState(initialReactions)
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({})
@@ -92,6 +107,43 @@ export function TimelineFeed({ achievements, comments: initialComments, reaction
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
   const [isPending, startTransition] = useTransition()
   const supabase = createClient()
+
+  // 無限スクロール（フル表示のみ）
+  const [hasMore, setHasMore] = useState(initialHasMore)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const sentinelRef = useRef<HTMLDivElement | null>(null)
+  const loadingRef = useRef(false)
+
+  useEffect(() => {
+    if (compact || !hasMore) return
+    const el = sentinelRef.current
+    if (!el) return
+    const io = new IntersectionObserver(async entries => {
+      if (!entries[0].isIntersecting || loadingRef.current) return
+      loadingRef.current = true
+      setLoadingMore(true)
+      try {
+        const oldest = achievements.reduce((min, a) => (a.certified_at && (!min || a.certified_at < min) ? a.certified_at : min), '' as string)
+        const res = await fetch(`/api/timeline?before=${encodeURIComponent(oldest)}`)
+        const json = await res.json()
+        const more: FeedAchievement[] = json.achievements ?? []
+        if (more.length > 0) {
+          setAchievements(prev => {
+            const seen = new Set(prev.map(a => a.id))
+            return [...prev, ...more.filter(a => !seen.has(a.id))]
+          })
+        }
+        setHasMore(!!json.hasMore && more.length > 0)
+      } catch {
+        // 失敗時は次のスクロールで再試行
+      } finally {
+        loadingRef.current = false
+        setLoadingMore(false)
+      }
+    }, { rootMargin: '400px' })
+    io.observe(el)
+    return () => io.disconnect()
+  }, [compact, hasMore, achievements])
 
   // 同じ人・同じ日でグループ化（achievements は certified_at 降順で渡される）
   const groups: TimelineGroup[] = []
@@ -393,10 +445,17 @@ export function TimelineFeed({ achievements, comments: initialComments, reaction
     )
   }
 
-  if (displayGroups.length === 0) {
+  // お知らせ（級合格・ランキング・歓迎）と認定グループを日付降順で統合（フル表示のみお知らせを混ぜる）
+  type Entry = { kind: 'group'; date: string; group: TimelineGroup } | { kind: 'ann'; date: string; ann: AnnouncementItem }
+  const feedEntries: Entry[] = [
+    ...displayGroups.map(g => ({ kind: 'group' as const, date: g.latestAt, group: g })),
+    ...(compact ? [] : announcements.map(a => ({ kind: 'ann' as const, date: a.createdAt, ann: a }))),
+  ].sort((x, y) => new Date(y.date).getTime() - new Date(x.date).getTime())
+
+  if (feedEntries.length === 0) {
     return (
       <div className="p-4 text-center text-sm text-muted-foreground">
-        まだ認定されたスキルはありません
+        まだ投稿はありません
       </div>
     )
   }
@@ -407,19 +466,32 @@ export function TimelineFeed({ achievements, comments: initialComments, reaction
 
   return (
     <div className={cn('space-y-3', compact ? 'px-0' : 'p-4')}>
-      {displayGroups.map(group => (
-        <Wrapper key={group.key} className={wrapperClass}>
+      {feedEntries.map(entry => entry.kind === 'ann' ? (
+        <Card key={`ann-${entry.ann.id}`} className="overflow-hidden">
+          <div className="pt-3 pb-3 px-3">
+            <AnnouncementCard
+              item={entry.ann}
+              reactions={annReactions.filter(r => r.announcement_id === entry.ann.id)}
+              comments={annComments.filter(c => c.announcement_id === entry.ann.id)}
+              reactorNames={reactorNames}
+              reactorAvatars={reactorAvatars}
+              currentEmployeeId={currentEmployeeId}
+            />
+          </div>
+        </Card>
+      ) : (
+        <Wrapper key={entry.group.key} className={wrapperClass}>
           <div className={innerPad}>
-            {group.items.length === 1 ? (
-              renderAchievementInner(group.items[0], false)
+            {entry.group.items.length === 1 ? (
+              renderAchievementInner(entry.group.items[0], false)
             ) : (
               <>
-                {renderGroupHeader(group)}
+                {renderGroupHeader(entry.group)}
                 {/* まとめカード（折りたたみ時）にも、いいね・コメントを表示（代表＝最新の認定に紐づく） */}
-                {!expandedGroups.has(group.key) && renderEngagement(group.items[0])}
-                {expandedGroups.has(group.key) && (
+                {!expandedGroups.has(entry.group.key) && renderEngagement(entry.group.items[0])}
+                {expandedGroups.has(entry.group.key) && (
                   <div className="mt-2.5 space-y-2 border-l-2 border-orange-100 pl-2">
-                    {group.items.map(a => renderAchievementInner(a, true))}
+                    {entry.group.items.map(a => renderAchievementInner(a, true))}
                   </div>
                 )}
               </>
@@ -427,6 +499,12 @@ export function TimelineFeed({ achievements, comments: initialComments, reaction
           </div>
         </Wrapper>
       ))}
+      {/* 無限スクロール（フル表示） */}
+      {!compact && hasMore && (
+        <div ref={sentinelRef} className="py-4 flex justify-center">
+          {loadingMore && <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />}
+        </div>
+      )}
     </div>
   )
 }
