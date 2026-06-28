@@ -99,6 +99,8 @@ export function TeamRanking({ currentEmployeeId, stats }: Props) {
     const diff = actualPct - stdPct
     const isMe = member.id === currentEmployeeId
     const medal = MEDALS[index] ?? null
+    const hasBreakdown = member.breakdown.length > 1
+    const isOpen = openBreakdown.has(member.id)
     // スキル習得ランキングと同じ「行全体が棒グラフ」スタイル（塗り＝達成率・右端角丸）。色はブルー系（自分はオレンジ）。
     const fill = isMe ? 'rgba(251,146,60,0.45)' : 'rgba(96,165,250,0.40)'
     const base = isMe ? 'rgba(255,237,213,0.9)' : 'rgba(243,244,246,0.8)'
@@ -146,49 +148,53 @@ export function TeamRanking({ currentEmployeeId, stats }: Props) {
                 </div>
               )}
             </div>
-            <div className="text-right flex-shrink-0">
-              <div className="flex items-center justify-end gap-1 leading-none">
-                {stdPct > 0 && (
-                  <span className={cn('text-[10px] font-bold', diff > 0 ? 'text-green-600' : diff < 0 ? 'text-red-500' : 'text-gray-400')}>
-                    {diff > 0 ? `▲+${diff}` : diff < 0 ? `▼${diff}` : '±0'}
-                  </span>
-                )}
-                <span className={cn('text-sm font-black', isMe ? 'text-orange-600' : 'text-blue-600')}>{actualPct}%</span>
+            {hasBreakdown ? (
+              <button onClick={() => toggleBreakdown(member.id)} className="text-right flex-shrink-0" title="カリキュラム別の内訳">
+                <div className="flex items-center justify-end gap-1 leading-none">
+                  {stdPct > 0 && (
+                    <span className={cn('text-[10px] font-bold', diff > 0 ? 'text-green-600' : diff < 0 ? 'text-red-500' : 'text-gray-400')}>
+                      {diff > 0 ? `▲+${diff}` : diff < 0 ? `▼${diff}` : '±0'}
+                    </span>
+                  )}
+                  <span className={cn('text-sm font-black', isMe ? 'text-orange-600' : 'text-blue-600')}>{actualPct}%</span>
+                  {isOpen ? <ChevronUp className="w-3.5 h-3.5 text-gray-400" /> : <ChevronDown className="w-3.5 h-3.5 text-gray-400" />}
+                </div>
+                <span className="text-[9px] text-gray-400 leading-none">{member.certifiedCount}/{member.totalSkills}</span>
+              </button>
+            ) : (
+              <div className="text-right flex-shrink-0">
+                <div className="flex items-center justify-end gap-1 leading-none">
+                  {stdPct > 0 && (
+                    <span className={cn('text-[10px] font-bold', diff > 0 ? 'text-green-600' : diff < 0 ? 'text-red-500' : 'text-gray-400')}>
+                      {diff > 0 ? `▲+${diff}` : diff < 0 ? `▼${diff}` : '±0'}
+                    </span>
+                  )}
+                  <span className={cn('text-sm font-black', isMe ? 'text-orange-600' : 'text-blue-600')}>{actualPct}%</span>
+                </div>
+                <span className="text-[9px] text-gray-400 leading-none">{member.certifiedCount}/{member.totalSkills}</span>
               </div>
-              <span className="text-[9px] text-gray-400 leading-none">{member.certifiedCount}/{member.totalSkills}</span>
-            </div>
+            )}
           </div>
         </div>
 
-        {/* カリキュラム別の内訳（複数カリキュラム時のみ・展開で表示） */}
-        {member.breakdown.length > 1 && (
-          <div className="mt-1 ml-9 mr-2">
-            <button
-              onClick={() => toggleBreakdown(member.id)}
-              className="text-[10px] text-gray-500 hover:text-gray-700 inline-flex items-center gap-0.5"
-            >
-              {openBreakdown.has(member.id) ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-              カリキュラム別の内訳（{member.breakdown.length}件）
-            </button>
-            {openBreakdown.has(member.id) && (
-              <div className="mt-1 space-y-1 pb-1">
-                {member.breakdown.map(b => {
-                  const bPct = b.totalSkills > 0 ? Math.round((b.certifiedCount / b.totalSkills) * 100) : 0
-                  return (
-                    <div key={b.projectId} className="flex items-center gap-2">
-                      <span className="text-[9px] text-gray-600 w-24 truncate flex-shrink-0" title={b.name}>{b.name}</span>
-                      <div className="flex-1 relative h-1.5 bg-gray-200 rounded-full">
-                        <div className="absolute top-0 left-0 h-full rounded-full bg-blue-300" style={{ width: `${bPct}%` }} />
-                        {b.standardPct > 0 && (
-                          <div className="absolute top-1/2 -translate-y-1/2 w-0.5 h-2 bg-blue-600/70 rounded-sm" style={{ left: `calc(${b.standardPct}% - 1px)` }} />
-                        )}
-                      </div>
-                      <span className="text-[9px] text-gray-500 w-10 text-right flex-shrink-0">{b.certifiedCount}/{b.totalSkills}</span>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
+        {/* カリキュラム別の内訳（右側の数値クリックで開閉） */}
+        {hasBreakdown && isOpen && (
+          <div className="mt-1 ml-9 mr-2 space-y-1 pb-1">
+            {member.breakdown.map(b => {
+              const bPct = b.totalSkills > 0 ? Math.round((b.certifiedCount / b.totalSkills) * 100) : 0
+              return (
+                <div key={b.projectId} className="flex items-center gap-2">
+                  <span className="text-[9px] text-gray-600 w-24 truncate flex-shrink-0" title={b.name}>{b.name}</span>
+                  <div className="flex-1 relative h-1.5 bg-gray-200 rounded-full">
+                    <div className="absolute top-0 left-0 h-full rounded-full bg-blue-300" style={{ width: `${bPct}%` }} />
+                    {b.standardPct > 0 && (
+                      <div className="absolute top-1/2 -translate-y-1/2 w-0.5 h-2 bg-blue-600/70 rounded-sm" style={{ left: `calc(${b.standardPct}% - 1px)` }} />
+                    )}
+                  </div>
+                  <span className="text-[9px] text-gray-500 w-10 text-right flex-shrink-0">{b.certifiedCount}/{b.totalSkills}</span>
+                </div>
+              )
+            })}
           </div>
         )}
       </div>
