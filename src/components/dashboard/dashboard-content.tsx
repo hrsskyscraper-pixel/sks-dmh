@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { cn } from '@/lib/utils'
-import { AlertTriangle, ChevronDown, ChevronUp, ChevronRight, Camera, Loader2, CheckCircle2, ClipboardList, Users, Instagram, Target, CalendarDays, Pencil, BookOpen, Building2, Undo2 } from 'lucide-react'
+import { AlertTriangle, ChevronDown, ChevronUp, ChevronRight, Camera, Loader2, ClipboardList, Users, Instagram, Target, CalendarDays, Pencil, BookOpen, Building2, Undo2 } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { setSelectedProject } from '@/app/(dashboard)/actions'
@@ -302,7 +302,6 @@ export function DashboardContent({
   const totalSkills = skills.length
   const totalPct = totalSkills > 0 ? Math.round((totalCertified / totalSkills) * 100) : 0
   const totalPendingPct = totalSkills > 0 ? Math.round((totalPending / totalSkills) * 100) : 0
-  const totalUnapplied = totalSkills - totalCertified - totalPending
 
   const totalExpected = phaseStats.reduce((sum, { standardPct, total }) => sum + Math.round(standardPct * total / 100), 0)
   const gapSkills = totalCertified - totalExpected
@@ -329,21 +328,11 @@ export function DashboardContent({
       calcSkillTargetHours(b.id, skills, skillPhaseMap, projectPhases, milestones)
     )
 
-  // 次に取り組むべきスキル（未認定 AND 未申請、目標時間順）
-  const upcomingSkills = skills
-    .filter(skill => !certifiedIds.has(skill.id) && !pendingIds.has(skill.id))
-    .filter(skill => !overdueSkills.includes(skill))
-    .sort((a, b) =>
-      calcSkillTargetHours(a.id, skills, skillPhaseMap, projectPhases, milestones) -
-      calcSkillTargetHours(b.id, skills, skillPhaseMap, projectPhases, milestones)
-    )
-
   // 表示用: 遅延 + 申請中遅延 + 次のスキル を統合
   const allActionSkills = [
     ...overdueSkills.map(s => ({ ...s, _status: 'overdue' as const })),
     ...overduePendingSkills.map(s => ({ ...s, _status: 'pending' as const })),
   ]
-  const hasOverdue = overdueSkills.length > 0 || overduePendingSkills.length > 0
 
   const firstName = employee.name.split(/\s/)[0]
   const fullName = employee.name
@@ -663,41 +652,6 @@ export function DashboardContent({
       {rankingSlot}
       {skillRankingSlot}
       {checkpointSlot}
-
-      {/* 次に取り組むスキル（自分で申請できる遅延スキルがない場合に表示） */}
-      {overdueSkills.length === 0 && upcomingSkills.length > 0 && (
-        <Card className="border-blue-200 bg-blue-50">
-          <CardHeader className="pb-2 pt-4 px-4">
-            <CardTitle className="text-sm font-semibold text-blue-800 flex items-center gap-1.5">
-              <CheckCircle2 className="w-4 h-4" />
-              次のステップ（{Math.min(upcomingSkills.length, 5)}件）
-            </CardTitle>
-            <p className="text-xs text-blue-600 mt-0.5">順調です！次に習得を目指すスキルです</p>
-          </CardHeader>
-          <CardContent className="px-4 pb-4 space-y-2">
-            {upcomingSkills.slice(0, 5).map(skill => (
-              <div key={skill.id} className="bg-white rounded-lg px-3 py-2 border border-blue-200">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm text-gray-800 flex-1 min-w-0 truncate">{skill.name}</p>
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
-                    <Badge className={cn('text-[10px] border-0', getCategoryColor(skill.category, categories))}>{skill.category}</Badge>
-                    <Button
-                      size="sm" variant="outline"
-                      className="group h-7 text-xs px-2 border-blue-200 text-blue-600 hover:bg-blue-100 hover:border-blue-400 hover:text-blue-700 flex-shrink-0"
-                      onClick={() => { setApplyDialogSkill(skill); setApplyComment('') }}
-                      disabled={isPending}
-                    >
-                      <span className="group-hover:hidden">申請する</span>
-                      <span className="hidden group-hover:inline font-semibold">できました！</span>
-                    </Button>
-                  </div>
-                </div>
-                {renderManualChips(skill.id)}
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
 
       {/* 申請ダイアログ */}
       <Dialog open={applyDialogSkill !== null} onOpenChange={open => { if (!open) { setApplyDialogSkill(null); setApplyComment(''); setApplyPhotos([]) } }}>
