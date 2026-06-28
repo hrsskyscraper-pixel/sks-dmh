@@ -1844,7 +1844,7 @@ export function TeamManager({
     <div className="p-4 space-y-4">
       <Tabs defaultValue={initialTab} onValueChange={v => { if (v === 'requests') handleRequestsTabOpen() }}>
         <TabsList className={`grid w-full h-9 ${isDirectEdit ? 'grid-cols-3' : 'grid-cols-2'}`}>
-          <TabsTrigger value="teams" className="text-xs">チーム一覧</TabsTrigger>
+          <TabsTrigger value="teams" className="text-xs">所属一覧</TabsTrigger>
           <TabsTrigger value="requests" className="text-xs">
             申請
             {/* admin/ops_manager: 承認待ち件数 */}

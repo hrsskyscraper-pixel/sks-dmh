@@ -87,7 +87,7 @@ export default async function AdminTeamsPage() {
 
   return (
     <>
-      <TopBar title="チーム一覧" />
+      <TopBar title="所属一覧" />
       <TeamManager
         currentEmployee={currentEmployee}
         effectiveEmployee={effectiveEmployee}

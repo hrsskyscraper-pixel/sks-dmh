@@ -481,11 +481,16 @@ export function DashboardContent({
 
       {setupNoticeSlot}
 
-      {/* 対応が必要 */}
-      {(globalPendingAchievementsCount > 0 || teamPendingAchievementsCount > 0 || pendingTeamRequestsCount > 0) && (
+      {/* ⚠️ 対応が必要（全社未承認・自チーム未承認・チーム変更承認依頼・期限遅れ・差し戻しをここに集約） */}
+      {(() => {
+        const rejectedCount = achievementList.filter(a => a.status === 'rejected').length
+        const overdueCount = currentProject ? overdueSkills.length : 0
+        const hasAction = globalPendingAchievementsCount > 0 || teamPendingAchievementsCount > 0 || pendingTeamRequestsCount > 0 || overdueCount > 0 || rejectedCount > 0
+        if (!hasAction) return null
+        return (
         <div className="space-y-2">
           <div className="flex items-center gap-1.5 px-1">
-            <ClipboardList className="w-4 h-4 text-blue-500" />
+            <AlertTriangle className="w-4 h-4 text-red-500" />
             <p className="text-sm font-semibold text-gray-700">対応が必要です</p>
           </div>
           {globalPendingAchievementsCount > 0 && (
@@ -546,43 +551,37 @@ export function DashboardContent({
               </Card>
             </Link>
           )}
-        </div>
-      )}
-
-      {/* 遅れアラート（遅延スキルがある時だけ・本日のお知らせの上に表示） */}
-      {overdueSkills.length > 0 && currentProject && (
-        <Link href="/skills" className="block">
-          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 hover:bg-red-100 transition-colors flex items-center gap-3">
-            <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-red-700">
-                「{currentProject.name}」のスキル習得が <span className="text-red-600">{overdueSkills.length}件</span> 遅れています
-              </p>
-              <p className="text-xs text-red-500">タップして、今やるべきスキルを確認しましょう</p>
-            </div>
-            <ChevronRight className="w-4 h-4 text-red-400 flex-shrink-0" />
-          </div>
-        </Link>
-      )}
-
-      {/* 差し戻しカード（差し戻しがある時・本日のお知らせの上） */}
-      {(() => {
-        const rejectedCount = achievementList.filter(a => a.status === 'rejected').length
-        if (rejectedCount === 0) return null
-        return (
-          <Link href="/skills?tab=rejected" className="block">
-            <div className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 hover:bg-orange-100 transition-colors flex items-center gap-3">
-              <Undo2 className="w-5 h-5 text-orange-500 flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-orange-700 flex items-center gap-1">
-                  <AlertTriangle className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
-                  差し戻されたスキルが <span className="text-orange-600">{rejectedCount}件</span> あります
-                </p>
-                <p className="text-xs text-orange-500">タップして、内容を確認して再申請しましょう</p>
+          {/* 期限遅れスキル */}
+          {overdueCount > 0 && currentProject && (
+            <Link href="/skills" className="block">
+              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 hover:bg-red-100 transition-colors flex items-center gap-3">
+                <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-red-700">
+                    「{currentProject.name}」のスキル習得が <span className="text-red-600">{overdueCount}件</span> 遅れています
+                  </p>
+                  <p className="text-xs text-red-500">タップして、今やるべきスキルを確認しましょう</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-red-400 flex-shrink-0" />
               </div>
-              <ChevronRight className="w-4 h-4 text-orange-400 flex-shrink-0" />
-            </div>
-          </Link>
+            </Link>
+          )}
+          {/* 差し戻しスキル */}
+          {rejectedCount > 0 && (
+            <Link href="/skills?tab=rejected" className="block">
+              <div className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 hover:bg-orange-100 transition-colors flex items-center gap-3">
+                <Undo2 className="w-5 h-5 text-orange-500 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-orange-700">
+                    差し戻されたスキルが <span className="text-orange-600">{rejectedCount}件</span> あります
+                  </p>
+                  <p className="text-xs text-orange-500">タップして、内容を確認して再申請しましょう</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-orange-400 flex-shrink-0" />
+              </div>
+            </Link>
+          )}
+        </div>
         )
       })()}
 

@@ -200,7 +200,7 @@ export function TeamDashboard({ currentEmployee, employees, skills, achievements
     <div className="p-4 space-y-4">
       <Tabs defaultValue={initialTab}>
         <TabsList className="grid w-full grid-cols-3 h-9">
-          <TabsTrigger value="overview" className="text-xs">チーム一覧</TabsTrigger>
+          <TabsTrigger value="overview" className="text-xs">所属一覧</TabsTrigger>
           <TabsTrigger value="pending" className="text-xs">
             申請
             {pendingAchievements.length > 0 && (
