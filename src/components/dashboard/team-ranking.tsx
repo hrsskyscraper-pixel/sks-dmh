@@ -22,6 +22,7 @@ export interface TeamMemberStat {
   employment_type: string | null
   hire_date: string | null
   teams: TeamAffiliation[]
+  curricula: string[]
   certifiedCount: number
   totalSkills: number
   standardPct: number
@@ -142,11 +143,14 @@ export function TeamRanking({ currentEmployeeId, stats }: Props) {
           )}
         </div>
 
-        {/* 所属チーム（店舗・部署・PT／色分けで種別を表現） */}
-        {member.teams.length > 0 && (
+        {/* 所属（店舗／部署）＋習得カリキュラム */}
+        {(member.teams.length > 0 || member.curricula.length > 0) && (
           <div className="flex items-center gap-1 flex-wrap mb-2.5 pl-8">
             {member.teams.map((t, i) => (
               <AffiliationBadge key={`${t.type}:${t.name}:${i}`} type={t.type} name={t.name} leader={t.role === 'leader'} shared={t.shared} />
+            ))}
+            {member.curricula.map(c => (
+              <span key={c} className="inline-flex items-center text-[9px] text-orange-700 bg-orange-50 border border-orange-100 rounded px-1.5 py-0.5 font-medium max-w-[200px] truncate">{c}</span>
             ))}
           </div>
         )}

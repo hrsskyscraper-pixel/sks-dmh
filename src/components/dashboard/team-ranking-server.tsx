@@ -91,6 +91,13 @@ export async function TeamRankingServer({ employeeId, employeeRole, selectedProj
     (empProjects[ep.employee_id] ??= []).push(ep.project_id)
   }
 
+  // 習得カリキュラム名（表示用）
+  const allEmpProjIds = [...new Set((allEmployeeProjects ?? []).map(ep => ep.project_id))]
+  const { data: skillProjectRows } = allEmpProjIds.length > 0
+    ? await db.from('skill_projects').select('id, name').in('id', allEmpProjIds)
+    : { data: [] as { id: string; name: string }[] }
+  const projNameById: Record<string, string> = Object.fromEntries((skillProjectRows ?? []).map(p => [p.id, p.name]))
+
   const certifiedSet = new Set(
     (allCertified ?? []).map(a => `${a.employee_id}:${a.skill_id}`)
   )
@@ -150,7 +157,9 @@ export async function TeamRankingServer({ employeeId, employeeRole, selectedProj
     return {
       id: emp.id, name: emp.name, avatar_url: emp.avatar_url,
       employment_type: emp.employment_type, hire_date: emp.hire_date,
-      teams: affListOf(emp.id),
+      // 表示は「店舗／部署」のみ（PJチームは出さない）＋習得カリキュラム名
+      teams: affListOf(emp.id).filter(a => a.type === 'store' || a.type === 'department'),
+      curricula: [...new Set((empProjects[emp.id] ?? []).map(pid => projNameById[pid]).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ja')),
       certifiedCount: best?.certifiedCount ?? 0,
       totalSkills: best?.totalSkills ?? 0,
       standardPct: best?.standardPct ?? 0,
