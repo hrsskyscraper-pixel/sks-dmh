@@ -7,12 +7,12 @@ import { Button } from '@/components/ui/button'
 import { requestCurriculumSetup } from '@/app/(dashboard)/setup-request-actions'
 
 /** セットアップ未完了のカリキュラムがあるチームのリーダー向け：運営管理者へのセットアップ依頼カード */
-export function SetupRequestCard({ items }: { items: { teamName: string; curriculumName: string }[] }) {
+export function SetupRequestCard({ items, padded = true }: { items: { teamName: string; curriculumName: string }[]; padded?: boolean }) {
   const [sent, setSent] = useState<Set<string>>(new Set())
   const [pending, startTransition] = useTransition()
 
   return (
-    <div className="px-4">
+    <div className={padded ? 'px-4' : ''}>
       <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 space-y-2">
         <p className="text-sm font-semibold text-amber-800 flex items-center gap-1.5">
           <AlertTriangle className="w-4 h-4 flex-shrink-0" />

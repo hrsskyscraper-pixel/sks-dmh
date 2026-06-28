@@ -2,13 +2,15 @@ import { cookies } from 'next/headers'
 import Link from 'next/link'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { SELECTED_PROJECT_COOKIE } from '@/lib/selected-project'
-import { buildMilestoneMap, calcPhasePct } from '@/lib/milestone'
+import { buildMilestoneMap, calcPhasePct, calcStandardPct } from '@/lib/milestone'
 import { sortCategories } from '@/lib/category-order'
 import { cn } from '@/lib/utils'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { MySkillChartsClient } from '@/components/dashboard/my-skill-charts-client'
 import { CurriculumSwitcher } from '@/components/skills/curriculum-switcher'
+import { SkillStatsContent } from '@/components/skills/skill-stats-content'
+import { SetupRequestCard } from '@/components/dashboard/setup-request-card'
 
 const PHASE_COLORS = ['bg-orange-500', 'bg-amber-500', 'bg-red-500', 'bg-blue-500', 'bg-green-500', 'bg-purple-500']
 
@@ -26,7 +28,7 @@ export async function MySkillCharts({ employeeId }: { employeeId: string }) {
   ])
   const teamIds = [...new Set([...(tRows ?? []).map(r => r.team_id), ...(mRows ?? []).map(r => r.team_id)])]
   if (teamIds.length === 0) return null
-  const { data: ptRows } = await db.from('project_teams').select('project_id').in('team_id', teamIds)
+  const { data: ptRows } = await db.from('project_teams').select('project_id, team_id').in('team_id', teamIds)
   const projIds = [...new Set((ptRows ?? []).map(r => r.project_id))]
   if (projIds.length === 0) return null
   const { data: projects } = await db.from('skill_projects').select('id, name, is_active').in('id', projIds).eq('is_active', true)
@@ -48,11 +50,17 @@ export async function MySkillCharts({ employeeId }: { employeeId: string }) {
   const switcherProjects = employeeProjects.map(p => ({ id: p.id, name: p.name }))
   const projectPhases = projectPhaseRows ?? []
   if (projectPhases.length === 0) {
-    // フェーズ（時間）未設定でも、他カリキュラムへ移れるよう切替は表示する
+    // セットアップ未完了（フェーズ未設定）: グラフは出せないが、運営管理者へセットアップ依頼ができる
+    const linkedTeamIds = [...new Set((ptRows ?? []).filter(r => r.project_id === selectedProject.id).map(r => r.team_id))]
+    const { data: teamRows } = linkedTeamIds.length > 0
+      ? await db.from('teams').select('id, name').in('id', linkedTeamIds)
+      : { data: [] as { id: string; name: string }[] }
+    const setupItems = (teamRows ?? []).map(t => ({ teamName: t.name, curriculumName: selectedProject.name }))
     return (
       <div className="space-y-2">
         <CurriculumSwitcher projects={switcherProjects} currentProjectId={selectedProject.id} basePath={`/admin/employees/${employeeId}`} padded={false} />
         <p className="text-xs text-gray-400 px-0.5">このカリキュラムはフェーズ（時間設定）が未設定のため、グラフは表示できません。</p>
+        {setupItems.length > 0 && <SetupRequestCard items={setupItems} padded={false} />}
       </div>
     )
   }
@@ -66,6 +74,22 @@ export async function MySkillCharts({ employeeId }: { employeeId: string }) {
 
   const certifiedIds = new Set((achievements ?? []).filter(a => a.status === 'certified').map(a => a.skill_id))
   const pendingIds = new Set((achievements ?? []).filter(a => a.status === 'pending').map(a => a.skill_id))
+  const rejectedIds = new Set((achievements ?? []).filter(a => a.status === 'rejected').map(a => a.skill_id))
+
+  // 全体達成率カード（ホーム・スキルページと同じ・選択中カリキュラム）
+  const sTotal = skills.length
+  const sCertified = skills.filter(s => certifiedIds.has(s.id)).length
+  const sPending = skills.filter(s => pendingIds.has(s.id)).length
+  const sRejected = skills.filter(s => rejectedIds.has(s.id)).length
+  const sUnapplied = sTotal - sCertified - sPending - sRejected
+  const phaseNameById = new Map(projectPhases.map(p => [p.id, p.name]))
+  const sSkillsByPhase: Record<string, number> = {}
+  for (const s of skills) {
+    const phId = skillPhaseMap[s.id]
+    const phName = phId ? phaseNameById.get(phId) : undefined
+    if (phName) sSkillsByPhase[phName] = (sSkillsByPhase[phName] ?? 0) + 1
+  }
+  const sStandardPct = calcStandardPct(cumulativeHours, milestones, sSkillsByPhase, sTotal)
 
   // フェーズ別進捗
   const phaseStats = projectPhases.map((phase, index) => {
@@ -112,6 +136,25 @@ export async function MySkillCharts({ employeeId }: { employeeId: string }) {
         basePath={`/admin/employees/${employeeId}`}
         padded={false}
       />
+
+      {/* 全体達成率（ホーム・スキルページと同じカード） */}
+      {sTotal > 0 && (
+        <Card className="bg-gradient-to-br from-orange-400 to-red-500 text-white border-0 shadow-lg">
+          <CardContent className="pt-5 pb-5">
+            <SkillStatsContent
+              totalPct={sTotal > 0 ? Math.round(sCertified / sTotal * 100) : 0}
+              totalCertified={sCertified}
+              totalSkills={sTotal}
+              totalPending={sPending}
+              totalRejected={sRejected}
+              totalUnapplied={sUnapplied}
+              totalPendingPct={sTotal > 0 ? Math.round(sPending / sTotal * 100) : 0}
+              standardPct={sStandardPct}
+            />
+          </CardContent>
+        </Card>
+      )}
+
       <MySkillChartsClient
         radarData={radarData}
         phaseStats={phaseStats}
