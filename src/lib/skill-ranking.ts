@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getEmployeeProjectMapping } from '@/lib/project-members'
 
-export type RankEntry = { employeeId: string; name: string; store: string | null; curricula: string[]; count: number }
+export type RankEntry = { employeeId: string; name: string; avatarUrl: string | null; store: string | null; curricula: string[]; count: number }
 
 /** 期間内の認定（certified）数を社員ごとに集計してランキング化（テスト除外） */
 export async function computeSkillCountRanking(
@@ -24,8 +24,9 @@ export async function computeSkillCountRanking(
   const ids = ranked.map(([id]) => id)
   if (ids.length === 0) return []
 
-  const { data: emps } = await db.from('employees').select('id, name').in('id', ids)
+  const { data: emps } = await db.from('employees').select('id, name, avatar_url').in('id', ids)
   const nameById: Record<string, string> = Object.fromEntries((emps ?? []).map(e => [e.id, e.name]))
+  const avatarById: Record<string, string | null> = Object.fromEntries((emps ?? []).map(e => [e.id, e.avatar_url]))
   type TeamJoin = { employee_id: string; teams: { name: string; type: string } | { name: string; type: string }[] | null }
   const pickAff = (rows: TeamJoin[], store: Record<string, string>, dept: Record<string, string>) => {
     for (const m of rows) {
@@ -70,7 +71,7 @@ export async function computeSkillCountRanking(
       .sort((a, b) => a.localeCompare(b, 'ja'))
   }
 
-  return ranked.map(([id, count]) => ({ employeeId: id, name: nameById[id] ?? '不明', store: affById[id] ?? null, curricula: curriculaById[id] ?? [], count }))
+  return ranked.map(([id, count]) => ({ employeeId: id, name: nameById[id] ?? '不明', avatarUrl: avatarById[id] ?? null, store: affById[id] ?? null, curricula: curriculaById[id] ?? [], count }))
 }
 
 /**
