@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendInvitationNotification } from '@/lib/notifications'
 import { canApprove, canAdminister } from '@/lib/permissions'
+import { createWelcomeAnnouncement } from '@/lib/announcements'
 
 /**
  * 招待リンク発行（フェーズ2: 未アプリ参加者 or 誰でも受諾可能）
@@ -183,7 +184,7 @@ export async function acceptInvitation(
   const teamId = inv.team_id
 
   // チーム情報取得
-  const { data: team } = await db.from('teams').select('id, name').eq('id', teamId).single()
+  const { data: team } = await db.from('teams').select('id, name, type').eq('id', teamId).single()
   if (!team) return { error: 'チームが見つかりません' }
 
   // 既に所属していないか確認
@@ -240,6 +241,11 @@ export async function acceptInvitation(
     if (Object.keys(update).length > 0) {
       await db.from('employees').update(update).eq('id', me.id)
     }
+  }
+
+  // 店舗/部署に参加＝新メンバーの仲間入り。歓迎投稿（対象者1人1件）
+  if (team.type === 'store' || team.type === 'department') {
+    await createWelcomeAnnouncement(db, me.id)
   }
 
   revalidatePath('/admin/teams')
@@ -472,6 +478,11 @@ export async function acceptSelfSelectInvitation(
     if (Object.keys(update).length > 0) {
       await db.from('employees').update(update).eq('id', me.id)
     }
+  }
+
+  // 店舗/部署に参加＝新メンバーの仲間入り。歓迎投稿（対象者1人1件）
+  if (team.type === 'store' || team.type === 'department') {
+    await createWelcomeAnnouncement(db, me.id)
   }
 
   revalidatePath('/admin/teams')

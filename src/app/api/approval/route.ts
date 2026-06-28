@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { sendApprovalNotification } from '@/lib/notifications'
 import { writeAuditLog } from '@/lib/audit'
 import { canAdminister, canApprove } from '@/lib/permissions'
+import { createWelcomeAnnouncement } from '@/lib/announcements'
 
 // mate ロールは DB 上は employee + employment_type='メイト' として保存
 function resolveRole(role: string): { dbRole: string; employmentType: '社員' | 'メイト' } {
@@ -115,6 +116,9 @@ export async function POST(request: Request) {
   if (effectiveTeamId) {
     await db.from('team_members').upsert({ team_id: effectiveTeamId, employee_id: employeeId })
   }
+
+  // 新メンバーの歓迎投稿（本日のお知らせ＆タイムラインに7日間。対象者1人1件）
+  await createWelcomeAnnouncement(db, employeeId)
 
   // 3. チーム（project type）の team_members に追加（設定されている場合のみ）
   if (effectiveProjectTeamId) {

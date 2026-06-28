@@ -923,7 +923,7 @@ export type Database = {
       announcements: {
         Row: {
           id: string
-          kind: 'grade' | 'ranking'
+          kind: 'grade' | 'ranking' | 'welcome'
           subject_employee_id: string | null
           grade_label: string | null
           title: string | null
@@ -947,7 +947,7 @@ export type Database = {
         }
         Update: {
           id?: string
-          kind?: 'grade' | 'ranking'
+          kind?: 'grade' | 'ranking' | 'welcome'
           subject_employee_id?: string | null
           grade_label?: string | null
           title?: string | null
@@ -979,6 +979,30 @@ export type Database = {
           announcement_id?: string
           employee_id?: string
           emoji?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
+      announcement_comments: {
+        Row: {
+          id: string
+          announcement_id: string
+          employee_id: string
+          content: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          announcement_id: string
+          employee_id: string
+          content: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          announcement_id?: string
+          employee_id?: string
+          content?: string
           created_at?: string
         }
         Relationships: []

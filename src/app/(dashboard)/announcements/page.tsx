@@ -11,7 +11,7 @@ export default async function AnnouncementsPage() {
   const me = await getCurrentEmployee()
   if (!me) redirect('/login')
   const db = createAdminClient()
-  const { items, reactions, reactorNames } = await getAnnouncementsData(db, { limit: 100 })
+  const { items, reactions, comments, reactorNames, reactorAvatars } = await getAnnouncementsData(db, { limit: 100 })
 
   return (
     <>
@@ -20,7 +20,9 @@ export default async function AnnouncementsPage() {
         <AnnouncementsFeed
           items={items}
           reactions={reactions}
+          comments={comments}
           reactorNames={reactorNames}
+          reactorAvatars={reactorAvatars}
           currentEmployeeId={me.id}
           canPost={false}
           title="過去のお知らせ"

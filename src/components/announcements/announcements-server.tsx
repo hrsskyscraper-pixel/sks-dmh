@@ -16,7 +16,7 @@ export async function AnnouncementsServer() {
   const testIdsForRanking = await getTestEmployeeIds()
   await ensureMonthlyRankingAnnouncement(db, testIdsForRanking)
 
-  const { items, reactions, reactorNames } = await getAnnouncementsData(db, { activeOnly: true })
+  const { items, reactions, comments, reactorNames, reactorAvatars } = await getAnnouncementsData(db, { activeOnly: true })
   const canPost = canApprove(me)
 
   // 投稿対象メンバー（管理者は全員、リーダーは担当チームのメンバー）
@@ -48,7 +48,9 @@ export async function AnnouncementsServer() {
     <AnnouncementsFeed
       items={items}
       reactions={reactions}
+      comments={comments}
       reactorNames={reactorNames}
+      reactorAvatars={reactorAvatars}
       currentEmployeeId={me.id}
       canPost={canPost}
       postableMembers={postableMembers}
