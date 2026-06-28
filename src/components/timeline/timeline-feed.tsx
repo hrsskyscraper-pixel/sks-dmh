@@ -47,6 +47,8 @@ interface TimelineGroup {
   latestAt: string
 }
 
+type Affiliation = { name: string; type: 'store' | 'department' | 'project' }
+
 interface Props {
   achievements: FeedAchievement[]
   comments: FeedComment[]
@@ -54,6 +56,15 @@ interface Props {
   employeeMap: Record<string, EmployeeInfo>
   currentEmployeeId: string
   compact?: boolean
+  affByEmployee?: Record<string, Affiliation[]>
+  curriculaBySkill?: Record<string, string[]>
+}
+
+const TEAM_TYPE_LABEL: Record<Affiliation['type'], string> = { store: '店舗', department: '部署', project: 'PJ' }
+const TEAM_TYPE_COLOR: Record<Affiliation['type'], string> = {
+  store: 'bg-blue-100 text-blue-700',
+  department: 'bg-purple-100 text-purple-700',
+  project: 'bg-teal-100 text-teal-700',
 }
 
 function timeAgo(dateStr: string): string {
@@ -78,7 +89,7 @@ function dayKey(dateStr: string | null): string {
 /** ホーム（compact）で表示する最大グループ数 */
 const COMPACT_GROUPS = 5
 
-export function TimelineFeed({ achievements, comments: initialComments, reactions: initialReactions, employeeMap, currentEmployeeId, compact = false }: Props) {
+export function TimelineFeed({ achievements, comments: initialComments, reactions: initialReactions, employeeMap, currentEmployeeId, compact = false, affByEmployee = {}, curriculaBySkill = {} }: Props) {
   const [comments, setComments] = useState(initialComments)
   const [reactions, setReactions] = useState(initialReactions)
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({})
@@ -184,6 +195,35 @@ export function TimelineFeed({ achievements, comments: initialComments, reaction
     return next
   })
 
+  // 所属（店舗・部署・PJチーム）バッジ
+  const renderAffiliations = (empId: string) => {
+    const affs = affByEmployee[empId] ?? []
+    if (affs.length === 0) return null
+    return (
+      <div className="flex flex-wrap gap-1 mt-1">
+        {affs.map(a => (
+          <span key={`${a.type}:${a.name}`} className={cn('text-[9px] rounded px-1 py-px', TEAM_TYPE_COLOR[a.type])}>
+            <span className="opacity-60 mr-0.5">{TEAM_TYPE_LABEL[a.type]}</span>{a.name}
+          </span>
+        ))}
+      </div>
+    )
+  }
+
+  // 習得カリキュラム（そのスキルが属するもの）チップ
+  const renderCurricula = (skillId: string) => {
+    const cs = curriculaBySkill[skillId] ?? []
+    if (cs.length === 0) return null
+    return (
+      <div className="flex flex-wrap items-center gap-1 mt-1">
+        <span className="text-[9px] text-gray-400">カリキュラム</span>
+        {cs.map(c => (
+          <span key={c} className="text-[9px] text-orange-700 bg-orange-50 border border-orange-100 rounded px-1 py-px">{c}</span>
+        ))}
+      </div>
+    )
+  }
+
   // 1件分の中身（nested=まとめカード内では「人名」を省きスキル中心に表示）
   const renderAchievementInner = (achievement: FeedAchievement, nested: boolean) => {
     const emp = employeeMap[achievement.employee_id]
@@ -238,6 +278,8 @@ export function TimelineFeed({ achievements, comments: initialComments, reaction
                 <span className="text-[10px] text-gray-400">認定: {certifier.name}</span>
               )}
             </div>
+            {!nested && renderAffiliations(achievement.employee_id)}
+            {renderCurricula(achievement.skill_id)}
           </div>
         </div>
 
@@ -347,6 +389,7 @@ export function TimelineFeed({ achievements, comments: initialComments, reaction
             {totalLikes > 0 && <span className="flex items-center gap-0.5"><Heart className="w-3 h-3" />{totalLikes}</span>}
             {totalComments > 0 && <span className="flex items-center gap-0.5"><MessageCircle className="w-3 h-3" />{totalComments}</span>}
           </div>
+          {renderAffiliations(group.employeeId)}
         </div>
         {isOpen
           ? <ChevronUp className="w-4 h-4 text-gray-400 flex-shrink-0" />

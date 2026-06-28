@@ -18,7 +18,7 @@ const navItems = [
   { href: '/skills',           label: 'スキル',     icon: CheckSquare,        roles: ['employee', 'store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'] },
   { href: '/timeline',         label: 'TL',         icon: MessageSquare,      roles: ['employee', 'store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'] },
   { href: '/approvals',        label: '承認',        icon: BadgeCheck,         roles: ['store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'] },
-  { href: '/admin/teams',      label: 'チーム',      icon: Building2,          roles: ['employee', 'store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'] },
+  { href: '/admin/teams',      label: '所属',        icon: Building2,          roles: ['employee', 'store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'] },
 ] as const
 
 interface NavProps {
