@@ -205,7 +205,7 @@ export function BottomNav({ role, avatarUrl, employeeId }: NavProps) {
                 <Icon className={cn('w-5 h-5', isActive && 'text-orange-500')} />
                 {showBadge && (
                   <span className={`absolute -top-1 -right-1 ${badgeBg} text-white text-[9px] font-bold rounded-full min-w-[14px] h-[14px] flex items-center justify-center px-0.5 leading-none`}>
-                    {badgeCount > 9 ? '9+' : badgeCount}
+                    {badgeCount > 99 ? '99+' : badgeCount}
                   </span>
                 )}
               </div>

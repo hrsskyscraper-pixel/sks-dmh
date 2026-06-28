@@ -148,12 +148,13 @@ export async function getNavCounts(): Promise<NavCounts> {
     if (projIds.length === 0) return 0
     const cookieProjId = cookieStore.get(SELECTED_PROJECT_COOKIE)?.value ?? null
     const projId = cookieProjId && projIds.includes(cookieProjId) ? cookieProjId : projIds[0]
-    const [{ data: phases }, { data: pSkills }, { data: skillRows }, { data: certAch }, { data: pendAch }, whResult] = await Promise.all([
+    const [{ data: phases }, { data: pSkills }, { data: skillRows }, { data: certAch }, { data: pendAch }, { data: rejAch }, whResult] = await Promise.all([
       db.from('project_phases').select('id, name, order_index, end_hours').eq('project_id', projId).order('order_index'),
       db.from('project_skills').select('skill_id, project_phase_id').eq('project_id', projId),
       db.from('skills').select('id, order_index'),
       db.from('achievements').select('skill_id').eq('employee_id', targetId).eq('status', 'certified'),
       db.from('achievements').select('skill_id').eq('employee_id', targetId).eq('status', 'pending'),
+      db.from('achievements').select('skill_id').eq('employee_id', targetId).eq('status', 'rejected'),
       db.rpc('get_employee_cumulative_hours', { p_employee_id: targetId, p_as_of_date: new Date().toISOString().split('T')[0] }),
     ])
     const cumHours = (whResult as { data: number | null }).data ?? 0
@@ -164,7 +165,8 @@ export async function getNavCounts(): Promise<NavCounts> {
     const milestones = buildMilestoneMap(phases ?? [])
     const certifiedIds = new Set((certAch ?? []).map(a => a.skill_id))
     const pendingIds = new Set((pendAch ?? []).map(a => a.skill_id))
-    return countOverdueSkills(skills, certifiedIds, pendingIds, skillPhaseMap, phases ?? [], milestones, cumHours)
+    const rejectedIds = new Set((rejAch ?? []).map(a => a.skill_id))
+    return countOverdueSkills(skills, certifiedIds, pendingIds, rejectedIds, skillPhaseMap, phases ?? [], milestones, cumHours)
   }
 
   const [notif, rejectedSkillCount, pendingApprovalCount, pendingCards, overdueSkillCount] = await Promise.all([

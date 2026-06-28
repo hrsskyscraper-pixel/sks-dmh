@@ -3,12 +3,12 @@
 import { useState, useTransition, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { cn } from '@/lib/utils'
-import { AlertTriangle, ChevronDown, ChevronUp, ChevronRight, Camera, Loader2, ClipboardList, Users, Instagram, Target, CalendarDays, Pencil, BookOpen, Building2, Undo2 } from 'lucide-react'
+import { AlertTriangle, ChevronRight, Camera, Loader2, ClipboardList, Users, Instagram, Target, CalendarDays, Pencil, BookOpen, Building2, Undo2 } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { setSelectedProject } from '@/app/(dashboard)/actions'
@@ -167,7 +167,6 @@ export function DashboardContent({
   const [applyPhotos, setApplyPhotos] = useState<File[]>([])
   const [avatarUrl, setAvatarUrl] = useState(employee.avatar_url)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
-  const [showAllOverdue, setShowAllOverdue] = useState(false)
   // goal
   const [goal, setGoal] = useState(initialGoal)
   const [goalDialogOpen, setGoalDialogOpen] = useState(false)
@@ -182,6 +181,7 @@ export function DashboardContent({
 
   const certifiedIds = new Set(achievementList.filter(a => a.status === 'certified').map(a => a.skill_id))
   const pendingIds = new Set(achievementList.filter(a => a.status === 'pending').map(a => a.skill_id))
+  const rejectedIds = new Set(achievementList.filter(a => a.status === 'rejected').map(a => a.skill_id))
 
   const handleRequest = (skill: Skill, comment?: string, photos: File[] = []) => {
     if (!isOwnDashboard) {
@@ -310,34 +310,15 @@ export function DashboardContent({
   const overdueSkills = skills
     .filter(skill => {
       const targetHours = calcSkillTargetHours(skill.id, skills, skillPhaseMap, projectPhases, milestones)
-      return targetHours > 0 && targetHours <= cumulativeHours && !certifiedIds.has(skill.id) && !pendingIds.has(skill.id)
+      return targetHours > 0 && targetHours <= cumulativeHours && !certifiedIds.has(skill.id) && !pendingIds.has(skill.id) && !rejectedIds.has(skill.id)
     })
     .sort((a, b) =>
       calcSkillTargetHours(a.id, skills, skillPhaseMap, projectPhases, milestones) -
       calcSkillTargetHours(b.id, skills, skillPhaseMap, projectPhases, milestones)
     )
-
-  // 申請中だが遅延しているスキル
-  const overduePendingSkills = skills
-    .filter(skill => {
-      const targetHours = calcSkillTargetHours(skill.id, skills, skillPhaseMap, projectPhases, milestones)
-      return targetHours > 0 && targetHours <= cumulativeHours && !certifiedIds.has(skill.id) && pendingIds.has(skill.id)
-    })
-    .sort((a, b) =>
-      calcSkillTargetHours(a.id, skills, skillPhaseMap, projectPhases, milestones) -
-      calcSkillTargetHours(b.id, skills, skillPhaseMap, projectPhases, milestones)
-    )
-
-  // 表示用: 遅延 + 申請中遅延 + 次のスキル を統合
-  const allActionSkills = [
-    ...overdueSkills.map(s => ({ ...s, _status: 'overdue' as const })),
-    ...overduePendingSkills.map(s => ({ ...s, _status: 'pending' as const })),
-  ]
 
   const firstName = employee.name.split(/\s/)[0]
   const fullName = employee.name
-  const ACTION_LIMIT = 5
-  const displayedAction = showAllOverdue ? allActionSkills : allActionSkills.slice(0, ACTION_LIMIT)
 
   return (
     <div className="p-4 space-y-4">
@@ -513,7 +494,9 @@ export function DashboardContent({
                       <Building2 className="w-4 h-4 text-indigo-600" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-indigo-800">全社の認定待ちスキル申請</p>
+                      <p className="text-sm font-medium text-indigo-800 flex items-center gap-1">
+                        <AlertTriangle className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />全社の認定待ちスキル申請
+                      </p>
                       <p className="text-xs text-indigo-600">承認センターで全社の申請を確認できます</p>
                     </div>
                     <span className="text-2xl font-black text-indigo-600 flex-shrink-0">{globalPendingAchievementsCount}<span className="text-xs font-normal ml-0.5">件</span></span>
@@ -531,7 +514,9 @@ export function DashboardContent({
                       <Users className="w-4 h-4 text-blue-600" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-blue-800">担当チームの認定待ちスキル申請</p>
+                      <p className="text-sm font-medium text-blue-800 flex items-center gap-1">
+                        <AlertTriangle className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />担当チームの認定待ちスキル申請
+                      </p>
                       <p className="text-xs text-blue-600">あなたが担当するチームのメンバーの申請を認定できます</p>
                     </div>
                     <span className="text-2xl font-black text-blue-600 flex-shrink-0">{teamPendingAchievementsCount}<span className="text-xs font-normal ml-0.5">件</span></span>
@@ -586,7 +571,8 @@ export function DashboardContent({
             <div className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 hover:bg-orange-100 transition-colors flex items-center gap-3">
               <Undo2 className="w-5 h-5 text-orange-500 flex-shrink-0" />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-orange-700">
+                <p className="text-sm font-semibold text-orange-700 flex items-center gap-1">
+                  <AlertTriangle className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
                   差し戻されたスキルが <span className="text-orange-600">{rejectedCount}件</span> あります
                 </p>
                 <p className="text-xs text-orange-500">タップして、内容を確認して再申請しましょう</p>
@@ -598,56 +584,6 @@ export function DashboardContent({
       })()}
 
       {announcementsSlot}
-
-      {/* 遅延スキル + 次に取り組むべきスキル */}
-      {allActionSkills.length > 0 && (
-        <Card className="border-amber-300 bg-amber-50">
-          <CardHeader className="pb-2 pt-4 px-4">
-            <CardTitle className="text-sm font-semibold text-amber-800 flex items-center gap-1.5">
-              <AlertTriangle className="w-4 h-4" />
-              今取り組むべきスキル（{allActionSkills.length}件）
-            </CardTitle>
-            <p className="text-xs text-amber-700 mt-0.5">
-              現在 {cumulativeHours}h 時点で標準的に習得が求められているスキルです
-              {overduePendingSkills.length > 0 && `（うち申請中 ${overduePendingSkills.length}件）`}
-            </p>
-          </CardHeader>
-          <CardContent className="px-4 pb-4 space-y-2">
-            {displayedAction.map(skill => (
-              <div key={skill.id} className={cn(
-                'rounded-lg px-3 py-2',
-                skill._status === 'pending' ? 'bg-yellow-50 border border-yellow-200' : 'bg-white border border-amber-200'
-              )}>
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm text-gray-800 flex-1 min-w-0 truncate">{skill.name}</p>
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
-                    <Badge className={cn('text-[10px] border-0', getCategoryColor(skill.category, categories))}>{skill.category}</Badge>
-                    {skill._status === 'pending' ? (
-                      <Badge className="text-[10px] border-0 bg-yellow-200 text-yellow-800">申請中</Badge>
-                    ) : (
-                      <Button
-                        size="sm" variant="outline"
-                        className="group h-7 text-xs px-2 border-orange-200 text-orange-600 hover:bg-orange-100 hover:border-orange-400 hover:text-orange-700 flex-shrink-0"
-                        onClick={() => { setApplyDialogSkill(skill); setApplyComment('') }}
-                        disabled={isPending}
-                      >
-                        <span className="group-hover:hidden">申請する</span>
-                        <span className="hidden group-hover:inline font-semibold">できました！</span>
-                      </Button>
-                    )}
-                  </div>
-                </div>
-                {renderManualChips(skill.id)}
-              </div>
-            ))}
-            {allActionSkills.length > ACTION_LIMIT && (
-              <Button variant="ghost" size="sm" className="w-full text-xs text-amber-700 hover:bg-amber-100 h-8" onClick={() => setShowAllOverdue(prev => !prev)}>
-                {showAllOverdue ? <><ChevronUp className="w-3.5 h-3.5 mr-1" />閉じる</> : <><ChevronDown className="w-3.5 h-3.5 mr-1" />他 {allActionSkills.length - ACTION_LIMIT}件を表示</>}
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-      )}
 
       {rankingSlot}
       {skillRankingSlot}

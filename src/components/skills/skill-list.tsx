@@ -3,10 +3,10 @@
 import { useMemo, useState, useTransition } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
-import { CheckCircle2, Clock, Circle, ChevronDown, ChevronRight, ChevronUp, Trophy, XCircle, BookOpen } from 'lucide-react'
+import { CheckCircle2, Clock, Circle, ChevronDown, ChevronRight, ChevronUp, Trophy, XCircle, BookOpen, AlertTriangle } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/dialog'
 import { createClient } from '@/lib/supabase/client'
 import { calcPhasePct, calcStandardPct } from '@/lib/milestone'
+import { calcSkillTargetHours } from '@/lib/skill-progress'
 import { SkillStatsContent } from '@/components/skills/skill-stats-content'
 import { sortCategories } from '@/lib/category-order'
 import { cn } from '@/lib/utils'
@@ -500,6 +501,18 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
   }
   const sStandardPct = milestones ? calcStandardPct(cumulativeHours ?? 0, milestones, sSkillsByPhase, sTotal) : 0
 
+  // 遅れているスキル（未申請かつ目安時間を過ぎている）。スキルアイコン赤バッジの「遅れ」分。
+  const overdueListSkills = milestones
+    ? skills
+        .filter(s => {
+          const t = calcSkillTargetHours(s.id, skills, skillPhaseMap, phases, milestones)
+          return t > 0 && t <= (cumulativeHours ?? 0) && getStatus(s.id) === null
+        })
+        .sort((a, b) =>
+          calcSkillTargetHours(a.id, skills, skillPhaseMap, phases, milestones) -
+          calcSkillTargetHours(b.id, skills, skillPhaseMap, phases, milestones))
+    : []
+
   return (
     <div className="p-4 space-y-4">
       {/* 数値＋実績/標準バー（ホームと同じ・選択中カリキュラム） */}
@@ -681,6 +694,44 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
 
       {/* チェックリストビュー */}
       {view === 'skills' && <>
+      {/* 遅れているスキル（⚠️強調・スキルアイコン赤バッジの「遅れ」分） */}
+      {overdueListSkills.length > 0 && (
+        <Card className="border-red-300 bg-red-50">
+          <CardHeader className="pb-2 pt-4 px-4">
+            <CardTitle className="text-sm font-semibold text-red-700 flex items-center gap-1.5">
+              <AlertTriangle className="w-4 h-4" />
+              遅れているスキル（{overdueListSkills.length}件）
+            </CardTitle>
+            <p className="text-xs text-red-600 mt-0.5">目安の時間を過ぎています。早めに申請しましょう</p>
+          </CardHeader>
+          <CardContent className="px-4 pb-4 space-y-2">
+            {overdueListSkills.map(skill => (
+              <div key={skill.id} className="rounded-lg px-3 py-2 bg-white border-2 border-red-300">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm text-gray-800 flex-1 min-w-0 flex items-center gap-1">
+                    <AlertTriangle className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
+                    <span className="truncate">{skill.name}</span>
+                  </p>
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <Badge className={cn('text-[10px] border-0', getCategoryColor(skill.category, categories))}>{skill.category}</Badge>
+                    {!readOnly && (
+                      <Button
+                        size="sm" variant="outline"
+                        className="group h-7 text-xs px-2 border-red-300 text-red-600 hover:bg-red-100 hover:border-red-400 flex-shrink-0"
+                        onClick={() => { setApplyDialogSkill(skill); setApplyComment('') }}
+                        disabled={isPending}
+                      >
+                        <span className="group-hover:hidden">申請する</span>
+                        <span className="hidden group-hover:inline font-semibold">できました！</span>
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
       {!readOnly && (
         <p className="text-xs text-muted-foreground text-center bg-orange-50 border border-orange-100 rounded-lg py-2 px-3">
           習得できたスキルの <span className="font-semibold text-orange-600">申請する</span> ボタンを押して申請してください

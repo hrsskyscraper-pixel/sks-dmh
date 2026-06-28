@@ -27,12 +27,14 @@ export function calcSkillTargetHours(
 }
 
 /**
- * 遅延スキル数 = 目安時間を累計勤務時間が過ぎているのに、未認定かつ未申請のスキル数。
+ * 遅延スキル数 = 目安時間を累計勤務時間が過ぎているのに、未認定・未申請・未差し戻し（＝完全な未申請）のスキル数。
+ * 差し戻しは別カテゴリのため除外する（バッジでの二重計上を防ぐ）。
  */
 export function countOverdueSkills(
   skills: SkillLike[],
   certifiedIds: Set<string>,
   pendingIds: Set<string>,
+  rejectedIds: Set<string>,
   skillPhaseMap: Record<string, string | null>,
   projectPhases: PhaseLike[],
   milestones: MilestoneMap,
@@ -41,7 +43,7 @@ export function countOverdueSkills(
   let n = 0
   for (const s of skills) {
     const t = calcSkillTargetHours(s.id, skills, skillPhaseMap, projectPhases, milestones)
-    if (t > 0 && t <= cumulativeHours && !certifiedIds.has(s.id) && !pendingIds.has(s.id)) n++
+    if (t > 0 && t <= cumulativeHours && !certifiedIds.has(s.id) && !pendingIds.has(s.id) && !rejectedIds.has(s.id)) n++
   }
   return n
 }
