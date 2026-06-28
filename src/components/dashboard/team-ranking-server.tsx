@@ -132,39 +132,42 @@ export async function TeamRankingServer({ employeeId, employeeRole, selectedProj
     return result
   }
 
-  // 育成対象＝習得カリキュラムに紐づくチームの「メンバー」になっている社員（テスト除外）のうち、
-  // 自分のチーム（店舗・部署・PJチーム）を共有する人だけに絞る
+  // セットアップ未完了（フェーズ未設定）の習得カリキュラムは無効＝対象外
+  const validProjectIds = new Set(Object.keys(phasesByProject))
+
+  // 育成対象＝有効な習得カリキュラムに所属し、自分のチームを共有する社員（テスト・開発者除外）。
+  // 複数カリキュラムは合算（加重平均）してランキング。内訳（カリキュラム別）も持たせる。
   const teamStats: TeamMemberStat[] = (allEmployees ?? [])
-    .filter(emp => !testEmpIds.has(emp.id) && visibleIds.has(emp.id) && (empProjects[emp.id]?.length ?? 0) > 0)
+    .filter(emp => !testEmpIds.has(emp.id) && visibleIds.has(emp.id))
     .map(emp => {
-    // 所属習得カリキュラムのうち「スキルが設定されている（空でない）」ものだけを対象に、
-    // 本人の認定が最も多い習得カリキュラムを採用する（空習得カリキュラムの誤選択で0%になるのを防ぐ）。
-    let best: { certifiedCount: number; totalSkills: number; standardPct: number } | null = null
-    for (const pid of empProjects[emp.id] ?? []) {
-      const skillSet = projectSkillIdMap[pid] ?? new Set<string>()
-      if (skillSet.size === 0) continue
-      let cc = 0
-      for (const skillId of skillSet) {
-        if (certifiedSet.has(`${emp.id}:${skillId}`)) cc++
+      const validPids = [...new Set(empProjects[emp.id] ?? [])].filter(pid => validProjectIds.has(pid))
+      const breakdown = validPids.map(pid => {
+        const skillSet = projectSkillIdMap[pid] ?? new Set<string>()
+        let cc = 0
+        for (const skillId of skillSet) if (certifiedSet.has(`${emp.id}:${skillId}`)) cc++
+        const stats = getProjectStats(pid)
+        const sp = calcStandardPct(hoursByEmployee[emp.id] ?? 0, stats.milestones, stats.skillsByPhase, stats.totalSkills)
+        return { projectId: pid, name: projNameById[pid] ?? '', certifiedCount: cc, totalSkills: stats.totalSkills, standardPct: sp }
+      })
+        .filter(b => b.totalSkills > 0)
+        .sort((a, b) => a.name.localeCompare(b.name, 'ja'))
+
+      const sumCertified = breakdown.reduce((s, b) => s + b.certifiedCount, 0)
+      const sumTotal = breakdown.reduce((s, b) => s + b.totalSkills, 0)
+      const weightedStandard = sumTotal > 0 ? Math.round(breakdown.reduce((s, b) => s + b.standardPct * b.totalSkills, 0) / sumTotal) : 0
+
+      return {
+        id: emp.id, name: emp.name, avatar_url: emp.avatar_url,
+        employment_type: emp.employment_type, hire_date: emp.hire_date,
+        teams: affListOf(emp.id).filter(a => a.type === 'store' || a.type === 'department'),
+        curricula: breakdown.map(b => b.name),
+        breakdown,
+        certifiedCount: sumCertified,
+        totalSkills: sumTotal,
+        standardPct: weightedStandard,
       }
-      const stats = getProjectStats(pid)
-      const sp = calcStandardPct(hoursByEmployee[emp.id] ?? 0, stats.milestones, stats.skillsByPhase, stats.totalSkills)
-      const cand = { certifiedCount: cc, totalSkills: stats.totalSkills, standardPct: sp }
-      if (!best || cand.certifiedCount > best.certifiedCount || (cand.certifiedCount === best.certifiedCount && cand.standardPct > best.standardPct)) {
-        best = cand
-      }
-    }
-    return {
-      id: emp.id, name: emp.name, avatar_url: emp.avatar_url,
-      employment_type: emp.employment_type, hire_date: emp.hire_date,
-      // 表示は「店舗／部署」のみ（PJチームは出さない）＋習得カリキュラム名
-      teams: affListOf(emp.id).filter(a => a.type === 'store' || a.type === 'department'),
-      curricula: [...new Set((empProjects[emp.id] ?? []).map(pid => projNameById[pid]).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ja')),
-      certifiedCount: best?.certifiedCount ?? 0,
-      totalSkills: best?.totalSkills ?? 0,
-      standardPct: best?.standardPct ?? 0,
-    }
-  })
+    })
+    .filter(stat => stat.totalSkills > 0) // 有効カリキュラムがある人だけ
 
   return <TeamRanking currentEmployeeId={employeeId} stats={teamStats} />
 }

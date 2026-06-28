@@ -15,6 +15,14 @@ export interface TeamAffiliation {
   shared?: boolean
 }
 
+export interface CurriculumBreakdown {
+  projectId: string
+  name: string
+  certifiedCount: number
+  totalSkills: number
+  standardPct: number
+}
+
 export interface TeamMemberStat {
   id: string
   name: string
@@ -23,6 +31,9 @@ export interface TeamMemberStat {
   hire_date: string | null
   teams: TeamAffiliation[]
   curricula: string[]
+  /** カリキュラム別の内訳（合算の内訳・展開表示用） */
+  breakdown: CurriculumBreakdown[]
+  /** 合算（全有効カリキュラム） */
   certifiedCount: number
   totalSkills: number
   standardPct: number
@@ -49,7 +60,13 @@ const TOP_N = 5
 
 export function TeamRanking({ currentEmployeeId, stats }: Props) {
   const [expanded, setExpanded] = useState(false)
+  const [openBreakdown, setOpenBreakdown] = useState<Set<string>>(new Set())
   const cardRef = useRef<HTMLDivElement>(null)
+  const toggleBreakdown = (id: string) => setOpenBreakdown(prev => {
+    const next = new Set(prev)
+    next.has(id) ? next.delete(id) : next.add(id)
+    return next
+  })
 
   // 折りたたみは、一番下までスクロールしなくても押せるフロートボタンからも行える。
   // 折りたたんだ後はランキング先頭へ戻し、長いリストの末尾に取り残されないようにする。
@@ -182,13 +199,43 @@ export function TeamRanking({ currentEmployeeId, stats }: Props) {
               />
             )}
           </div>
-          <span className={cn(
-            'text-[11px] font-black w-8 text-right flex-shrink-0',
-            isMe ? 'text-orange-600' : 'text-blue-600'
-          )}>
-            {actualPct}%
-          </span>
+          <div className="text-right flex-shrink-0 w-12">
+            <span className={cn('text-[11px] font-black block leading-none', isMe ? 'text-orange-600' : 'text-blue-600')}>{actualPct}%</span>
+            <span className="text-[9px] text-gray-400 leading-none">{member.certifiedCount}/{member.totalSkills}</span>
+          </div>
         </div>
+
+        {/* カリキュラム別の内訳（複数カリキュラム時のみ・展開で表示） */}
+        {member.breakdown.length > 1 && (
+          <div className="mt-1.5 pl-8">
+            <button
+              onClick={() => toggleBreakdown(member.id)}
+              className="text-[10px] text-gray-500 hover:text-gray-700 inline-flex items-center gap-0.5"
+            >
+              {openBreakdown.has(member.id) ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+              カリキュラム別の内訳（{member.breakdown.length}件）
+            </button>
+            {openBreakdown.has(member.id) && (
+              <div className="mt-1 space-y-1">
+                {member.breakdown.map(b => {
+                  const bPct = b.totalSkills > 0 ? Math.round((b.certifiedCount / b.totalSkills) * 100) : 0
+                  return (
+                    <div key={b.projectId} className="flex items-center gap-2">
+                      <span className="text-[9px] text-gray-600 w-24 truncate flex-shrink-0" title={b.name}>{b.name}</span>
+                      <div className="flex-1 relative h-1.5 bg-gray-200 rounded-full">
+                        <div className="absolute top-0 left-0 h-full rounded-full bg-blue-300" style={{ width: `${bPct}%` }} />
+                        {b.standardPct > 0 && (
+                          <div className="absolute top-1/2 -translate-y-1/2 w-0.5 h-2 bg-blue-400 rounded-sm" style={{ left: `calc(${b.standardPct}% - 1px)` }} />
+                        )}
+                      </div>
+                      <span className="text-[9px] text-gray-500 w-10 text-right flex-shrink-0">{b.certifiedCount}/{b.totalSkills}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     )
   }
