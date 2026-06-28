@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getEmployeeProjectMapping } from '@/lib/project-members'
 
-export type RankEntry = { employeeId: string; name: string; avatarUrl: string | null; store: string | null; curricula: string[]; count: number }
+export type RankEntry = { employeeId: string; name: string; avatarUrl: string | null; store: string | null; affType: 'store' | 'department' | null; curricula: string[]; count: number }
 
 /** 期間内の認定（certified）数を社員ごとに集計してランキング化（テスト除外） */
 export async function computeSkillCountRanking(
@@ -46,9 +46,12 @@ export async function computeSkillCountRanking(
   pickAff((tmg ?? []) as TeamJoin[], mgrStore, mgrDept)
   // 表示の優先順位: メンバー店舗 → メンバー部署 → 担当店舗 → 担当部署
   const affById: Record<string, string> = {}
+  const affTypeById: Record<string, 'store' | 'department'> = {}
   for (const id of ids) {
-    const aff = memStore[id] ?? memDept[id] ?? mgrStore[id] ?? mgrDept[id]
-    if (aff) affById[id] = aff
+    if (memStore[id]) { affById[id] = memStore[id]; affTypeById[id] = 'store' }
+    else if (memDept[id]) { affById[id] = memDept[id]; affTypeById[id] = 'department' }
+    else if (mgrStore[id]) { affById[id] = mgrStore[id]; affTypeById[id] = 'store' }
+    else if (mgrDept[id]) { affById[id] = mgrDept[id]; affTypeById[id] = 'department' }
   }
 
   // 各社員の所属習得カリキュラム名（project_teams + team_members 経由）
@@ -71,7 +74,7 @@ export async function computeSkillCountRanking(
       .sort((a, b) => a.localeCompare(b, 'ja'))
   }
 
-  return ranked.map(([id, count]) => ({ employeeId: id, name: nameById[id] ?? '不明', avatarUrl: avatarById[id] ?? null, store: affById[id] ?? null, curricula: curriculaById[id] ?? [], count }))
+  return ranked.map(([id, count]) => ({ employeeId: id, name: nameById[id] ?? '不明', avatarUrl: avatarById[id] ?? null, store: affById[id] ?? null, affType: affTypeById[id] ?? null, curricula: curriculaById[id] ?? [], count }))
 }
 
 /**

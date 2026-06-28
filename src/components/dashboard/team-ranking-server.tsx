@@ -65,7 +65,7 @@ export async function TeamRankingServer({ employeeId, employeeRole, selectedProj
     if (!t) return
     const map = (affByEmp[empId] ??= new Map<string, TeamAffiliation>())
     if (map.get(teamId)?.role === 'leader') return // 既にリーダー登録済みなら据え置き
-    map.set(teamId, { name: t.name, type: t.type, role })
+    map.set(teamId, { name: t.name, type: t.type, role, shared: myTeamIds.has(teamId) })
   }
   for (const m of allTeamMembers ?? []) addAff(m.employee_id, m.team_id, 'member')
   for (const m of allTeamManagers ?? []) addAff(m.employee_id, m.team_id, 'leader')

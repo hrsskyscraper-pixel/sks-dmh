@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { Heart, MessageCircle, Send, ChevronDown, ChevronUp } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { AffiliationBadge, AffiliationLegend } from '@/components/ui/affiliation'
+import { AffiliationBadge } from '@/components/ui/affiliation'
 
 interface FeedAchievement {
   id: string
@@ -407,9 +407,6 @@ export function TimelineFeed({ achievements, comments: initialComments, reaction
 
   return (
     <div className={cn('space-y-3', compact ? 'px-0' : 'p-4')}>
-      {!compact && Object.keys(affByEmployee).length > 0 && (
-        <AffiliationLegend className="px-1" />
-      )}
       {displayGroups.map(group => (
         <Wrapper key={group.key} className={wrapperClass}>
           <div className={innerPad}>

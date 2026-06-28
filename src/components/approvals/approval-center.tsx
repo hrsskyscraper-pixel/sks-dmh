@@ -18,7 +18,7 @@ import { CheckCircle, XCircle, UserPlus, GitPullRequest, Award, Inbox } from 'lu
 import { createClient } from '@/lib/supabase/client'
 import { SkillPhotoGallery } from '@/components/skills/skill-photo-gallery'
 import { type Affiliation } from '@/lib/affiliations'
-import { AffiliationBadge, AffiliationLegend } from '@/components/ui/affiliation'
+import { AffiliationBadge } from '@/components/ui/affiliation'
 
 type Tab = 'all' | 'skill' | 'team' | 'join' | 'done'
 
@@ -589,9 +589,6 @@ export function ApprovalCenter({
         </div>
       ) : (
         <div className="space-y-2">
-          {filtered.some(item => item.type === 'skill' && (applicantAff[item.data.employee_id]?.length ?? 0) > 0) && (
-            <AffiliationLegend className="px-1 pb-0.5" />
-          )}
           {filtered.map((item, i) => {
             if (item.type === 'skill') {
               const a = item.data

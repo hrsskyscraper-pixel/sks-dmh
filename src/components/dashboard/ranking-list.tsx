@@ -1,5 +1,6 @@
 import { cn } from '@/lib/utils'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { AffiliationBadge } from '@/components/ui/affiliation'
 import type { RankEntry } from '@/lib/skill-ranking'
 
 const MEDALS = ['🥇', '🥈', '🥉']
@@ -24,9 +25,9 @@ export function RankingList({ ranking, currentEmployeeId }: { ranking: RankEntry
               </p>
               {(r.store || r.curricula.length > 0) && (
                 <div className="flex items-center gap-1 flex-wrap mt-0.5">
-                  {r.store && <span className="text-[10px] text-gray-400 truncate">{r.store}</span>}
+                  {r.store && r.affType && <AffiliationBadge type={r.affType} name={r.store} />}
                   {r.curricula.map(c => (
-                    <span key={c} className="text-[9px] text-blue-600 bg-blue-50 rounded px-1 py-px truncate max-w-[160px]">{c}</span>
+                    <span key={c} className="text-[9px] text-orange-700 bg-orange-50 border border-orange-100 rounded px-1 py-px truncate max-w-[160px]">{c}</span>
                   ))}
                 </div>
               )}

@@ -6,12 +6,13 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
-import { AffiliationBadge, AffiliationLegend } from '@/components/ui/affiliation'
+import { AffiliationBadge } from '@/components/ui/affiliation'
 
 export interface TeamAffiliation {
   name: string
   type: 'store' | 'department' | 'project'
   role: 'member' | 'leader'
+  shared?: boolean
 }
 
 export interface TeamMemberStat {
@@ -145,7 +146,7 @@ export function TeamRanking({ currentEmployeeId, stats }: Props) {
         {member.teams.length > 0 && (
           <div className="flex items-center gap-1 flex-wrap mb-2.5 pl-8">
             {member.teams.map((t, i) => (
-              <AffiliationBadge key={`${t.type}:${t.name}:${i}`} type={t.type} name={t.name} leader={t.role === 'leader'} />
+              <AffiliationBadge key={`${t.type}:${t.name}:${i}`} type={t.type} name={t.name} leader={t.role === 'leader'} shared={t.shared} />
             ))}
           </div>
         )}
@@ -202,12 +203,10 @@ export function TeamRanking({ currentEmployeeId, stats }: Props) {
         <p className="text-[10px] text-muted-foreground/70">
           青い縦線は累計勤務時間から算出した標準進捗率
         </p>
-        <div className="flex items-center gap-x-2.5 gap-y-0.5 flex-wrap mt-1">
-          <AffiliationLegend />
-          <span className="inline-flex items-center gap-0.5 text-[10px] text-gray-500">
-            <Crown className="w-2.5 h-2.5 text-amber-500" />リーダー
-          </span>
-        </div>
+        <p className="text-[10px] text-muted-foreground/70 flex items-center gap-1 flex-wrap mt-0.5">
+          <Crown className="w-2.5 h-2.5 text-amber-500" />＝リーダー
+          <span className="ml-1">／ 濃い色のバッジ＝あなたと共通の所属</span>
+        </p>
       </CardHeader>
       <CardContent className="px-4 pb-4 space-y-3">
         {topMembers.map((member, index) => renderMember(member, index))}
