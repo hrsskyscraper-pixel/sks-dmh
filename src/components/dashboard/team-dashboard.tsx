@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Textarea } from '@/components/ui/textarea'
+import { Checkbox } from '@/components/ui/checkbox'
 import { cn } from '@/lib/utils'
 import {
   Dialog,
@@ -67,6 +68,12 @@ export function TeamDashboard({ currentEmployee, employees, skills, achievements
   const [isPending, startTransition] = useTransition()
   const [selectedAchievement, setSelectedAchievement] = useState<AchievementWithRelations | null>(null)
   const [certifyComment, setCertifyComment] = useState('')
+  // まとめて認定 / 差し戻し（全社の承認センターと同じ仕組み）
+  const [selectedAchIds, setSelectedAchIds] = useState<Set<string>>(new Set())
+  const [bulkAction, setBulkAction] = useState<'certified' | 'rejected'>('certified')
+  const [bulkComment, setBulkComment] = useState('')
+  const [bulkDialogOpen, setBulkDialogOpen] = useState(false)
+  const [bulkSubmitting, setBulkSubmitting] = useState(false)
   const supabase = createClient()
 
   const pendingAchievements = achievements.filter(a => a.status === 'pending')
@@ -154,9 +161,74 @@ export function TeamDashboard({ currentEmployee, employees, skills, achievements
     setCertifyComment('')
   }
 
+  const renderPendingCard = (achievement: AchievementWithRelations) => (
+    <AchievementCard
+      key={achievement.id}
+      achievement={achievement}
+      onOpen={openDialog}
+      isPending={isPending}
+      canDelete={canDeletePhotos}
+      selectable={isSelectable(achievement)}
+      selected={selectedAchIds.has(achievement.id)}
+      onToggleSelect={toggleAchSelected}
+    />
+  )
+
   const closeDialog = () => {
     setSelectedAchievement(null)
     setCertifyComment('')
+  }
+
+  // 一括選択（自分の申請は自己承認できないので選択不可）
+  const isSelectable = (a: AchievementWithRelations) => a.employee_id !== currentEmployee.id
+  const toggleAchSelected = (id: string) => setSelectedAchIds(prev => {
+    const next = new Set(prev)
+    next.has(id) ? next.delete(id) : next.add(id)
+    return next
+  })
+  const selectablePendingIds = pendingAchievements.filter(isSelectable).map(a => a.id)
+  const allPendingSelected = selectablePendingIds.length > 0 && selectablePendingIds.every(id => selectedAchIds.has(id))
+  const toggleSelectAll = () => setSelectedAchIds(allPendingSelected ? new Set() : new Set(selectablePendingIds))
+
+  const handleBulkSubmit = async () => {
+    if (selectedAchIds.size === 0) return
+    if (bulkAction === 'rejected' && !bulkComment.trim()) {
+      toast.error('差し戻しの場合はコメント（理由）が必須です')
+      return
+    }
+    const ids = Array.from(selectedAchIds)
+    const action = bulkAction
+    const comment = bulkComment.trim() || null
+    const now = new Date().toISOString()
+    const prevAch = achievements
+
+    // 楽観的更新: 対象を認定/差し戻しにして「申請」リストから外す
+    setBulkSubmitting(true)
+    setAchievements(prev => prev.map(a => ids.includes(a.id)
+      ? { ...a, status: action, certify_comment: comment, certified_by: currentEmployee.id, certified_at: now, is_read: false }
+      : a))
+    setSelectedAchIds(new Set())
+    setBulkDialogOpen(false)
+    setBulkComment('')
+    toast.success(action === 'certified' ? `${ids.length}件を認定しました` : `${ids.length}件を差し戻しました`)
+
+    try {
+      const res = await fetch('/api/certify-skills', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ achievementIds: ids, action, comment }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setAchievements(prevAch) // ロールバック
+        toast.error(data.error ?? '一括処理に失敗しました（元に戻しました）')
+      }
+    } catch {
+      setAchievements(prevAch)
+      toast.error('一括処理に失敗しました（元に戻しました）')
+    } finally {
+      setBulkSubmitting(false)
+    }
   }
 
   // 社員ごとの進捗
@@ -221,29 +293,35 @@ export function TeamDashboard({ currentEmployee, employees, skills, achievements
                 <p className="text-sm text-muted-foreground">認定待ちはありません</p>
               </CardContent>
             </Card>
-          ) : hasPriority ? (
+          ) : (
             <>
-              {priorityPending.length > 0 && (
-                <>
-                  <p className="text-xs font-semibold text-orange-700 px-1">担当チームのメンバー</p>
-                  {priorityPending.map(achievement => (
-                    <AchievementCard key={achievement.id} achievement={achievement} onOpen={openDialog} isPending={isPending} canDelete={canDeletePhotos} />
-                  ))}
-                </>
+              {selectablePendingIds.length > 0 && (
+                <div className="flex items-center justify-between px-1">
+                  <button onClick={toggleSelectAll} className="text-xs font-medium text-orange-600 hover:underline">
+                    {allPendingSelected ? 'すべて解除' : 'すべて選択'}
+                  </button>
+                  <span className="text-[11px] text-gray-400">チェックして、下のバーからまとめて認定できます</span>
+                </div>
               )}
-              {otherPending.length > 0 && (
+              {hasPriority ? (
                 <>
-                  <p className="text-xs font-semibold text-gray-500 px-1 mt-3">その他</p>
-                  {otherPending.map(achievement => (
-                    <AchievementCard key={achievement.id} achievement={achievement} onOpen={openDialog} isPending={isPending} canDelete={canDeletePhotos} />
-                  ))}
+                  {priorityPending.length > 0 && (
+                    <>
+                      <p className="text-xs font-semibold text-orange-700 px-1">担当チームのメンバー</p>
+                      {priorityPending.map(renderPendingCard)}
+                    </>
+                  )}
+                  {otherPending.length > 0 && (
+                    <>
+                      <p className="text-xs font-semibold text-gray-500 px-1 mt-3">その他</p>
+                      {otherPending.map(renderPendingCard)}
+                    </>
+                  )}
                 </>
+              ) : (
+                sortedPendingAchievements.map(renderPendingCard)
               )}
             </>
-          ) : (
-            sortedPendingAchievements.map(achievement => (
-              <AchievementCard key={achievement.id} achievement={achievement} onOpen={openDialog} isPending={isPending} canDelete={canDeletePhotos} />
-            ))
           )}
         </TabsContent>
 
@@ -370,6 +448,63 @@ export function TeamDashboard({ currentEmployee, employees, skills, achievements
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* まとめて認定 / 差し戻しの固定ボトムバー（ボトムナビの上） */}
+      {selectedAchIds.size > 0 && (
+        <div className="fixed inset-x-0 bottom-16 z-40 border-t bg-white/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-white/80">
+          <div className="mx-auto flex max-w-2xl flex-wrap items-center justify-between gap-2">
+            <span className="text-sm font-medium text-gray-700">{selectedAchIds.size}件を選択中</span>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setSelectedAchIds(new Set())}>解除</Button>
+              <Button
+                size="sm"
+                className="bg-green-500 hover:bg-green-600 text-white"
+                onClick={() => { setBulkAction('certified'); setBulkComment(''); setBulkDialogOpen(true) }}
+              >
+                <CheckCircle2 className="w-3.5 h-3.5 mr-1" />まとめて認定
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-red-500 border-red-200 hover:bg-red-50"
+                onClick={() => { setBulkAction('rejected'); setBulkComment(''); setBulkDialogOpen(true) }}
+              >
+                <XCircle className="w-3.5 h-3.5 mr-1" />まとめて差し戻し
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* まとめて認定 / 差し戻しダイアログ */}
+      <Dialog open={bulkDialogOpen} onOpenChange={open => { if (!bulkSubmitting) { setBulkDialogOpen(open); if (!open) setBulkComment('') } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-base">
+              {bulkAction === 'certified' ? `${selectedAchIds.size}件をまとめて認定` : `${selectedAchIds.size}件をまとめて差し戻し`}
+            </DialogTitle>
+          </DialogHeader>
+          <Textarea
+            value={bulkComment}
+            onChange={e => setBulkComment(e.target.value)}
+            placeholder={bulkAction === 'rejected' ? '差し戻しの理由を入力（必須・全件に適用）' : 'コメント（任意・全件に適用）'}
+            rows={2}
+          />
+          {bulkAction === 'rejected' && (
+            <p className="text-[11px] text-red-500 -mt-1">差し戻しには理由の入力が必須です。本人に通知されます。</p>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkDialogOpen(false)} disabled={bulkSubmitting}>キャンセル</Button>
+            <Button
+              className={bulkAction === 'certified' ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600'}
+              onClick={handleBulkSubmit}
+              disabled={bulkSubmitting || (bulkAction === 'rejected' && !bulkComment.trim())}
+            >
+              {bulkAction === 'certified' ? '認定する' : '差し戻す'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -388,16 +523,31 @@ function AchievementCard({
   onOpen,
   isPending,
   canDelete = false,
+  selectable = false,
+  selected = false,
+  onToggleSelect,
 }: {
   achievement: AchievementWithRelations & { employees: Employee | null; skills: Skill | null }
   onOpen: (a: AchievementWithRelations) => void
   isPending: boolean
   canDelete?: boolean
+  selectable?: boolean
+  selected?: boolean
+  onToggleSelect?: (id: string) => void
 }) {
   return (
     <Card className="border-amber-200 bg-amber-50">
       <CardContent className="py-3 px-4">
         <div className="flex items-start gap-3">
+          {selectable && (
+            <div className="pt-1 flex-shrink-0">
+              <Checkbox
+                checked={selected}
+                onCheckedChange={() => onToggleSelect?.(achievement.id)}
+                aria-label={`${achievement.employees?.name ?? ''} の ${achievement.skills?.name ?? ''} を選択`}
+              />
+            </div>
+          )}
           <Avatar className="w-8 h-8 flex-shrink-0">
             <AvatarFallback className="text-xs bg-orange-200 text-orange-700">
               {achievement.employees?.name.charAt(0) ?? '?'}
