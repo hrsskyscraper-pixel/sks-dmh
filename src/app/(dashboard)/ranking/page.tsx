@@ -9,9 +9,12 @@ import { RankingExplorer } from '@/components/dashboard/ranking-explorer'
 import { TopBar } from '@/components/layout/nav'
 import { Card, CardContent } from '@/components/ui/card'
 
-export default async function RankingPage() {
+export default async function RankingPage({ searchParams }: { searchParams?: Promise<{ month?: string }> }) {
   const me = await getCurrentEmployee()
   if (!me) redirect('/login')
+  const params = (await (searchParams ?? Promise.resolve({}))) as { month?: string }
+  // お知らせ等から /ranking?month=YYYY-MM で来たら、その月を初期表示にする
+  const initialPeriodKey = params?.month && /^\d{4}-\d{2}$/.test(params.month) ? params.month : undefined
 
   const db = createAdminClient()
   const testIds = await getRankingExcludedIds()
@@ -26,7 +29,7 @@ export default async function RankingPage() {
         </p>
         <Card>
           <CardContent className="py-3 px-3">
-            <RankingExplorer dataset={dataset} currentEmployeeId={me.id} />
+            <RankingExplorer dataset={dataset} currentEmployeeId={me.id} initialPeriodKey={initialPeriodKey} />
           </CardContent>
         </Card>
       </div>

@@ -117,10 +117,14 @@ function CompareRows({ rows, maxAbs, isAffiliation }: { rows: { meta: RankRowMet
   )
 }
 
-export function RankingExplorer({ dataset, currentEmployeeId }: { dataset: RankingDataset; currentEmployeeId?: string }) {
+export function RankingExplorer({ dataset, currentEmployeeId, initialPeriodKey }: { dataset: RankingDataset; currentEmployeeId?: string; initialPeriodKey?: string }) {
   const [mode, setMode] = useState<Mode>('period')
   const [axis, setAxis] = useState<Axis>('personal')
-  const [periodKey, setPeriodKey] = useState(dataset.periods[0]?.key ?? 'last30')
+  // ?month=YYYY-MM 指定があり、対象期間に含まれていればその月を初期表示にする（お知らせからの遷移用）
+  const startPeriod = initialPeriodKey && dataset.periods.some(p => p.key === initialPeriodKey)
+    ? initialPeriodKey
+    : (dataset.periods[0]?.key ?? 'last30')
+  const [periodKey, setPeriodKey] = useState(startPeriod)
   // 当月は進行中で対比が低く出るため、既定は直近の完了月（前月）を選ぶ
   const [compareKey, setCompareKey] = useState(dataset.comparePeriods[1]?.key ?? dataset.comparePeriods[0]?.key ?? '')
   const hasCompare = dataset.comparePeriods.length > 0
