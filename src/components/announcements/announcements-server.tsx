@@ -53,6 +53,10 @@ export async function AnnouncementsServer() {
   // 表示するお知らせも無く、投稿もできない（一般メンバー）なら何も出さない
   if (items.length === 0 && !canPost) return null
 
+  // ホームでは前日以前のお知らせをタイトルのみ折りたたみ表示にする（「今日」の判定用 JST 日付キー）
+  const jn = new Date(Date.now() + 9 * 3600 * 1000)
+  const todayKey = `${jn.getUTCFullYear()}-${jn.getUTCMonth() + 1}-${jn.getUTCDate()}`
+
   return (
     <AnnouncementsFeed
       items={items}
@@ -63,6 +67,8 @@ export async function AnnouncementsServer() {
       currentEmployeeId={me.id}
       canPost={canPost}
       postableMembers={postableMembers}
+      collapseOlder
+      todayKey={todayKey}
     />
   )
 }
