@@ -2,7 +2,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { TeamRanking } from '@/components/dashboard/team-ranking'
 import { buildMilestoneMap, calcStandardPct } from '@/lib/milestone'
 import type { TeamMemberStat, TeamAffiliation } from '@/components/dashboard/team-ranking'
-import { getTestEmployeeIds } from '@/lib/test-data'
+import { getRankingExcludedIds } from '@/lib/test-data'
 
 interface Props {
   employeeId: string
@@ -40,7 +40,7 @@ export async function TeamRankingServer({ employeeId, employeeRole, selectedProj
   ])
 
   // テスト社員（is_test / testuser / テスト店舗所属）はランキングから除外
-  const testEmpIds = await getTestEmployeeIds()
+  const testEmpIds = await getRankingExcludedIds()
 
   // チーム情報（id → 名前・種別）
   const teamById = Object.fromEntries(

@@ -44,6 +44,22 @@ export const getTestEmployeeIds = cache(async (): Promise<Set<string>> => {
   return ids
 })
 
+/**
+ * ランキング表示からの除外対象 = テスト社員 ＋ 開発者(role='admin')。
+ * 開発者(須貝)は動作確認用のため、みんなの頑張り／スキル習得数ランキング／月次ランキングには出さない。
+ * 申請・承認・タイムライン等の通常機能には影響しない（除外はランキングのみ）。
+ */
+export const getRankingExcludedIds = cache(async (): Promise<Set<string>> => {
+  const db = createAdminClient()
+  const [testIds, { data: devs }] = await Promise.all([
+    getTestEmployeeIds(),
+    db.from('employees').select('id').eq('role', 'admin'),
+  ])
+  const ids = new Set(testIds)
+  for (const d of devs ?? []) ids.add(d.id)
+  return ids
+})
+
 /** 配列から、指定キーがテスト社員のものを除外する */
 export function excludeTestByEmployee<T>(rows: T[], testIds: Set<string>, key: (row: T) => string | null | undefined): T[] {
   return rows.filter(r => {

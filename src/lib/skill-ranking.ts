@@ -64,13 +64,18 @@ export async function computeSkillCountRanking(
     ;(projectIdsByEmp[m.employee_id] ??= []).push(m.project_id)
     allProjectIds.add(m.project_id)
   }
-  const { data: projects } = allProjectIds.size > 0
-    ? await db.from('skill_projects').select('id, name').in('id', [...allProjectIds])
-    : { data: [] as { id: string; name: string }[] }
+  const [{ data: projects }, { data: phaseRows }] = allProjectIds.size > 0
+    ? await Promise.all([
+        db.from('skill_projects').select('id, name').in('id', [...allProjectIds]),
+        db.from('project_phases').select('project_id').in('project_id', [...allProjectIds]),
+      ])
+    : [{ data: [] as { id: string; name: string }[] }, { data: [] as { project_id: string }[] }]
   const projectNameById: Record<string, string> = Object.fromEntries((projects ?? []).map(p => [p.id, p.name]))
+  // セットアップ未完了（フェーズ未設定）の習得カリキュラムは無効＝表示しない
+  const validProjectIds = new Set((phaseRows ?? []).map(r => r.project_id))
   const curriculaById: Record<string, string[]> = {}
   for (const [empId, pids] of Object.entries(projectIdsByEmp)) {
-    curriculaById[empId] = [...new Set(pids.map(pid => projectNameById[pid]).filter(Boolean))]
+    curriculaById[empId] = [...new Set(pids.filter(p => validProjectIds.has(p)).map(pid => projectNameById[pid]).filter(Boolean))]
       .sort((a, b) => a.localeCompare(b, 'ja'))
   }
 

@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
-import { getTestEmployeeIds } from '@/lib/test-data'
+import { getRankingExcludedIds } from '@/lib/test-data'
 import { computeSkillCountRanking } from '@/lib/skill-ranking'
 import { RankingList } from '@/components/dashboard/ranking-list'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 export async function SkillRankingServer() {
   const me = await getCurrentEmployee()
   const db = createAdminClient()
-  const testIds = await getTestEmployeeIds()
+  const testIds = await getRankingExcludedIds()
   const fromISO = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
   const ranking = await computeSkillCountRanking(db, fromISO, null, testIds, 5)
   if (ranking.length === 0) return null

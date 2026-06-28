@@ -1,7 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
 import { canApprove, canAdminister } from '@/lib/permissions'
-import { getTestEmployeeIds } from '@/lib/test-data'
+import { getTestEmployeeIds, getRankingExcludedIds } from '@/lib/test-data'
 import { getAnnouncementsData } from '@/lib/announcements'
 import { ensureMonthlyRankingAnnouncement } from '@/lib/skill-ranking'
 import { AnnouncementsFeed } from '@/components/announcements/announcements-feed'
@@ -13,8 +13,8 @@ export async function AnnouncementsServer() {
   const db = createAdminClient()
 
   // 月が替わっていれば前月のスキル習得数ランキングを自動掲載（未掲載時のみ）
-  const testIdsForRanking = await getTestEmployeeIds()
-  await ensureMonthlyRankingAnnouncement(db, testIdsForRanking)
+  const rankingExcluded = await getRankingExcludedIds()
+  await ensureMonthlyRankingAnnouncement(db, rankingExcluded)
 
   const { items, reactions, comments, reactorNames, reactorAvatars } = await getAnnouncementsData(db, { activeOnly: true })
   const canPost = canApprove(me)

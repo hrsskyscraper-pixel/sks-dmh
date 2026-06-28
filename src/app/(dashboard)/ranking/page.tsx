@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic'
 import { redirect } from 'next/navigation'
 import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getTestEmployeeIds } from '@/lib/test-data'
+import { getRankingExcludedIds } from '@/lib/test-data'
 import { computeSkillCountRanking } from '@/lib/skill-ranking'
 import { RankingList } from '@/components/dashboard/ranking-list'
 import { TopBar } from '@/components/layout/nav'
@@ -30,7 +30,7 @@ export default async function RankingPage({ searchParams }: { searchParams?: Pro
   }
 
   const db = createAdminClient()
-  const testIds = await getTestEmployeeIds()
+  const testIds = await getRankingExcludedIds()
   const ranking = await computeSkillCountRanking(db, fromISO, toISO, testIds, 1000)
 
   return (
