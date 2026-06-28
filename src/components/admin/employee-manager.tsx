@@ -508,6 +508,9 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
                       {DISPLAY_ROLE_ICONS[displayRole]}
                       {displayRole}
                     </Badge>
+                    {employee.status === 'pending' && (
+                      <Badge className="text-[9px] bg-amber-100 text-amber-700 border border-amber-300 flex-shrink-0">承認待ち</Badge>
+                    )}
                     {leaderRoleMap[employee.id] && (
                       <Badge className={`text-[9px] border-0 flex-shrink-0 ${leaderRoleMap[employee.id] === 'primary' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>
                         {leaderRoleMap[employee.id] === 'primary' ? 'リーダー(主)' : 'リーダー(副)'}
