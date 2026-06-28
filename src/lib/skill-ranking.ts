@@ -1,11 +1,22 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getEmployeeProjectMapping } from '@/lib/project-members'
 
-export type RankEntry = { employeeId: string; name: string; avatarUrl: string | null; joinDate: string | null; store: string | null; affType: 'store' | 'department' | null; curricula: string[]; count: number }
+export type RankEntry = {
+  employeeId: string
+  name: string
+  avatarUrl: string | null
+  joinDate: string | null
+  store: string | null
+  affType: 'store' | 'department' | null
+  curricula: string[]
+  count: number
+  /** カリキュラム別の認定数（合算の内訳・クリックで表示） */
+  breakdown: { name: string; count: number }[]
+}
 
 /**
- * 期間内の認定（certified）数を社員ごとに集計してランキング化（テスト・開発者除外）。
- * includeZero=true のときは認定0件のメンバーも含める（全員ページ用）。
+ * 期間内の認定（certified）を、所属する有効な習得カリキュラムごとに集計して合算しランキング化。
+ * テスト・開発者は除外。includeZero=true で認定0件メンバーも含む。toISO 指定時はその月までの参加者のみ。
  */
 export async function computeSkillCountRanking(
   db: SupabaseClient,
@@ -15,32 +26,76 @@ export async function computeSkillCountRanking(
   topN = 10,
   includeZero = false,
 ): Promise<RankEntry[]> {
-  let q = db.from('achievements').select('employee_id, certified_at').eq('status', 'certified').gte('certified_at', fromISO)
+  // 期間内の認定（skill_id 付き）
+  let q = db.from('achievements').select('employee_id, skill_id, certified_at').eq('status', 'certified').gte('certified_at', fromISO)
   if (toISO) q = q.lt('certified_at', toISO)
-  const { data } = await q
-
-  const counts: Record<string, number> = {}
-  for (const a of data ?? []) {
+  const { data: achs } = await q
+  const certSkillsByEmp: Record<string, Set<string>> = {}
+  for (const a of achs ?? []) {
     if (!a.certified_at || testIds.has(a.employee_id)) continue
-    counts[a.employee_id] = (counts[a.employee_id] ?? 0) + 1
+    ;(certSkillsByEmp[a.employee_id] ??= new Set()).add(a.skill_id)
   }
 
-  // ランキング対象の社員ID。includeZero では承認済み全メンバー（除外対象を除く）を対象に。
-  let ids: string[]
+  // 社員→所属カリキュラム
+  const mapping = await getEmployeeProjectMapping(db)
+  const projectIdsByEmp: Record<string, string[]> = {}
+  const allProjectIds = new Set<string>()
+  for (const m of mapping) {
+    ;(projectIdsByEmp[m.employee_id] ??= []).push(m.project_id)
+    allProjectIds.add(m.project_id)
+  }
+
+  // 有効カリキュラム（フェーズあり）の名前・スキル集合（セットアップ未完了は除外）
+  const [{ data: projects }, { data: phaseRows }, { data: psRows }] = allProjectIds.size > 0
+    ? await Promise.all([
+        db.from('skill_projects').select('id, name').in('id', [...allProjectIds]),
+        db.from('project_phases').select('project_id').in('project_id', [...allProjectIds]),
+        db.from('project_skills').select('project_id, skill_id').in('project_id', [...allProjectIds]),
+      ])
+    : [{ data: [] as { id: string; name: string }[] }, { data: [] as { project_id: string }[] }, { data: [] as { project_id: string; skill_id: string }[] }]
+  const projectNameById: Record<string, string> = Object.fromEntries((projects ?? []).map(p => [p.id, p.name]))
+  const validProjectIds = new Set((phaseRows ?? []).map(r => r.project_id))
+  const projectSkillSet: Record<string, Set<string>> = {}
+  for (const ps of psRows ?? []) (projectSkillSet[ps.project_id] ??= new Set()).add(ps.skill_id)
+
+  const validPidsOf = (empId: string) => [...new Set(projectIdsByEmp[empId] ?? [])].filter(p => validProjectIds.has(p))
+
+  // ランキング候補
+  let candidateIds: string[]
   if (includeZero) {
-    const { data: allEmps } = await db.from('employees').select('id, name, approved_at').eq('status', 'approved')
-    let members = (allEmps ?? []).filter(e => !testIds.has(e.id))
-    // ○月ランキング（toISO 指定）では、その月までにMBに参加（承認）していないメンバーは除外
-    if (toISO) members = members.filter(e => !e.approved_at || e.approved_at < toISO)
-    const nameOf: Record<string, string> = Object.fromEntries(members.map(e => [e.id, e.name]))
-    ids = members.map(e => e.id)
-      .sort((a, b) => ((counts[b] ?? 0) - (counts[a] ?? 0)) || (nameOf[a] ?? '').localeCompare(nameOf[b] ?? '', 'ja'))
-      .slice(0, topN)
+    const { data: allEmps } = await db.from('employees').select('id, approved_at').eq('status', 'approved')
+    candidateIds = (allEmps ?? [])
+      .filter(e => !testIds.has(e.id) && (!toISO || !e.approved_at || e.approved_at < toISO))
+      .map(e => e.id)
   } else {
-    ids = Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([id]) => id).slice(0, topN)
+    candidateIds = Object.keys(certSkillsByEmp)
   }
-  if (ids.length === 0) return []
 
+  // カリキュラム別の認定数 → 合算（同じスキルが複数カリキュラムに属する場合は各カリキュラムで計上）
+  const totals: Record<string, number> = {}
+  const breakdownById: Record<string, { name: string; count: number }[]> = {}
+  for (const id of candidateIds) {
+    const certSkills = certSkillsByEmp[id] ?? new Set<string>()
+    const bd = validPidsOf(id).map(pid => {
+      const skills = projectSkillSet[pid] ?? new Set<string>()
+      let c = 0
+      for (const sid of certSkills) if (skills.has(sid)) c++
+      return { name: projectNameById[pid] ?? '', count: c }
+    }).filter(b => b.count > 0).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'ja'))
+    totals[id] = bd.reduce((s, b) => s + b.count, 0)
+    breakdownById[id] = bd
+  }
+
+  let rankedIds = includeZero ? candidateIds : candidateIds.filter(id => totals[id] > 0)
+  if (rankedIds.length === 0) return []
+
+  // 並べ替え（合算降順・同点は名前）
+  const { data: nameEmps } = await db.from('employees').select('id, name').in('id', rankedIds)
+  const nameForSort: Record<string, string> = Object.fromEntries((nameEmps ?? []).map(e => [e.id, e.name]))
+  rankedIds = [...rankedIds].sort((a, b) => (totals[b] - totals[a]) || (nameForSort[a] ?? '').localeCompare(nameForSort[b] ?? '', 'ja'))
+  const ids = rankedIds.slice(0, topN)
+
+  // 詳細（名前/アバター/承認日/店舗部署/カリキュラム名）
   const { data: emps } = await db.from('employees').select('id, name, avatar_url, approved_at').in('id', ids)
   const nameById: Record<string, string> = Object.fromEntries((emps ?? []).map(e => [e.id, e.name]))
   const avatarById: Record<string, string | null> = Object.fromEntries((emps ?? []).map(e => [e.id, e.avatar_url]))
@@ -53,7 +108,6 @@ export async function computeSkillCountRanking(
       if (t?.type === 'department' && !dept[m.employee_id]) dept[m.employee_id] = t.name
     }
   }
-  // メンバー所属（team_members）と担当（team_managers）の両方から店舗/部署を集める
   const [{ data: tm }, { data: tmg }] = await Promise.all([
     db.from('team_members').select('employee_id, teams(name, type)').in('employee_id', ids),
     db.from('team_managers').select('employee_id, teams(name, type)').in('employee_id', ids),
@@ -62,7 +116,6 @@ export async function computeSkillCountRanking(
   const mgrStore: Record<string, string> = {}, mgrDept: Record<string, string> = {}
   pickAff((tm ?? []) as TeamJoin[], memStore, memDept)
   pickAff((tmg ?? []) as TeamJoin[], mgrStore, mgrDept)
-  // 表示の優先順位: メンバー店舗 → メンバー部署 → 担当店舗 → 担当部署
   const affById: Record<string, string> = {}
   const affTypeById: Record<string, 'store' | 'department'> = {}
   for (const id of ids) {
@@ -71,37 +124,26 @@ export async function computeSkillCountRanking(
     else if (mgrStore[id]) { affById[id] = mgrStore[id]; affTypeById[id] = 'store' }
     else if (mgrDept[id]) { affById[id] = mgrDept[id]; affTypeById[id] = 'department' }
   }
-
-  // 各社員の所属習得カリキュラム名（project_teams + team_members 経由）
-  const idSet = new Set(ids)
-  const mapping = await getEmployeeProjectMapping(db)
-  const projectIdsByEmp: Record<string, string[]> = {}
-  const allProjectIds = new Set<string>()
-  for (const m of mapping) {
-    if (!idSet.has(m.employee_id)) continue
-    ;(projectIdsByEmp[m.employee_id] ??= []).push(m.project_id)
-    allProjectIds.add(m.project_id)
-  }
-  const [{ data: projects }, { data: phaseRows }] = allProjectIds.size > 0
-    ? await Promise.all([
-        db.from('skill_projects').select('id, name').in('id', [...allProjectIds]),
-        db.from('project_phases').select('project_id').in('project_id', [...allProjectIds]),
-      ])
-    : [{ data: [] as { id: string; name: string }[] }, { data: [] as { project_id: string }[] }]
-  const projectNameById: Record<string, string> = Object.fromEntries((projects ?? []).map(p => [p.id, p.name]))
-  // セットアップ未完了（フェーズ未設定）の習得カリキュラムは無効＝表示しない
-  const validProjectIds = new Set((phaseRows ?? []).map(r => r.project_id))
   const curriculaById: Record<string, string[]> = {}
-  for (const [empId, pids] of Object.entries(projectIdsByEmp)) {
-    curriculaById[empId] = [...new Set(pids.filter(p => validProjectIds.has(p)).map(pid => projectNameById[pid]).filter(Boolean))]
-      .sort((a, b) => a.localeCompare(b, 'ja'))
+  for (const id of ids) {
+    curriculaById[id] = [...new Set(validPidsOf(id).map(pid => projectNameById[pid]).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ja'))
   }
 
-  return ids.map(id => ({ employeeId: id, name: nameById[id] ?? '不明', avatarUrl: avatarById[id] ?? null, joinDate: joinById[id] ?? null, store: affById[id] ?? null, affType: affTypeById[id] ?? null, curricula: curriculaById[id] ?? [], count: counts[id] ?? 0 }))
+  return ids.map(id => ({
+    employeeId: id,
+    name: nameById[id] ?? '不明',
+    avatarUrl: avatarById[id] ?? null,
+    joinDate: joinById[id] ?? null,
+    store: affById[id] ?? null,
+    affType: affTypeById[id] ?? null,
+    curricula: curriculaById[id] ?? [],
+    count: totals[id] ?? 0,
+    breakdown: breakdownById[id] ?? [],
+  }))
 }
 
 /**
- * 前月のスキル習得数ランキングを「本日のお知らせ」に自動掲載（未掲載なら）。
+ * 前月のスキル習得ランキングを「本日のお知らせ」に自動掲載（未掲載なら）。
  * ホーム読込時に呼ぶ。period(YYYY-MM)のユニーク制約で重複生成を防ぐ。
  */
 export async function ensureMonthlyRankingAnnouncement(db: SupabaseClient, testIds: Set<string>): Promise<void> {
