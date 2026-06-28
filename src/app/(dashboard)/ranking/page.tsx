@@ -4,50 +4,29 @@ import { redirect } from 'next/navigation'
 import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getRankingExcludedIds } from '@/lib/test-data'
-import { computeSkillCountRanking } from '@/lib/skill-ranking'
-import { RankingPaginated } from '@/components/dashboard/ranking-paginated'
+import { buildRankingDataset } from '@/lib/ranking-data'
+import { RankingExplorer } from '@/components/dashboard/ranking-explorer'
 import { TopBar } from '@/components/layout/nav'
 import { Card, CardContent } from '@/components/ui/card'
 
-export default async function RankingPage({ searchParams }: { searchParams?: Promise<{ month?: string }> }) {
+export default async function RankingPage() {
   const me = await getCurrentEmployee()
   if (!me) redirect('/login')
-  const params = (await (searchParams ?? Promise.resolve({}))) as { month?: string }
-  const month = params?.month
-
-  let fromISO: string
-  let toISO: string | null
-  let label: string
-  if (month && /^\d{4}-\d{2}$/.test(month)) {
-    const [y, m] = month.split('-').map(Number)
-    fromISO = new Date(y, m - 1, 1).toISOString()
-    toISO = new Date(y, m, 1).toISOString()
-    label = `${y}年${m}月`
-  } else {
-    fromISO = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
-    toISO = null
-    label = '過去30日間'
-  }
 
   const db = createAdminClient()
   const testIds = await getRankingExcludedIds()
-  const ranking = await computeSkillCountRanking(db, fromISO, toISO, testIds, 100000, true)
-  const certifiedMembers = ranking.filter(r => r.count > 0).length
+  const dataset = await buildRankingDataset(db, testIds, new Date())
 
   return (
     <>
       <TopBar title="スキル習得ランキング" />
       <div className="p-4 max-w-lg mx-auto">
-        <p className="text-sm text-gray-600 mb-2">
-          🏆 <span className="font-semibold">{label}</span>・全社・全メンバーの認定数（全メンバー{ranking.length}名　うち認定あり{certifiedMembers}名）
+        <p className="text-sm text-gray-600 mb-3">
+          🏆 期間・個人別／所属別・前月対比を切り替えて、全社のスキル習得数を見られます
         </p>
         <Card>
           <CardContent className="py-3 px-3">
-            {ranking.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-8 text-center">この期間の認定はまだありません</p>
-            ) : (
-              <RankingPaginated ranking={ranking} currentEmployeeId={me.id} />
-            )}
+            <RankingExplorer dataset={dataset} currentEmployeeId={me.id} />
           </CardContent>
         </Card>
       </div>

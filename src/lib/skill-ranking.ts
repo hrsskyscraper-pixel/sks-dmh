@@ -7,7 +7,7 @@ export type RankEntry = {
   avatarUrl: string | null
   joinDate: string | null
   store: string | null
-  affType: 'store' | 'department' | null
+  affType: 'store' | 'department' | 'project' | null
   curricula: string[]
   count: number
   /** カリキュラム別の認定数（合算の内訳・クリックで表示） */
