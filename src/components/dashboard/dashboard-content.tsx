@@ -549,8 +549,6 @@ export function DashboardContent({
         </CardContent>
       </Card>
 
-      {announcementsSlot}
-
       {/* 対応が必要 */}
       {(globalPendingAchievementsCount > 0 || teamPendingAchievementsCount > 0 || pendingTeamRequestsCount > 0) && (
         <div className="space-y-2">
@@ -614,6 +612,8 @@ export function DashboardContent({
           )}
         </div>
       )}
+
+      {announcementsSlot}
 
       {/* 遅延スキル + 次に取り組むべきスキル */}
       {allActionSkills.length > 0 && (

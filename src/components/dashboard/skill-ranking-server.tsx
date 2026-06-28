@@ -6,13 +6,13 @@ import { computeSkillCountRanking } from '@/lib/skill-ranking'
 import { RankingList } from '@/components/dashboard/ranking-list'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
-/** ホーム: 過去30日のスキル習得数（認定数）ランキング（全店対象・TOP10＋全員リンク） */
+/** ホーム: 過去30日のスキル習得数（認定数）ランキング（全店対象・TOP5＋全員リンク） */
 export async function SkillRankingServer() {
   const me = await getCurrentEmployee()
   const db = createAdminClient()
   const testIds = await getTestEmployeeIds()
   const fromISO = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
-  const ranking = await computeSkillCountRanking(db, fromISO, null, testIds, 10)
+  const ranking = await computeSkillCountRanking(db, fromISO, null, testIds, 5)
   if (ranking.length === 0) return null
 
   return (
