@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { cn } from '@/lib/utils'
-import { AlertTriangle, ChevronDown, ChevronUp, ChevronRight, Camera, Loader2, CheckCircle2, ClipboardList, Users, Instagram, Target, CalendarDays, Pencil, BookOpen, Building2 } from 'lucide-react'
+import { AlertTriangle, ChevronDown, ChevronUp, ChevronRight, Camera, Loader2, CheckCircle2, ClipboardList, Users, Instagram, Target, CalendarDays, Pencil, BookOpen, Building2, Undo2 } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { setSelectedProject } from '@/app/(dashboard)/actions'
@@ -587,6 +587,26 @@ export function DashboardContent({
           </div>
         </Link>
       )}
+
+      {/* 差し戻しカード（差し戻しがある時・本日のお知らせの上） */}
+      {(() => {
+        const rejectedCount = achievementList.filter(a => a.status === 'rejected').length
+        if (rejectedCount === 0) return null
+        return (
+          <Link href="/skills?tab=rejected" className="block">
+            <div className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 hover:bg-orange-100 transition-colors flex items-center gap-3">
+              <Undo2 className="w-5 h-5 text-orange-500 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-orange-700">
+                  差し戻されたスキルが <span className="text-orange-600">{rejectedCount}件</span> あります
+                </p>
+                <p className="text-xs text-orange-500">タップして、内容を確認して再申請しましょう</p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-orange-400 flex-shrink-0" />
+            </div>
+          </Link>
+        )
+      })()}
 
       {announcementsSlot}
 

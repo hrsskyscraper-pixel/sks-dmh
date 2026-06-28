@@ -111,42 +111,28 @@ export async function getNavCounts(): Promise<NavCounts> {
     return a + t + j
   }
 
-  // --- ブロック4: ホームのバッジ（遅れ/次の一歩） ---
-  const computeDashboardBadge = async (): Promise<NavCounts['dashboardBadge']> => {
-    const [{ data: tRows }, { data: mRows }] = await Promise.all([
-      db.from('team_members').select('team_id').eq('employee_id', targetId),
-      db.from('team_managers').select('team_id').eq('employee_id', targetId),
-    ])
-    const tIds = [...new Set([...(tRows ?? []).map(r => r.team_id), ...(mRows ?? []).map(r => r.team_id)])]
-    if (tIds.length === 0) return null
-    const { data: ptRows } = await db.from('project_teams').select('project_id').in('team_id', tIds)
-    const projIds = [...new Set((ptRows ?? []).map(r => r.project_id))]
-    if (projIds.length === 0) return null
-    const firstProjId = projIds[0]
-    const [{ data: phases }, { data: pSkills }, { data: certAch }, whResult] = await Promise.all([
-      db.from('project_phases').select('id, name, order_index, end_hours').eq('project_id', firstProjId).order('order_index'),
-      db.from('project_skills').select('skill_id, project_phase_id').eq('project_id', firstProjId),
-      db.from('achievements').select('skill_id').eq('employee_id', targetId).eq('status', 'certified'),
-      db.rpc('get_employee_cumulative_hours', { p_employee_id: targetId, p_as_of_date: new Date().toISOString().split('T')[0] }),
-    ])
-    const cumHours = (whResult as { data: number | null }).data ?? 0
-    const certifiedSkillIds = new Set((certAch ?? []).map(a => a.skill_id))
-    const phaseById = Object.fromEntries((phases ?? []).map(p => [p.id, p]))
-    const sortedPhases = [...(phases ?? [])].sort((a, b) => a.order_index - b.order_index)
-    const currentPhaseIdx = sortedPhases.findIndex(p => cumHours < p.end_hours)
-    let delayedCount = 0
-    let nextCount = 0
-    for (const ps of pSkills ?? []) {
-      if (certifiedSkillIds.has(ps.skill_id)) continue
-      const phase = phaseById[ps.project_phase_id ?? '']
-      if (!phase) continue
-      const phaseIdx = sortedPhases.findIndex(p => p.id === phase.id)
-      if (cumHours >= phase.end_hours) delayedCount++
-      else if (phaseIdx <= currentPhaseIdx) nextCount++
+  // --- ブロック4: ホームの「対応が必要」スキル認定待ちカードの有無（全社／担当チーム） ---
+  // ホームアイコンのバッジ＝ホームに出ている対応カードの枚数（全社未承認・自チーム未承認・遅れ・差し戻し）。
+  const computePendingAchievementCards = async (): Promise<{ global: number; team: number }> => {
+    if (!canApprove(effectiveEmp)) return { global: 0, team: 0 }
+    const testIds = await getTestEmployeeIds()
+    let global = 0
+    if (canAdminister(effectiveEmp)) {
+      const { data } = await db.from('achievements').select('employee_id').eq('status', 'pending')
+      global = (data ?? []).filter(a => !testIds.has(a.employee_id) && a.employee_id !== targetId).length
     }
-    if (delayedCount > 0) return { count: delayedCount, color: 'red' }
-    if (nextCount > 0) return { count: nextCount, color: 'blue' }
-    return null
+    let team = 0
+    const { data: managed } = await db.from('team_managers').select('team_id').eq('employee_id', targetId)
+    const managedTeamIds = (managed ?? []).map(m => m.team_id)
+    if (managedTeamIds.length > 0) {
+      const { data: members } = await db.from('team_members').select('employee_id').in('team_id', managedTeamIds)
+      const memberIds = [...new Set((members ?? []).map(m => m.employee_id))].filter(id => !testIds.has(id) && id !== targetId)
+      if (memberIds.length > 0) {
+        const { data } = await db.from('achievements').select('employee_id').eq('status', 'pending').in('employee_id', memberIds)
+        team = (data ?? []).length
+      }
+    }
+    return { global, team }
   }
 
   // --- ブロック5: 遅延スキル件数（選択中カリキュラム・スキルナビのバッジ用） ---
@@ -181,13 +167,22 @@ export async function getNavCounts(): Promise<NavCounts> {
     return countOverdueSkills(skills, certifiedIds, pendingIds, skillPhaseMap, phases ?? [], milestones, cumHours)
   }
 
-  const [notif, rejectedSkillCount, pendingApprovalCount, dashboardBadge, overdueSkillCount] = await Promise.all([
+  const [notif, rejectedSkillCount, pendingApprovalCount, pendingCards, overdueSkillCount] = await Promise.all([
     computeNotif(),
     computeRejected(),
     computePendingApproval(),
-    computeDashboardBadge(),
+    computePendingAchievementCards(),
     computeOverdue(),
   ])
+
+  // ホームアイコンのバッジ＝ホームに出ている対応カードの枚数（赤）
+  // 全社未承認 / 自チーム未承認 / 遅れスキル / 差し戻しスキル のうち、件数>0 のカード数。
+  const actionCardCount =
+    (pendingCards.global > 0 ? 1 : 0) +
+    (pendingCards.team > 0 ? 1 : 0) +
+    (overdueSkillCount > 0 ? 1 : 0) +
+    (rejectedSkillCount > 0 ? 1 : 0)
+  const dashboardBadge = actionCardCount > 0 ? { count: actionCardCount, color: 'red' as const } : null
 
   return {
     notifCount: notif.notifCount,
