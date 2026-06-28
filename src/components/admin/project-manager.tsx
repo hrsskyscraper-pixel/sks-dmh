@@ -29,6 +29,7 @@ import { SkillCsvImportDialog } from './skill-csv-import-dialog'
 import type { CsvSkillRow } from '@/app/(dashboard)/admin/projects/csv-actions'
 import { createClient } from '@/lib/supabase/client'
 import { updateSkillCategory, updateSkillStandardHours, updateSkillName, toggleSkillCheckpoint, createSkill, deleteSkill, reorderSkills, updateSkillTargetDate } from '@/app/(dashboard)/actions'
+import { updateProject } from '@/app/(dashboard)/admin/projects/actions'
 import { sortCategories } from '@/lib/category-order'
 import { cn } from '@/lib/utils'
 import type { SkillProject, ProjectPhase, ProjectSkill, Skill, Team } from '@/types/database'
@@ -164,15 +165,15 @@ export function ProjectManager({
     if (!projectName.trim()) { toast.error('習得カリキュラム名を入力してください'); return }
     startTransition(async () => {
       if (projectDialog.editing) {
-        const { data, error } = await supabase
-          .from('skill_projects')
-          .update({ name: projectName.trim(), description: projectDesc.trim() || null })
-          .eq('id', projectDialog.editing.id)
-          .select()
-          .single()
-        if (error) { toast.error('更新に失敗しました'); return }
-        setProjects(prev => prev.map(p => p.id === data.id ? data : p))
-        toast.success('習得カリキュラムを更新しました')
+        const res = await updateProject(projectDialog.editing.id, projectName.trim(), projectDesc.trim() || null)
+        if (res.error || !res.data) { toast.error(res.error ?? '更新に失敗しました'); return }
+        const updated = res.data
+        setProjects(prev => prev.map(p => p.id === updated.id ? { ...p, name: updated.name, description: updated.description } : p))
+        toast.success(
+          res.renamedTeams && res.renamedTeams > 0
+            ? '習得カリキュラムと連動するPJチーム名も更新しました'
+            : '習得カリキュラムを更新しました'
+        )
       } else {
         const { data, error } = await supabase
           .from('skill_projects')
