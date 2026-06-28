@@ -159,6 +159,7 @@ export default async function SkillsPage({
       <TopBar title="スキルチェックリスト" />
       <CurriculumSwitcher projects={employeeProjects.map(p => ({ id: p.id, name: p.name }))} currentProjectId={selectedProject?.id ?? null} />
       <SkillList
+        key={selectedProject?.id ?? 'none'}
         employeeId={employee.id}
         skills={skills}
         achievements={achievements ?? []}

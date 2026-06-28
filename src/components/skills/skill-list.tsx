@@ -132,7 +132,17 @@ function getCategoryProgressColor(category: string, allCategories: string[]): st
 
 export function SkillList({ employeeId, skills, achievements: initialAchievements, readOnly = false, phases, skillPhaseMap, cumulativeHours, milestones, skillManuals = {}, photoUrlsByAchievement = {}, photoPathsByAchievement = {}, canDeletePhotos = false, viewAs = false }: Props) {
   const searchParams = useSearchParams()
-  const initialPhaseId = phases.find(p => p.name === searchParams.get('phase'))?.id ?? phases[0]?.id ?? ''
+  // 既定で開くフェーズ: ?phase= 指定 → 未完了スキルがある最も若い（順序が先頭の）フェーズ → 先頭フェーズ
+  const initialPhaseId = (() => {
+    const fromQuery = phases.find(p => p.name === searchParams.get('phase'))?.id
+    if (fromQuery) return fromQuery
+    const certifiedSet = new Set(initialAchievements.filter(a => a.status === 'certified').map(a => a.skill_id))
+    const firstIncomplete = phases.find(p => {
+      const ps = skills.filter(s => skillPhaseMap[s.id] === p.id)
+      return ps.length > 0 && ps.some(s => !certifiedSet.has(s.id))
+    })
+    return firstIncomplete?.id ?? phases[0]?.id ?? ''
+  })()
   const [achievements, setAchievements] = useState(initialAchievements)
   const categories = sortCategories([...new Set(skills.map(s => s.category))])
   const allKeys = phases.flatMap(p => categories.map(c => `${p.id}-${c}`))
