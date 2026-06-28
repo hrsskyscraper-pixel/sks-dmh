@@ -5,7 +5,7 @@ import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getRankingExcludedIds } from '@/lib/test-data'
 import { computeSkillCountRanking } from '@/lib/skill-ranking'
-import { RankingList } from '@/components/dashboard/ranking-list'
+import { RankingPaginated } from '@/components/dashboard/ranking-paginated'
 import { TopBar } from '@/components/layout/nav'
 import { Card, CardContent } from '@/components/ui/card'
 
@@ -31,21 +31,22 @@ export default async function RankingPage({ searchParams }: { searchParams?: Pro
 
   const db = createAdminClient()
   const testIds = await getRankingExcludedIds()
-  const ranking = await computeSkillCountRanking(db, fromISO, toISO, testIds, 1000)
+  const ranking = await computeSkillCountRanking(db, fromISO, toISO, testIds, 100000, true)
+  const certifiedMembers = ranking.filter(r => r.count > 0).length
 
   return (
     <>
-      <TopBar title="スキル習得数ランキング" />
+      <TopBar title="スキル習得ランキング" />
       <div className="p-4 max-w-lg mx-auto">
         <p className="text-sm text-gray-600 mb-2">
-          🏆 <span className="font-semibold">{label}</span>・全社・全メンバーの認定数（{ranking.length}名）
+          🏆 <span className="font-semibold">{label}</span>・全社・全メンバーの認定数（全メンバー{ranking.length}名　うち認定あり{certifiedMembers}名）
         </p>
         <Card>
           <CardContent className="py-3 px-3">
             {ranking.length === 0 ? (
               <p className="text-sm text-muted-foreground py-8 text-center">この期間の認定はまだありません</p>
             ) : (
-              <RankingList ranking={ranking} currentEmployeeId={me.id} />
+              <RankingPaginated ranking={ranking} currentEmployeeId={me.id} />
             )}
           </CardContent>
         </Card>

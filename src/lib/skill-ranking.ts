@@ -1,15 +1,19 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getEmployeeProjectMapping } from '@/lib/project-members'
 
-export type RankEntry = { employeeId: string; name: string; avatarUrl: string | null; store: string | null; affType: 'store' | 'department' | null; curricula: string[]; count: number }
+export type RankEntry = { employeeId: string; name: string; avatarUrl: string | null; joinDate: string | null; store: string | null; affType: 'store' | 'department' | null; curricula: string[]; count: number }
 
-/** 期間内の認定（certified）数を社員ごとに集計してランキング化（テスト除外） */
+/**
+ * 期間内の認定（certified）数を社員ごとに集計してランキング化（テスト・開発者除外）。
+ * includeZero=true のときは認定0件のメンバーも含める（全員ページ用）。
+ */
 export async function computeSkillCountRanking(
   db: SupabaseClient,
   fromISO: string,
   toISO: string | null,
   testIds: Set<string>,
   topN = 10,
+  includeZero = false,
 ): Promise<RankEntry[]> {
   let q = db.from('achievements').select('employee_id, certified_at').eq('status', 'certified').gte('certified_at', fromISO)
   if (toISO) q = q.lt('certified_at', toISO)
@@ -20,13 +24,24 @@ export async function computeSkillCountRanking(
     if (!a.certified_at || testIds.has(a.employee_id)) continue
     counts[a.employee_id] = (counts[a.employee_id] ?? 0) + 1
   }
-  const ranked = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, topN)
-  const ids = ranked.map(([id]) => id)
+
+  // ランキング対象の社員ID。includeZero では承認済み全メンバー（除外対象を除く）を対象に。
+  let ids: string[]
+  if (includeZero) {
+    const { data: allEmps } = await db.from('employees').select('id, name').eq('status', 'approved')
+    const nameOf: Record<string, string> = Object.fromEntries((allEmps ?? []).map(e => [e.id, e.name]))
+    ids = (allEmps ?? []).map(e => e.id).filter(id => !testIds.has(id))
+      .sort((a, b) => ((counts[b] ?? 0) - (counts[a] ?? 0)) || (nameOf[a] ?? '').localeCompare(nameOf[b] ?? '', 'ja'))
+      .slice(0, topN)
+  } else {
+    ids = Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([id]) => id).slice(0, topN)
+  }
   if (ids.length === 0) return []
 
-  const { data: emps } = await db.from('employees').select('id, name, avatar_url').in('id', ids)
+  const { data: emps } = await db.from('employees').select('id, name, avatar_url, created_at').in('id', ids)
   const nameById: Record<string, string> = Object.fromEntries((emps ?? []).map(e => [e.id, e.name]))
   const avatarById: Record<string, string | null> = Object.fromEntries((emps ?? []).map(e => [e.id, e.avatar_url]))
+  const joinById: Record<string, string | null> = Object.fromEntries((emps ?? []).map(e => [e.id, e.created_at]))
   type TeamJoin = { employee_id: string; teams: { name: string; type: string } | { name: string; type: string }[] | null }
   const pickAff = (rows: TeamJoin[], store: Record<string, string>, dept: Record<string, string>) => {
     for (const m of rows) {
@@ -79,7 +94,7 @@ export async function computeSkillCountRanking(
       .sort((a, b) => a.localeCompare(b, 'ja'))
   }
 
-  return ranked.map(([id, count]) => ({ employeeId: id, name: nameById[id] ?? '不明', avatarUrl: avatarById[id] ?? null, store: affById[id] ?? null, affType: affTypeById[id] ?? null, curricula: curriculaById[id] ?? [], count }))
+  return ids.map(id => ({ employeeId: id, name: nameById[id] ?? '不明', avatarUrl: avatarById[id] ?? null, joinDate: joinById[id] ?? null, store: affById[id] ?? null, affType: affTypeById[id] ?? null, curricula: curriculaById[id] ?? [], count: counts[id] ?? 0 }))
 }
 
 /**
@@ -101,7 +116,7 @@ export async function ensureMonthlyRankingAnnouncement(db: SupabaseClient, testI
 
   const monthLabel = `${prev.getMonth() + 1}月`
   const top = ranking.map((r, i) => `${i + 1}位 ${r.store ? r.store + 'の ' : ''}${r.name}さん（${r.count}個）`).join('\n')
-  const title = `${monthLabel}のスキル習得数ランキングが掲載されました！🏆`
+  const title = `${monthLabel}のスキル習得ランキングが掲載されました！🏆`
   const body = `TOP3は…\n${top}\nおめでとうございます☆ みんなで🎉を送りましょう！`
   const expires = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000) // 2週間表示
 

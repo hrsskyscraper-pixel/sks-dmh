@@ -20,7 +20,7 @@ export async function SkillRankingServer() {
         <CardHeader className="pb-2 pt-4 px-4">
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
-              <span>🏆</span>スキル習得数ランキング
+              <span>🏆</span>スキル習得ランキング
             </CardTitle>
             <Link href="/ranking" className="text-xs text-orange-600 hover:underline whitespace-nowrap">全員を見る →</Link>
           </div>

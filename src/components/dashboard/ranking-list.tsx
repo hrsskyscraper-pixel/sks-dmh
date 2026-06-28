@@ -5,7 +5,13 @@ import type { RankEntry } from '@/lib/skill-ranking'
 
 const MEDALS = ['🥇', '🥈', '🥉']
 
-/** スキル習得数ランキングの行リスト（ホーム・全員ページ共通の表示部品） */
+function fmtJoin(dateStr: string | null): string {
+  if (!dateStr) return ''
+  const d = new Date(dateStr)
+  return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`
+}
+
+/** スキル習得ランキングの行リスト（ホーム・全員ページ共通の表示部品） */
 export function RankingList({ ranking, currentEmployeeId }: { ranking: RankEntry[]; currentEmployeeId?: string }) {
   return (
     <div className="space-y-1.5">
@@ -21,6 +27,7 @@ export function RankingList({ ranking, currentEmployeeId }: { ranking: RankEntry
             <div className="flex-1 min-w-0">
               <p className={cn('text-sm truncate', isMe ? 'font-bold text-orange-700' : 'text-gray-700')}>
                 {r.name}
+                {r.joinDate && <span className="ml-1.5 text-[9px] text-gray-400 font-normal">MB参加 {fmtJoin(r.joinDate)}</span>}
                 {isMe && <span className="ml-1 text-[9px] bg-orange-500 text-white rounded px-1 align-middle">あなた</span>}
               </p>
               {(r.store || r.curricula.length > 0) && (
