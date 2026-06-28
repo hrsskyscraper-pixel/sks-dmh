@@ -24,7 +24,7 @@ export async function requestCurriculumSetup(
   const { data: ops } = await db
     .from('employees')
     .select('id, name, email, line_user_id')
-    .in('role', ['ops_manager', 'executive'])
+    .eq('role', 'ops_manager')
     .eq('status', 'approved')
   const opsList = ops ?? []
   if (opsList.length === 0) return { error: '運営管理者が登録されていません。開発者にご連絡ください。' }
