@@ -68,7 +68,7 @@ export default async function EmployeeDetailPage({ params, searchParams }: { par
     { data: goals },
     { data: certs },
   ] = await Promise.all([
-    db.from('employees').select('id, name, last_name, first_name, name_kana, email, role, system_permission, business_role_ids, employment_type, hire_date, birth_date, avatar_url, instagram_url, line_url, line_user_id').eq('id', id).single() as unknown as Promise<{ data: { id: string; name: string; last_name: string; first_name: string; name_kana: string | null; email: string; role: string; system_permission: SystemPermission; business_role_ids: string[]; employment_type: string; hire_date: string | null; birth_date: string | null; avatar_url: string | null; instagram_url: string | null; line_url: string | null; line_user_id: string | null } | null }>,
+    db.from('employees').select('id, name, last_name, first_name, name_kana, email, role, system_permission, business_role_ids, employment_type, hire_date, birth_date, avatar_url, instagram_url, line_url, line_user_id, status, invited_by, approved_by, approved_at').eq('id', id).single() as unknown as Promise<{ data: { id: string; name: string; last_name: string; first_name: string; name_kana: string | null; email: string; role: string; system_permission: SystemPermission; business_role_ids: string[]; employment_type: string; hire_date: string | null; birth_date: string | null; avatar_url: string | null; instagram_url: string | null; line_url: string | null; line_user_id: string | null; status: 'pending' | 'approved'; invited_by: string | null; approved_by: string | null; approved_at: string | null } | null }>,
     db.from('career_records').select('*').eq('employee_id', id).order('occurred_at', { ascending: false }),
     db.from('employees').select('id, name, avatar_url').order('name'),
     db.from('team_members').select('team_id').eq('employee_id', id),
@@ -205,6 +205,18 @@ export default async function EmployeeDetailPage({ params, searchParams }: { par
         }
       />
       <div className="px-4 pb-8 space-y-4">
+        {/* 登録の記録（招待者・承認者）: 承認権限のある人にのみ表示 */}
+        {canApprove(currentEmployee) && (
+          <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600 space-y-0.5">
+            <p className="font-medium text-gray-500 mb-1">登録の記録</p>
+            <p>状態: {employee.status === 'approved' ? '承認済み' : '承認待ち'}</p>
+            <p>招待者: {employee.invited_by ? (employeeMap[employee.invited_by]?.name ?? '不明') : '—（招待リンク以外／記録なし）'}</p>
+            <p>
+              承認者: {employee.approved_by ? (employeeMap[employee.approved_by]?.name ?? '不明') : '—'}
+              {employee.approved_at && `（${new Date(employee.approved_at).toLocaleDateString('ja-JP')}）`}
+            </p>
+          </div>
+        )}
         {/* スキルバランス／フェーズ別達成率: 本人＋閲覧権限のあるメンバー（管理者・リーダー）両方で表示 */}
         <Suspense fallback={null}>
           <MySkillCharts

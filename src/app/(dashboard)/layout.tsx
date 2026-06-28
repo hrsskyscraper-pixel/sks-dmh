@@ -2,7 +2,6 @@ export const dynamic = 'force-dynamic'
 
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import { getAuthUser, getCurrentEmployee } from '@/lib/supabase/auth-cache'
 import { BottomNav } from '@/components/layout/nav'
 import { Toaster } from '@/components/ui/sonner'
@@ -13,13 +12,14 @@ import { NavDataProvider } from '@/components/layout/nav-data-context'
 import { OnboardingDialog } from '@/components/onboarding/onboarding-dialog'
 import { IntroGuideDialog } from '@/components/onboarding/intro-guide-dialog'
 import { PendingScreen } from '@/components/onboarding/pending-screen'
+import { InviteRequiredScreen } from '@/components/onboarding/invite-required-screen'
 import { JoinCompletionBanner } from '@/components/onboarding/join-completion-banner'
 import { canAdminister, isTrainingLeader } from '@/lib/permissions'
 import { MemberLinkProvider } from '@/components/layout/member-link-context'
 import { LineLinkFloatingButton } from '@/components/layout/line-link-floating-button'
 import { FontScaleSync } from '@/components/layout/font-scale-sync'
 import { normalizeFontScale } from '@/lib/font-scale'
-import type { Database, Role } from '@/types/database'
+import type { Role } from '@/types/database'
 
 export default async function DashboardLayout({
   children,
@@ -29,53 +29,21 @@ export default async function DashboardLayout({
   const user = await getAuthUser()
   if (!user) redirect('/login')
 
-  const supabase = await createClient()
+  const employeeRaw = await getCurrentEmployee()
 
-  let employee = await getCurrentEmployee()
-
-  // 初回ログイン時: employeesレコードがなければ自動作成（role=testuser）
-  if (!employee) {
-    const adminDb = createAdminClient()
-    const fullName = (user.user_metadata.full_name as string | undefined) ?? user.email ?? '未設定'
-    const nameParts = fullName.split(' ')
-    const insertData: Database['public']['Tables']['employees']['Insert'] = {
-      auth_user_id: user.id,
-      last_name: nameParts[0],
-      first_name: nameParts.slice(1).join(' ') || '',
-      email: user.email ?? '',
-      role: 'employee',
-      system_permission: 'training_member',
-      employment_type: '社員',
-      avatar_url: (user.user_metadata.avatar_url as string | undefined) ?? null,
-      status: 'pending',
-    }
-    const { error: insertError } = await adminDb.from('employees').insert(insertData)
-    if (!insertError) {
-      // RLS を回避するため admin client で再取得
-      const { data: created } = await adminDb
-        .from('employees')
-        .select('id, name, last_name, first_name, name_kana, email, role, business_role_ids, system_permission, employment_type, hire_date, birth_date, avatar_url, instagram_url, line_url, status, requested_team_id, requested_project_team_id, line_user_id, line_friend, approved_by, approved_at, notifications_read_at, font_scale, intro_dismissed_at, is_test, auth_user_id, created_at, updated_at')
-        .eq('auth_user_id', user.id)
-        .single()
-      employee = created
-    } else {
-      await supabase.auth.signOut()
-      redirect(`/login?error=${encodeURIComponent(insertError.message)}`)
-    }
+  // 初回登録は招待リンク経由のみ。レコードが無い＝未招待のログイン → アプリには入れない。
+  // （招待リンクを開くと invite/[id] 側で承認待ちレコードが作成される）
+  if (!employeeRaw) {
+    return <InviteRequiredScreen email={user.email ?? ''} />
   }
+  let employee = employeeRaw
 
   // 既存ユーザーでavatar_url未設定の場合、Googleの写真を自動設定
-  if (employee && !employee.avatar_url && user.user_metadata.avatar_url) {
+  if (!employee.avatar_url && user.user_metadata.avatar_url) {
     const adminDb = createAdminClient()
     const googleAvatar = user.user_metadata.avatar_url as string
     await adminDb.from('employees').update({ avatar_url: googleAvatar }).eq('id', employee.id)
     employee = { ...employee, avatar_url: googleAvatar }
-  }
-
-  // それでも取得できなければサインアウトしてリダイレクト（ループ防止）
-  if (!employee) {
-    await supabase.auth.signOut()
-    redirect('/login?error=employee_fetch_failed')
   }
 
   // pending ユーザーはダッシュボードを見せない

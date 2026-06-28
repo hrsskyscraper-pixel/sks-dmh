@@ -20,6 +20,8 @@ interface PendingEmployee {
   avatar_url: string | null
   requested_team_id: string | null
   requested_project_team_id: string | null
+  invited_by?: string | null
+  inviterName?: string | null
   created_at: string
 }
 
@@ -141,6 +143,7 @@ export function ApprovalManager({ pendingEmployees, teams, projectTeams, current
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-gray-800 truncate">{emp.name}</p>
                     {emp.email && <p className="text-xs text-gray-400 truncate">{emp.email}</p>}
+                    {emp.inviterName && <p className="text-[11px] text-gray-500 truncate">招待者: {emp.inviterName}</p>}
                   </div>
                   <div className="text-right flex-shrink-0">
                     <p className="text-xs text-gray-400">{daysSince === 0 ? '今日' : `${daysSince}日前`}</p>

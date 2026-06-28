@@ -81,7 +81,7 @@ export default async function DashboardPage({
   // targetEmployee と searchParams を並列取得
   const [targetEmployeeResult, params] = await Promise.all([
     viewAsId
-      ? db.from('employees').select('id, name, last_name, first_name, name_kana, email, role, business_role_ids, system_permission, employment_type, hire_date, birth_date, avatar_url, instagram_url, line_url, line_user_id, line_friend, status, requested_team_id, requested_project_team_id, approved_by, approved_at, notifications_read_at, font_scale, intro_dismissed_at, is_test, auth_user_id, created_at, updated_at').eq('id', viewAsId).single()
+      ? db.from('employees').select('id, name, last_name, first_name, name_kana, email, role, business_role_ids, system_permission, employment_type, hire_date, birth_date, avatar_url, instagram_url, line_url, line_user_id, line_friend, status, requested_team_id, requested_project_team_id, approved_by, approved_at, invited_by, invitation_id, notifications_read_at, font_scale, intro_dismissed_at, is_test, auth_user_id, created_at, updated_at').eq('id', viewAsId).single()
       : Promise.resolve({ data: null }),
     searchParams ?? Promise.resolve(undefined),
   ])

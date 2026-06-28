@@ -34,6 +34,8 @@ export type Database = {
           line_friend: boolean | null
           approved_by: string | null
           approved_at: string | null
+          invited_by: string | null
+          invitation_id: string | null
           notifications_read_at: string | null
           font_scale: number
           intro_dismissed_at: string | null
@@ -65,6 +67,8 @@ export type Database = {
           line_friend?: boolean | null
           approved_by?: string | null
           approved_at?: string | null
+          invited_by?: string | null
+          invitation_id?: string | null
           notifications_read_at?: string | null
           font_scale?: number
           intro_dismissed_at?: string | null
@@ -96,6 +100,8 @@ export type Database = {
           line_friend?: boolean | null
           approved_by?: string | null
           approved_at?: string | null
+          invited_by?: string | null
+          invitation_id?: string | null
           notifications_read_at?: string | null
           font_scale?: number
           intro_dismissed_at?: string | null

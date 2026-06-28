@@ -33,7 +33,7 @@ export default async function ApprovalPage() {
   // pending 社員取得
   const pendingQuery = db
     .from('employees')
-    .select('id, name, email, avatar_url, requested_team_id, requested_project_team_id, created_at')
+    .select('id, name, email, avatar_url, requested_team_id, requested_project_team_id, invited_by, created_at')
     .eq('status', 'pending')
     .not('requested_team_id', 'is', null)
     .order('created_at')
@@ -46,9 +46,19 @@ export default async function ApprovalPage() {
     .filter(e => !testEmpIds.has(e.id))
     .filter(e => isSystemAdmin || managedTeamIds.includes(e.requested_team_id!))
 
+  // 招待者名（誰が招待したか）を解決
+  const inviterIds = [...new Set(filtered.map(e => e.invited_by).filter((v): v is string => !!v))]
+  const { data: inviters } = inviterIds.length > 0
+    ? await db.from('employees').select('id, name').in('id', inviterIds)
+    : { data: [] as { id: string; name: string }[] }
+  const inviterNameById = Object.fromEntries((inviters ?? []).map(i => [i.id, i.name]))
+
   // メールアドレスは本人とシステム管理者にのみ表示（個人情報保護）。
   // 承認者でもリーダーには参加者のメールを見せない。
-  const filteredForClient = maskEmails(filtered, employee)
+  const filteredForClient = maskEmails(filtered, employee).map(e => ({
+    ...e,
+    inviterName: e.invited_by ? (inviterNameById[e.invited_by] ?? null) : null,
+  }))
 
   // 店舗・部署取得
   const { data: teams } = await db.from('teams').select('id, name, type, prefecture').in('type', ['store', 'department']).order('name')
