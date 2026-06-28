@@ -53,6 +53,7 @@ interface Props {
   rankingSlot?: React.ReactNode
   checkpointSlot?: React.ReactNode
   announcementsSlot?: React.ReactNode
+  setupNoticeSlot?: React.ReactNode
   skillRankingSlot?: React.ReactNode
 }
 
@@ -109,7 +110,7 @@ export function DashboardContent({
   globalPendingAchievementsCount = 0, teamPendingAchievementsCount = 0, pendingTeamRequestsCount = 0,
   currentGoal: initialGoal, isOwnDashboard, careerSummary = {}, storeName = null, position = null, internalCerts = [], employeeId, hasGoalRecords = false,
   skillManuals = {},
-  rankingSlot, checkpointSlot, announcementsSlot, skillRankingSlot
+  rankingSlot, checkpointSlot, announcementsSlot, skillRankingSlot, setupNoticeSlot
 }: Props) {
   const [expandedManuals, setExpandedManuals] = useState<Set<string>>(new Set())
   const [switchingProjectId, setSwitchingProjectId] = useState<string | null>(null)
@@ -477,6 +478,8 @@ export function DashboardContent({
           ) : null}
         </CardContent>
       </Card>
+
+      {setupNoticeSlot}
 
       {/* 対応が必要 */}
       {(globalPendingAchievementsCount > 0 || teamPendingAchievementsCount > 0 || pendingTeamRequestsCount > 0) && (

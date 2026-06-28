@@ -12,6 +12,7 @@ import { TestUserGuide } from '@/components/testuser/test-user-guide'
 import { TeamRankingServer } from '@/components/dashboard/team-ranking-server'
 import { CheckpointRecords } from '@/components/dashboard/checkpoint-records'
 import { AnnouncementsServer } from '@/components/announcements/announcements-server'
+import { SetupIncompleteNotice } from '@/components/dashboard/setup-incomplete-notice'
 import { SkillRankingServer } from '@/components/dashboard/skill-ranking-server'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
 import { SELECTED_PROJECT_COOKIE } from '@/lib/selected-project'
@@ -301,6 +302,11 @@ export default async function DashboardPage({
         announcementsSlot={
           <Suspense fallback={null}>
             <AnnouncementsServer />
+          </Suspense>
+        }
+        setupNoticeSlot={
+          <Suspense fallback={null}>
+            <SetupIncompleteNotice employeeId={employee.id} />
           </Suspense>
         }
         skillRankingSlot={
