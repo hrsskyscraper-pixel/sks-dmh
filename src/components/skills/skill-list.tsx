@@ -556,7 +556,14 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
               >
                 {t.label}
                 {'count' in t && t.count > 0 && (
-                  <span className={cn('ml-1 text-[10px]', view === t.key ? 'text-orange-100' : 'text-gray-400')}>{t.count}</span>
+                  t.key === 'rejected' ? (
+                    <span className="ml-1 inline-flex items-center gap-0.5 align-middle">
+                      <AlertTriangle className={cn('w-3 h-3', view === t.key ? 'text-white' : 'text-red-500')} />
+                      <span className="bg-red-500 text-white text-[9px] font-bold rounded-full min-w-[16px] h-[16px] inline-flex items-center justify-center px-1 leading-none">{t.count}</span>
+                    </span>
+                  ) : (
+                    <span className={cn('ml-1 text-[10px]', view === t.key ? 'text-orange-100' : 'text-gray-400')}>{t.count}</span>
+                  )
                 )}
               </button>
             ))}
