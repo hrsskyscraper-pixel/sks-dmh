@@ -28,9 +28,12 @@ export async function computeSkillCountRanking(
   // ランキング対象の社員ID。includeZero では承認済み全メンバー（除外対象を除く）を対象に。
   let ids: string[]
   if (includeZero) {
-    const { data: allEmps } = await db.from('employees').select('id, name').eq('status', 'approved')
-    const nameOf: Record<string, string> = Object.fromEntries((allEmps ?? []).map(e => [e.id, e.name]))
-    ids = (allEmps ?? []).map(e => e.id).filter(id => !testIds.has(id))
+    const { data: allEmps } = await db.from('employees').select('id, name, approved_at').eq('status', 'approved')
+    let members = (allEmps ?? []).filter(e => !testIds.has(e.id))
+    // ○月ランキング（toISO 指定）では、その月までにMBに参加（承認）していないメンバーは除外
+    if (toISO) members = members.filter(e => !e.approved_at || e.approved_at < toISO)
+    const nameOf: Record<string, string> = Object.fromEntries(members.map(e => [e.id, e.name]))
+    ids = members.map(e => e.id)
       .sort((a, b) => ((counts[b] ?? 0) - (counts[a] ?? 0)) || (nameOf[a] ?? '').localeCompare(nameOf[b] ?? '', 'ja'))
       .slice(0, topN)
   } else {
@@ -38,10 +41,10 @@ export async function computeSkillCountRanking(
   }
   if (ids.length === 0) return []
 
-  const { data: emps } = await db.from('employees').select('id, name, avatar_url, created_at').in('id', ids)
+  const { data: emps } = await db.from('employees').select('id, name, avatar_url, approved_at').in('id', ids)
   const nameById: Record<string, string> = Object.fromEntries((emps ?? []).map(e => [e.id, e.name]))
   const avatarById: Record<string, string | null> = Object.fromEntries((emps ?? []).map(e => [e.id, e.avatar_url]))
-  const joinById: Record<string, string | null> = Object.fromEntries((emps ?? []).map(e => [e.id, e.created_at]))
+  const joinById: Record<string, string | null> = Object.fromEntries((emps ?? []).map(e => [e.id, e.approved_at]))
   type TeamJoin = { employee_id: string; teams: { name: string; type: string } | { name: string; type: string }[] | null }
   const pickAff = (rows: TeamJoin[], store: Record<string, string>, dept: Record<string, string>) => {
     for (const m of rows) {
