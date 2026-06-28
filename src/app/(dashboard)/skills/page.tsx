@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
 import { TopBar } from '@/components/layout/nav'
 import { SkillList } from '@/components/skills/skill-list'
+import { CurriculumSwitcher } from '@/components/skills/curriculum-switcher'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
 import { SELECTED_PROJECT_COOKIE } from '@/lib/selected-project'
 import { buildMilestoneMap } from '@/lib/milestone'
@@ -131,6 +132,7 @@ export default async function SkillsPage({
     return (
       <>
         <TopBar title="スキルチェックリスト" />
+        <CurriculumSwitcher projects={employeeProjects.map(p => ({ id: p.id, name: p.name }))} currentProjectId={selectedProject?.id ?? null} />
         <div className="p-4">
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-center space-y-3">
             <div className="text-3xl">🛠️</div>
@@ -155,6 +157,7 @@ export default async function SkillsPage({
   return (
     <>
       <TopBar title="スキルチェックリスト" />
+      <CurriculumSwitcher projects={employeeProjects.map(p => ({ id: p.id, name: p.name }))} currentProjectId={selectedProject?.id ?? null} />
       <SkillList
         employeeId={employee.id}
         skills={skills}

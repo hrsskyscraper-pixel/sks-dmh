@@ -1,0 +1,73 @@
+'use client'
+
+import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
+import { Loader2, BookOpen } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { setSelectedProject } from '@/app/(dashboard)/actions'
+
+interface Props {
+  projects: { id: string; name: string }[]
+  currentProjectId: string | null
+  /** 切替後に遷移するパス（?project_id= が付与される）。既定 /skills */
+  basePath?: string
+}
+
+/** スキルページ上部の「習得カリキュラム」表示＋切替（複数所属時はチップで切替） */
+export function CurriculumSwitcher({ projects, currentProjectId, basePath = '/skills' }: Props) {
+  const router = useRouter()
+  const [switchingId, setSwitchingId] = useState<string | null>(null)
+  const [pending, startTransition] = useTransition()
+
+  if (projects.length === 0) return null
+  const current = projects.find(p => p.id === currentProjectId) ?? projects[0]
+
+  if (projects.length === 1) {
+    return (
+      <div className="px-4 pt-3 -mb-1 flex items-center gap-1.5 text-xs text-gray-500">
+        <BookOpen className="w-3.5 h-3.5 text-orange-500 flex-shrink-0" />
+        <span>習得カリキュラム</span>
+        <span className="font-semibold text-gray-700 truncate">{current.name}</span>
+      </div>
+    )
+  }
+
+  return (
+    <div className="px-4 pt-3 -mb-1">
+      <div className="flex items-center gap-1.5 text-xs text-gray-500 mb-1.5">
+        <BookOpen className="w-3.5 h-3.5 text-orange-500 flex-shrink-0" />
+        <span>習得カリキュラムを選択</span>
+      </div>
+      <div className="flex gap-1.5 flex-wrap">
+        {projects.map(pj => {
+          const isSelected = pj.id === current.id
+          const isSwitching = pending && switchingId === pj.id
+          return (
+            <button
+              key={pj.id}
+              disabled={pending}
+              onClick={() => {
+                if (isSelected || pending) return
+                setSwitchingId(pj.id)
+                startTransition(async () => {
+                  await setSelectedProject(pj.id)
+                  router.replace(`${basePath}?project_id=${pj.id}`)
+                })
+              }}
+              className={cn(
+                'text-[11px] rounded-full px-3 py-1 transition-all flex items-center gap-1 border',
+                isSelected
+                  ? 'bg-orange-500 text-white border-orange-500 font-bold'
+                  : 'bg-white text-gray-600 border-gray-200 hover:bg-orange-50',
+                pending && !isSwitching && 'opacity-50',
+              )}
+            >
+              {isSwitching && <Loader2 className="w-3 h-3 animate-spin" />}
+              {pj.name}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}

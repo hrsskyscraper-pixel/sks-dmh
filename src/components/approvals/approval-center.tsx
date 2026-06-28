@@ -17,6 +17,8 @@ import { StoreSelect } from '@/components/ui/store-select'
 import { CheckCircle, XCircle, UserPlus, GitPullRequest, Award, Inbox } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { SkillPhotoGallery } from '@/components/skills/skill-photo-gallery'
+import { cn } from '@/lib/utils'
+import { TEAM_TYPE_LABEL, TEAM_TYPE_COLOR, type Affiliation } from '@/lib/affiliations'
 
 type Tab = 'all' | 'skill' | 'team' | 'join' | 'done'
 
@@ -43,6 +45,8 @@ const ROLE_OPTIONS_ADMIN = [
 
 interface Props {
   pendingAchievements: any[]
+  applicantAff?: Record<string, Affiliation[]>
+  applicantCurricula?: Record<string, string[]>
   pendingTeamRequests: any[]
   pendingJoins: any[]
   teamMap: Record<string, { id: string; name: string; type: string; prefecture: string | null }>
@@ -59,7 +63,7 @@ interface Props {
 }
 
 export function ApprovalCenter({
-  pendingAchievements, pendingTeamRequests, pendingJoins,
+  pendingAchievements, applicantAff = {}, applicantCurricula = {}, pendingTeamRequests, pendingJoins,
   teamMap, projectTeams, currentEmployeeId, isSystemAdmin, approverRole, storeDeptTeams,
   recentAchievements, recentTeamRequests, recentJoins, reviewerMap, auditLogs,
 }: Props) {
@@ -613,6 +617,18 @@ export function ApprovalCenter({
                         <p className="text-sm font-medium text-gray-800 mt-0.5">
                           {emp?.name} — <span className="text-orange-600">{skill?.name}</span>
                         </p>
+                        {((applicantAff[a.employee_id]?.length ?? 0) > 0 || (applicantCurricula[a.skill_id]?.length ?? 0) > 0) && (
+                          <div className="flex flex-wrap items-center gap-1 mt-1">
+                            {(applicantAff[a.employee_id] ?? []).map(af => (
+                              <span key={`${af.type}:${af.name}`} className={cn('text-[9px] rounded px-1 py-px', TEAM_TYPE_COLOR[af.type])}>
+                                <span className="opacity-60 mr-0.5">{TEAM_TYPE_LABEL[af.type]}</span>{af.name}
+                              </span>
+                            ))}
+                            {(applicantCurricula[a.skill_id] ?? []).map((c: string) => (
+                              <span key={c} className="text-[9px] text-orange-700 bg-orange-50 border border-orange-100 rounded px-1 py-px">{c}</span>
+                            ))}
+                          </div>
+                        )}
                         {a.apply_comment && <p className="text-xs text-gray-500 mt-0.5">{a.apply_comment}</p>}
                         {a.photo_urls?.length > 0 && (
                           <div className="mt-1.5" onClick={e => e.stopPropagation()}>

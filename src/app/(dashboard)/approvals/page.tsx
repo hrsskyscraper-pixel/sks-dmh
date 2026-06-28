@@ -11,6 +11,7 @@ import { canAdminister, canApprove } from '@/lib/permissions'
 import { maskEmails } from '@/lib/email-visibility'
 import { getTestEmployeeIds } from '@/lib/test-data'
 import { signSkillPhotoPaths } from '@/lib/skill-photos'
+import { getAffiliationsAndCurricula } from '@/lib/affiliations'
 
 export default async function ApprovalsPage() {
   const employee = await getCurrentEmployee()
@@ -217,6 +218,13 @@ export default async function ApprovalsPage() {
   // 習得カリキュラム（参加許諾用）
   const { data: projectTeams } = await db.from('teams').select('id, name').eq('type', 'project').order('name')
 
+  // 承認待ちスキル申請の「所属」と「習得カリキュラム」を解決（カードに表示）
+  const { affByEmployee: applicantAff, curriculaBySkill: applicantCurricula } = await getAffiliationsAndCurricula(
+    db,
+    filteredAchievements.map(a => a.employee_id),
+    filteredAchievements.map(a => a.skill_id),
+  )
+
   return (
     <>
       <TopBar title="承認センター" />
@@ -230,6 +238,8 @@ export default async function ApprovalsPage() {
       )}
       <ApprovalCenter
         pendingAchievements={filteredAchievements as any[]}
+        applicantAff={applicantAff}
+        applicantCurricula={applicantCurricula}
         pendingTeamRequests={filteredTeamRequests as any[]}
         pendingJoins={filteredJoinsForClient as any[]}
         teamMap={teamMap}
