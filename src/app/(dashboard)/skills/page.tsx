@@ -65,6 +65,7 @@ export default async function SkillsPage({
     { data: cumulativeHours },
     { data: skillManualsRows },
     { data: manualsRows },
+    { data: allProjSkillRows },
   ] = await Promise.all([
     selectedProject
       ? db.from('project_phases').select('id, project_id, name, order_index, end_hours, created_at').eq('project_id', selectedProject.id).order('order_index')
@@ -82,7 +83,17 @@ export default async function SkillsPage({
     }),
     db.from('skill_manuals').select('skill_id, manual_id, is_primary, display_order'),
     db.from('manual_library').select('id, title, url').eq('archived', false),
+    employeeProjects.length > 0
+      ? db.from('project_skills').select('project_id, skill_id').in('project_id', employeeProjects.map(p => p.id))
+      : Promise.resolve({ data: [] as { project_id: string; skill_id: string }[] }),
   ])
+
+  // 各習得カリキュラムの全スキル数（カリキュラム切替チップに「○スキル」を表示）
+  const skillSetByProject: Record<string, Set<string>> = {}
+  for (const ps of (allProjSkillRows ?? []) as { project_id: string; skill_id: string }[]) {
+    (skillSetByProject[ps.project_id] ??= new Set()).add(ps.skill_id)
+  }
+  const switcherProjects = employeeProjects.map(p => ({ id: p.id, name: p.name, skillCount: skillSetByProject[p.id]?.size ?? 0 }))
 
   const projectPhases: ProjectPhase[] = projectPhaseRows ?? []
 
@@ -132,7 +143,7 @@ export default async function SkillsPage({
     return (
       <>
         <TopBar title="スキルチェックリスト" />
-        <CurriculumSwitcher projects={employeeProjects.map(p => ({ id: p.id, name: p.name }))} currentProjectId={selectedProject?.id ?? null} />
+        <CurriculumSwitcher projects={switcherProjects} currentProjectId={selectedProject?.id ?? null} />
         <div className="p-4">
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-center space-y-3">
             <div className="text-3xl">🛠️</div>
@@ -157,7 +168,7 @@ export default async function SkillsPage({
   return (
     <>
       <TopBar title="スキルチェックリスト" />
-      <CurriculumSwitcher projects={employeeProjects.map(p => ({ id: p.id, name: p.name }))} currentProjectId={selectedProject?.id ?? null} />
+      <CurriculumSwitcher projects={switcherProjects} currentProjectId={selectedProject?.id ?? null} />
       <SkillList
         key={selectedProject?.id ?? 'none'}
         employeeId={employee.id}

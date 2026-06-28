@@ -145,6 +145,8 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
   })()
   const [achievements, setAchievements] = useState(initialAchievements)
   const categories = sortCategories([...new Set(skills.map(s => s.category))])
+  // 現在の習得カリキュラムに属するスキルだけで件数・一覧を集計する
+  const projectSkillIds = useMemo(() => new Set(skills.map(s => s.id)), [skills])
   const allKeys = phases.flatMap(p => categories.map(c => `${p.id}-${c}`))
   // 既定は全カテゴリ折りたたみ（トグルで開く）。allKeys は全カテゴリ展開用に保持。
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set())
@@ -488,13 +490,15 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
     <div className="p-4 space-y-4">
       {/* ビュー切替 */}
       {(() => {
-        const pendingCount = achievements.filter(a => a.status === 'pending').length
-        const rejectedCount = achievements.filter(a => a.status === 'rejected').length
-        const certifiedCount = achievements.filter(a => a.status === 'certified').length
+        const inProject = achievements.filter(a => projectSkillIds.has(a.skill_id))
+        const pendingCount = inProject.filter(a => a.status === 'pending').length
+        const rejectedCount = inProject.filter(a => a.status === 'rejected').length
+        const certifiedCount = inProject.filter(a => a.status === 'certified').length
+        const unappliedCount = skills.filter(s => getStatus(s.id) === null).length
         const tabs = [
-          { key: 'skills', label: '未申請' },
-          { key: 'pending', label: '申請中', count: pendingCount },
+          { key: 'skills', label: '未申請', count: unappliedCount },
           { key: 'rejected', label: '差し戻し', count: rejectedCount },
+          { key: 'pending', label: '申請中', count: pendingCount },
           { key: 'certified', label: '承認済', count: certifiedCount },
         ] as const
         return (
@@ -519,7 +523,7 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
       {view === 'pending' && (
         <div className="space-y-2">
           {(() => {
-            const items = historyItems.filter(a => a.status === 'pending')
+            const items = historyItems.filter(a => a.status === 'pending' && projectSkillIds.has(a.skill_id))
             if (items.length === 0) return <p className="text-sm text-gray-400 text-center py-8">申請中のスキルはありません</p>
             return items.map(ach => {
               const skillName = ach.skills?.name ?? skills.find(s => s.id === ach.skill_id)?.name ?? '不明'
@@ -550,7 +554,7 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
       {view === 'rejected' && (
         <div className="space-y-2">
           {(() => {
-            const items = historyItems.filter(a => a.status === 'rejected')
+            const items = historyItems.filter(a => a.status === 'rejected' && projectSkillIds.has(a.skill_id))
             if (items.length === 0) return <p className="text-sm text-gray-400 text-center py-8">差し戻しはありません</p>
             return items.map(ach => {
               const skillName = ach.skills?.name ?? skills.find(s => s.id === ach.skill_id)?.name ?? '不明'
@@ -606,7 +610,7 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
       {view === 'certified' && (
         <div className="space-y-2">
           {(() => {
-            const items = historyItems.filter(a => a.status === 'certified')
+            const items = historyItems.filter(a => a.status === 'certified' && projectSkillIds.has(a.skill_id))
             if (items.length === 0) return <p className="text-sm text-gray-400 text-center py-8">承認済みのスキルはありません</p>
             return items.map(ach => {
               const skillName = ach.skills?.name ?? skills.find(s => s.id === ach.skill_id)?.name ?? '不明'

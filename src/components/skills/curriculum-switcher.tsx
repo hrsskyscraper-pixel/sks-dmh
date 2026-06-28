@@ -7,10 +7,15 @@ import { cn } from '@/lib/utils'
 import { setSelectedProject } from '@/app/(dashboard)/actions'
 
 interface Props {
-  projects: { id: string; name: string }[]
+  projects: { id: string; name: string; skillCount?: number }[]
   currentProjectId: string | null
   /** 切替後に遷移するパス（?project_id= が付与される）。既定 /skills */
   basePath?: string
+}
+
+/** 「○○カリキュラム　122スキル」のように全スキル数を添える */
+function label(p: { name: string; skillCount?: number }): string {
+  return p.skillCount && p.skillCount > 0 ? `${p.name}　${p.skillCount}スキル` : p.name
 }
 
 /** スキルページ上部の「習得カリキュラム」表示＋切替（複数所属時はチップで切替） */
@@ -27,7 +32,7 @@ export function CurriculumSwitcher({ projects, currentProjectId, basePath = '/sk
       <div className="px-4 pt-3 -mb-1 flex items-center gap-1.5 text-xs text-gray-500">
         <BookOpen className="w-3.5 h-3.5 text-orange-500 flex-shrink-0" />
         <span>習得カリキュラム</span>
-        <span className="font-semibold text-gray-700 truncate">{current.name}</span>
+        <span className="font-semibold text-gray-700 truncate">{label(current)}</span>
       </div>
     )
   }
@@ -63,7 +68,7 @@ export function CurriculumSwitcher({ projects, currentProjectId, basePath = '/sk
               )}
             >
               {isSwitching && <Loader2 className="w-3 h-3 animate-spin" />}
-              {pj.name}
+              {label(pj)}
             </button>
           )
         })}
