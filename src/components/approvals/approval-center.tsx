@@ -109,6 +109,11 @@ export function ApprovalCenter({
   const [bulkComment, setBulkComment] = useState('')
   const [bulkSubmitting, setBulkSubmitting] = useState(false)
 
+  // 写真確認ゲート: 写真付き申請は、全枚数を拡大表示するまで認定できない（コメントは全文表示でOK）
+  const [photoViewedIds, setPhotoViewedIds] = useState<Set<string>>(new Set())
+  const markPhotosViewed = (id: string) => setPhotoViewedIds(prev => prev.has(id) ? prev : new Set(prev).add(id))
+  const photoConfirmed = (a: any) => !(a.photo_urls?.length > 0) || photoViewedIds.has(a.id)
+
   // 楽観的に処理済みとしたカードを除外した認定待ち一覧
   const visiblePendingAchievements = pendingAchievements.filter((a: any) => !processedAchIds.has(a.id))
 
@@ -602,6 +607,7 @@ export function ApprovalCenter({
                       <div onClick={e => e.stopPropagation()} className="flex-shrink-0">
                         <Checkbox
                           checked={selectedAchIds.has(a.id)}
+                          disabled={!photoConfirmed(a)}
                           onCheckedChange={() => toggleAchSelected(a.id)}
                           aria-label={`${emp?.name ?? ''} の ${skill?.name ?? ''} を選択`}
                         />
@@ -631,14 +637,17 @@ export function ApprovalCenter({
                         {a.apply_comment && <p className="text-xs text-gray-500 mt-0.5">{a.apply_comment}</p>}
                         {a.photo_urls?.length > 0 && (
                           <div className="mt-1.5" onClick={e => e.stopPropagation()}>
-                            <SkillPhotoGallery urls={a.photo_urls} paths={a.photo_paths} achievementId={a.id} canDelete={isSystemAdmin} size="sm" label={null} />
+                            <SkillPhotoGallery urls={a.photo_urls} paths={a.photo_paths} achievementId={a.id} canDelete={isSystemAdmin} size="sm" label={null} onAllViewed={() => markPhotosViewed(a.id)} />
+                            {!photoConfirmed(a) && (
+                              <p className="text-[10px] text-amber-600 mt-1">写真をタップで拡大して確認すると、認定できます</p>
+                            )}
                           </div>
                         )}
                       </div>
                       <div className="flex gap-1 flex-shrink-0">
                         <Button size="sm" className="h-7 px-2 bg-green-500 hover:bg-green-600 text-[11px]"
                           onClick={(e) => { e.stopPropagation(); setCertifyTarget(a); setCertifyAction('certified'); setCertifyComment('') }}
-                          disabled={isPending}>
+                          disabled={isPending || !photoConfirmed(a)}>
                           <CheckCircle className="w-3 h-3 mr-0.5" />認定
                         </Button>
                         <Button size="sm" variant="outline" className="h-7 px-2 text-[11px] text-red-500 border-red-200 hover:bg-red-50"

@@ -14,18 +14,33 @@ interface Props {
   achievementId?: string
   paths?: string[]
   canDelete?: boolean
+  /** すべての写真を一度ずつ拡大表示（ライトボックス）したときに呼ばれる。承認前の写真確認ゲートに使う */
+  onAllViewed?: () => void
 }
 
 /** 申請写真のサムネイル表示＋タップで全画面ライトボックス。管理者には削除ボタンを表示 */
-export function SkillPhotoGallery({ urls, size = 'md', label = '申請写真', achievementId, paths, canDelete }: Props) {
+export function SkillPhotoGallery({ urls, size = 'md', label = '申請写真', achievementId, paths, canDelete, onAllViewed }: Props) {
   const [items, setItems] = useState(() => urls.map((url, i) => ({ url, path: paths?.[i] })))
   const [lightbox, setLightbox] = useState<{ url: string; path?: string } | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
+  const [viewedIdx, setViewedIdx] = useState<Set<number>>(new Set())
 
   // props が変わったら（別の申請に切り替わる等）同期
   useEffect(() => {
     setItems(urls.map((url, i) => ({ url, path: paths?.[i] })))
+    setViewedIdx(new Set())
   }, [urls, paths])
+
+  // サムネイルを拡大表示（ライトボックスを開く）。全枚数を見たら onAllViewed を通知
+  const openLightbox = (it: { url: string; path?: string }, i: number) => {
+    setLightbox(it)
+    setViewedIdx(prev => {
+      if (prev.has(i)) return prev
+      const next = new Set(prev).add(i)
+      if (next.size >= items.length) onAllViewed?.()
+      return next
+    })
+  }
 
   const showDelete = !!(canDelete && achievementId)
 
@@ -62,7 +77,7 @@ export function SkillPhotoGallery({ urls, size = 'md', label = '申請写真', a
       <div className="flex gap-2 flex-wrap">
         {items.map((it, i) => (
           <div key={i} className={cn('relative rounded-lg overflow-hidden border border-gray-200', thumb)}>
-            <button type="button" onClick={() => setLightbox(it)} className="block w-full h-full">
+            <button type="button" onClick={() => openLightbox(it, i)} className="block w-full h-full">
               <img src={it.url} alt={`写真${i + 1}`} loading="lazy" decoding="async" className="w-full h-full object-cover" />
             </button>
             {showDelete && it.path && (

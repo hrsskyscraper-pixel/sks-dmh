@@ -68,6 +68,12 @@ export function TeamDashboard({ currentEmployee, employees, skills, achievements
   const [isPending, startTransition] = useTransition()
   const [selectedAchievement, setSelectedAchievement] = useState<AchievementWithRelations | null>(null)
   const [certifyComment, setCertifyComment] = useState('')
+  // 写真確認ゲート: 写真付き申請は、全枚数を拡大表示するまで認定できない
+  const [photoViewedIds, setPhotoViewedIds] = useState<Set<string>>(new Set())
+  const markPhotosViewed = (id: string) => setPhotoViewedIds(prev => prev.has(id) ? prev : new Set(prev).add(id))
+  const hasPhotos = (a: AchievementWithRelations) => (a.photo_urls?.length ?? 0) > 0
+  // 認定可否: 写真が無ければOK、写真があれば全枚数を拡大表示済みならOK（コメントは全文表示でOKなのでゲートしない）
+  const photoConfirmed = (a: AchievementWithRelations) => !hasPhotos(a) || photoViewedIds.has(a.id)
   // まとめて認定 / 差し戻し（全社の承認センターと同じ仕組み）
   const [selectedAchIds, setSelectedAchIds] = useState<Set<string>>(new Set())
   const [bulkAction, setBulkAction] = useState<'certified' | 'rejected'>('certified')
@@ -168,9 +174,11 @@ export function TeamDashboard({ currentEmployee, employees, skills, achievements
       onOpen={openDialog}
       isPending={isPending}
       canDelete={canDeletePhotos}
-      selectable={isSelectable(achievement)}
+      selectable={!isOwn(achievement)}
+      selectDisabled={!photoConfirmed(achievement)}
       selected={selectedAchIds.has(achievement.id)}
       onToggleSelect={toggleAchSelected}
+      onPhotosViewed={() => markPhotosViewed(achievement.id)}
     />
   )
 
@@ -179,8 +187,9 @@ export function TeamDashboard({ currentEmployee, employees, skills, achievements
     setCertifyComment('')
   }
 
-  // 一括選択（自分の申請は自己承認できないので選択不可）
-  const isSelectable = (a: AchievementWithRelations) => a.employee_id !== currentEmployee.id
+  // 一括選択（自分の申請は自己承認できないので選択不可。写真付きは拡大確認するまで選択不可）
+  const isOwn = (a: AchievementWithRelations) => a.employee_id === currentEmployee.id
+  const isSelectable = (a: AchievementWithRelations) => !isOwn(a) && photoConfirmed(a)
   const toggleAchSelected = (id: string) => setSelectedAchIds(prev => {
     const next = new Set(prev)
     next.has(id) ? next.delete(id) : next.add(id)
@@ -406,12 +415,18 @@ export function TeamDashboard({ currentEmployee, employees, skills, achievements
                 </div>
               )}
               {(selectedAchievement.photo_urls?.length ?? 0) > 0 && (
-                <SkillPhotoGallery
-                  urls={selectedAchievement.photo_urls ?? []}
-                  paths={selectedAchievement.photo_paths ?? []}
-                  achievementId={selectedAchievement.id}
-                  canDelete={canDeletePhotos}
-                />
+                <div>
+                  <SkillPhotoGallery
+                    urls={selectedAchievement.photo_urls ?? []}
+                    paths={selectedAchievement.photo_paths ?? []}
+                    achievementId={selectedAchievement.id}
+                    canDelete={canDeletePhotos}
+                    onAllViewed={() => markPhotosViewed(selectedAchievement.id)}
+                  />
+                  {!photoConfirmed(selectedAchievement) && (
+                    <p className="text-[11px] text-amber-600 mt-1">写真をタップで拡大して確認すると、認定できます</p>
+                  )}
+                </div>
               )}
               <div>
                 <p className="text-xs font-medium text-gray-600 mb-1">コメント（認定は任意・差し戻しは必須）</p>
@@ -430,7 +445,7 @@ export function TeamDashboard({ currentEmployee, employees, skills, achievements
               <Button
                 className="flex-1 bg-green-500 hover:bg-green-600 text-white"
                 onClick={() => selectedAchievement && handleCertify(selectedAchievement, certifyComment)}
-                disabled={isPending}
+                disabled={isPending || !!(selectedAchievement && !photoConfirmed(selectedAchievement))}
               >
                 <CheckCircle2 className="w-4 h-4 mr-1" />
                 認定する
@@ -524,16 +539,20 @@ function AchievementCard({
   isPending,
   canDelete = false,
   selectable = false,
+  selectDisabled = false,
   selected = false,
   onToggleSelect,
+  onPhotosViewed,
 }: {
   achievement: AchievementWithRelations & { employees: Employee | null; skills: Skill | null }
   onOpen: (a: AchievementWithRelations) => void
   isPending: boolean
   canDelete?: boolean
   selectable?: boolean
+  selectDisabled?: boolean
   selected?: boolean
   onToggleSelect?: (id: string) => void
+  onPhotosViewed?: () => void
 }) {
   return (
     <Card className="border-amber-200 bg-amber-50">
@@ -543,6 +562,7 @@ function AchievementCard({
             <div className="pt-1 flex-shrink-0">
               <Checkbox
                 checked={selected}
+                disabled={selectDisabled}
                 onCheckedChange={() => onToggleSelect?.(achievement.id)}
                 aria-label={`${achievement.employees?.name ?? ''} の ${achievement.skills?.name ?? ''} を選択`}
               />
@@ -576,7 +596,10 @@ function AchievementCard({
             )}
             {(achievement.photo_urls?.length ?? 0) > 0 && (
               <div className="mt-1.5">
-                <SkillPhotoGallery urls={achievement.photo_urls ?? []} paths={achievement.photo_paths ?? []} achievementId={achievement.id} canDelete={canDelete} size="sm" label={null} />
+                <SkillPhotoGallery urls={achievement.photo_urls ?? []} paths={achievement.photo_paths ?? []} achievementId={achievement.id} canDelete={canDelete} size="sm" label={null} onAllViewed={onPhotosViewed} />
+                {selectable && selectDisabled && (
+                  <p className="text-[10px] text-amber-600 mt-1">写真をタップで拡大して確認すると、選択・認定できます</p>
+                )}
               </div>
             )}
           </div>
