@@ -27,12 +27,8 @@ export function SkillStatsContent({
           <p className="text-4xl font-black">{totalPct}<span className="text-xl">%</span></p>
         </div>
         <div className="ml-3">
-          <p className="text-orange-100 text-xs">認定済み</p>
-          <p className="text-2xl font-bold">{totalCertified}<span className="text-base text-orange-100">/{totalSkills}</span></p>
-        </div>
-        <div className="ml-3">
-          <p className="text-orange-100 text-xs">申請中</p>
-          <p className="text-2xl font-bold">{totalPending}</p>
+          <p className="text-orange-100 text-xs">未申請</p>
+          <p className="text-2xl font-bold">{totalUnapplied}</p>
         </div>
         {totalRejected > 0 && (
           <div>
@@ -41,8 +37,12 @@ export function SkillStatsContent({
           </div>
         )}
         <div>
-          <p className="text-orange-100 text-xs">未申請</p>
-          <p className="text-2xl font-bold">{totalUnapplied}</p>
+          <p className="text-orange-100 text-xs">申請中</p>
+          <p className="text-2xl font-bold">{totalPending}</p>
+        </div>
+        <div>
+          <p className="text-orange-100 text-xs">認定済み</p>
+          <p className="text-2xl font-bold">{totalCertified}<span className="text-base text-orange-100">/{totalSkills}</span></p>
         </div>
       </div>
       <div className="mt-3 space-y-1.5">

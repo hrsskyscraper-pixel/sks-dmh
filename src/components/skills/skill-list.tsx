@@ -531,7 +531,7 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
           { key: 'skills', label: '未申請', count: unappliedCount },
           { key: 'rejected', label: '差し戻し', count: rejectedCount },
           { key: 'pending', label: '申請中', count: pendingCount },
-          { key: 'certified', label: '承認済', count: certifiedCount },
+          { key: 'certified', label: '認定済み', count: certifiedCount },
         ] as const
         return (
           <div className="flex rounded-lg overflow-hidden border border-gray-200 text-sm">
@@ -643,7 +643,7 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
         <div className="space-y-2">
           {(() => {
             const items = historyItems.filter(a => a.status === 'certified' && projectSkillIds.has(a.skill_id))
-            if (items.length === 0) return <p className="text-sm text-gray-400 text-center py-8">承認済みのスキルはありません</p>
+            if (items.length === 0) return <p className="text-sm text-gray-400 text-center py-8">認定済みのスキルはありません</p>
             return items.map(ach => {
               const skillName = ach.skills?.name ?? skills.find(s => s.id === ach.skill_id)?.name ?? '不明'
               const skillCategory = (ach.skills?.category ?? skills.find(s => s.id === ach.skill_id)?.category ?? '') as Category | ''
