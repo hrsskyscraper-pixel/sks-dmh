@@ -7,6 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { AffiliationBadge } from '@/components/ui/affiliation'
 import { RankingList } from '@/components/dashboard/ranking-list'
 import { MemberNameLink } from '@/components/layout/member-name-link'
+import { AffFilter } from '@/components/dashboard/aff-filter'
 import type { RankingDataset, RankRowMeta, AffType } from '@/lib/ranking-data'
 import type { RankEntry } from '@/lib/skill-ranking'
 
@@ -137,23 +138,32 @@ export function RankingExplorer({ dataset, currentEmployeeId, initialPeriodKey }
   // 当月は進行中で対比が低く出るため、既定は直近の完了月（前月）を選ぶ
   const [compareKey, setCompareKey] = useState(dataset.comparePeriods[1]?.key ?? dataset.comparePeriods[0]?.key ?? '')
   const hasCompare = dataset.comparePeriods.length > 0
+  // 個人別ビューの所属フィルタ（'all' or teamId）
+  const [affId, setAffId] = useState('all')
 
   // ビュー切替でページングをリセット（レンダー中に調整＝effect不要）
-  const viewKey = `${mode}:${axis}:${mode === 'period' ? periodKey : compareKey}`
+  const viewKey = `${mode}:${axis}:${affId}:${mode === 'period' ? periodKey : compareKey}`
   const [prevView, setPrevView] = useState(viewKey)
   const [visible, setVisible] = useState(PAGE)
   if (viewKey !== prevView) { setPrevView(viewKey); setVisible(PAGE) }
 
+  // 個人別×所属フィルタ適用後のメタ一覧
+  const personalMetas = useMemo(() => {
+    if (affId === 'all') return dataset.personalMeta
+    const memberSet = new Set(dataset.membersByAff[affId] ?? [])
+    return dataset.personalMeta.filter(m => memberSet.has(m.id))
+  }, [affId, dataset])
+
   const periodRows = useMemo(() => {
     if (mode !== 'period') return []
-    const metas = axis === 'personal' ? dataset.personalMeta : dataset.affiliationMeta
+    const metas = axis === 'personal' ? personalMetas : dataset.affiliationMeta
     const counts = axis === 'personal' ? dataset.empCount[periodKey] : dataset.affCount[periodKey]
     const toISO = dataset.periods.find(p => p.key === periodKey)?.toISO ?? null
     let rows = metas.map(meta => ({ meta, count: counts?.[meta.id] ?? 0 }))
     if (axis === 'personal' && toISO) rows = rows.filter(r => !r.meta.joinDate || r.meta.joinDate < toISO)
     rows.sort((a, b) => b.count - a.count || a.meta.name.localeCompare(b.meta.name, 'ja'))
     return rows
-  }, [mode, axis, periodKey, dataset])
+  }, [mode, axis, periodKey, dataset, personalMetas])
 
   const compareRows = useMemo(() => {
     if (mode !== 'compare') return []
@@ -161,12 +171,12 @@ export function RankingExplorer({ dataset, currentEmployeeId, initialPeriodKey }
     if (!cdef) return []
     const cur = axis === 'personal' ? dataset.empCount[cdef.key] : dataset.affCount[cdef.key]
     const prev = axis === 'personal' ? dataset.empCount[cdef.prevKey] : dataset.affCount[cdef.prevKey]
-    const metas = axis === 'personal' ? dataset.personalMeta : dataset.affiliationMeta
+    const metas = axis === 'personal' ? personalMetas : dataset.affiliationMeta
     return metas
       .map(meta => { const c = cur?.[meta.id] ?? 0, p = prev?.[meta.id] ?? 0; return { meta, count: c, prev: p, delta: c - p } })
       .filter(r => r.count > 0 || r.prev > 0)
       .sort((a, b) => b.delta - a.delta || b.count - a.count || a.meta.name.localeCompare(b.meta.name, 'ja'))
-  }, [mode, axis, compareKey, dataset])
+  }, [mode, axis, compareKey, dataset, personalMetas])
 
   const total = mode === 'period' ? periodRows.length : compareRows.length
 
@@ -184,6 +194,8 @@ export function RankingExplorer({ dataset, currentEmployeeId, initialPeriodKey }
     ? dataset.periods.find(p => p.key === periodKey)?.label ?? ''
     : dataset.comparePeriods.find(c => c.key === compareKey)?.label ?? ''
   const certifiedCount = mode === 'period' ? periodRows.filter(r => r.count > 0).length : 0
+  const affName = affId !== 'all' ? dataset.affiliationMeta.find(a => a.id === affId)?.name : null
+  const memberLabel = affName ? `${affName}のメンバー` : '全メンバー'
 
   return (
     <div className="space-y-3">
@@ -194,6 +206,9 @@ export function RankingExplorer({ dataset, currentEmployeeId, initialPeriodKey }
           options={hasCompare ? [{ key: 'period', label: '期間内ランキング' }, { key: 'compare', label: '前月対比' }] : [{ key: 'period', label: '期間内ランキング' }]}
         />
         <Seg<Axis> value={axis} onChange={setAxis} options={[{ key: 'personal', label: '個人別' }, { key: 'affiliation', label: '所属別' }]} />
+        {axis === 'personal' && (
+          <AffFilter options={dataset.affiliationMeta} value={affId} onChange={setAffId} />
+        )}
       </div>
 
       {/* 期間チップ */}
@@ -218,10 +233,10 @@ export function RankingExplorer({ dataset, currentEmployeeId, initialPeriodKey }
       <p className="text-[11px] text-muted-foreground/80">
         {mode === 'period'
           ? (axis === 'personal'
-              ? `${periodLabel}・全メンバー${total}名（うち認定あり${certifiedCount}名）の認定数`
+              ? `${periodLabel}・${memberLabel}${total}名（うち認定あり${certifiedCount}名）の認定数`
               : `${periodLabel}・所属${total}件の認定数（所属メンバーの合算）`)
           : (axis === 'personal'
-              ? `${periodLabel}の前月対比・スキル習得数の増減（${total}名）`
+              ? `${periodLabel}の前月対比・スキル習得数の増減（${memberLabel}${total}名）`
               : `${periodLabel}の前月対比・スキル習得数の増減（所属${total}件）`)}
       </p>
 

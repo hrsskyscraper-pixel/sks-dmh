@@ -29,6 +29,8 @@ export type RankingDataset = {
   empBreakdown: Record<string, Record<string, { name: string; count: number }[]>>
   /** periodKey -> teamId -> 所属メンバーの合算認定数 */
   affCount: Record<string, Record<string, number>>
+  /** teamId -> 所属メンバーの employeeId（個人別ビューの所属フィルタ用） */
+  membersByAff: Record<string, string[]>
 }
 
 const mk = (y: number, m: number) => `${y}-${String(m + 1).padStart(2, '0')}`
@@ -218,5 +220,5 @@ export async function buildRankingDataset(
     return { id: e.id, name: e.name, avatarUrl: e.avatar_url, affName: a.name, affType: a.type, joinDate: e.approved_at, curricula }
   })
 
-  return { periods, comparePeriods, personalMeta, affiliationMeta, empCount, empBreakdown, affCount }
+  return { periods, comparePeriods, personalMeta, affiliationMeta, empCount, empBreakdown, affCount, membersByAff: membersByTeam }
 }
