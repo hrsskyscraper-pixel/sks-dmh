@@ -135,8 +135,9 @@ export async function ensureDailyReportAnnouncement(
     body = '今日はどんな「できた！」が生まれるでしょうか？\n小さな一歩でも、申請から始まります。あなたの挑戦を応援しています ☆\n\n素敵な１日になりますように (^^)'
   } else {
     title = `☀️ 昨日のMBレポート（${monthDay}）`
+    const slashDate = `${yWall.getUTCMonth() + 1}/${yWall.getUTCDate()}`
     const lines: string[] = []
-    lines.push(`昨日は全社で ${totalCerts}件 のスキルが認定されました！`)
+    lines.push(`${slashDate}は全社で ${achieverIds.length}人 ${totalCerts}件 のスキルが認定されました！`)
 
     if (achieverIds.length > 0) {
       const ranked = achieverIds
@@ -181,7 +182,6 @@ export async function ensureDailyReportAnnouncement(
 
     lines.push('')
     lines.push('今日も、あなたの「できた！」をお待ちしています ☆')
-    lines.push('')
     lines.push('素敵な１日になりますように (^^)')
     body = lines.join('\n')
   }
