@@ -4,6 +4,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Trophy } from 'lucide-react'
 import { getTestEmployeeIds } from '@/lib/test-data'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 interface Props {
   employeeId: string
@@ -32,14 +33,17 @@ export async function CheckpointRecords({ employeeId, employeeRole, projectSkill
 
   // 全認定済みachievementsを取得（CPスキルのみ）
   const cpSkillIds = projectCpSkills.map(s => s.id)
-  const { data: certifiedAchievements } = await db
-    .from('achievements')
-    .select('skill_id, employee_id, cumulative_hours_at_achievement')
-    .eq('status', 'certified')
-    .in('skill_id', cpSkillIds)
-    .not('cumulative_hours_at_achievement', 'is', null)
+  const certifiedAchievements = await fetchAllRows<{ skill_id: string; employee_id: string; cumulative_hours_at_achievement: number | null }>((from, to) =>
+    db.from('achievements')
+      .select('skill_id, employee_id, cumulative_hours_at_achievement')
+      .eq('status', 'certified')
+      .in('skill_id', cpSkillIds)
+      .not('cumulative_hours_at_achievement', 'is', null)
+      .order('id')
+      .range(from, to),
+  )
 
-  if (!certifiedAchievements?.length) return null
+  if (!certifiedAchievements.length) return null
 
   // テスト社員の記録はランキングから除外
   const testEmpIds = await getTestEmployeeIds()

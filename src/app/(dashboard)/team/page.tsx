@@ -10,6 +10,7 @@ import { buildMilestoneMap, calcStandardPct } from '@/lib/milestone'
 import { canApprove, canAdminister } from '@/lib/permissions'
 import { getTestEmployeeIds } from '@/lib/test-data'
 import { signSkillPhotoPaths } from '@/lib/skill-photos'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 export default async function TeamPage() {
   const currentEmployee = await getCurrentEmployee()
@@ -34,33 +35,39 @@ export default async function TeamPage() {
 
   // effectiveEmployeeId 確定後の全クエリを並列実行
   const [
-    { data: employees },
+    employees,
     { data: skills },
-    { data: achievements },
+    achievements,
     { data: leaderTeamRows },
-    { data: allWorkHours },
-    { data: allEmployeeProjects },
+    allWorkHours,
+    allEmployeeProjects,
     { data: allProjectPhases },
     { data: allProjectSkills },
     { data: allTeams },
-    { data: allTeamMembersForStore },
+    allTeamMembersForStore,
   ] = await Promise.all([
-    db.from('employees').select('id, auth_user_id, name, last_name, first_name, name_kana, email, role, business_role_ids, system_permission, employment_type, hire_date, birth_date, avatar_url, instagram_url, line_url, status, requested_team_id, requested_project_team_id, line_user_id, line_friend, approved_by, approved_at, invited_by, invitation_id, notifications_read_at, font_scale, intro_dismissed_at, is_test, created_at, updated_at').order('hire_date'),
+    fetchAllRows((from, to) =>
+      db.from('employees').select('id, auth_user_id, name, last_name, first_name, name_kana, email, role, business_role_ids, system_permission, employment_type, hire_date, birth_date, avatar_url, instagram_url, line_url, status, requested_team_id, requested_project_team_id, line_user_id, line_friend, approved_by, approved_at, invited_by, invitation_id, notifications_read_at, font_scale, intro_dismissed_at, is_test, created_at, updated_at').order('hire_date').order('id').range(from, to)),
     db.from('skills').select('id, name, phase, category, order_index, target_date_hint, standard_hours, is_checkpoint, created_at'),
-    db.from('achievements')
-      .select('id, status, employee_id, skill_id, achieved_at, certified_by, certified_at, cumulative_hours_at_achievement, notes, apply_comment, certify_comment, is_read, photo_paths, created_at, skills(id, name, phase, category, order_index, target_date_hint, standard_hours, is_checkpoint, created_at), employees!achievements_employee_id_fkey(id, auth_user_id, name, last_name, first_name, name_kana, email, role, business_role_ids, system_permission, employment_type, hire_date, birth_date, avatar_url, instagram_url, line_url, status, requested_team_id, requested_project_team_id, line_user_id, line_friend, approved_by, approved_at, invited_by, invitation_id, notifications_read_at, font_scale, intro_dismissed_at, is_test, created_at, updated_at)')
-      .order('created_at', { ascending: false }),
+    fetchAllRows((from, to) =>
+      db.from('achievements')
+        .select('id, status, employee_id, skill_id, achieved_at, certified_by, certified_at, cumulative_hours_at_achievement, notes, apply_comment, certify_comment, is_read, photo_paths, created_at, skills(id, name, phase, category, order_index, target_date_hint, standard_hours, is_checkpoint, created_at), employees!achievements_employee_id_fkey(id, auth_user_id, name, last_name, first_name, name_kana, email, role, business_role_ids, system_permission, employment_type, hire_date, birth_date, avatar_url, instagram_url, line_url, status, requested_team_id, requested_project_team_id, line_user_id, line_friend, approved_by, approved_at, invited_by, invitation_id, notifications_read_at, font_scale, intro_dismissed_at, is_test, created_at, updated_at)')
+        .order('created_at', { ascending: false })
+        .order('id')
+        .range(from, to)),
     db.from('team_managers').select('team_id').eq('employee_id', effectiveEmployeeId),
-    db.from('work_hours').select('employee_id, hours'),
+    fetchAllRows((from, to) =>
+      db.from('work_hours').select('employee_id, hours').order('id').range(from, to)),
     (async () => {
       const { getEmployeeProjectMapping } = await import('@/lib/project-members')
       // 育成対象＝チームの「メンバー」。リーダー(team_managers)は対象に含めない
-      return { data: await getEmployeeProjectMapping(db, { membersOnly: true }) }
+      return getEmployeeProjectMapping(db, { membersOnly: true })
     })(),
     db.from('project_phases').select('id, project_id, name, order_index, end_hours'),
     db.from('project_skills').select('project_id, skill_id, project_phase_id'),
     db.from('teams').select('id, name, type'),
-    db.from('team_members').select('employee_id, team_id'),
+    fetchAllRows((from, to) =>
+      db.from('team_members').select('employee_id, team_id').order('team_id').order('employee_id').range(from, to)),
   ])
 
   const myTeamIds = (leaderTeamRows ?? []).map(r => r.team_id)

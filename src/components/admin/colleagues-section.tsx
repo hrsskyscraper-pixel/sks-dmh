@@ -6,9 +6,10 @@ import { TopBar } from '@/components/layout/nav'
 import { EmployeeManager } from '@/components/admin/employee-manager'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
 import { buildMilestoneMap, calcStandardPct } from '@/lib/milestone'
-import type { Role, SystemPermission, Team, TeamMember } from '@/types/database'
+import type { Employee, Role, SystemPermission, Team, TeamMember } from '@/types/database'
 import { canAdminister, isTrainingLeader } from '@/lib/permissions'
 import { maskEmails } from '@/lib/email-visibility'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 /**
  * 「仲間」一覧（旧 /admin/employees ページの中身）。
@@ -50,35 +51,40 @@ export async function ColleaguesSection({ embedded = false }: { embedded?: boole
   const canEdit = isSystemAdmin
 
   const [
-    { data: employees },
-    { data: allCertified },
-    { data: allWorkHours },
-    { data: allEmployeeProjects },
+    employees,
+    allCertified,
+    allWorkHours,
+    allEmployeeProjects,
     { data: allProjectPhases },
     { data: allProjectSkills },
     { data: teams },
-    { data: teamMembers },
+    teamMembers,
     { data: careerRecordsRaw },
     { data: certMaster },
-    { data: allTeamManagers },
+    allTeamManagers,
     { data: projectTeamsData },
   ] = await Promise.all([
-    db.from('employees').select('id, auth_user_id, name, last_name, first_name, name_kana, email, role, business_role_ids, system_permission, employment_type, hire_date, birth_date, avatar_url, instagram_url, line_url, status, requested_team_id, requested_project_team_id, line_user_id, line_friend, approved_by, approved_at, invited_by, invitation_id, notifications_read_at, font_scale, intro_dismissed_at, is_test, created_at, updated_at').order('created_at'),
-    db.from('achievements').select('employee_id, skill_id').eq('status', 'certified'),
-    db.from('work_hours').select('employee_id, hours'),
+    fetchAllRows<Employee>((from, to) =>
+      db.from('employees').select('id, auth_user_id, name, last_name, first_name, name_kana, email, role, business_role_ids, system_permission, employment_type, hire_date, birth_date, avatar_url, instagram_url, line_url, status, requested_team_id, requested_project_team_id, line_user_id, line_friend, approved_by, approved_at, invited_by, invitation_id, notifications_read_at, font_scale, intro_dismissed_at, is_test, created_at, updated_at').order('created_at').order('id').range(from, to)),
+    fetchAllRows<{ employee_id: string; skill_id: string }>((from, to) =>
+      db.from('achievements').select('employee_id, skill_id').eq('status', 'certified').order('id').range(from, to)),
+    fetchAllRows<{ employee_id: string; hours: number }>((from, to) =>
+      db.from('work_hours').select('employee_id, hours').order('id').range(from, to)),
     // project_teams + team_members 経由で employee→project マッピング
     (async () => {
       const { getEmployeeProjectMapping } = await import('@/lib/project-members')
       // 育成対象＝チームの「メンバー」。リーダー(team_managers)は対象に含めない
-      return { data: await getEmployeeProjectMapping(db, { membersOnly: true }) }
+      return getEmployeeProjectMapping(db, { membersOnly: true })
     })(),
     db.from('project_phases').select('id, project_id, name, order_index, end_hours'),
     db.from('project_skills').select('project_id, skill_id, project_phase_id'),
     db.from('teams').select('id, name, type, prefecture').order('type').order('name'),
-    db.from('team_members').select('team_id, employee_id'),
+    fetchAllRows<{ team_id: string; employee_id: string }>((from, to) =>
+      db.from('team_members').select('team_id, employee_id').order('team_id').order('employee_id').range(from, to)),
     db.from('career_records').select('employee_id, record_type, department, occurred_at').in('record_type', ['役職', '資格']).order('occurred_at', { ascending: false }),
     db.from('certifications').select('name, icon, color').eq('is_active', true),
-    db.from('team_managers').select('team_id, employee_id, role'),
+    fetchAllRows<{ team_id: string; employee_id: string; role: string }>((from, to) =>
+      db.from('team_managers').select('team_id, employee_id, role').order('team_id').order('employee_id').range(from, to)),
     db.from('project_teams').select('team_id'),
   ])
 

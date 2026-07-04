@@ -12,6 +12,7 @@ import { maskEmails } from '@/lib/email-visibility'
 import { getTestEmployeeIds } from '@/lib/test-data'
 import { signSkillPhotoPaths } from '@/lib/skill-photos'
 import { getAffiliationsAndCurricula } from '@/lib/affiliations'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 export default async function ApprovalsPage() {
   const employee = await getCurrentEmployee()
@@ -58,13 +59,16 @@ export default async function ApprovalsPage() {
   }
 
   // 1. スキル認定待ち
-  const { data: pendingAchievements } = await db
-    .from('achievements')
-    .select('id, employee_id, skill_id, achieved_at, apply_comment, photo_paths, created_at, skills(name), employees!achievements_employee_id_fkey(name, avatar_url)')
-    .eq('status', 'pending')
-    .order('created_at', { ascending: false })
+  const pendingAchievements = await fetchAllRows((from, to) =>
+    db.from('achievements')
+      .select('id, employee_id, skill_id, achieved_at, apply_comment, photo_paths, created_at, skills(name), employees!achievements_employee_id_fkey(name, avatar_url)')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false })
+      .order('id')
+      .range(from, to),
+  )
 
-  const filteredAchievementsBase = (pendingAchievements ?? [])
+  const filteredAchievementsBase = pendingAchievements
     .filter(a => !testEmpIds.has(a.employee_id))
     .filter(a => a.employee_id !== employee.id) // 自己承認の禁止: 自分の申請は承認キューに出さない
     .filter(a => isSystemAdmin || managedMemberIds.includes(a.employee_id))

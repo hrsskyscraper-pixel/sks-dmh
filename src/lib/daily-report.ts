@@ -1,18 +1,22 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 const pad = (n: number) => String(n).padStart(2, '0')
 
 /** 前日(JST)に認定があった日数を、前日から遡って連続でカウント（テスト除外） */
 async function calcStreak(db: SupabaseClient, excludedIds: Set<string>, fromMs: number, toMs: number): Promise<number> {
   const since = new Date(toMs - 35 * 24 * 3600 * 1000).toISOString()
-  const { data } = await db
-    .from('achievements')
-    .select('employee_id, certified_at')
-    .eq('status', 'certified')
-    .gte('certified_at', since)
-    .lt('certified_at', new Date(toMs).toISOString())
+  const data = await fetchAllRows<{ employee_id: string; certified_at: string | null }>((from, to) =>
+    db.from('achievements')
+      .select('employee_id, certified_at')
+      .eq('status', 'certified')
+      .gte('certified_at', since)
+      .lt('certified_at', new Date(toMs).toISOString())
+      .order('id')
+      .range(from, to),
+  )
   const days = new Set<string>()
-  for (const r of data ?? []) {
+  for (const r of data) {
     if (!r.certified_at || excludedIds.has(r.employee_id)) continue
     const j = new Date(Date.parse(r.certified_at) + 9 * 3600 * 1000)
     days.add(`${j.getUTCFullYear()}-${j.getUTCMonth() + 1}-${j.getUTCDate()}`)
@@ -51,13 +55,16 @@ export async function ensureDailyReportAnnouncement(
   if (existing && existing.length > 0) return { posted: false, period }
 
   // 前日に認定されたスキル
-  const { data: certs } = await db
-    .from('achievements')
-    .select('employee_id, skill_id, certified_by, certified_at, skills(name)')
-    .eq('status', 'certified')
-    .gte('certified_at', fromISO)
-    .lt('certified_at', toISO)
-  const certList = (certs ?? []).filter(c => !excludedIds.has(c.employee_id))
+  const certs = await fetchAllRows((from, to) =>
+    db.from('achievements')
+      .select('employee_id, skill_id, certified_by, certified_at, skills(name)')
+      .eq('status', 'certified')
+      .gte('certified_at', fromISO)
+      .lt('certified_at', toISO)
+      .order('id')
+      .range(from, to),
+  )
+  const certList = certs.filter(c => !excludedIds.has(c.employee_id))
 
   const byEmp: Record<string, { count: number; skill: string }> = {}
   const certifierIds = new Set<string>()
@@ -72,12 +79,15 @@ export async function ensureDailyReportAnnouncement(
   const totalCerts = certList.length
 
   // 前日に申請（挑戦）した人
-  const { data: apps } = await db
-    .from('achievements')
-    .select('employee_id, created_at')
-    .gte('created_at', fromISO)
-    .lt('created_at', toISO)
-  const appsFiltered = (apps ?? []).filter(a => !excludedIds.has(a.employee_id))
+  const apps = await fetchAllRows<{ employee_id: string; created_at: string }>((from, to) =>
+    db.from('achievements')
+      .select('employee_id, created_at')
+      .gte('created_at', fromISO)
+      .lt('created_at', toISO)
+      .order('id')
+      .range(from, to),
+  )
+  const appsFiltered = apps.filter(a => !excludedIds.has(a.employee_id))
   const applicantIds = new Set(appsFiltered.map(a => a.employee_id))
   const appTotal = appsFiltered.length
 

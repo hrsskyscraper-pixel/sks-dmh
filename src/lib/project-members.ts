@@ -1,4 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 /**
  * project_teams + team_members から社員→習得カリキュラムのマッピングを構築
@@ -16,21 +17,25 @@ export async function getEmployeeProjectMapping(
 ) {
   const membersOnly = opts?.membersOnly ?? false
   const excludeOptOuts = opts?.excludeOptOuts ?? false
-  const [{ data: projectTeams }, { data: teamMembers }, { data: teamManagers }, { data: optOuts }] = await Promise.all([
-    db.from('project_teams').select('project_id, team_id'),
-    db.from('team_members').select('team_id, employee_id'),
+  const [projectTeams, teamMembers, teamManagers, optOuts] = await Promise.all([
+    fetchAllRows<{ project_id: string; team_id: string }>((from, to) =>
+      db.from('project_teams').select('project_id, team_id').order('project_id').order('team_id').range(from, to)),
+    fetchAllRows<{ team_id: string; employee_id: string }>((from, to) =>
+      db.from('team_members').select('team_id, employee_id').order('team_id').order('employee_id').range(from, to)),
     membersOnly
-      ? Promise.resolve({ data: [] as { team_id: string; employee_id: string }[] })
-      : db.from('team_managers').select('team_id, employee_id'),
+      ? Promise.resolve([] as { team_id: string; employee_id: string }[])
+      : fetchAllRows<{ team_id: string; employee_id: string }>((from, to) =>
+          db.from('team_managers').select('team_id, employee_id').order('team_id').order('employee_id').range(from, to)),
     excludeOptOuts
-      ? db.from('curriculum_opt_outs').select('employee_id, project_id')
-      : Promise.resolve({ data: [] as { employee_id: string; project_id: string }[] }),
+      ? fetchAllRows<{ employee_id: string; project_id: string }>((from, to) =>
+          db.from('curriculum_opt_outs').select('employee_id, project_id').order('employee_id').order('project_id').range(from, to))
+      : Promise.resolve([] as { employee_id: string; project_id: string }[]),
   ])
-  const optOutSet = new Set((optOuts ?? []).map((o: { employee_id: string; project_id: string }) => `${o.employee_id}:${o.project_id}`))
+  const optOutSet = new Set(optOuts.map(o => `${o.employee_id}:${o.project_id}`))
 
   // team_id → project_ids マップ
   const teamToProjects: Record<string, string[]> = {}
-  for (const pt of projectTeams ?? []) {
+  for (const pt of projectTeams) {
     if (!teamToProjects[pt.team_id]) teamToProjects[pt.team_id] = []
     teamToProjects[pt.team_id].push(pt.project_id)
   }
@@ -39,7 +44,7 @@ export async function getEmployeeProjectMapping(
   const result: { employee_id: string; project_id: string }[] = []
   const seen = new Set<string>()
 
-  for (const tm of [...(teamMembers ?? []), ...(teamManagers ?? [])]) {
+  for (const tm of [...teamMembers, ...teamManagers]) {
     const projects = teamToProjects[tm.team_id] ?? []
     for (const projectId of projects) {
       const key = `${tm.employee_id}:${projectId}`

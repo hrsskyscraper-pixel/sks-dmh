@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getEmployeeProjectMapping } from '@/lib/project-members'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 export type AffType = 'store' | 'department' | 'project'
 
@@ -47,11 +48,14 @@ export async function buildRankingDataset(
   now: Date,
 ): Promise<RankingDataset> {
   // 全認定（期間で絞らず取得し、JSで月別バケツに振り分け）
-  const { data: certRows } = await db
-    .from('achievements')
-    .select('employee_id, skill_id, certified_at')
-    .eq('status', 'certified')
-  const certs = (certRows ?? [])
+  const certRows = await fetchAllRows<{ employee_id: string; skill_id: string; certified_at: string | null }>((from, to) =>
+    db.from('achievements')
+      .select('employee_id, skill_id, certified_at')
+      .eq('status', 'certified')
+      .order('id')
+      .range(from, to),
+  )
+  const certs = certRows
     .filter(c => c.certified_at && !testIds.has(c.employee_id))
     .map(c => ({ e: c.employee_id as string, s: c.skill_id as string, t: Date.parse(c.certified_at as string) }))
 
@@ -114,8 +118,10 @@ export async function buildRankingDataset(
   const validPidsOf = (e: string) => [...new Set(projectIdsByEmp[e] ?? [])].filter(p => validProjectIds.has(p))
 
   // 対象社員（承認・非テスト）
-  const { data: empRows } = await db.from('employees').select('id, name, avatar_url, approved_at').eq('status', 'approved')
-  const targetEmps = (empRows ?? []).filter(e => !testIds.has(e.id))
+  const empRows = await fetchAllRows<{ id: string; name: string; avatar_url: string | null; approved_at: string | null }>((from, to) =>
+    db.from('employees').select('id, name, avatar_url, approved_at').eq('status', 'approved').order('id').range(from, to),
+  )
+  const targetEmps = empRows.filter(e => !testIds.has(e.id))
   const targetIds = new Set(targetEmps.map(e => e.id))
 
   // 期間別の個人カウント＋内訳
@@ -152,12 +158,14 @@ export async function buildRankingDataset(
   const realTeams = (teamRows ?? []).filter(t => !t.is_test) as { id: string; name: string; type: AffType }[]
   const teamById: Record<string, { id: string; name: string; type: AffType }> = Object.fromEntries(realTeams.map(t => [t.id, t]))
   const teamIds = realTeams.map(t => t.id)
-  const [{ data: tmAll }, { data: tmgAll }] = teamIds.length > 0
+  const [tmAll, tmgAll] = teamIds.length > 0
     ? await Promise.all([
-        db.from('team_members').select('team_id, employee_id').in('team_id', teamIds),
-        db.from('team_managers').select('team_id, employee_id').in('team_id', teamIds),
+        fetchAllRows<{ team_id: string; employee_id: string }>((from, to) =>
+          db.from('team_members').select('team_id, employee_id').in('team_id', teamIds).order('team_id').order('employee_id').range(from, to)),
+        fetchAllRows<{ team_id: string; employee_id: string }>((from, to) =>
+          db.from('team_managers').select('team_id, employee_id').in('team_id', teamIds).order('team_id').order('employee_id').range(from, to)),
       ])
-    : [{ data: [] as { team_id: string; employee_id: string }[] }, { data: [] as { team_id: string; employee_id: string }[] }]
+    : [[] as { team_id: string; employee_id: string }[], [] as { team_id: string; employee_id: string }[]]
 
   const membersByTeam: Record<string, string[]> = {}
   for (const r of tmAll ?? []) {

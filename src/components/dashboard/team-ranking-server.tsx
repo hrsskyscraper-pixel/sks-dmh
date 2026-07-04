@@ -3,6 +3,7 @@ import { TeamRanking } from '@/components/dashboard/team-ranking'
 import { buildMilestoneMap, calcStandardPct } from '@/lib/milestone'
 import type { TeamMemberStat, TeamAffiliation } from '@/components/dashboard/team-ranking'
 import { getRankingExcludedIds } from '@/lib/test-data'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 interface Props {
   employeeId: string
@@ -14,31 +15,36 @@ export async function TeamRankingServer({ employeeId, employeeRole, selectedProj
   const db = createAdminClient()
 
   const [
-    { data: allEmployees },
-    { data: allCertified },
-    { data: allWorkHours },
-    { data: allEmployeeProjects },
+    allEmployees,
+    allCertified,
+    allWorkHours,
+    allEmployeeProjects,
     { data: allProjectPhases },
     { data: allProjectSkills },
     { data: allTeams },
-    { data: allTeamMembers },
-    { data: allTeamManagers },
+    allTeamMembers,
+    allTeamManagers,
   ] = await Promise.all([
-    db.from('employees').select('id, name, avatar_url, employment_type, hire_date').order('name'),
-    db.from('achievements').select('employee_id, skill_id').eq('status', 'certified'),
-    db.from('work_hours').select('employee_id, hours'),
+    fetchAllRows<{ id: string; name: string; avatar_url: string | null; employment_type: string | null; hire_date: string | null }>((from, to) =>
+      db.from('employees').select('id, name, avatar_url, employment_type, hire_date').order('name').order('id').range(from, to)),
+    fetchAllRows<{ employee_id: string; skill_id: string }>((from, to) =>
+      db.from('achievements').select('employee_id, skill_id').eq('status', 'certified').order('id').range(from, to)),
+    fetchAllRows<{ employee_id: string; hours: number }>((from, to) =>
+      db.from('work_hours').select('employee_id, hours').order('id').range(from, to)),
     (async () => {
       const { getEmployeeProjectMapping } = await import('@/lib/project-members')
       // 育成対象＝チームの「メンバー」。リーダー(team_managers)は対象に含めない
       // （リーダーはトリガで team_members にも入るため membersOnly でも対象。excludeOptOuts で
       //  「育成対象として参加しない」カリキュラムを除外する）
-      return { data: await getEmployeeProjectMapping(db, { membersOnly: true, excludeOptOuts: true }) }
+      return getEmployeeProjectMapping(db, { membersOnly: true, excludeOptOuts: true })
     })(),
     db.from('project_phases').select('id, project_id, name, order_index, end_hours, created_at'),
     db.from('project_skills').select('project_id, skill_id, project_phase_id'),
     db.from('teams').select('id, name, type'),
-    db.from('team_members').select('employee_id, team_id'),
-    db.from('team_managers').select('employee_id, team_id'),
+    fetchAllRows<{ employee_id: string; team_id: string }>((from, to) =>
+      db.from('team_members').select('employee_id, team_id').order('team_id').order('employee_id').range(from, to)),
+    fetchAllRows<{ employee_id: string; team_id: string }>((from, to) =>
+      db.from('team_managers').select('employee_id, team_id').order('team_id').order('employee_id').range(from, to)),
   ])
 
   // テスト社員（is_test / testuser / テスト店舗所属）はランキングから除外
