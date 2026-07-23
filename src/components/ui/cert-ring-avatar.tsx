@@ -44,6 +44,8 @@ export function CertRingAvatar({
       className={cn('relative inline-flex shrink-0', className)}
       style={{ width: size, height: size }}
     >
+      {/* リング／星はアバターの背面に描く（星の points がアバターの外側に覗く） */}
+      {decorated && <CertRing ranks={ranks!} size={size} idKey={employeeId || initial || 'x'} />}
       <Avatar
         className="absolute overflow-hidden rounded-full"
         style={{ width: avatarSize, height: avatarSize, left: inset, top: inset }}
@@ -56,7 +58,6 @@ export function CertRingAvatar({
           {initial}
         </AvatarFallback>
       </Avatar>
-      {decorated && <CertRing ranks={ranks!} size={size} idKey={employeeId || initial || 'x'} />}
     </span>
   )
 }
