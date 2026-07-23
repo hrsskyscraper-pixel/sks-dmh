@@ -20,6 +20,8 @@ export type SearchEmployee = {
   projectIds: string[]
   /** 認定済みスキル（options.skillGroups の idx に対応） */
   certifiedSkillIdxs: number[]
+  /** 保有する社内資格の名前（資格マスタと名前で対応） */
+  certNames: string[]
 }
 
 export type SearchOptions = {
@@ -27,6 +29,8 @@ export type SearchOptions = {
   roles: { id: string; name: string }[]
   projects: { id: string; name: string }[]
   skillGroups: { phase: string; items: { idx: number; name: string }[] }[]
+  /** 社内資格マスタ（有効なもの・表示順） */
+  certifications: string[]
 }
 
 /** カタカナ→ひらがな＋NFKC＋小文字化（ひらがな入力でカナ氏名にもヒットさせる） */
@@ -45,6 +49,7 @@ export function EmployeeSearch({ employees, options }: { employees: SearchEmploy
   const [roleId, setRoleId] = useState(ALL)
   const [projectId, setProjectId] = useState(ALL)
   const [skillIdx, setSkillIdx] = useState(ALL)
+  const [certName, setCertName] = useState(ALL)
 
   const roleNameById = useMemo(() => Object.fromEntries(options.roles.map(r => [r.id, r.name])), [options.roles])
 
@@ -57,11 +62,12 @@ export function EmployeeSearch({ employees, options }: { employees: SearchEmploy
       if (roleId !== ALL && !e.roleIds.includes(roleId)) return false
       if (projectId !== ALL && !e.projectIds.includes(projectId)) return false
       if (skill !== null && !e.certifiedSkillIdxs.includes(skill)) return false
+      if (certName !== ALL && !e.certNames.includes(certName)) return false
       return true
     })
-  }, [employees, query, storeId, roleId, projectId, skillIdx])
+  }, [employees, query, storeId, roleId, projectId, skillIdx, certName])
 
-  const hasFilter = query.trim() !== '' || storeId !== ALL || roleId !== ALL || projectId !== ALL || skillIdx !== ALL
+  const hasFilter = query.trim() !== '' || storeId !== ALL || roleId !== ALL || projectId !== ALL || skillIdx !== ALL || certName !== ALL
 
   return (
     <div className="p-4 max-w-lg mx-auto">
@@ -137,6 +143,16 @@ export function EmployeeSearch({ employees, options }: { employees: SearchEmploy
             ))}
           </SelectContent>
         </Select>
+
+        <Select value={certName} onValueChange={setCertName}>
+          <SelectTrigger size="sm" className={cn('w-full text-xs bg-white col-span-2', certName !== ALL && 'border-orange-300 text-orange-700')}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>社内資格：すべて</SelectItem>
+            {options.certifications.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* 件数 */}
@@ -161,13 +177,16 @@ export function EmployeeSearch({ employees, options }: { employees: SearchEmploy
               </Avatar>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-800 truncate">{e.name}</p>
-                {(e.storeNames.length > 0 || e.roleIds.length > 0) && (
+                {(e.storeNames.length > 0 || e.roleIds.length > 0 || e.certNames.length > 0) && (
                   <div className="flex items-center gap-1 flex-wrap mt-0.5">
                     {e.storeNames.map(s => (
                       <span key={s} className="text-[9px] bg-blue-100 text-blue-700 rounded px-1 py-px truncate max-w-[140px]">{s}</span>
                     ))}
                     {e.roleIds.map(id => roleNameById[id]).filter(Boolean).map(r => (
                       <span key={r} className="text-[9px] bg-purple-100 text-purple-700 rounded px-1 py-px truncate max-w-[140px]">{r}</span>
+                    ))}
+                    {e.certNames.map(c => (
+                      <span key={c} className="text-[9px] bg-emerald-100 text-emerald-700 rounded px-1 py-px truncate max-w-[140px]">{c}</span>
                     ))}
                   </div>
                 )}

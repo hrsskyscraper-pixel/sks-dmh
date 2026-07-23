@@ -31,6 +31,8 @@ export default async function SearchPage() {
     projectMapping,
     certRows,
     { data: projectRows },
+    { data: certMasterRows },
+    { data: certRecordRows },
   ] = await Promise.all([
     // 承認済み社員のみ（ranking-data と同じ基準）
     fetchAllRows<{ id: string; name: string; name_kana: string | null; avatar_url: string | null; business_role_ids: string[] }>((from, to) =>
@@ -43,6 +45,10 @@ export default async function SearchPage() {
     getEmployeeProjectMapping(),
     getAllCertifiedAchievements(),
     db.from('skill_projects').select('id, name, is_active'),
+    db.from('certifications').select('id, name, is_active, order_index').order('order_index'),
+    // 社内資格の保有はキャリア記録（record_type=資格・[社内]プレフィックス）で
+    // 管理され、資格マスタとは名前で対応する（employee-career-card と同じ規約）
+    db.from('career_records').select('employee_id, department').eq('record_type', '資格'),
   ])
 
   // ---- 店舗（テスト店舗除外・ブランド別にグループ化）----
@@ -118,6 +124,18 @@ export default async function SearchPage() {
     ;(certSkillIdxsByEmp[c.employee_id] ??= new Set()).add(idx)
   }
 
+  // ---- 社内資格（社員ごとの保有資格名の集合）----
+  const certNamesByEmp: Record<string, string[]> = {}
+  for (const r of certRecordRows ?? []) {
+    if (!r.department?.startsWith('[社内]')) continue
+    const name = r.department.replace('[社内]', '')
+    const list = (certNamesByEmp[r.employee_id] ??= [])
+    if (!list.includes(name)) list.push(name)
+  }
+  const certOptions = (certMasterRows ?? [])
+    .filter(c => c.is_active)
+    .map(c => c.name)
+
   // ---- 検索対象社員（テスト社員除外）----
   const searchEmployees: SearchEmployee[] = employees
     .filter(e => !testEmpIds.has(e.id))
@@ -133,6 +151,7 @@ export default async function SearchPage() {
         storeNames: empStoreIds.map(id => storeNameById[id]).filter(Boolean).sort((a, b) => a.localeCompare(b, 'ja')),
         projectIds: projectIdsByEmp[e.id] ?? [],
         certifiedSkillIdxs: [...(certSkillIdxsByEmp[e.id] ?? [])],
+        certNames: certNamesByEmp[e.id] ?? [],
       }
     })
     .sort((a, b) => (a.kana ?? a.name).localeCompare(b.kana ?? b.name, 'ja'))
@@ -142,6 +161,7 @@ export default async function SearchPage() {
     roles: (roleRows ?? []).map(r => ({ id: r.id, name: r.name })),
     projects: projectOptions,
     skillGroups,
+    certifications: certOptions,
   }
 
   return (
