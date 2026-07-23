@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
-import { LayoutDashboard, CheckSquare, BadgeCheck, LogOut, Building2, MessageSquare, Settings, User, FileText, HelpCircle, Shield, ScrollText, History, Type } from 'lucide-react'
+import { LayoutDashboard, CheckSquare, BadgeCheck, LogOut, Building2, MessageSquare, Settings, User, FileText, HelpCircle, Shield, ScrollText, History, Type, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
@@ -248,6 +248,13 @@ export function TopBar({ title, right, hideNotificationBell = false }: { title: 
         <div className="flex-1 min-w-0 flex justify-end">
           {right}
         </div>
+        <Link
+          href="/search"
+          aria-label="社員検索"
+          className="flex items-center justify-center w-9 h-9 rounded-full hover:bg-gray-100 transition-colors flex-shrink-0"
+        >
+          <Search className="w-[18px] h-[18px] text-gray-500" />
+        </Link>
         {!hideNotificationBell && <Link
           href="/notifications"
           className="relative flex items-center justify-center w-9 h-9 rounded-full hover:bg-gray-100 transition-colors flex-shrink-0"
