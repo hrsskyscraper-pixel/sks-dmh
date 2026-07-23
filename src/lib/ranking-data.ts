@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getEmployeeProjectMapping } from '@/lib/project-members'
+import { getAllCertifiedAchievements } from '@/lib/certified-achievements'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 export type AffType = 'store' | 'department' | 'project'
@@ -49,14 +50,8 @@ export async function buildRankingDataset(
   testIds: Set<string>,
   now: Date,
 ): Promise<RankingDataset> {
-  // 全認定（期間で絞らず取得し、JSで月別バケツに振り分け）
-  const certRows = await fetchAllRows<{ employee_id: string; skill_id: string; certified_at: string | null }>((from, to) =>
-    db.from('achievements')
-      .select('employee_id, skill_id, certified_at')
-      .eq('status', 'certified')
-      .order('id')
-      .range(from, to),
-  )
+  // 全認定（期間で絞らず取得し、JSで月別バケツに振り分け）。リクエスト内共有キャッシュから取得
+  const certRows = await getAllCertifiedAchievements()
   const certs = certRows
     .filter(c => c.certified_at && !testIds.has(c.employee_id))
     .map(c => ({ e: c.employee_id as string, s: c.skill_id as string, t: Date.parse(c.certified_at as string) }))
@@ -97,7 +92,7 @@ export async function buildRankingDataset(
   }))
 
   // 社員→所属カリキュラム
-  const mapping = await getEmployeeProjectMapping(db, { excludeOptOuts: true })
+  const mapping = await getEmployeeProjectMapping({ excludeOptOuts: true })
   const projectIdsByEmp: Record<string, string[]> = {}
   const allProjectIds = new Set<string>()
   for (const mp of mapping) {

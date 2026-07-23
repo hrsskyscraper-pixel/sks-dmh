@@ -4,7 +4,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Trophy } from 'lucide-react'
 import { getTestEmployeeIds } from '@/lib/test-data'
-import { fetchAllRows } from '@/lib/supabase/fetch-all'
+import { getAllCertifiedAchievements } from '@/lib/certified-achievements'
 
 interface Props {
   employeeId: string
@@ -31,17 +31,11 @@ export async function CheckpointRecords({ employeeId, employeeRole, projectSkill
     : cpSkills
   if (!projectCpSkills.length) return null
 
-  // 全認定済みachievementsを取得（CPスキルのみ）
+  // 全認定済みachievementsを取得（CPスキルのみ）。全認定はリクエスト内共有キャッシュから取得し、JSで絞る
   const cpSkillIds = projectCpSkills.map(s => s.id)
-  const certifiedAchievements = await fetchAllRows<{ skill_id: string; employee_id: string; cumulative_hours_at_achievement: number | null }>((from, to) =>
-    db.from('achievements')
-      .select('skill_id, employee_id, cumulative_hours_at_achievement')
-      .eq('status', 'certified')
-      .in('skill_id', cpSkillIds)
-      .not('cumulative_hours_at_achievement', 'is', null)
-      .order('id')
-      .range(from, to),
-  )
+  const cpSkillIdSet = new Set(cpSkillIds)
+  const certifiedAchievements = (await getAllCertifiedAchievements())
+    .filter(a => cpSkillIdSet.has(a.skill_id) && a.cumulative_hours_at_achievement !== null)
 
   if (!certifiedAchievements.length) return null
 

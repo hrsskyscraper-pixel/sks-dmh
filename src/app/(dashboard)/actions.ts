@@ -45,6 +45,18 @@ export async function getNavCounts(): Promise<NavCounts> {
     system_permission: (viewAsEmployee?.system_permission as SystemPermission | null | undefined) ?? employee.system_permission,
   }
 
+  // 承認待ち achievements 全件（employee_id）は、管理者の場合ブロック3とブロック4の
+  // 両方が同じフルスキャンを行っていたため、一度だけ取得して共有する（遅延・リクエスト内のみ）。
+  let pendingAchPromise: Promise<{ employee_id: string }[]> | null = null
+  const getPendingAchievements = (): Promise<{ employee_id: string }[]> => {
+    if (!pendingAchPromise) {
+      pendingAchPromise = Promise.resolve(
+        db.from('achievements').select('employee_id').eq('status', 'pending'),
+      ).then(({ data }) => data ?? [])
+    }
+    return pendingAchPromise
+  }
+
   // --- ブロック1: 通知ベル＋チーム変更申請結果の未読 ---
   const computeNotif = async (): Promise<{ notifCount: number; unreadTeamReqCount: number }> => {
     const { data: targetAchievements } = await db.from('achievements').select('id').eq('employee_id', targetId)
@@ -83,12 +95,12 @@ export async function getNavCounts(): Promise<NavCounts> {
     if (!canApprove(effectiveEmp)) return 0
     const testIds = await getTestEmployeeIds()
     if (canAdminister(effectiveEmp)) {
-      const [{ data: pendAch }, { data: pendReq }, { data: pendJoin }] = await Promise.all([
-        db.from('achievements').select('employee_id').eq('status', 'pending'),
+      const [pendAch, { data: pendReq }, { data: pendJoin }] = await Promise.all([
+        getPendingAchievements(),
         db.from('team_change_requests').select('requested_by').eq('status', 'pending'),
         db.from('employees').select('id').eq('status', 'pending').not('requested_team_id', 'is', null),
       ])
-      const a = (pendAch ?? []).filter(r => !testIds.has(r.employee_id)).length
+      const a = pendAch.filter(r => !testIds.has(r.employee_id)).length
       const t = (pendReq ?? []).filter(r => !r.requested_by || !testIds.has(r.requested_by)).length
       const j = (pendJoin ?? []).filter(r => !testIds.has(r.id)).length
       return a + t + j
@@ -118,8 +130,8 @@ export async function getNavCounts(): Promise<NavCounts> {
     const testIds = await getTestEmployeeIds()
     let global = 0
     if (canAdminister(effectiveEmp)) {
-      const { data } = await db.from('achievements').select('employee_id').eq('status', 'pending')
-      global = (data ?? []).filter(a => !testIds.has(a.employee_id) && a.employee_id !== targetId).length
+      const data = await getPendingAchievements()
+      global = data.filter(a => !testIds.has(a.employee_id) && a.employee_id !== targetId).length
     }
     let team = 0
     const { data: managed } = await db.from('team_managers').select('team_id').eq('employee_id', targetId)

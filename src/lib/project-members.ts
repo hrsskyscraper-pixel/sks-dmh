@@ -1,9 +1,15 @@
-import { SupabaseClient } from '@supabase/supabase-js'
+import { cache } from 'react'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 /**
  * project_teams + team_members から社員→習得カリキュラムのマッピングを構築
  * 旧 employee_projects テーブルの代替
+ *
+ * リクエスト内で cache() でメモ化されている（ホームは複数コンポーネントが
+ * 同じマッピングを必要とするため、フルスキャンを1リクエスト1回に抑える）。
+ * 下層のテーブルスキャンも個別に cache() しているので、opts が異なる呼び出し
+ * 同士でもスキャン自体は共有される。
  *
  * @param opts.membersOnly true の場合、team_managers（リーダー）は含めず
  *   team_members（メンバー）のみを対象にする。育成対象（＝メンバー）の判定に使う。
@@ -12,23 +18,46 @@ import { fetchAllRows } from '@/lib/supabase/fetch-all'
  *   ランキング集計でのみ使う（本人のスキル画面では除外しない）。
  */
 export async function getEmployeeProjectMapping(
-  db: SupabaseClient | ReturnType<any>,
   opts?: { membersOnly?: boolean; excludeOptOuts?: boolean },
 ) {
-  const membersOnly = opts?.membersOnly ?? false
-  const excludeOptOuts = opts?.excludeOptOuts ?? false
+  return computeEmployeeProjectMapping(opts?.membersOnly ?? false, opts?.excludeOptOuts ?? false)
+}
+
+// Per-table full scans, cached per request so different opts variants share them.
+const getProjectTeamRows = cache(async () => {
+  const db = createAdminClient()
+  return fetchAllRows<{ project_id: string; team_id: string }>((from, to) =>
+    db.from('project_teams').select('project_id, team_id').order('project_id').order('team_id').range(from, to))
+})
+
+const getTeamMemberRows = cache(async () => {
+  const db = createAdminClient()
+  return fetchAllRows<{ team_id: string; employee_id: string }>((from, to) =>
+    db.from('team_members').select('team_id, employee_id').order('team_id').order('employee_id').range(from, to))
+})
+
+const getTeamManagerRows = cache(async () => {
+  const db = createAdminClient()
+  return fetchAllRows<{ team_id: string; employee_id: string }>((from, to) =>
+    db.from('team_managers').select('team_id, employee_id').order('team_id').order('employee_id').range(from, to))
+})
+
+const getOptOutRows = cache(async () => {
+  const db = createAdminClient()
+  return fetchAllRows<{ employee_id: string; project_id: string }>((from, to) =>
+    db.from('curriculum_opt_outs').select('employee_id, project_id').order('employee_id').order('project_id').range(from, to))
+})
+
+// cache() keys on primitive args (an opts object literal would defeat memoization).
+const computeEmployeeProjectMapping = cache(async (membersOnly: boolean, excludeOptOuts: boolean) => {
   const [projectTeams, teamMembers, teamManagers, optOuts] = await Promise.all([
-    fetchAllRows<{ project_id: string; team_id: string }>((from, to) =>
-      db.from('project_teams').select('project_id, team_id').order('project_id').order('team_id').range(from, to)),
-    fetchAllRows<{ team_id: string; employee_id: string }>((from, to) =>
-      db.from('team_members').select('team_id, employee_id').order('team_id').order('employee_id').range(from, to)),
+    getProjectTeamRows(),
+    getTeamMemberRows(),
     membersOnly
       ? Promise.resolve([] as { team_id: string; employee_id: string }[])
-      : fetchAllRows<{ team_id: string; employee_id: string }>((from, to) =>
-          db.from('team_managers').select('team_id, employee_id').order('team_id').order('employee_id').range(from, to)),
+      : getTeamManagerRows(),
     excludeOptOuts
-      ? fetchAllRows<{ employee_id: string; project_id: string }>((from, to) =>
-          db.from('curriculum_opt_outs').select('employee_id, project_id').order('employee_id').order('project_id').range(from, to))
+      ? getOptOutRows()
       : Promise.resolve([] as { employee_id: string; project_id: string }[]),
   ])
   const optOutSet = new Set(optOuts.map(o => `${o.employee_id}:${o.project_id}`))
@@ -56,4 +85,4 @@ export async function getEmployeeProjectMapping(
   }
 
   return result
-}
+})

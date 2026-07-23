@@ -9,6 +9,7 @@ import { buildMilestoneMap, calcStandardPct } from '@/lib/milestone'
 import type { Employee, Role, SystemPermission, Team, TeamMember } from '@/types/database'
 import { canAdminister, isTrainingLeader } from '@/lib/permissions'
 import { maskEmails } from '@/lib/email-visibility'
+import { getAllCertifiedAchievements } from '@/lib/certified-achievements'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 /**
@@ -66,15 +67,14 @@ export async function ColleaguesSection({ embedded = false }: { embedded?: boole
   ] = await Promise.all([
     fetchAllRows<Employee>((from, to) =>
       db.from('employees').select('id, auth_user_id, name, last_name, first_name, name_kana, email, role, business_role_ids, system_permission, employment_type, hire_date, birth_date, avatar_url, instagram_url, line_url, status, requested_team_id, requested_project_team_id, line_user_id, line_friend, approved_by, approved_at, invited_by, invitation_id, notifications_read_at, font_scale, intro_dismissed_at, is_test, created_at, updated_at').order('created_at').order('id').range(from, to)),
-    fetchAllRows<{ employee_id: string; skill_id: string }>((from, to) =>
-      db.from('achievements').select('employee_id, skill_id').eq('status', 'certified').order('id').range(from, to)),
+    getAllCertifiedAchievements(),
     fetchAllRows<{ employee_id: string; hours: number }>((from, to) =>
       db.from('work_hours').select('employee_id, hours').order('id').range(from, to)),
     // project_teams + team_members 経由で employee→project マッピング
     (async () => {
       const { getEmployeeProjectMapping } = await import('@/lib/project-members')
       // 育成対象＝チームの「メンバー」。リーダー(team_managers)は対象に含めない
-      return getEmployeeProjectMapping(db, { membersOnly: true })
+      return getEmployeeProjectMapping({ membersOnly: true })
     })(),
     db.from('project_phases').select('id, project_id, name, order_index, end_hours'),
     db.from('project_skills').select('project_id, skill_id, project_phase_id'),

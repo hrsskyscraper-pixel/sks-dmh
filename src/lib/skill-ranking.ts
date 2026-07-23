@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getEmployeeProjectMapping } from '@/lib/project-members'
+import { getAllCertifiedAchievements } from '@/lib/certified-achievements'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 export type RankEntry = {
@@ -27,11 +28,13 @@ export async function computeSkillCountRanking(
   topN = 10,
   includeZero = false,
 ): Promise<RankEntry[]> {
-  // 期間内の認定（skill_id 付き）
-  const achs = await fetchAllRows<{ employee_id: string; skill_id: string; certified_at: string | null }>((from, to) => {
-    let q = db.from('achievements').select('employee_id, skill_id, certified_at').eq('status', 'certified').gte('certified_at', fromISO)
-    if (toISO) q = q.lt('certified_at', toISO)
-    return q.order('id').range(from, to)
+  // 期間内の認定（skill_id 付き）。全認定はリクエスト内共有キャッシュから取得し、期間はJSで絞る
+  const fromMs = Date.parse(fromISO)
+  const toMs = toISO ? Date.parse(toISO) : null
+  const achs = (await getAllCertifiedAchievements()).filter(a => {
+    if (!a.certified_at) return false
+    const t = Date.parse(a.certified_at)
+    return t >= fromMs && (toMs === null || t < toMs)
   })
   const certSkillsByEmp: Record<string, Set<string>> = {}
   for (const a of achs) {
@@ -40,7 +43,7 @@ export async function computeSkillCountRanking(
   }
 
   // 社員→所属カリキュラム
-  const mapping = await getEmployeeProjectMapping(db, { excludeOptOuts: true })
+  const mapping = await getEmployeeProjectMapping({ excludeOptOuts: true })
   const projectIdsByEmp: Record<string, string[]> = {}
   const allProjectIds = new Set<string>()
   for (const m of mapping) {
