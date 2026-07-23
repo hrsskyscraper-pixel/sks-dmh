@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback, type ReactNode } from 'react'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { CertRingAvatar } from '@/components/ui/cert-ring-avatar'
 import { cn } from '@/lib/utils'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import Link from 'next/link'
@@ -238,10 +238,7 @@ export function NotificationList({ reactions, comments, achievementMap, employee
         )
 
         const avatarNode = (
-          <Avatar className="w-10 h-10 flex-shrink-0 mt-0.5">
-            <AvatarImage src={avatarEmp?.avatar_url ?? undefined} />
-            <AvatarFallback className={cn('text-sm font-bold', avatarBg)}>{avatarFallback}</AvatarFallback>
-          </Avatar>
+          <CertRingAvatar employeeId={avatarEmp?.id} src={avatarEmp?.avatar_url} name={avatarFallback} size={40} className="flex-shrink-0 mt-0.5" fallbackClassName={avatarBg} />
         )
 
         // --- まとめ（グループ）表示: ヘッダーを押すと展開 ---

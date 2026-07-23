@@ -8,7 +8,7 @@ import { Plus, Trash2, UserPlus, UserMinus, ClipboardList, Check, X, ChevronDown
 import { InviteMemberDialog } from './invite-member-dialog'
 import { SelfSelectInviteDialog } from './self-select-invite-dialog'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { CertRingAvatar } from '@/components/ui/cert-ring-avatar'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -1056,10 +1056,7 @@ export function TeamManager({
                             const emp = getEmployee(empId)
                             return (
                               <div key={empId} className="flex items-center gap-1 bg-gray-100 rounded-full pl-0.5 pr-2 py-0.5">
-                                <Avatar className="w-4 h-4 flex-shrink-0">
-                                  <AvatarImage src={emp?.avatar_url ?? undefined} />
-                                  <AvatarFallback className="text-[8px] bg-gray-300 text-gray-600">{emp?.name.charAt(0)}</AvatarFallback>
-                                </Avatar>
+                                <CertRingAvatar employeeId={empId} src={emp?.avatar_url} name={emp?.name} size={16} className="flex-shrink-0" fallbackClassName="bg-gray-300 text-gray-600" />
                                 {renderEmpName(empId, "text-xs text-gray-700 hover:underline hover:text-orange-600")}
                               </div>
                             )
@@ -1091,10 +1088,7 @@ export function TeamManager({
                             return (
                               <div key={manager.employee_id} className={`flex items-center gap-1 ${isPrimary ? 'bg-amber-100' : 'bg-blue-100'} rounded-full pl-1 pr-2 py-0.5`}>
                                 <span className={`text-[9px] font-bold ${isPrimary ? 'text-amber-600' : 'text-blue-500'}`}>{isPrimary ? '主' : '副'}</span>
-                                <Avatar className="w-4 h-4 flex-shrink-0">
-                                  <AvatarImage src={emp?.avatar_url ?? undefined} />
-                                  <AvatarFallback className={`text-[8px] ${isPrimary ? 'bg-amber-300 text-amber-700' : 'bg-blue-300 text-blue-700'}`}>{emp?.name.charAt(0)}</AvatarFallback>
-                                </Avatar>
+                                <CertRingAvatar employeeId={manager.employee_id} src={emp?.avatar_url} name={emp?.name} size={16} className="flex-shrink-0" fallbackClassName={isPrimary ? 'bg-amber-300 text-amber-700' : 'bg-blue-300 text-blue-700'} />
                                 {renderEmpName(manager.employee_id, `text-xs hover:underline ${isPrimary ? 'text-amber-700 hover:text-amber-900' : 'text-blue-700 hover:text-blue-900'}`)}
                               </div>
                             )
@@ -1268,10 +1262,7 @@ export function TeamManager({
                         onDragOver={e => { e.preventDefault(); e.stopPropagation(); if (dragEmp?.teamId === team.id) { setDropTarget('member'); setDropBeforeId(empId) } }}
                         className={`flex items-center gap-1 bg-gray-100 rounded-full pl-0.5 pr-2 py-0.5 transition-all ${canEditMembers(team.id) ? 'cursor-grab active:cursor-grabbing' : ''} ${dropBeforeId === empId && dragEmp?.from === 'member' && dragEmp?.id !== empId ? 'ring-2 ring-orange-400' : ''}`}
                       >
-                        <Avatar className="w-4 h-4 flex-shrink-0">
-                          <AvatarImage src={emp?.avatar_url ?? undefined} />
-                          <AvatarFallback className="text-[8px] bg-gray-300 text-gray-600">{emp?.name.charAt(0)}</AvatarFallback>
-                        </Avatar>
+                        <CertRingAvatar employeeId={empId} src={emp?.avatar_url} name={emp?.name} size={16} className="flex-shrink-0" fallbackClassName="bg-gray-300 text-gray-600" />
                         {renderEmpName(empId, "text-xs text-gray-700 hover:underline hover:text-orange-600")}
                         {canEditMembers(team.id) ? (
                           <button
@@ -1384,10 +1375,7 @@ export function TeamManager({
                           className={`flex items-center gap-1 ${isPrimary ? 'bg-amber-100' : 'bg-blue-100'} rounded-full pl-1 pr-2 py-0.5 transition-all ${isDirectEdit ? 'cursor-grab active:cursor-grabbing' : ''} ${dropBeforeId === manager.employee_id && dragEmp?.from === 'manager' && dragEmp?.id !== manager.employee_id ? 'ring-2 ring-orange-400' : ''}`}
                         >
                           <span className={`text-[9px] font-bold ${isPrimary ? 'text-amber-600' : 'text-blue-500'}`}>{isPrimary ? '主' : '副'}</span>
-                          <Avatar className="w-4 h-4 flex-shrink-0">
-                            <AvatarImage src={emp?.avatar_url ?? undefined} />
-                            <AvatarFallback className={`text-[8px] ${isPrimary ? 'bg-amber-300 text-amber-700' : 'bg-blue-300 text-blue-700'}`}>{emp?.name.charAt(0)}</AvatarFallback>
-                          </Avatar>
+                          <CertRingAvatar employeeId={manager.employee_id} src={emp?.avatar_url} name={emp?.name} size={16} className="flex-shrink-0" fallbackClassName={isPrimary ? 'bg-amber-300 text-amber-700' : 'bg-blue-300 text-blue-700'} />
                           {renderEmpName(manager.employee_id, `text-xs hover:underline ${isPrimary ? 'text-amber-700 hover:text-amber-900' : 'text-blue-700 hover:text-blue-900'}`)}
                           {isDirectEdit && (
                             <button
@@ -1513,10 +1501,7 @@ export function TeamManager({
                       const emp = getEmployee(empId)
                       return (
                         <div key={empId} className="flex items-center gap-1 bg-gray-100 rounded-full pl-0.5 pr-2 py-0.5">
-                          <Avatar className="w-4 h-4 flex-shrink-0">
-                            <AvatarImage src={emp?.avatar_url ?? undefined} />
-                            <AvatarFallback className="text-[8px] bg-gray-300 text-gray-600">{emp?.name.charAt(0)}</AvatarFallback>
-                          </Avatar>
+                          <CertRingAvatar employeeId={empId} src={emp?.avatar_url} name={emp?.name} size={16} className="flex-shrink-0" fallbackClassName="bg-gray-300 text-gray-600" />
                           {renderEmpName(empId, "text-xs text-gray-700 hover:underline hover:text-orange-600")}
                           {canEditMembers(team.id) && (
                             <button onClick={() => setConfirmDialog({ title: 'メンバー削除', message: `${getEmployeeName(empId)} をこの部署から削除しますか？`, confirmLabel: '削除', confirmClassName: 'flex-1 bg-red-500 hover:bg-red-600 text-white', onConfirm: () => handleRemoveMember(team.id, empId) })} className="text-gray-300 hover:text-red-500 ml-0.5"><X className="w-3 h-3" /></button>
@@ -1548,10 +1533,7 @@ export function TeamManager({
                       return (
                         <div key={manager.employee_id} className={`flex items-center gap-1 ${isPrimary ? 'bg-amber-100' : 'bg-blue-100'} rounded-full pl-1 pr-2 py-0.5`}>
                           <span className={`text-[9px] font-bold ${isPrimary ? 'text-amber-600' : 'text-blue-500'}`}>{isPrimary ? '主' : '副'}</span>
-                          <Avatar className="w-4 h-4 flex-shrink-0">
-                            <AvatarImage src={emp?.avatar_url ?? undefined} />
-                            <AvatarFallback className={`text-[8px] ${isPrimary ? 'bg-amber-300 text-amber-700' : 'bg-blue-300 text-blue-700'}`}>{emp?.name.charAt(0)}</AvatarFallback>
-                          </Avatar>
+                          <CertRingAvatar employeeId={manager.employee_id} src={emp?.avatar_url} name={emp?.name} size={16} className="flex-shrink-0" fallbackClassName={isPrimary ? 'bg-amber-300 text-amber-700' : 'bg-blue-300 text-blue-700'} />
                           {renderEmpName(manager.employee_id, `text-xs hover:underline ${isPrimary ? 'text-amber-700 hover:text-amber-900' : 'text-blue-700 hover:text-blue-900'}`)}
                           {isDirectEdit && (
                             <button onClick={() => setConfirmDialog({ title: 'リーダー削除', message: `${getEmployeeName(manager.employee_id)} をリーダーから削除しますか？`, confirmLabel: '削除', confirmClassName: 'flex-1 bg-red-500 hover:bg-red-600 text-white', onConfirm: () => handleRemoveManager(team.id, manager.employee_id) })} className={`${isPrimary ? 'text-amber-400' : 'text-blue-400'} hover:text-red-500 ml-0.5`}><X className="w-3 h-3" /></button>
@@ -1704,10 +1686,7 @@ export function TeamManager({
                                   onDragOver={e => { e.preventDefault(); e.stopPropagation(); if (dragEmp?.teamId === storeTeam.id) { setDropTarget('member'); setDropBeforeId(empId) } }}
                                   className={`flex items-center gap-1 bg-gray-100 rounded-full pl-0.5 pr-2 py-0.5 transition-all ${canEditMembers(storeTeam.id) ? 'cursor-grab active:cursor-grabbing' : ''} ${dropBeforeId === empId && dragEmp?.from === 'member' && dragEmp?.id !== empId ? 'ring-2 ring-orange-400' : ''}`}
                                 >
-                                  <Avatar className="w-4 h-4 flex-shrink-0">
-                                    <AvatarImage src={emp?.avatar_url ?? undefined} />
-                                    <AvatarFallback className="text-[8px] bg-gray-300 text-gray-600">{emp?.name.charAt(0)}</AvatarFallback>
-                                  </Avatar>
+                                  <CertRingAvatar employeeId={empId} src={emp?.avatar_url} name={emp?.name} size={16} className="flex-shrink-0" fallbackClassName="bg-gray-300 text-gray-600" />
                                   {renderEmpName(empId, "text-xs text-gray-700 hover:underline hover:text-orange-600")}
                                   {canEditMembers(storeTeam.id) && (
                                     <button onClick={() => setConfirmDialog({ title: 'メンバー削除', message: `${getEmployeeName(empId)} を「${storeTeam.name}」から削除しますか？`, confirmLabel: '削除', confirmClassName: 'flex-1 bg-red-500 hover:bg-red-600 text-white', onConfirm: () => handleRemoveMember(storeTeam.id, empId) })} className="text-gray-300 hover:text-red-500 ml-0.5"><X className="w-3 h-3" /></button>
@@ -1755,10 +1734,7 @@ export function TeamManager({
                                   className={`flex items-center gap-1 ${isPrimary ? 'bg-amber-100' : 'bg-blue-100'} rounded-full pl-1 pr-2 py-0.5 transition-all ${isDirectEdit ? 'cursor-grab active:cursor-grabbing' : ''} ${dropBeforeId === manager.employee_id && dragEmp?.from === 'manager' && dragEmp?.id !== manager.employee_id ? 'ring-2 ring-orange-400' : ''}`}
                                 >
                                   <span className={`text-[9px] font-bold ${isPrimary ? 'text-amber-600' : 'text-blue-500'}`}>{isPrimary ? '主' : '副'}</span>
-                                  <Avatar className="w-4 h-4 flex-shrink-0">
-                                    <AvatarImage src={emp?.avatar_url ?? undefined} />
-                                    <AvatarFallback className={`text-[8px] ${isPrimary ? 'bg-amber-300 text-amber-700' : 'bg-blue-300 text-blue-700'}`}>{emp?.name.charAt(0)}</AvatarFallback>
-                                  </Avatar>
+                                  <CertRingAvatar employeeId={manager.employee_id} src={emp?.avatar_url} name={emp?.name} size={16} className="flex-shrink-0" fallbackClassName={isPrimary ? 'bg-amber-300 text-amber-700' : 'bg-blue-300 text-blue-700'} />
                                   {renderEmpName(manager.employee_id, `text-xs hover:underline ${isPrimary ? 'text-amber-700 hover:text-amber-900' : 'text-blue-700 hover:text-blue-900'}`)}
                                   {isDirectEdit && (
                                     <button onClick={() => setConfirmDialog({ title: 'リーダー削除', message: `${getEmployeeName(manager.employee_id)} を「${storeTeam.name}」のリーダーから削除しますか？`, confirmLabel: '削除', confirmClassName: 'flex-1 bg-red-500 hover:bg-red-600 text-white', onConfirm: () => handleRemoveManager(storeTeam.id, manager.employee_id) })} className={`${isPrimary ? 'text-amber-400' : 'text-blue-400'} hover:text-red-500 ml-0.5`}><UserMinus className="w-3 h-3" /></button>
@@ -2298,10 +2274,7 @@ export function TeamManager({
                             }
                           }}
                         />
-                        <Avatar className="w-6 h-6 flex-shrink-0">
-                          <AvatarImage src={emp.avatar_url ?? undefined} />
-                          <AvatarFallback className={`text-[10px] ${isExisting ? 'bg-gray-200 text-gray-400' : 'bg-orange-200 text-orange-700'}`}>{emp.name.charAt(0)}</AvatarFallback>
-                        </Avatar>
+                        <CertRingAvatar employeeId={emp.id} src={emp.avatar_url} name={emp.name} size={24} className="flex-shrink-0" fallbackClassName={isExisting ? 'bg-gray-200 text-gray-400' : 'bg-orange-200 text-orange-700'} />
                         <span className={`text-sm flex-1 ${isExisting ? 'text-gray-400' : 'text-gray-800'}`}>
                           {getEmployeeOptionLabel(emp)}
                         </span>

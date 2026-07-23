@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { CertRingAvatar } from '@/components/ui/cert-ring-avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -455,12 +455,7 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
                     onClick={() => setAvatarPreview({ id: employee.id, url: employee.avatar_url, name: employee.name, canEdit: true })}
                     className="relative group flex-shrink-0"
                   >
-                    <Avatar className="w-10 h-10">
-                      <AvatarImage src={employee.avatar_url ?? undefined} />
-                      <AvatarFallback className="text-sm bg-orange-200 text-orange-700">
-                        {employee.name.charAt(0)}
-                      </AvatarFallback>
-                    </Avatar>
+                    <CertRingAvatar employeeId={employee.id} src={employee.avatar_url} name={employee.name} size={40} fallbackClassName="bg-orange-200 text-orange-700" />
                     {uploadingId === employee.id && (
                       <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center">
                         <Loader2 className="w-3.5 h-3.5 text-white animate-spin" />
@@ -472,12 +467,7 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
                     onClick={() => setAvatarPreview({ id: employee.id, url: employee.avatar_url, name: employee.name, canEdit: false })}
                     className="flex-shrink-0"
                   >
-                    <Avatar className="w-10 h-10">
-                      <AvatarImage src={employee.avatar_url ?? undefined} />
-                      <AvatarFallback className="text-sm bg-orange-200 text-orange-700">
-                        {employee.name.charAt(0)}
-                      </AvatarFallback>
-                    </Avatar>
+                    <CertRingAvatar employeeId={employee.id} src={employee.avatar_url} name={employee.name} size={40} fallbackClassName="bg-orange-200 text-orange-700" />
                   </button>
                 )}
 

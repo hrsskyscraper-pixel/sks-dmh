@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { CertRingAvatar } from '@/components/ui/cert-ring-avatar'
 import { ShieldAlert, ShieldCheck } from 'lucide-react'
 import { grantLeaderPermission } from '@/app/(dashboard)/admin/business-roles/actions'
 
@@ -84,10 +84,7 @@ export function UnsetLeadersCard({ leaders }: Props) {
         <div className="space-y-2">
           {leaders.map(l => (
             <div key={l.id} className="flex items-center gap-2 bg-white rounded-lg border border-gray-100 px-3 py-2">
-              <Avatar className="w-8 h-8 flex-shrink-0">
-                <AvatarImage src={l.avatar_url ?? undefined} />
-                <AvatarFallback className="text-xs">{l.name.slice(0, 1)}</AvatarFallback>
-              </Avatar>
+              <CertRingAvatar employeeId={l.id} src={l.avatar_url} name={l.name} size={32} className="flex-shrink-0" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-800 truncate">{l.name}</p>
                 <p className="text-[11px] text-gray-500 truncate">リーダー: {l.teamNames.join('・') || '—'}</p>

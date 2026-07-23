@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { CertRingAvatar } from '@/components/ui/cert-ring-avatar'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -134,12 +134,7 @@ export function ApprovalManager({ pendingEmployees, teams, projectTeams, current
               <CardContent className="p-4">
                 {/* 基本情報 */}
                 <div className="flex items-center gap-3 cursor-pointer" onClick={() => setExpandedId(isExpanded ? null : emp.id)}>
-                  <Avatar className="w-10 h-10">
-                    <AvatarImage src={emp.avatar_url ?? undefined} />
-                    <AvatarFallback className="bg-orange-100 text-orange-600 font-bold">
-                      {emp.name.charAt(0)}
-                    </AvatarFallback>
-                  </Avatar>
+                  <CertRingAvatar employeeId={emp.id} src={emp.avatar_url} name={emp.name} size={40} fallbackClassName="bg-orange-100 text-orange-600" />
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-gray-800 truncate">{emp.name}</p>
                     {emp.email && <p className="text-xs text-gray-400 truncate">{emp.email}</p>}

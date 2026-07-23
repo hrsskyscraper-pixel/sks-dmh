@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
 import { LayoutDashboard, CheckSquare, BadgeCheck, LogOut, Building2, MessageSquare, Settings, User, FileText, HelpCircle, Shield, ScrollText, History, Type, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { CertRingAvatar } from '@/components/ui/cert-ring-avatar'
 import { createClient } from '@/lib/supabase/client'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
 import { useNavData, useNotificationCount } from '@/components/layout/nav-data-context'
@@ -221,7 +222,7 @@ export function BottomNav({ role, avatarUrl, employeeId }: NavProps) {
           )}
         >
           {avatarUrl ? (
-            <img src={avatarUrl} alt="" loading="lazy" decoding="async" className="w-6 h-6 rounded-full object-cover border border-gray-200" />
+            <CertRingAvatar employeeId={employeeId} src={avatarUrl} size={24} className="border border-gray-200" />
           ) : (
             <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center">
               <User className="w-3.5 h-3.5 text-gray-500" />

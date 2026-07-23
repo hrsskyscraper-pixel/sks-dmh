@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { CertRingAvatar } from '@/components/ui/cert-ring-avatar'
 import { AffiliationBadge } from '@/components/ui/affiliation'
 import { MemberNameLink } from '@/components/layout/member-name-link'
 import type { RankEntry } from '@/lib/skill-ranking'
@@ -45,10 +45,7 @@ export function RankingList({ ranking, currentEmployeeId }: { ranking: RankEntry
               <div className="absolute inset-y-0 left-0 rounded-r-lg" style={{ width: `${pct}%`, background: fill }} aria-hidden />
               <div className="relative z-10 flex items-center gap-2 px-2.5 py-1.5">
               <span className="w-6 text-center text-sm font-bold text-gray-500 flex-shrink-0">{MEDALS[i] ?? i + 1}</span>
-              <Avatar className="w-7 h-7 flex-shrink-0">
-                <AvatarImage src={r.avatarUrl ?? undefined} />
-                <AvatarFallback className={cn('text-[10px] font-bold', isMe ? 'bg-orange-200 text-orange-700' : 'bg-gray-200 text-gray-500')}>{r.name.charAt(0)}</AvatarFallback>
-              </Avatar>
+              <CertRingAvatar employeeId={r.employeeId} src={r.avatarUrl} name={r.name} size={28} className="flex-shrink-0" fallbackClassName={isMe ? 'bg-orange-200 text-orange-700' : undefined} />
               <div className="flex-1 min-w-0">
                 <p className={cn('text-sm truncate', isMe ? 'font-bold text-orange-700' : 'text-gray-700')}>
                   <MemberNameLink employeeId={r.employeeId}>{r.name}</MemberNameLink>

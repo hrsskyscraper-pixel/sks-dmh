@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { CertRingAvatar } from '@/components/ui/cert-ring-avatar'
 import { cn } from '@/lib/utils'
 import { AlertTriangle, ChevronRight, Camera, Loader2, ClipboardList, Users, Instagram, Target, CalendarDays, Pencil, BookOpen, Building2, Undo2 } from 'lucide-react'
 import Link from 'next/link'
@@ -328,10 +328,7 @@ export function DashboardContent({
         <CardContent className="pt-5 pb-5">
           <div className="flex items-center gap-3 mb-3">
             <label htmlFor="dashboard-avatar" className="relative cursor-pointer group flex-shrink-0" title="写真を変更">
-              <Avatar className="w-14 h-14 ring-2 ring-white/50">
-                <AvatarImage src={avatarUrl ?? undefined} />
-                <AvatarFallback className="bg-orange-300 text-white text-xl font-bold">{firstName.charAt(0)}</AvatarFallback>
-              </Avatar>
+              <CertRingAvatar employeeId={employee.id} src={avatarUrl} name={firstName} size={56} className="ring-2 ring-white/50" fallbackClassName="bg-orange-300 text-white" />
               <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                 {uploadingAvatar ? <Loader2 className="w-4 h-4 text-white animate-spin" /> : <Camera className="w-4 h-4 text-white" />}
               </div>

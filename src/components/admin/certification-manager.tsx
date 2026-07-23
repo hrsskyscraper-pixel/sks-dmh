@@ -11,7 +11,7 @@ import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 
 type CertIcon = 'award' | 'star'
-type CertColor = 'emerald' | 'gold' | 'blue' | 'purple' | 'red' | 'orange' | 'pink' | 'gray'
+type CertColor = 'emerald' | 'gold' | 'blue' | 'purple' | 'red' | 'orange' | 'pink' | 'gray' | 'silver'
 
 const ICON_OPTIONS: { value: CertIcon; label: string; Icon: typeof Award }[] = [
   { value: 'award', label: '資格', Icon: Award },
@@ -27,6 +27,7 @@ const COLOR_OPTIONS: { value: CertColor; label: string; bg: string; text: string
   { value: 'orange',  label: '橙',  bg: 'bg-orange-100',  text: 'text-orange-600',  ring: 'ring-orange-400' },
   { value: 'pink',    label: '桃',  bg: 'bg-pink-100',    text: 'text-pink-600',    ring: 'ring-pink-400' },
   { value: 'gray',    label: '灰',  bg: 'bg-gray-100',    text: 'text-gray-600',    ring: 'ring-gray-400' },
+  { value: 'silver',  label: '銀',  bg: 'bg-slate-100',   text: 'text-slate-500',   ring: 'ring-slate-400' },
 ]
 
 export function getCertColorClasses(color: CertColor) {

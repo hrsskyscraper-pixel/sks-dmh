@@ -1,6 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { CertRingAvatar } from '@/components/ui/cert-ring-avatar'
 import { Badge } from '@/components/ui/badge'
 import { Trophy } from 'lucide-react'
 import { getTestEmployeeIds } from '@/lib/test-data'
@@ -121,10 +121,7 @@ export async function CheckpointRecords({ employeeId, employeeRole, projectSkill
                             {entry ? (
                               <>
                                 <span className={`text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${RANK_STYLES[rank - 1]}`}>{rank}</span>
-                                <Avatar className="w-6 h-6 flex-shrink-0">
-                                  <AvatarImage src={holder?.avatar_url ?? undefined} />
-                                  <AvatarFallback className={`text-[8px] font-bold ${isMe ? 'bg-orange-200 text-orange-700' : 'bg-gray-200 text-gray-600'}`}>{holder?.name?.charAt(0) ?? '?'}</AvatarFallback>
-                                </Avatar>
+                                <CertRingAvatar employeeId={entry.employeeId} src={holder?.avatar_url} name={holder?.name ?? '?'} size={24} className="flex-shrink-0" fallbackClassName={isMe ? 'bg-orange-200 text-orange-700' : 'bg-gray-200 text-gray-600'} />
                                 <span className={`text-[11px] flex-shrink-0 ${isMe ? 'font-bold text-orange-600' : 'text-gray-700'}`}>{holder?.last_name ?? '?'}</span>
                                 <span className={`text-[11px] flex-shrink-0 ${isMe ? 'font-bold text-orange-500' : 'text-gray-400'}`}>{entry.hours}h</span>
                               </>

@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { Heart, MessageCircle, Send, Trophy, Award, PartyPopper, Sunrise } from 'lucide-react'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { CertRingAvatar } from '@/components/ui/cert-ring-avatar'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -106,10 +106,7 @@ export function AnnouncementCard({ item, reactions: initReactions, comments: ini
             </>
           ) : isWelcome ? (
             <div className="flex items-center gap-2">
-              <Avatar className="w-7 h-7 flex-shrink-0">
-                <AvatarImage src={item.subjectAvatar ?? undefined} />
-                <AvatarFallback className="bg-emerald-100 text-emerald-700 text-xs font-bold">{item.subjectName?.charAt(0) ?? '?'}</AvatarFallback>
-              </Avatar>
+              <CertRingAvatar employeeId={item.subjectId} src={item.subjectAvatar} name={item.subjectName ?? '?'} size={28} className="flex-shrink-0" fallbackClassName="bg-emerald-100 text-emerald-700" />
               <p className="text-sm text-gray-800">
                 🎉 {item.subjectStore && <span className="text-gray-500">{item.subjectStore}の </span>}
                 <MemberNameLink employeeId={item.subjectId} className="font-semibold">{item.subjectName}</MemberNameLink>
@@ -154,10 +151,7 @@ export function AnnouncementCard({ item, reactions: initReactions, comments: ini
         <div className="mt-2 ml-6 space-y-2 border-t pt-2">
           {comments.map(c => (
             <div key={c.id} className="flex items-start gap-2">
-              <Avatar className="w-6 h-6 flex-shrink-0 mt-0.5">
-                <AvatarImage src={reactorAvatars[c.employee_id] ?? undefined} />
-                <AvatarFallback className="bg-gray-100 text-gray-600 text-[10px] font-bold">{(reactorNames[c.employee_id] ?? '?').charAt(0)}</AvatarFallback>
-              </Avatar>
+              <CertRingAvatar employeeId={c.employee_id} src={reactorAvatars[c.employee_id]} name={reactorNames[c.employee_id] ?? '?'} size={24} className="flex-shrink-0 mt-0.5" fallbackClassName="bg-gray-100 text-gray-600" />
               <div className="flex-1 min-w-0">
                 <p className="text-xs">
                   <MemberNameLink employeeId={c.employee_id} className="font-semibold text-gray-700">{reactorNames[c.employee_id] ?? '不明'}</MemberNameLink>

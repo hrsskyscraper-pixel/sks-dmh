@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { CertRingAvatar } from '@/components/ui/cert-ring-avatar'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { cn } from '@/lib/utils'
@@ -568,11 +568,7 @@ function AchievementCard({
               />
             </div>
           )}
-          <Avatar className="w-8 h-8 flex-shrink-0">
-            <AvatarFallback className="text-xs bg-orange-200 text-orange-700">
-              {achievement.employees?.name.charAt(0) ?? '?'}
-            </AvatarFallback>
-          </Avatar>
+          <CertRingAvatar employeeId={achievement.employees?.id} name={achievement.employees?.name ?? '?'} size={32} className="flex-shrink-0" fallbackClassName="bg-orange-200 text-orange-700" />
           <div className="flex-1 min-w-0">
             <p className="text-xs text-muted-foreground">{achievement.employees?.name}</p>
             <p className="text-sm font-medium text-gray-800 leading-tight">
@@ -690,12 +686,7 @@ function OverviewCard({
       <CardContent className="py-3 px-3">
         {/* ヘッダー: アバター + 名前 + バッジ */}
         <div className="flex items-center gap-2 mb-1.5">
-          <Avatar className="w-8 h-8 flex-shrink-0">
-            <AvatarImage src={employee.avatar_url ?? undefined} />
-            <AvatarFallback className="text-xs bg-orange-200 text-orange-700">
-              {employee.name.charAt(0)}
-            </AvatarFallback>
-          </Avatar>
+          <CertRingAvatar employeeId={employee.id} src={employee.avatar_url} name={employee.name} size={32} className="flex-shrink-0" fallbackClassName="bg-orange-200 text-orange-700" />
           <div className="flex-1 min-w-0 flex items-center gap-1 flex-wrap">
             <p className="text-xs font-semibold text-gray-700">{employee.name}</p>
             <Badge className="bg-orange-100 text-orange-700 text-[9px] border-0 px-1.5 h-4 flex-shrink-0">

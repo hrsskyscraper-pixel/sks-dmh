@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import { Search, X } from 'lucide-react'
 import { Input } from '@/components/ui/input'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { CertRingAvatar } from '@/components/ui/cert-ring-avatar'
 import {
   Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
@@ -171,10 +171,7 @@ export function EmployeeSearch({ employees, options }: { employees: SearchEmploy
         <div className="space-y-1.5">
           {results.map(e => (
             <div key={e.id} className="flex items-center gap-3 rounded-lg border border-gray-100 bg-white px-3 py-2.5">
-              <Avatar className="w-9 h-9 flex-shrink-0">
-                <AvatarImage src={e.avatarUrl ?? undefined} />
-                <AvatarFallback className="text-xs font-bold bg-gray-200 text-gray-500">{e.name.charAt(0)}</AvatarFallback>
-              </Avatar>
+              <CertRingAvatar employeeId={e.id} src={e.avatarUrl} name={e.name} size={36} className="flex-shrink-0" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-800 truncate">{e.name}</p>
                 {(e.storeNames.length > 0 || e.roleIds.length > 0 || e.certNames.length > 0) && (

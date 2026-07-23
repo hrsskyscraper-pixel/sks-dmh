@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { ChevronDown, ChevronUp, Crown, Users } from 'lucide-react'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { CertRingAvatar } from '@/components/ui/cert-ring-avatar'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
@@ -121,12 +121,7 @@ export function TeamRanking({ currentEmployeeId, stats }: Props) {
           {/* コンテンツ */}
           <div className="relative z-20 flex items-center gap-2 px-2.5 py-1.5">
             <span className="w-6 text-center text-sm font-bold text-gray-500 flex-shrink-0">{medal ?? index + 1}</span>
-            <Avatar className="w-7 h-7 flex-shrink-0">
-              <AvatarImage src={member.avatar_url ?? undefined} />
-              <AvatarFallback className={cn('text-[10px] font-bold', isMe ? 'bg-orange-200 text-orange-700' : 'bg-gray-200 text-gray-600')}>
-                {member.name.charAt(0)}
-              </AvatarFallback>
-            </Avatar>
+            <CertRingAvatar employeeId={member.id} src={member.avatar_url} name={member.name} size={28} className="flex-shrink-0" fallbackClassName={isMe ? 'bg-orange-200 text-orange-700' : 'bg-gray-200 text-gray-600'} />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1 flex-wrap">
                 <p className={cn('text-sm font-semibold truncate', isMe ? 'text-orange-700' : 'text-gray-700')}>

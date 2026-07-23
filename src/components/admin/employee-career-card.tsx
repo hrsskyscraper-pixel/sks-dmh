@@ -4,7 +4,7 @@ import { useState, useTransition, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { CertRingAvatar } from '@/components/ui/cert-ring-avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -362,10 +362,7 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
         <CardContent className="pt-5 pb-5">
           <div className="flex items-start gap-4">
             <button onClick={() => setAvatarPreviewOpen(true)} className="relative flex-shrink-0">
-              <Avatar className="w-16 h-16">
-                <AvatarImage src={avatarUrl ?? undefined} />
-                <AvatarFallback className="bg-orange-100 text-orange-700 text-xl font-bold">{employee.name.charAt(0)}</AvatarFallback>
-              </Avatar>
+              <CertRingAvatar employeeId={employee.id} src={avatarUrl} name={employee.name} size={64} fallbackClassName="bg-orange-100 text-orange-700" />
               {uploadingAvatar && (
                 <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center">
                   <Loader2 className="w-5 h-5 text-white animate-spin" />
@@ -819,10 +816,7 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
                             const person = employeeMap[eid]
                             return (
                               <div key={eid} className="flex items-center gap-1 bg-white rounded-full pl-0.5 pr-2 py-0.5 border border-gray-200">
-                                <Avatar className="w-5 h-5">
-                                  <AvatarImage src={person?.avatar_url ?? undefined} />
-                                  <AvatarFallback className="bg-gray-200 text-gray-600 text-[8px]">{person?.name?.charAt(0) ?? '?'}</AvatarFallback>
-                                </Avatar>
+                                <CertRingAvatar employeeId={eid} src={person?.avatar_url} name={person?.name ?? '?'} size={20} fallbackClassName="bg-gray-200 text-gray-600" />
                                 <span className="text-[11px] text-gray-700">{person?.name ?? '不明'}</span>
                               </div>
                             )
@@ -937,10 +931,7 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
                     return (
                       <button key={pid} onClick={() => setFormPeople(prev => prev.filter(x => x !== pid))}
                         className="flex items-center gap-1 bg-orange-50 border border-orange-200 rounded-full pl-0.5 pr-2 py-0.5 hover:bg-red-50 hover:border-red-200 transition-colors">
-                        <Avatar className="w-5 h-5">
-                          <AvatarImage src={p?.avatar_url ?? undefined} />
-                          <AvatarFallback className="bg-orange-200 text-orange-700 text-[8px]">{p?.name?.charAt(0)}</AvatarFallback>
-                        </Avatar>
+                        <CertRingAvatar employeeId={pid} src={p?.avatar_url} name={p?.name} size={20} fallbackClassName="bg-orange-200 text-orange-700" />
                         <span className="text-[11px] text-gray-700">{p?.name}</span>
                         <span className="text-[10px] text-gray-400">×</span>
                       </button>
@@ -954,10 +945,7 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
                   {filteredEmployees.slice(0, 8).map(e => (
                     <button key={e.id} onClick={() => { setFormPeople(prev => [...prev, e.id]); setPersonSearch('') }}
                       className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 text-left">
-                      <Avatar className="w-6 h-6">
-                        <AvatarImage src={e.avatar_url ?? undefined} />
-                        <AvatarFallback className="bg-gray-200 text-gray-600 text-[9px]">{e.name.charAt(0)}</AvatarFallback>
-                      </Avatar>
+                      <CertRingAvatar employeeId={e.id} src={e.avatar_url} name={e.name} size={24} fallbackClassName="bg-gray-200 text-gray-600" />
                       <span className="text-sm text-gray-700">{e.name}</span>
                     </button>
                   ))}

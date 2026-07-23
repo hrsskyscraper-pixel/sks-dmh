@@ -3,7 +3,7 @@
 import { useState, useTransition, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { Card } from '@/components/ui/card'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { CertRingAvatar } from '@/components/ui/cert-ring-avatar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
@@ -319,12 +319,7 @@ export function TimelineFeed({
               const commenter = employeeMap[comment.employee_id]
               return (
                 <div key={comment.id} className="flex items-start gap-2">
-                  <Avatar className="w-6 h-6 flex-shrink-0 mt-0.5">
-                    <AvatarImage src={commenter?.avatar_url ?? undefined} />
-                    <AvatarFallback className="bg-gray-100 text-gray-600 text-[10px] font-bold">
-                      {commenter?.name?.charAt(0) ?? '?'}
-                    </AvatarFallback>
-                  </Avatar>
+                  <CertRingAvatar employeeId={comment.employee_id} src={commenter?.avatar_url} name={commenter?.name ?? '?'} size={24} className="flex-shrink-0 mt-0.5" fallbackClassName="bg-gray-100 text-gray-600" />
                   <div className="flex-1 min-w-0">
                     <p className="text-xs">
                       <MemberNameLink employeeId={comment.employee_id} className="font-semibold text-gray-700">{commenter?.name ?? '不明'}</MemberNameLink>
@@ -374,12 +369,7 @@ export function TimelineFeed({
         {/* ヘッダー */}
         <div className="flex items-center gap-2.5 mb-2">
           {!nested && (
-            <Avatar className="w-9 h-9 flex-shrink-0">
-              <AvatarImage src={emp?.avatar_url ?? undefined} />
-              <AvatarFallback className="bg-orange-100 text-orange-700 text-sm font-bold">
-                {emp?.name?.charAt(0) ?? '?'}
-              </AvatarFallback>
-            </Avatar>
+            <CertRingAvatar employeeId={achievement.employee_id} src={emp?.avatar_url} name={emp?.name ?? '?'} size={36} className="flex-shrink-0" fallbackClassName="bg-orange-100 text-orange-700" />
           )}
           <div className="flex-1 min-w-0">
             <p className="text-sm">
@@ -421,12 +411,7 @@ export function TimelineFeed({
     const isOpen = expandedGroups.has(group.key)
     return (
       <button onClick={() => toggleGroup(group.key)} className="w-full flex items-center gap-2.5 text-left">
-        <Avatar className="w-9 h-9 flex-shrink-0">
-          <AvatarImage src={emp?.avatar_url ?? undefined} />
-          <AvatarFallback className="bg-orange-100 text-orange-700 text-sm font-bold">
-            {emp?.name?.charAt(0) ?? '?'}
-          </AvatarFallback>
-        </Avatar>
+        <CertRingAvatar employeeId={group.employeeId} src={emp?.avatar_url} name={emp?.name ?? '?'} size={36} className="flex-shrink-0" fallbackClassName="bg-orange-100 text-orange-700" />
         <div className="flex-1 min-w-0">
           <p className="text-sm">
             <span className="font-semibold text-gray-800">{emp?.name ?? '不明'}</span>

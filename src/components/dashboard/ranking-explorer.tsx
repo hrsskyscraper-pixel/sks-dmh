@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState, useEffect } from 'react'
 import { Store, Building2, FolderKanban, ArrowUp, ArrowDown, Minus } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { CertRingAvatar } from '@/components/ui/cert-ring-avatar'
 import { AffiliationBadge } from '@/components/ui/affiliation'
 import { RankingList } from '@/components/dashboard/ranking-list'
 import { MemberNameLink } from '@/components/layout/member-name-link'
@@ -98,10 +98,7 @@ function CompareRows({ rows, maxAbs, isAffiliation }: { rows: { meta: RankRowMet
                   <Icon className="w-3.5 h-3.5" />
                 </div>
               ) : (
-                <Avatar className="w-7 h-7 flex-shrink-0">
-                  <AvatarImage src={r.meta.avatarUrl ?? undefined} />
-                  <AvatarFallback className="text-[10px] font-bold bg-gray-200 text-gray-500">{r.meta.name.charAt(0)}</AvatarFallback>
-                </Avatar>
+                <CertRingAvatar employeeId={r.meta.id} src={r.meta.avatarUrl} name={r.meta.name} size={28} className="flex-shrink-0" />
               )}
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-gray-700 truncate">

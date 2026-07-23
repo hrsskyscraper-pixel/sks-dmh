@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { CertRingAvatar } from '@/components/ui/cert-ring-avatar'
 import { MemberNameLink } from '@/components/layout/member-name-link'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -405,10 +405,7 @@ export function ApprovalCenter({
                         memberFilterId === m.id ? 'bg-orange-100 font-medium' : ''
                       }`}
                     >
-                      <Avatar className="w-6 h-6 flex-shrink-0">
-                        <AvatarImage src={m.avatar_url ?? undefined} />
-                        <AvatarFallback className="text-[9px] bg-gray-100 text-gray-600">{m.name.charAt(0)}</AvatarFallback>
-                      </Avatar>
+                      <CertRingAvatar employeeId={m.id} src={m.avatar_url} name={m.name} size={24} className="flex-shrink-0" fallbackClassName="bg-gray-100 text-gray-600" />
                       <span className="truncate">{m.name}</span>
                     </button>
                   ))}
@@ -446,10 +443,7 @@ export function ApprovalCenter({
                 <Card key={`done-skill-${a.id}`} className="cursor-pointer hover:shadow-sm transition-shadow" onClick={() => openChat(a.id, skill?.name ?? '')}>
                   <CardContent className="py-3 px-4">
                     <div className="flex items-start gap-3">
-                      <Avatar className="w-9 h-9 flex-shrink-0">
-                        <AvatarImage src={emp?.avatar_url ?? undefined} />
-                        <AvatarFallback className="text-xs bg-green-100 text-green-700">{emp?.name?.charAt(0)}</AvatarFallback>
-                      </Avatar>
+                      <CertRingAvatar employeeId={a.employee_id} src={emp?.avatar_url} name={emp?.name} size={36} className="flex-shrink-0" fallbackClassName="bg-green-100 text-green-700" />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <Badge className="text-[9px] bg-green-100 text-green-700 border-0">スキル認定</Badge>
@@ -482,10 +476,7 @@ export function ApprovalCenter({
                 <Card key={`done-team-${r.id}`}>
                   <CardContent className="py-3 px-4">
                     <div className="flex items-start gap-3">
-                      <Avatar className="w-9 h-9 flex-shrink-0">
-                        <AvatarImage src={emp?.avatar_url ?? undefined} />
-                        <AvatarFallback className="text-xs bg-purple-100 text-purple-700">{emp?.name?.charAt(0)}</AvatarFallback>
-                      </Avatar>
+                      <CertRingAvatar employeeId={r.requested_by} src={emp?.avatar_url} name={emp?.name} size={36} className="flex-shrink-0" fallbackClassName="bg-purple-100 text-purple-700" />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <Badge className="text-[9px] bg-purple-100 text-purple-700 border-0">チーム変更</Badge>
@@ -518,10 +509,7 @@ export function ApprovalCenter({
                 <Card key={`done-join-${j.id}`}>
                   <CardContent className="py-3 px-4">
                     <div className="flex items-start gap-3">
-                      <Avatar className="w-9 h-9 flex-shrink-0">
-                        <AvatarImage src={j.avatar_url ?? undefined} />
-                        <AvatarFallback className="text-xs bg-blue-100 text-blue-700">{j.name?.charAt(0)}</AvatarFallback>
-                      </Avatar>
+                      <CertRingAvatar employeeId={j.id} src={j.avatar_url} name={j.name} size={36} className="flex-shrink-0" fallbackClassName="bg-blue-100 text-blue-700" />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <Badge className="text-[9px] bg-blue-100 text-blue-700 border-0">参加許諾</Badge>
@@ -563,10 +551,7 @@ export function ApprovalCenter({
                 <Card key={`done-audit-${log.id}`}>
                   <CardContent className="py-3 px-4">
                     <div className="flex items-start gap-3">
-                      <Avatar className="w-9 h-9 flex-shrink-0">
-                        <AvatarImage src={target?.avatar_url ?? undefined} />
-                        <AvatarFallback className="text-xs bg-amber-100 text-amber-700">{target?.name?.charAt(0) ?? '?'}</AvatarFallback>
-                      </Avatar>
+                      <CertRingAvatar employeeId={log.target_id} src={target?.avatar_url} name={target?.name ?? '?'} size={36} className="flex-shrink-0" fallbackClassName="bg-amber-100 text-amber-700" />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <Badge className="text-[9px] bg-amber-100 text-amber-700 border-0">管理操作</Badge>
@@ -612,10 +597,7 @@ export function ApprovalCenter({
                           aria-label={`${emp?.name ?? ''} の ${skill?.name ?? ''} を選択`}
                         />
                       </div>
-                      <Avatar className="w-9 h-9 flex-shrink-0">
-                        <AvatarImage src={emp?.avatar_url ?? undefined} />
-                        <AvatarFallback className="text-xs bg-orange-100 text-orange-700">{emp?.name?.charAt(0)}</AvatarFallback>
-                      </Avatar>
+                      <CertRingAvatar employeeId={a.employee_id} src={emp?.avatar_url} name={emp?.name} size={36} className="flex-shrink-0" fallbackClassName="bg-orange-100 text-orange-700" />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5">
                           <Badge className="text-[9px] bg-green-100 text-green-700 border-0">スキル認定</Badge>
@@ -670,10 +652,7 @@ export function ApprovalCenter({
                 <Card key={`team-${r.id}`}>
                   <CardContent className="py-3 px-4">
                     <div className="flex items-center gap-3">
-                      <Avatar className="w-9 h-9 flex-shrink-0">
-                        <AvatarImage src={emp?.avatar_url ?? undefined} />
-                        <AvatarFallback className="text-xs bg-purple-100 text-purple-700">{emp?.name?.charAt(0)}</AvatarFallback>
-                      </Avatar>
+                      <CertRingAvatar employeeId={r.requested_by} src={emp?.avatar_url} name={emp?.name} size={36} className="flex-shrink-0" fallbackClassName="bg-purple-100 text-purple-700" />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5">
                           <Badge className="text-[9px] bg-purple-100 text-purple-700 border-0">チーム変更</Badge>
@@ -708,10 +687,7 @@ export function ApprovalCenter({
                 <Card key={`join-${j.id}`}>
                   <CardContent className="py-3 px-4">
                     <div className="flex items-center gap-3">
-                      <Avatar className="w-9 h-9 flex-shrink-0">
-                        <AvatarImage src={j.avatar_url ?? undefined} />
-                        <AvatarFallback className="text-xs bg-blue-100 text-blue-700">{j.name?.charAt(0)}</AvatarFallback>
-                      </Avatar>
+                      <CertRingAvatar employeeId={j.id} src={j.avatar_url} name={j.name} size={36} className="flex-shrink-0" fallbackClassName="bg-blue-100 text-blue-700" />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5">
                           <Badge className="text-[9px] bg-blue-100 text-blue-700 border-0">参加許諾</Badge>

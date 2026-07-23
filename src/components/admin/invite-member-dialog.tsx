@@ -3,7 +3,7 @@
 import { useState, useMemo, useTransition, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
 import { Mail, Check, Copy, Link as LinkIcon, Send, Eye, Ban } from 'lucide-react'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { CertRingAvatar } from '@/components/ui/cert-ring-avatar'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -278,12 +278,7 @@ export function InviteMemberDialog({ open, onOpenChange, teamId, teamName, invit
                           onChange={() => setSelectedId(emp.id)}
                           className="accent-orange-500"
                         />
-                        <Avatar className="w-6 h-6 flex-shrink-0">
-                          <AvatarImage src={emp.avatar_url ?? undefined} />
-                          <AvatarFallback className="text-[10px] bg-orange-200 text-orange-700">
-                            {emp.name.charAt(0)}
-                          </AvatarFallback>
-                        </Avatar>
+                        <CertRingAvatar employeeId={emp.id} src={emp.avatar_url} name={emp.name} size={24} className="flex-shrink-0" fallbackClassName="bg-orange-200 text-orange-700" />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm text-gray-800 truncate">{emp.name}</p>
                           {emp.email && <p className="text-[10px] text-gray-500 truncate">{emp.email}</p>}

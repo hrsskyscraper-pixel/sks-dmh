@@ -9,6 +9,8 @@ import { ViewAsBanner } from '@/components/layout/view-as-banner'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { NavDataProvider } from '@/components/layout/nav-data-context'
+import { CertRingProvider } from '@/components/layout/cert-ring-context'
+import { getCertRanksByEmployee } from '@/lib/cert-ranks'
 import { OnboardingDialog } from '@/components/onboarding/onboarding-dialog'
 import { IntroGuideDialog } from '@/components/onboarding/intro-guide-dialog'
 import { PendingScreen } from '@/components/onboarding/pending-screen'
@@ -113,8 +115,11 @@ export default async function DashboardLayout({
   // バッジ系のカウント（通知・承認待ち・遅れ等）はここでは取得しない。
   // 以前は毎遷移で 16〜23 クエリ＋RPC を直列実行してページ描画をブロックしていた。
   // NavDataProvider が描画後にクライアントから getNavCounts() を呼び、非同期で差し込む。
+  const certRanks = await getCertRanksByEmployee()
+
   return (
     <NavDataProvider>
+      <CertRingProvider ranks={certRanks}>
       <FontScaleSync scale={fontScale} />
       <div className="min-h-screen bg-gray-50" style={viewAsEmployee ? { '--banner-h': '2.5rem' } as React.CSSProperties : undefined}>
         {viewAsEmployee && <ViewAsBanner employeeName={viewAsEmployee.name} />}
@@ -138,6 +143,7 @@ export default async function DashboardLayout({
         <BottomNav role={effectiveRole} avatarUrl={employee.avatar_url} employeeId={employee.id} employeeName={employee.name} fontScale={fontScale} />
         <Toaster position="top-center" richColors />
       </div>
+      </CertRingProvider>
     </NavDataProvider>
   )
 }

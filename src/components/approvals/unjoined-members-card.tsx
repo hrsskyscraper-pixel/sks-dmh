@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { CertRingAvatar } from '@/components/ui/cert-ring-avatar'
 import { AlertCircle, UserPlus } from 'lucide-react'
 import { adminCompleteJoin } from '@/app/(dashboard)/join-completion-actions'
 
@@ -61,10 +61,7 @@ export function UnjoinedMembersCard({ members, teamMap }: Props) {
             const teamName = m.requested_team_id ? teamMap[m.requested_team_id]?.name ?? '不明' : '未設定'
             return (
               <div key={m.id} className="flex items-center gap-2 bg-white rounded-lg border border-gray-100 px-3 py-2">
-                <Avatar className="w-8 h-8 flex-shrink-0">
-                  <AvatarImage src={m.avatar_url ?? undefined} />
-                  <AvatarFallback className="text-xs">{m.name.slice(0, 1)}</AvatarFallback>
-                </Avatar>
+                <CertRingAvatar employeeId={m.id} src={m.avatar_url} name={m.name} size={32} className="flex-shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-800 truncate">{m.name}</p>
                   <p className="text-[11px] text-gray-500 truncate">参加予定: {teamName}</p>
