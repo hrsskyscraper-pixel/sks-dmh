@@ -42,21 +42,7 @@ export function CertRing({
     'aria-hidden': true,
   }
 
-  // スター → 星型
-  if (ranks.star) {
-    const id = `cr-${idKey}-star`
-    const path =
-      'M40,2 L49.3,26.9 L75.9,28 L54.9,44.6 L62.1,70.4 L40,55.6 L17.9,70.4 L25.1,44.6 L4.1,28 L30.7,26.9 Z'
-    return (
-      <svg {...common}>
-        <defs>
-          <Grad id={id} stops={MATERIAL.gold} />
-        </defs>
-        <path d={path} fill={`url(#${id})`} stroke="#a5560a" strokeWidth="1" strokeLinejoin="round" />
-      </svg>
-    )
-  }
-
+  // スターはリングではなく、アバター左上の小さなバッジ（CertStarBadge）で表現する。
   const hasSplit = ranks.cook !== null || ranks.service !== null
 
   // 初級のみ → リング全体を緑
@@ -100,6 +86,38 @@ export function CertRing({
         strokeWidth="5.5"
         strokeLinecap="round"
       />
+    </svg>
+  )
+}
+
+/**
+ * スター保有者の目印。アバターの左上に小さな金色の星バッジを重ねる。
+ * 白フチ付きで、どんな写真の上でも見えるようにする。
+ */
+export function CertStarBadge({ size, idKey }: { size: number; idKey: string }) {
+  const badge = Math.max(12, Math.round(size * 0.44))
+  const id = `star-${idKey}`
+  // 24x24 viewBox の5角星（中心 12,12）
+  const path =
+    'M12 1.6 L14.9 8.5 L22.3 9.1 L16.6 13.9 L18.4 21.1 L12 17.2 L5.6 21.1 L7.4 13.9 L1.7 9.1 L9.1 8.5 Z'
+  return (
+    <svg
+      width={badge}
+      height={badge}
+      viewBox="0 0 24 24"
+      aria-hidden
+      style={{ position: 'absolute', left: -badge * 0.18, top: -badge * 0.18, pointerEvents: 'none' }}
+    >
+      <defs>
+        <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#fff2b0" />
+          <stop offset="0.5" stopColor="#f4a824" />
+          <stop offset="1" stopColor="#c47708" />
+        </linearGradient>
+      </defs>
+      {/* 白フチ（写真の上でも視認できるように） */}
+      <path d={path} fill="none" stroke="#ffffff" strokeWidth="2.4" strokeLinejoin="round" />
+      <path d={path} fill={`url(#${id})`} stroke="#a5560a" strokeWidth="0.8" strokeLinejoin="round" />
     </svg>
   )
 }

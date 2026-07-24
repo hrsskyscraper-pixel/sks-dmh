@@ -7,6 +7,8 @@ import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { getTestEmployeeIds } from '@/lib/test-data'
 import { getEmployeeProjectMapping } from '@/lib/project-members'
 import { getAllCertifiedAchievements } from '@/lib/certified-achievements'
+import { getSystemPermission } from '@/lib/permissions'
+import { SYSTEM_PERMISSION_LABELS, type Role, type SystemPermission } from '@/types/database'
 import { TopBar } from '@/components/layout/nav'
 import { EmployeeSearch, type SearchEmployee, type SearchOptions } from '@/components/dashboard/employee-search'
 
@@ -35,8 +37,8 @@ export default async function SearchPage() {
     { data: certRecordRows },
   ] = await Promise.all([
     // 承認済み社員のみ（ranking-data と同じ基準）
-    fetchAllRows<{ id: string; name: string; name_kana: string | null; avatar_url: string | null; business_role_ids: string[] }>((from, to) =>
-      db.from('employees').select('id, name, name_kana, avatar_url, business_role_ids').eq('status', 'approved').order('id').range(from, to)),
+    fetchAllRows<{ id: string; name: string; name_kana: string | null; avatar_url: string | null; business_role_ids: string[]; role: Role | null; system_permission: SystemPermission | null }>((from, to) =>
+      db.from('employees').select('id, name, name_kana, avatar_url, business_role_ids, role, system_permission').eq('status', 'approved').order('id').range(from, to)),
     getTestEmployeeIds(),
     db.from('teams').select('id, name, brand_id, is_test').eq('type', 'store').order('name'),
     db.from('brands').select('id, name, sort_order').order('sort_order'),
@@ -147,6 +149,7 @@ export default async function SearchPage() {
         kana: e.name_kana,
         avatarUrl: e.avatar_url,
         roleIds: e.business_role_ids ?? [],
+        permission: getSystemPermission(e),
         storeIds: empStoreIds,
         storeNames: empStoreIds.map(id => storeNameById[id]).filter(Boolean).sort((a, b) => a.localeCompare(b, 'ja')),
         projectIds: projectIdsByEmp[e.id] ?? [],
@@ -156,9 +159,17 @@ export default async function SearchPage() {
     })
     .sort((a, b) => (a.kana ?? a.name).localeCompare(b.kana ?? b.name, 'ja'))
 
+  // ---- アプリ権限（開発者/運用管理者/リーダー/メンバー。表示順は上位から）----
+  const PERM_ORDER: SystemPermission[] = ['developer', 'ops_admin', 'training_leader', 'training_member']
+  const presentPerms = new Set(searchEmployees.map(e => e.permission))
+  const permissionOptions = PERM_ORDER
+    .filter(p => presentPerms.has(p))
+    .map(p => ({ value: p, label: SYSTEM_PERMISSION_LABELS[p] }))
+
   const options: SearchOptions = {
     storeGroups,
     roles: (roleRows ?? []).map(r => ({ id: r.id, name: r.name })),
+    permissions: permissionOptions,
     projects: projectOptions,
     skillGroups,
     certifications: certOptions,

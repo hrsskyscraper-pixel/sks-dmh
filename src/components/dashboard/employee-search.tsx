@@ -15,6 +15,8 @@ export type SearchEmployee = {
   kana: string | null
   avatarUrl: string | null
   roleIds: string[]
+  /** アプリ上の権限（開発者/運用管理者/リーダー/メンバー） */
+  permission: string
   storeIds: string[]
   storeNames: string[]
   projectIds: string[]
@@ -27,6 +29,8 @@ export type SearchEmployee = {
 export type SearchOptions = {
   storeGroups: { label: string; items: { id: string; name: string }[] }[]
   roles: { id: string; name: string }[]
+  /** アプリ上の権限（value=system_permission, label=表示名） */
+  permissions: { value: string; label: string }[]
   projects: { id: string; name: string }[]
   skillGroups: { phase: string; items: { idx: number; name: string }[] }[]
   /** 社内資格マスタ（有効なもの・表示順） */
@@ -50,6 +54,7 @@ export function EmployeeSearch({ employees, options }: { employees: SearchEmploy
   const [projectId, setProjectId] = useState(ALL)
   const [skillIdx, setSkillIdx] = useState(ALL)
   const [certName, setCertName] = useState(ALL)
+  const [perm, setPerm] = useState(ALL)
 
   const roleNameById = useMemo(() => Object.fromEntries(options.roles.map(r => [r.id, r.name])), [options.roles])
 
@@ -63,11 +68,12 @@ export function EmployeeSearch({ employees, options }: { employees: SearchEmploy
       if (projectId !== ALL && !e.projectIds.includes(projectId)) return false
       if (skill !== null && !e.certifiedSkillIdxs.includes(skill)) return false
       if (certName !== ALL && !e.certNames.includes(certName)) return false
+      if (perm !== ALL && e.permission !== perm) return false
       return true
     })
-  }, [employees, query, storeId, roleId, projectId, skillIdx, certName])
+  }, [employees, query, storeId, roleId, projectId, skillIdx, certName, perm])
 
-  const hasFilter = query.trim() !== '' || storeId !== ALL || roleId !== ALL || projectId !== ALL || skillIdx !== ALL || certName !== ALL
+  const hasFilter = query.trim() !== '' || storeId !== ALL || roleId !== ALL || projectId !== ALL || skillIdx !== ALL || certName !== ALL || perm !== ALL
 
   return (
     <div className="p-4 max-w-lg mx-auto">
@@ -116,6 +122,16 @@ export function EmployeeSearch({ employees, options }: { employees: SearchEmploy
           <SelectContent>
             <SelectItem value={ALL}>役職：すべて</SelectItem>
             {options.roles.map(r => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
+          </SelectContent>
+        </Select>
+
+        <Select value={perm} onValueChange={setPerm}>
+          <SelectTrigger size="sm" className={cn('w-full text-xs bg-white', perm !== ALL && 'border-orange-300 text-orange-700')}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>権限：すべて</SelectItem>
+            {options.permissions.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
           </SelectContent>
         </Select>
 

@@ -1,9 +1,9 @@
 'use client'
 
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
-import { CertRing } from '@/components/ui/cert-ring'
+import { CertRing, CertStarBadge } from '@/components/ui/cert-ring'
 import { useCertRanks } from '@/components/layout/cert-ring-context'
-import { hasCertDecoration, type CertRanks } from '@/lib/cert-ranks'
+import { type CertRanks } from '@/lib/cert-ranks'
 import { cn } from '@/lib/utils'
 
 /**
@@ -18,6 +18,7 @@ export function CertRingAvatar({
   name,
   size = 36,
   className,
+  avatarClassName,
   fallbackClassName,
   ranks: ranksProp,
 }: {
@@ -26,28 +27,32 @@ export function CertRingAvatar({
   name?: string | null
   size?: number
   className?: string
+  /** 内側のアバター（丸）に付けるクラス。枠線などはここに指定する（外枠が四角くならない） */
+  avatarClassName?: string
   fallbackClassName?: string
   ranks?: CertRanks
 }) {
   const fromCtx = useCertRanks(employeeId)
   const ranks = ranksProp ?? fromCtx
-  const decorated = hasCertDecoration(ranks)
 
-  // リングがあるときはアバターを少し内側に寄せ、リングとの間に余白を作る
-  const insetRatio = decorated ? (ranks!.star ? 0.19 : 0.14) : 0
-  const inset = size * insetRatio
+  // リング（調理／接客の2分割・初級）とスターは独立。スターは左上の小バッジ。
+  const hasRing = !!ranks && (ranks.cook !== null || ranks.service !== null || ranks.beginner)
+  const hasStar = !!ranks && ranks.star
+
+  // リングがあるときだけアバターを少し内側に寄せ、リングとの間に余白を作る
+  const inset = hasRing ? size * 0.14 : 0
   const avatarSize = size - inset * 2
   const initial = (name ?? '').charAt(0)
+  const key = employeeId || initial || 'x'
 
   return (
     <span
       className={cn('relative inline-flex shrink-0', className)}
       style={{ width: size, height: size }}
     >
-      {/* リング／星はアバターの背面に描く（星の points がアバターの外側に覗く） */}
-      {decorated && <CertRing ranks={ranks!} size={size} idKey={employeeId || initial || 'x'} />}
+      {hasRing && <CertRing ranks={ranks!} size={size} idKey={key} />}
       <Avatar
-        className="absolute overflow-hidden rounded-full"
+        className={cn('absolute overflow-hidden rounded-full', avatarClassName)}
         style={{ width: avatarSize, height: avatarSize, left: inset, top: inset }}
       >
         <AvatarImage src={src ?? undefined} />
@@ -58,6 +63,7 @@ export function CertRingAvatar({
           {initial}
         </AvatarFallback>
       </Avatar>
+      {hasStar && <CertStarBadge size={size} idKey={key} />}
     </span>
   )
 }

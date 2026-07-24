@@ -230,7 +230,7 @@ export function BottomNav({ role, avatarUrl, employeeId }: NavProps) {
           )}
         >
           {avatarUrl ? (
-            <CertRingAvatar employeeId={employeeId} src={avatarUrl} size={24} className="border border-gray-200" />
+            <CertRingAvatar employeeId={employeeId} src={avatarUrl} size={24} avatarClassName="border border-gray-200" />
           ) : (
             <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center">
               <User className="w-3.5 h-3.5 text-gray-500" />

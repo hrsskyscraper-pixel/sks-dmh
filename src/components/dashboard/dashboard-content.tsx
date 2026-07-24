@@ -328,7 +328,7 @@ export function DashboardContent({
         <CardContent className="pt-5 pb-5">
           <div className="flex items-center gap-3 mb-3">
             <label htmlFor="dashboard-avatar" className="relative cursor-pointer group flex-shrink-0" title="写真を変更">
-              <CertRingAvatar employeeId={employee.id} src={avatarUrl} name={firstName} size={56} className="ring-2 ring-white/50" fallbackClassName="bg-orange-300 text-white" />
+              <CertRingAvatar employeeId={employee.id} src={avatarUrl} name={firstName} size={56} avatarClassName="ring-2 ring-white/50" fallbackClassName="bg-orange-300 text-white" />
               <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                 {uploadingAvatar ? <Loader2 className="w-4 h-4 text-white animate-spin" /> : <Camera className="w-4 h-4 text-white" />}
               </div>
