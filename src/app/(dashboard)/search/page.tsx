@@ -13,7 +13,7 @@ import { TopBar } from '@/components/layout/nav'
 import { EmployeeSearch, type SearchEmployee, type SearchOptions } from '@/components/dashboard/employee-search'
 
 /**
- * 社員検索ページ。
+ * メンバー検索ページ。
  * 全ログインユーザーが利用可能。データはサーバーで一括取得し、
  * 絞り込みはすべてクライアント側で行う（約400名規模のため即時フィルタ）。
  */
@@ -177,7 +177,7 @@ export default async function SearchPage() {
 
   return (
     <>
-      <TopBar title="社員検索" />
+      <TopBar title="メンバー検索" />
       <EmployeeSearch employees={searchEmployees} options={options} />
     </>
   )

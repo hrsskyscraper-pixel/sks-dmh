@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { Search, X } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { CertRingAvatar } from '@/components/ui/cert-ring-avatar'
+import { MemberNameLink } from '@/components/layout/member-name-link'
 import {
   Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
@@ -180,7 +181,7 @@ export function EmployeeSearch({ employees, options }: { employees: SearchEmploy
       {/* 結果一覧 */}
       {results.length === 0 ? (
         <div className="rounded-lg border border-gray-200 bg-white px-4 py-10 text-center">
-          <p className="text-sm text-gray-500">条件に一致する社員が見つかりませんでした</p>
+          <p className="text-sm text-gray-500">条件に一致するメンバーが見つかりませんでした</p>
           <p className="text-xs text-gray-400 mt-1">検索条件を変えてみてください</p>
         </div>
       ) : (
@@ -189,7 +190,9 @@ export function EmployeeSearch({ employees, options }: { employees: SearchEmploy
             <div key={e.id} className="flex items-center gap-3 rounded-lg border border-gray-100 bg-white px-3 py-2.5">
               <CertRingAvatar employeeId={e.id} src={e.avatarUrl} name={e.name} size={36} className="flex-shrink-0" />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-800 truncate">{e.name}</p>
+                <p className="text-sm font-medium text-gray-800 truncate">
+                  <MemberNameLink employeeId={e.id} className="hover:text-orange-600">{e.name}</MemberNameLink>
+                </p>
                 {(e.storeNames.length > 0 || e.roleIds.length > 0 || e.certNames.length > 0) && (
                   <div className="flex items-center gap-1 flex-wrap mt-0.5">
                     {e.storeNames.map(s => (

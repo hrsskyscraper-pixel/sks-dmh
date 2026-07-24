@@ -259,7 +259,7 @@ export function TopBar({ title, right, hideNotificationBell = false }: { title: 
         </div>
         <Link
           href="/search"
-          aria-label="社員検索"
+          aria-label="メンバー検索"
           className="flex items-center justify-center w-9 h-9 rounded-full hover:bg-gray-100 transition-colors flex-shrink-0"
         >
           <Search className="w-[18px] h-[18px] text-gray-500" />
