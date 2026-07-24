@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { CertRingAvatar } from '@/components/ui/cert-ring-avatar'
 import { cn } from '@/lib/utils'
-import { AlertTriangle, ChevronRight, Camera, Loader2, ClipboardList, Users, Instagram, Target, CalendarDays, Pencil, BookOpen, Building2, Undo2 } from 'lucide-react'
+import { AlertTriangle, ChevronRight, Camera, Loader2, ClipboardList, Users, Instagram, Target, CalendarDays, Pencil, BookOpen, Building2, Undo2, Lightbulb } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { setSelectedProject } from '@/app/(dashboard)/actions'
@@ -587,6 +587,20 @@ export function DashboardContent({
       {rankingSlot}
       {skillRankingSlot}
       {checkpointSlot}
+
+      {/* 改善提案・ご要望 */}
+      <Link href="/improvements" className="block">
+        <div className="rounded-xl border border-gray-200 bg-white px-4 py-3 hover:bg-gray-50 transition-colors flex items-center gap-3">
+          <div className="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+            <Lightbulb className="w-4 h-4 text-amber-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-gray-800">改善提案・ご要望</p>
+            <p className="text-xs text-gray-500">アプリへのアイデアや困りごとを送れます</p>
+          </div>
+          <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0" />
+        </div>
+      </Link>
 
       {/* 申請ダイアログ */}
       <Dialog open={applyDialogSkill !== null} onOpenChange={open => { if (!open) { setApplyDialogSkill(null); setApplyComment(''); setApplyPhotos([]) } }}>

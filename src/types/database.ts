@@ -1139,6 +1139,105 @@ export type Database = {
         }
         Relationships: []
       }
+      improvement_requests: {
+        Row: {
+          id: string
+          requester_id: string
+          title: string
+          description: string
+          category: string | null
+          status: string
+          ops_reviewer_id: string | null
+          ops_proposal: string | null
+          ops_decided_at: string | null
+          exec_id: string | null
+          exec_decided_at: string | null
+          developer_id: string | null
+          dev_started_at: string | null
+          completed_at: string | null
+          completion_note: string | null
+          rejected_by: string | null
+          rejected_at: string | null
+          reject_reason: string | null
+          reject_stage: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          requester_id: string
+          title: string
+          description: string
+          category?: string | null
+          status?: string
+          ops_reviewer_id?: string | null
+          ops_proposal?: string | null
+          ops_decided_at?: string | null
+          exec_id?: string | null
+          exec_decided_at?: string | null
+          developer_id?: string | null
+          dev_started_at?: string | null
+          completed_at?: string | null
+          completion_note?: string | null
+          rejected_by?: string | null
+          rejected_at?: string | null
+          reject_reason?: string | null
+          reject_stage?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          requester_id?: string
+          title?: string
+          description?: string
+          category?: string | null
+          status?: string
+          ops_reviewer_id?: string | null
+          ops_proposal?: string | null
+          ops_decided_at?: string | null
+          exec_id?: string | null
+          exec_decided_at?: string | null
+          developer_id?: string | null
+          dev_started_at?: string | null
+          completed_at?: string | null
+          completion_note?: string | null
+          rejected_by?: string | null
+          rejected_at?: string | null
+          reject_reason?: string | null
+          reject_stage?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      improvement_request_events: {
+        Row: {
+          id: string
+          request_id: string
+          actor_id: string | null
+          type: string
+          comment: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          request_id: string
+          actor_id?: string | null
+          type: string
+          comment?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          request_id?: string
+          actor_id?: string | null
+          type?: string
+          comment?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
