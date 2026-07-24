@@ -1106,6 +1106,39 @@ export type Database = {
         }
         Relationships: []
       }
+      notification_log: {
+        Row: {
+          id: string
+          category: string
+          channel: string
+          recipient: string
+          subject: string | null
+          status: string
+          error: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          category: string
+          channel: string
+          recipient: string
+          subject?: string | null
+          status: string
+          error?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          category?: string
+          channel?: string
+          recipient?: string
+          subject?: string | null
+          status?: string
+          error?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

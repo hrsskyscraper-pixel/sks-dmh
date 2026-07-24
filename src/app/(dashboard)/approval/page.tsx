@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { TopBar } from '@/components/layout/nav'
@@ -13,7 +14,29 @@ export default async function ApprovalPage() {
   if (!employee) redirect('/login')
 
   const role = employee.role as Role
-  if (!canApprove(employee)) redirect('/')
+  // 承認権限が無い人がメール内リンクから来た場合、以前は無言で / にリダイレクトしていたため
+  // 「自分のホームに飛ぶ」行き止まりに見えていた。理由が分かる画面を出す。
+  if (!canApprove(employee)) {
+    return (
+      <>
+        <TopBar title="参加許諾" />
+        <div className="px-4 py-10 max-w-md mx-auto text-center space-y-4">
+          <p className="text-base font-bold text-gray-800">承認権限がありません</p>
+          <p className="text-sm text-gray-500 leading-relaxed">
+            参加の承認は、店舗の店長・リーダー、または運用管理者が行います。
+            <br />
+            承認が必要な場合は、お手数ですがご担当の店長・リーダーまたは運用管理者にご連絡ください。
+          </p>
+          <Link
+            href="/"
+            className="inline-flex items-center justify-center h-10 px-5 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium"
+          >
+            ホームに戻る
+          </Link>
+        </div>
+      </>
+    )
+  }
 
   const db = createAdminClient()
 

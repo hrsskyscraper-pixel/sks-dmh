@@ -4,7 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { TopBar } from '@/components/layout/nav'
 import { CertificationManager } from '@/components/admin/certification-manager'
 import Link from 'next/link'
-import { FolderKanban, Upload, Award, ChevronRight, BookOpen, Tag, Briefcase } from 'lucide-react'
+import { FolderKanban, Upload, Award, ChevronRight, BookOpen, Tag, Briefcase, Bell } from 'lucide-react'
 import { canAdminister } from '@/lib/permissions'
 
 export default async function SettingsPage() {
@@ -91,6 +91,20 @@ export default async function SettingsPage() {
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-gray-800">CSV取込</p>
               <p className="text-xs text-gray-500">勤務時間データの一括インポート</p>
+            </div>
+            <ChevronRight className="w-4 h-4 text-gray-300" />
+          </Link>
+
+          <Link
+            href="/admin/notifications"
+            className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white p-4 hover:bg-gray-50 transition-colors"
+          >
+            <div className="w-10 h-10 rounded-lg bg-rose-100 flex items-center justify-center flex-shrink-0">
+              <Bell className="w-5 h-5 text-rose-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-gray-800">通知ログ</p>
+              <p className="text-xs text-gray-500">メール・LINE通知の送信結果と失敗の確認</p>
             </div>
             <ChevronRight className="w-4 h-4 text-gray-300" />
           </Link>

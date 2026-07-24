@@ -1,6 +1,35 @@
 import { createAdminClient } from '@/lib/supabase/admin'
-import { sendMail } from './email'
-import { sendLineMessages, sendLineMessage } from './line'
+import { sendMail, type SendResult } from './email'
+import { sendLineMessages, sendLineMessage, type LineResult } from './line'
+import { logNotification } from './log'
+
+// メール送信結果を notification_log に記録する（宛先は要約文字列）。
+async function logMail(category: string, recipient: string, subject: string, res: SendResult) {
+  await logNotification({
+    category,
+    channel: 'email',
+    recipient: recipient || '(宛先なし)',
+    subject,
+    status: res.ok ? 'success' : 'failed',
+    error: res.ok ? undefined : res.skipped ? `skip: ${res.error}` : res.error,
+  })
+}
+
+// LINE送信結果を notification_log に記録する。
+async function logLine(category: string, subject: string, results: { lineUserId: string; result: LineResult }[]) {
+  await Promise.all(
+    results.map(r =>
+      logNotification({
+        category,
+        channel: 'line',
+        recipient: r.lineUserId,
+        subject,
+        status: r.result.ok ? 'success' : 'failed',
+        error: r.result.ok ? undefined : r.result.skipped ? `skip: ${r.result.error}` : r.result.error,
+      })
+    )
+  )
+}
 
 interface JoinRequestParams {
   applicant: { id: string; name: string; email: string; avatar_url: string | null }
@@ -22,8 +51,9 @@ interface ApprovalParams {
  */
 export async function sendJoinRequestNotification({ applicant, team, projectTeamName }: JoinRequestParams) {
   const db = createAdminClient()
+  const CATEGORY = 'join_request'
 
-  // 店舗の管理者（店長・マネージャー）を取得
+  // 依頼先店舗の管理者（店長・リーダー）
   const { data: managers } = await db
     .from('team_managers')
     .select('employee_id')
@@ -31,31 +61,34 @@ export async function sendJoinRequestNotification({ applicant, team, projectTeam
   const managerIds = (managers ?? []).map(m => m.employee_id)
 
   let managerEmails: string[] = []
-  let managerLineUserIds: string[] = []
+  let managerLineIds: string[] = []
   if (managerIds.length > 0) {
     const { data: managerEmployees } = await db
       .from('employees')
       .select('email, line_user_id')
       .in('id', managerIds)
-    managerEmails = (managerEmployees ?? []).map(e => e.email)
-    managerLineUserIds = (managerEmployees ?? []).filter(e => e.line_user_id).map(e => e.line_user_id!)
+      .eq('status', 'approved')
+    managerEmails = (managerEmployees ?? []).map(e => e.email).filter((e): e is string => !!e)
+    managerLineIds = (managerEmployees ?? []).map(e => e.line_user_id).filter((e): e is string => !!e)
   }
 
-  // システム管理者のメールを取得
+  // システム管理者（最終保険：店舗に管理者が未設定でも必ず承認者へ届くように、常に通知に含める）
   const { data: sysAdmins } = await db
     .from('employees')
-    .select('email')
+    .select('email, line_user_id')
     .in('system_permission', ['developer', 'ops_admin'])
     .eq('status', 'approved')
-  const sysAdminEmails = (sysAdmins ?? []).map(e => e.email)
+  const sysAdminEmails = (sysAdmins ?? []).map(e => e.email).filter((e): e is string => !!e)
+  const sysAdminLineIds = (sysAdmins ?? []).map(e => e.line_user_id).filter((e): e is string => !!e)
 
   const systemUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://sks-dmh.vercel.app'
   const approvalUrl = `${systemUrl}/approval`
 
   // 1. 本人宛メール（No-Reply）
-  await sendMail({
+  const applicantSubject = '【Mission Board】参加依頼を受け付けました'
+  const r1 = await sendMail({
     to: applicant.email,
-    subject: '【Mission Board】参加依頼を受け付けました',
+    subject: applicantSubject,
     body: [
       `${applicant.name} 様`,
       '',
@@ -72,36 +105,40 @@ export async function sendJoinRequestNotification({ applicant, team, projectTeam
       `申請店舗／部署: ${team.name}`,
       ...(projectTeamName ? [`申請チーム: ${projectTeamName}`] : []),
     ].join('\n'),
-  }).catch(err => console.error('本人宛メール送信失敗:', err))
+  })
+  await logMail(CATEGORY, applicant.email, applicantSubject, r1)
 
-  // 2. 管理者宛メール（直属上長宛、CC: システム管理者）
-  const toAddresses = managerEmails.length > 0 ? managerEmails : sysAdminEmails
-  const ccAddresses = managerEmails.length > 0 ? sysAdminEmails : undefined
-  if (toAddresses.length > 0) {
-    await sendMail({
-      to: toAddresses,
-      cc: ccAddresses,
-      subject: `【Mission Board】参加許諾依頼: ${applicant.name}（${team.name}）`,
-      body: [
-        `${applicant.name} さん（${applicant.email}）からシステムへの参加依頼がありました。`,
-        '',
-        `申請店舗／部署: ${team.name}`,
-        ...(projectTeamName ? [`申請チーム: ${projectTeamName}`] : []),
-        '',
-        '以下のリンクから参加許諾画面にアクセスし、',
-        '必要な設定を行った上で承認してください。',
-        '',
-        `参加許諾画面: ${approvalUrl}`,
-      ].join('\n'),
-    }).catch(err => console.error('管理者宛メール送信失敗:', err))
-  }
+  // 2. 承認者宛メール（店舗の管理者宛、CC: システム管理者。管理者未設定ならシステム管理者宛）
+  //    重複を除いた上で、宛先が空にならないよう常にシステム管理者を含める。
+  const primaryTo = managerEmails.length > 0 ? managerEmails : sysAdminEmails
+  const ccAddresses = managerEmails.length > 0 ? sysAdminEmails.filter(e => !primaryTo.includes(e)) : []
+  const approverSubject = `【Mission Board】参加許諾依頼: ${applicant.name}（${team.name}）`
+  const r2 = await sendMail({
+    to: primaryTo,
+    cc: ccAddresses.length > 0 ? ccAddresses : undefined,
+    subject: approverSubject,
+    body: [
+      `${applicant.name} さん（${applicant.email}）からシステムへの参加依頼がありました。`,
+      '',
+      `申請店舗／部署: ${team.name}`,
+      ...(projectTeamName ? [`申請チーム: ${projectTeamName}`] : []),
+      '',
+      '以下のリンクから参加許諾画面にアクセスし、',
+      '必要な設定を行った上で承認してください。',
+      '',
+      `参加許諾画面: ${approvalUrl}`,
+    ].join('\n'),
+  })
+  await logMail(CATEGORY, [...primaryTo, ...ccAddresses].join(', '), approverSubject, r2)
 
-  // 3. 管理者にLINE通知
-  if (managerLineUserIds.length > 0) {
-    await sendLineMessages(
-      managerLineUserIds,
+  // 3. 承認者へLINE通知（店舗の管理者へ。未設定ならシステム管理者へ。重複除去）
+  const lineTargets = [...new Set(managerLineIds.length > 0 ? managerLineIds : sysAdminLineIds)]
+  if (lineTargets.length > 0) {
+    const lineResults = await sendLineMessages(
+      lineTargets,
       `【参加依頼】\n${applicant.name} さんが「${team.name}」への参加を希望しています。\n\n確認: ${approvalUrl}`
-    ).catch(err => console.error('管理者LINE通知失敗:', err))
+    )
+    await logLine(CATEGORY, `参加許諾依頼: ${applicant.name}`, lineResults)
   }
 }
 
@@ -145,11 +182,13 @@ export async function sendInvitationNotification({
   }
   bodyLines.push('▼参加する', inviteUrl)
 
-  await sendMail({
+  const inviteSubject = `【Mission Board】${inviter.name}さんから参加依頼が届いています`
+  const rMail = await sendMail({
     to: target.email,
-    subject: `【Mission Board】${inviter.name}さんから参加依頼が届いています`,
+    subject: inviteSubject,
     body: bodyLines.join('\n'),
-  }).catch(err => console.error('招待メール送信失敗:', err))
+  })
+  await logMail('invitation', target.email, inviteSubject, rMail)
 
   if (target.line_user_id) {
     const lineLines = [
@@ -163,8 +202,8 @@ export async function sendInvitationNotification({
       lineLines.push('', customMessage.trim())
     }
     lineLines.push('', `▼参加する\n${inviteUrl}`)
-    await sendLineMessage(target.line_user_id, lineLines.join('\n'))
-      .catch(err => console.error('招待LINE通知失敗:', err))
+    const rLine = await sendLineMessage(target.line_user_id, lineLines.join('\n'))
+    await logLine('invitation', 'チーム参加依頼', [{ lineUserId: target.line_user_id, result: rLine }])
   }
 }
 
@@ -194,10 +233,11 @@ export async function sendApprovalNotification({ employee, teamName, approvedBy 
   const systemUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://sks-dmh.vercel.app'
 
   // 1. 本人宛メール（CC: 管理者）
-  await sendMail({
+  const approvalSubject = '【Mission Board】システム参加の準備が整いました'
+  const rMail = await sendMail({
     to: employee.email,
     cc: sysAdminEmails,
-    subject: '【Mission Board】システム参加の準備が整いました',
+    subject: approvalSubject,
     body: [
       `${employee.name} 様`,
       '',
@@ -210,7 +250,8 @@ export async function sendApprovalNotification({ employee, teamName, approvedBy 
       '',
       systemUrl,
     ].join('\n'),
-  }).catch(err => console.error('承認メール送信失敗:', err))
+  })
+  await logMail('approval', employee.email, approvalSubject, rMail)
 
   // 2. 本人にLINE通知
   const { data: emp } = await db
@@ -219,9 +260,10 @@ export async function sendApprovalNotification({ employee, teamName, approvedBy 
     .eq('id', employee.id)
     .single()
   if (emp?.line_user_id) {
-    await sendLineMessage(
+    const rLine = await sendLineMessage(
       emp.line_user_id,
       `【Mission Board】\nシステム参加の準備が整いました。\n\nログインしてご利用ください。\n${systemUrl}`
-    ).catch(err => console.error('承認LINE通知失敗:', err))
+    )
+    await logLine('approval', 'システム参加の準備が整いました', [{ lineUserId: emp.line_user_id, result: rLine }])
   }
 }
