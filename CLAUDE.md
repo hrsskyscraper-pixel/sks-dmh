@@ -21,10 +21,16 @@ npx tsc --noEmit     # 型チェック（重要な変更をコミットする前
 
 マイグレーション:
 ```bash
-supabase db push --linked              # 未適用マイグレーションをリンク済みの Supabase プロジェクトに適用
-supabase db push --linked --dry-run    # 事前確認
+SB_ACCOUNT=SKS sb db push --linked --dry-run    # 事前確認
+SB_ACCOUNT=SKS sb db push --linked              # 未適用マイグレーションを適用
 ```
-Supabase CLI は認証済み、プロジェクトはリンク済み。`supabase/migrations/` に新しいマイグレーションを作成したら、必ず push して成功を確認してからスキーマに依存したコードを書く。
+`supabase/migrations/` に新しいマイグレーションを作成したら、必ず push して成功を確認してからスキーマに依存したコードを書く。
+
+**必ず `SB_ACCOUNT=SKS sb`（switcher のラッパー）で実行する。** 素の `supabase` や既定アカウントの `sb` ではこのプロジェクトにアクセスできず、`necessary privileges` エラーになる。
+
+**dry-run の出力を必ず読む。** 「Remote database is up to date」または新規分だけが並ぶのが正常。**全72本以上が列挙されたら実行しない** — リモートの `supabase_migrations` 履歴が失われた状態で、push すると `20250101000003_test_data_reset.sql` を含む全件が先頭から再実行され本番データが壊れる（2026-08-24 に実際に発生し、`sb migration repair --status applied <全version>` で復旧済み）。`sb migration list --linked` の Remote 列が空なら同じ状態。
+
+ネットワークが IPv6 非対応だと `IPv6 is not supported` で接続できない。その場合は `SB_ACCOUNT=SKS sb link --project-ref wsxuhzpqyiuknfhncsni` で IPv4（pooler）接続に張り替える。
 
 バックアップ（GitHub Actions から手動実行可能）:
 - `Database Backup` — 毎日 JST 03:00 に暗号化ダンプを非公開リポジトリ `sks-dmh-backups` へ送信
