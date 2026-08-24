@@ -14,6 +14,15 @@ interface Props {
 }
 
 /**
+ * LINE通知が無料枠の上限に達して届いていない状態かどうか。
+ *
+ * このスイッチはメール専用なので本来 LINE には触れないが、いま LINE も止まっているため
+ * 「LINEは届きます」だけを読むと実態と食い違う。誤解を避けるための一時的な注意書き。
+ * LINE通知が復旧したら、この定数を false にする（注意書きが消える）。
+ */
+const LINE_QUOTA_EXCEEDED = true
+
+/**
  * メール通知の一括スイッチ。
  * 停止は影響が広いので、停止するときだけ確認ダイアログを挟む（再開は押し直しで戻せるため不要）。
  */
@@ -80,8 +89,17 @@ export function EmailNotificationToggle({ enabled: initialEnabled, updatedBy, up
         <p className="text-xs text-gray-500 leading-relaxed">
           Mission Board から送るメールをまとめて止めます。参加依頼・参加承認・チーム招待・スキル認定・改善提案など、
           <span className="font-semibold text-gray-700">すべてのメールが対象</span>です。
-          LINE通知とアプリ内のお知らせは、この設定に関係なく従来どおり届きます。
+          LINE通知とアプリ内のお知らせは、この設定の影響を受けません。
         </p>
+
+        {LINE_QUOTA_EXCEEDED && (
+          <p className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 leading-relaxed">
+            ※ ただし現在、<span className="font-semibold">LINE通知は無料枠の上限に達しているため届いていません</span>
+            （この設定とは別の要因です）。メールを休止すると、
+            <span className="font-semibold text-gray-700">自動のお知らせはアプリ内のみ</span>になります。
+            リーダーの方には、承認センターを定期的にご確認いただく運用をおすすめします。
+          </p>
+        )}
 
         {!enabled && (
           <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 leading-relaxed">
@@ -109,9 +127,20 @@ export function EmailNotificationToggle({ enabled: initialEnabled, updatedBy, up
               参加依頼・参加承認・チーム招待・スキル認定・改善提案のメールが届かなくなります。
               招待メールも止まるため、新しく招待する方には招待リンクを別の手段でお渡しください。
             </p>
-            <p className="text-xs text-gray-500">
-              LINE通知とアプリ内のお知らせは従来どおり届きます。この設定はいつでも再開できます。
-            </p>
+            {LINE_QUOTA_EXCEEDED ? (
+              <p className="text-xs text-gray-500">
+                アプリ内のお知らせは従来どおり届きます。
+                <span className="font-semibold text-gray-700">
+                  なお現在、LINE通知は無料枠の上限に達しているため届いていません
+                </span>
+                （この設定とは別の要因です）。休止すると、自動のお知らせはアプリ内のみになります。
+                この設定はいつでも再開できます。
+              </p>
+            ) : (
+              <p className="text-xs text-gray-500">
+                LINE通知とアプリ内のお知らせは従来どおり届きます。この設定はいつでも再開できます。
+              </p>
+            )}
           </div>
           <DialogFooter className="flex-col sm:flex-col gap-2">
             <Button
