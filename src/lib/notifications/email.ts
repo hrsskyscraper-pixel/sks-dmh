@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer'
+import { isEmailNotificationsEnabled } from '@/lib/settings'
 
 const transporter = nodemailer.createTransport({
   service: 'gmail',
@@ -30,11 +31,19 @@ function sleep(ms: number) {
 /**
  * メール送信。一時的な失敗に備えて最大3回リトライする（指数バックオフ）。
  * 例外は投げず、結果を { ok, error } で返す（呼び出し側でログ・可視化する）。
+ *
+ * 管理画面（設定 → メール通知）で一括停止されている場合は、ここで送信を止める。
+ * メール送信の入口はこの関数だけなので、ここ1箇所で全通知に確実に効く。
  */
 export async function sendMail({ to, cc, subject, body }: SendMailParams): Promise<SendResult> {
   const from = `Mission Board <${process.env.GMAIL_USER}>`
   const toStr = Array.isArray(to) ? to.join(', ') : to
   const ccStr = cc ? (Array.isArray(cc) ? cc.join(', ') : cc) : undefined
+
+  if (!(await isEmailNotificationsEnabled())) {
+    console.warn('[メール] 通知休止中のため送信スキップ:', { to: toStr, subject })
+    return { ok: false, skipped: true, error: 'メール通知は休止中' }
+  }
 
   if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
     console.warn('[メール] Gmail 未設定のため送信スキップ:', { to: toStr, subject })

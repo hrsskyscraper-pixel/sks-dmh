@@ -3,9 +3,11 @@ import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { TopBar } from '@/components/layout/nav'
 import { CertificationManager } from '@/components/admin/certification-manager'
+import { EmailNotificationToggle } from '@/components/admin/email-notification-toggle'
 import Link from 'next/link'
 import { FolderKanban, Upload, Award, ChevronRight, BookOpen, Tag, Briefcase, Bell } from 'lucide-react'
 import { canAdminister } from '@/lib/permissions'
+import { getEmailNotificationsSetting } from '@/lib/settings'
 
 export default async function SettingsPage() {
   const currentEmployee = await getCurrentEmployee()
@@ -14,15 +16,25 @@ export default async function SettingsPage() {
   }
 
   const db = createAdminClient()
-  const { data: certifications } = await db
-    .from('certifications')
-    .select('id, name, description, icon, color, order_index, is_active, created_at')
-    .order('order_index')
+  const [{ data: certifications }, emailSetting] = await Promise.all([
+    db
+      .from('certifications')
+      .select('id, name, description, icon, color, order_index, is_active, created_at')
+      .order('order_index'),
+    getEmailNotificationsSetting(),
+  ])
 
   return (
     <>
       <TopBar title="設定" />
       <div className="p-4 max-w-lg mx-auto space-y-4">
+        {/* メール通知の一括スイッチ */}
+        <EmailNotificationToggle
+          enabled={emailSetting.enabled}
+          updatedBy={emailSetting.updatedBy}
+          updatedAt={emailSetting.updatedAt}
+        />
+
         {/* 管理メニュー */}
         <div className="space-y-2">
           <Link

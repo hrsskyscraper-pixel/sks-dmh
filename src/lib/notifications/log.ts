@@ -1,7 +1,12 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 
 export type NotificationChannel = 'email' | 'line'
-export type NotificationStatus = 'success' | 'failed'
+/**
+ * success = 送信できた / failed = 送信しようとして失敗した /
+ * skipped = 意図的に送らなかった（メール通知の休止中・宛先なし・未設定など）。
+ * skipped を failed と分けることで、通知ログの「失敗 N 件」が本当の異常だけを指すようにする。
+ */
+export type NotificationStatus = 'success' | 'failed' | 'skipped'
 
 /**
  * 通知（メール・LINE）の送信結果を notification_log に記録する。

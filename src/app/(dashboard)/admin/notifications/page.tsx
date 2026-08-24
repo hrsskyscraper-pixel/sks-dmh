@@ -33,6 +33,7 @@ export default async function NotificationLogPage() {
 
   const rows = logs ?? []
   const failed = rows.filter(r => r.status === 'failed')
+  const skipped = rows.filter(r => r.status === 'skipped')
 
   return (
     <>
@@ -50,7 +51,11 @@ export default async function NotificationLogPage() {
             <span className={failed.length > 0 ? 'font-bold text-red-600' : 'font-bold text-emerald-600'}>
               {' '}失敗 {failed.length} 件
             </span>
+            {skipped.length > 0 && (
+              <span className="font-bold text-amber-600">／送信せず {skipped.length} 件</span>
+            )}
             。失敗が続く場合は、宛先の設定やメール／LINEの上限をご確認ください。
+            「送信せず」は、通知の休止設定や宛先未登録などで意図的に送らなかったものです。
           </p>
         </div>
 
@@ -62,10 +67,11 @@ export default async function NotificationLogPage() {
           <div className="space-y-1.5">
             {rows.map(r => {
               const isFail = r.status === 'failed'
+              const isSkipped = r.status === 'skipped'
               return (
                 <div
                   key={r.id}
-                  className={`rounded-lg border px-3 py-2.5 ${isFail ? 'border-red-200 bg-red-50' : 'border-gray-100 bg-white'}`}
+                  className={`rounded-lg border px-3 py-2.5 ${isFail ? 'border-red-200 bg-red-50' : isSkipped ? 'border-amber-200 bg-amber-50' : 'border-gray-100 bg-white'}`}
                 >
                   <div className="flex items-center gap-2">
                     {r.channel === 'line' ? (
@@ -77,15 +83,16 @@ export default async function NotificationLogPage() {
                       {CATEGORY_LABEL[r.category] ?? r.category}
                     </span>
                     <span
-                      className={`text-[10px] rounded-full px-2 py-0.5 ${isFail ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}
+                      className={`text-[10px] rounded-full px-2 py-0.5 ${isFail ? 'bg-red-100 text-red-700' : isSkipped ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}
                     >
-                      {isFail ? '失敗' : '成功'}
+                      {isFail ? '失敗' : isSkipped ? '送信せず' : '成功'}
                     </span>
                     <span className="text-[10px] text-gray-400 ml-auto flex-shrink-0">{fmt(r.created_at)}</span>
                   </div>
                   {r.subject && <p className="text-xs text-gray-600 truncate mt-1">{r.subject}</p>}
                   <p className="text-[10px] text-gray-400 truncate mt-0.5">宛先: {r.recipient}</p>
                   {isFail && r.error && <p className="text-[10px] text-red-500 break-all mt-0.5">{r.error}</p>}
+                  {isSkipped && r.error && <p className="text-[10px] text-amber-600 break-all mt-0.5">{r.error}</p>}
                 </div>
               )
             })}

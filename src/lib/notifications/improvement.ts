@@ -38,8 +38,8 @@ async function notify(recipients: Recipient[], subject: string, emailBody: strin
       channel: 'email',
       recipient: emails.join(', '),
       subject,
-      status: res.ok ? 'success' : 'failed',
-      error: res.ok ? undefined : res.skipped ? `skip: ${res.error}` : res.error,
+      status: res.ok ? 'success' : res.skipped ? 'skipped' : 'failed',
+      error: res.ok ? undefined : res.error,
     })
   }
   if (lineIds.length > 0) {
@@ -51,8 +51,8 @@ async function notify(recipients: Recipient[], subject: string, emailBody: strin
           channel: 'line',
           recipient: r.lineUserId,
           subject,
-          status: r.result.ok ? 'success' : 'failed',
-          error: r.result.ok ? undefined : r.result.skipped ? `skip: ${r.result.error}` : r.result.error,
+          status: r.result.ok ? 'success' : r.result.skipped ? 'skipped' : 'failed',
+          error: r.result.ok ? undefined : r.result.error,
         })
       )
     )
