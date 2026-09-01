@@ -17,6 +17,29 @@ const COLUMNS: { key: MetricKey; short: string; full: string }[] = [
   { key: 'pending', short: '未承認', full: '未承認件数' },
 ]
 
+/** 項目ごとの色。サマリー・表・数え方パネルで同じ色を使い、どの数字の説明かを目で追えるようにする */
+const METRIC_COLOR: Record<MetricKey, string> = {
+  target: 'text-gray-800',
+  applied: 'text-gray-800',
+  certified: 'text-emerald-600',
+  notApplied: 'text-rose-600',
+  pending: 'text-amber-600',
+}
+
+/**
+ * 数え方パネルの定義。`match` は表の見出し・行名と同じ表記で、その部分だけを色付きの太字にする
+ * （例: スキル**申請**人数 の「申請」が表の「申請」列）。
+ */
+const DEFINITIONS: { label: string; match: string; color: string; desc: string }[] = [
+  { label: '対象従業員数', match: '対象', color: METRIC_COLOR.target, desc: 'その所属にメンバーとして在籍する、承認済みの社員数（テストデータは除外）。リーダーも含みます。' },
+  { label: 'スキル申請人数', match: '申請', color: METRIC_COLOR.applied, desc: '対象従業員のうち、スキル申請を1件以上出したことがある人数。' },
+  { label: '承認済み人数', match: '承認', color: METRIC_COLOR.certified, desc: '対象従業員のうち、認定済みの申請を1件以上持つ人数。' },
+  { label: '未申請人数', match: '未申請', color: METRIC_COLOR.notApplied, desc: '対象従業員数 − スキル申請人数。一度も申請していない人数。' },
+  { label: '未承認件数', match: '未承認', color: METRIC_COLOR.pending, desc: '承認待ちのまま残っている申請の「件数」（人数ではありません）。' },
+  { label: '重複分', match: '重複分', color: 'text-gray-500', desc: '店舗と部署の掛け持ちなど、複数の所属に登録されている人の二重計上分。各行の合計から差し引くマイナスの数値です。' },
+  { label: '合計', match: '合計', color: 'text-gray-800', desc: '各行の合計 ＋ 重複分。同じ人を1人として数えた実人数（未承認件数は実件数）です。' },
+]
+
 const NUM = 'text-right tabular-nums'
 
 export function StoreStatsView({ stats }: { stats: StoreStats }) {
@@ -123,10 +146,7 @@ export function StoreStatsView({ stats }: { stats: StoreStats }) {
           {COLUMNS.map(c => (
             <div key={c.key} className="rounded-lg bg-gray-50 py-2 text-center">
               <p className="text-[10px] text-gray-500 leading-none">{c.short}</p>
-              <p className={cn(
-                'text-lg font-bold leading-tight mt-1 tabular-nums',
-                c.key === 'notApplied' ? 'text-rose-600' : c.key === 'pending' ? 'text-amber-600' : 'text-gray-800',
-              )}>
+              <p className={cn('text-lg font-bold leading-tight mt-1 tabular-nums', METRIC_COLOR[c.key])}>
                 {stats.total[c.key]}
               </p>
               <p className="text-[9px] text-gray-400 leading-none">{c.key === 'pending' ? '件' : '人'}</p>
@@ -149,22 +169,26 @@ export function StoreStatsView({ stats }: { stats: StoreStats }) {
           {showDef ? <ChevronUp className="w-4 h-4 text-gray-300" /> : <ChevronDown className="w-4 h-4 text-gray-300" />}
         </button>
         {showDef && (
-          <dl className="px-3 pb-3 space-y-1.5 text-[11px] leading-relaxed border-t border-gray-100 pt-2">
-            {[
-              ['対象従業員数', 'その所属にメンバーとして在籍する、承認済みの社員数（テストデータは除外）。リーダーも含みます。'],
-              ['スキル申請人数', '対象従業員のうち、スキル申請を1件以上出したことがある人数。'],
-              ['承認済み人数', '対象従業員のうち、認定済みの申請を1件以上持つ人数。'],
-              ['未申請人数', '対象従業員数 − スキル申請人数。一度も申請していない人数。'],
-              ['未承認件数', '承認待ちのまま残っている申請の「件数」（人数ではありません）。'],
-              ['重複分', '店舗と部署の掛け持ちなど、複数の所属に登録されている人の二重計上分。各行の合計から差し引くマイナスの数値です。'],
-              ['合計', '各行の合計 ＋ 重複分。同じ人を1人として数えた実人数（未承認件数は実件数）です。'],
-            ].map(([term, desc]) => (
-              <div key={term}>
-                <dt className="font-semibold text-gray-700 inline">{term}：</dt>
-                <dd className="text-gray-500 inline"> {desc}</dd>
-              </div>
-            ))}
-          </dl>
+          <div className="px-3 pb-3 border-t border-gray-100 pt-2">
+            <p className="text-[10px] text-gray-400 mb-1.5">
+              色の付いた太字が、表の見出し・行名と同じ表記です。
+            </p>
+            <dl className="space-y-1.5 text-[11px] leading-relaxed">
+              {DEFINITIONS.map(d => {
+                const at = d.label.indexOf(d.match)
+                return (
+                  <div key={d.label}>
+                    <dt className="inline text-gray-500">
+                      {d.label.slice(0, at)}
+                      <span className={cn('font-bold', d.color)}>{d.match}</span>
+                      {d.label.slice(at + d.match.length)}：
+                    </dt>
+                    <dd className="text-gray-500 inline"> {d.desc}</dd>
+                  </div>
+                )
+              })}
+            </dl>
+          </div>
         )}
       </div>
 
