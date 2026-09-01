@@ -42,6 +42,23 @@ const DEFINITIONS: { label: string; match: string; color: string; desc: string }
 
 const NUM = 'text-right tabular-nums'
 
+/** 展開したメンバー一覧の絞り込み条件（表の各列に対応） */
+const MEMBER_FILTER: Record<MetricKey, (m: StoreStatMember) => boolean> = {
+  target: () => true,
+  applied: m => m.applied > 0,
+  certified: m => m.certified > 0,
+  notApplied: m => m.applied === 0,
+  pending: m => m.pending > 0,
+}
+
+const FILTER_CAPTION: Record<MetricKey, string> = {
+  target: 'この所属のメンバー全員',
+  applied: '申請を出したことがある人',
+  certified: '認定を受けたことがある人',
+  notApplied: '一度も申請していない人',
+  pending: '承認待ちの申請がある人',
+}
+
 export function StoreStatsView({ stats }: { stats: StoreStats }) {
   const [sortKey, setSortKey] = useState<SortKey>('notApplied')
   const [asc, setAsc] = useState(false)
@@ -324,6 +341,10 @@ function SortButton({ label, unit, active, asc, onClick, align = 'left', color }
 }
 
 function StatRow({ row, expanded, onToggle }: { row: StoreStatRow; expanded: boolean; onToggle: () => void }) {
+  // 展開したときに表示するメンバーの絞り込み（既定は全員）
+  const [filter, setFilter] = useState<MetricKey>('target')
+  const filteredMembers = useMemo(() => row.members.filter(MEMBER_FILTER[filter]), [row.members, filter])
+
   return (
     <>
       <tr onClick={onToggle} className={cn('cursor-pointer hover:bg-orange-50/40', expanded && 'bg-orange-50/60')}>
@@ -354,25 +375,52 @@ function StatRow({ row, expanded, onToggle }: { row: StoreStatRow; expanded: boo
             {row.members.length === 0 ? (
               <p className="text-[11px] text-gray-400 py-2 text-center">対象の従業員がいません</p>
             ) : (
-              <ul className="divide-y divide-gray-200/70">
-                {row.members.map(m => (
-                  <li key={m.id} className="flex items-center gap-2 py-1.5">
-                    <span className="flex-1 min-w-0 truncate text-[11px] text-gray-700">
-                      <MemberNameLink employeeId={m.id}>{m.name}</MemberNameLink>
-                    </span>
-                    {m.applied === 0 ? (
-                      <span className="flex-shrink-0 rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-medium text-rose-700">未申請</span>
-                    ) : (
-                      <span className="flex-shrink-0 text-[10px] tabular-nums text-gray-500">
-                        申請{m.applied}
-                        <span className="text-emerald-600"> / 認定{m.certified}</span>
-                        {m.pending > 0 && <span className="text-amber-600"> / 未承認{m.pending}</span>}
-                        {m.rejected > 0 && <span className="text-gray-400"> / 差戻{m.rejected}</span>}
-                      </span>
-                    )}
-                  </li>
-                ))}
-              </ul>
+              <>
+                {/* 内訳の数字。タップするとその内訳の人だけに絞り込める */}
+                <div className="flex flex-wrap gap-1 mb-2">
+                  {COLUMNS.map(c => (
+                    <button
+                      key={c.key}
+                      onClick={e => { e.stopPropagation(); setFilter(c.key) }}
+                      className={cn(
+                        'rounded-lg border px-2 py-1 text-[10px] leading-tight transition-colors',
+                        METRIC_COLOR[c.key],
+                        filter === c.key ? 'border-current bg-white font-bold' : 'border-gray-200 bg-white/60 opacity-70 hover:opacity-100',
+                      )}
+                    >
+                      {c.short}
+                      <span className="ml-1 text-xs font-bold tabular-nums">{row[c.key]}</span>
+                      {c.key === 'pending' ? '件' : '人'}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[10px] text-gray-500 mb-1">
+                  {FILTER_CAPTION[filter]}（{filteredMembers.length}人）
+                </p>
+                {filteredMembers.length === 0 ? (
+                  <p className="text-[11px] text-gray-400 py-2 text-center">該当する人はいません</p>
+                ) : (
+                  <ul className="divide-y divide-gray-200/70">
+                    {filteredMembers.map(m => (
+                      <li key={m.id} className="flex items-center gap-2 py-1.5">
+                        <span className="flex-1 min-w-0 truncate text-[11px] text-gray-700">
+                          <MemberNameLink employeeId={m.id}>{m.name}</MemberNameLink>
+                        </span>
+                        {m.applied === 0 ? (
+                          <span className={cn('flex-shrink-0 rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-medium', 'text-rose-700')}>未申請</span>
+                        ) : (
+                          <span className="flex-shrink-0 text-[10px] tabular-nums text-gray-500">
+                            申請{m.applied}
+                            <span className={METRIC_COLOR.certified}> / 認定{m.certified}</span>
+                            {m.pending > 0 && <span className={METRIC_COLOR.pending}> / 未承認{m.pending}</span>}
+                            {m.rejected > 0 && <span className="text-gray-400"> / 差戻{m.rejected}</span>}
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
             )}
           </td>
         </tr>
