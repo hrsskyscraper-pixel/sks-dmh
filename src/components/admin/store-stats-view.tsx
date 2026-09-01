@@ -145,7 +145,7 @@ export function StoreStatsView({ stats }: { stats: StoreStats }) {
         <div className="grid grid-cols-5 gap-1">
           {COLUMNS.map(c => (
             <div key={c.key} className="rounded-lg bg-gray-50 py-2 text-center">
-              <p className="text-[10px] text-gray-500 leading-none">{c.short}</p>
+              <p className={cn('text-[10px] leading-none font-medium', METRIC_COLOR[c.key])}>{c.short}</p>
               <p className={cn('text-lg font-bold leading-tight mt-1 tabular-nums', METRIC_COLOR[c.key])}>
                 {stats.total[c.key]}
               </p>
@@ -238,12 +238,12 @@ export function StoreStatsView({ stats }: { stats: StoreStats }) {
         <table className="w-full text-xs">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-2 py-2 text-left font-medium text-gray-500">
-                <SortButton label="所属" active={sortKey === 'name'} asc={asc} onClick={() => toggleSort('name')} />
+              <th className={cn('px-2 py-2 text-left font-medium', sortKey === 'name' && 'bg-orange-50')}>
+                <SortButton label="所属" active={sortKey === 'name'} asc={asc} onClick={() => toggleSort('name')} color="text-gray-500" />
               </th>
               {COLUMNS.map(c => (
-                <th key={c.key} className="px-1 py-2 font-medium text-gray-500" title={c.full}>
-                  <SortButton label={c.short} active={sortKey === c.key} asc={asc} onClick={() => toggleSort(c.key)} align="right" />
+                <th key={c.key} className={cn('px-1 py-2 font-medium', sortKey === c.key && 'bg-orange-50')} title={c.full}>
+                  <SortButton label={c.short} active={sortKey === c.key} asc={asc} onClick={() => toggleSort(c.key)} align="right" color={METRIC_COLOR[c.key]} />
                 </th>
               ))}
             </tr>
@@ -271,11 +271,11 @@ export function StoreStatsView({ stats }: { stats: StoreStats }) {
               </tr>
               <tr className="bg-gray-50 font-semibold text-gray-700 border-t border-gray-200">
                 <td className="px-2 py-2">合計（{rows.length}件・実人数）</td>
-                <td className={cn(NUM, 'px-1 py-2')}>{shownUnique.target}</td>
-                <td className={cn(NUM, 'px-1 py-2')}>{shownUnique.applied}</td>
-                <td className={cn(NUM, 'px-1 py-2')}>{shownUnique.certified}</td>
-                <td className={cn(NUM, 'px-1 py-2 text-rose-600')}>{shownUnique.notApplied}</td>
-                <td className={cn(NUM, 'px-1 py-2 text-amber-600')}>{shownUnique.pending}</td>
+                <td className={cn(NUM, 'px-1 py-2', METRIC_COLOR.target)}>{shownUnique.target}</td>
+                <td className={cn(NUM, 'px-1 py-2', METRIC_COLOR.applied)}>{shownUnique.applied}</td>
+                <td className={cn(NUM, 'px-1 py-2', METRIC_COLOR.certified)}>{shownUnique.certified}</td>
+                <td className={cn(NUM, 'px-1 py-2', METRIC_COLOR.notApplied)}>{shownUnique.notApplied}</td>
+                <td className={cn(NUM, 'px-1 py-2', METRIC_COLOR.pending)}>{shownUnique.pending}</td>
               </tr>
             </tfoot>
           )}
@@ -289,11 +289,17 @@ export function StoreStatsView({ stats }: { stats: StoreStats }) {
   )
 }
 
-function SortButton({ label, active, asc, onClick, align = 'left' }: { label: string; active: boolean; asc: boolean; onClick: () => void; align?: 'left' | 'right' }) {
+function SortButton({ label, active, asc, onClick, align = 'left', color }: { label: string; active: boolean; asc: boolean; onClick: () => void; align?: 'left' | 'right'; color: string }) {
   return (
     <button
       onClick={onClick}
-      className={cn('flex items-center gap-0.5 w-full', align === 'right' ? 'justify-end' : 'justify-start', active ? 'text-orange-600 font-semibold' : 'hover:text-gray-700')}
+      className={cn(
+        'flex items-center gap-0.5 w-full',
+        align === 'right' ? 'justify-end' : 'justify-start',
+        // 見出しの色は項目ごとに固定（数字と同じ色）。並べ替え中は太字＋背景で示す
+        color,
+        active ? 'font-bold' : 'opacity-80 hover:opacity-100',
+      )}
     >
       {label}
       {active && (asc ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />)}
@@ -319,11 +325,11 @@ function StatRow({ row, expanded, onToggle }: { row: StoreStatRow; expanded: boo
             )}
           </div>
         </td>
-        <td className={cn(NUM, 'px-1 py-2 text-gray-700')}>{row.target}</td>
-        <td className={cn(NUM, 'px-1 py-2 text-gray-700')}>{row.applied}</td>
-        <td className={cn(NUM, 'px-1 py-2 text-emerald-600 font-medium')}>{row.certified}</td>
-        <td className={cn(NUM, 'px-1 py-2 font-medium', row.notApplied > 0 ? 'text-rose-600' : 'text-gray-300')}>{row.notApplied}</td>
-        <td className={cn(NUM, 'px-1 py-2 font-medium', row.pending > 0 ? 'text-amber-600' : 'text-gray-300')}>{row.pending}</td>
+        <td className={cn(NUM, 'px-1 py-2', METRIC_COLOR.target)}>{row.target}</td>
+        <td className={cn(NUM, 'px-1 py-2', METRIC_COLOR.applied)}>{row.applied}</td>
+        <td className={cn(NUM, 'px-1 py-2 font-medium', METRIC_COLOR.certified)}>{row.certified}</td>
+        <td className={cn(NUM, 'px-1 py-2 font-medium', row.notApplied > 0 ? METRIC_COLOR.notApplied : 'text-gray-300')}>{row.notApplied}</td>
+        <td className={cn(NUM, 'px-1 py-2 font-medium', row.pending > 0 ? METRIC_COLOR.pending : 'text-gray-300')}>{row.pending}</td>
       </tr>
       {expanded && (
         <tr>
