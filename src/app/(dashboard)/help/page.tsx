@@ -9,7 +9,7 @@ import {
   LayoutDashboard, CheckSquare, BadgeCheck, Building2, Users2, Settings,
   Award, MessageCircle, UserPlus, Pencil, Bell, LogIn, Mail,
   ChevronRight, HelpCircle, ShieldCheck, Sparkles, Target, TrendingUp, FileText,
-  Cog, Tag, BookOpen, Database, Upload, FolderKanban, Search, X, ClipboardList, Type, FlaskConical, Lightbulb,
+  Cog, Tag, BookOpen, Database, Upload, FolderKanban, Search, X, ClipboardList, Type, FlaskConical, Lightbulb, BarChart3,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Input } from '@/components/ui/input'
@@ -401,6 +401,9 @@ Mission Board は、権限者（店長・リーダー・運用管理者など）
     icon: Settings,
     content: `管理者向けの設定画面です。（運用管理者・役員・開発者のみ）
 
+**店舗別スキル状況**
+- 全店の「対象従業員数・スキル申請人数・承認済み人数・未申請人数・未承認件数」を一覧で確認（→ 次の節に詳細）
+
 **ブランド・店舗・部署管理**
 - ブランドマスタ（ブランドの CRUD）
 - 店舗マスタ（新規店舗作成・ブランド設定）
@@ -423,6 +426,33 @@ Mission Board は、権限者（店長・リーダー・運用管理者など）
 **社内資格マスタ**
 - 社内資格の追加・編集・削除
 - アイコン（資格 / 星）と色（8色）の選択`,
+  },
+  {
+    id: 'store-stats',
+    title: '店舗別スキル状況',
+    icon: BarChart3,
+    content: `全店の取り組み状況を数値で把握する画面です。（運用管理者・開発者のみ）
+**設定 → 店舗別スキル状況** から開きます。
+
+**表示される数値（所属ごと）**
+| 項目 | 数え方 |
+|---|---|
+| 対象従業員数 | その所属にメンバーとして在籍する、承認済みの社員数（テストデータは除外）。リーダーも含みます |
+| スキル申請人数 | 対象従業員のうち、スキル申請を1件以上出したことがある人数 |
+| 承認済み人数 | 対象従業員のうち、認定済みの申請を1件以上持つ人数 |
+| 未申請人数 | 対象従業員数 − スキル申請人数（一度も申請していない人数） |
+| 未承認件数 | 承認待ちのまま残っている申請の**件数**（人数ではありません） |
+
+**使い方**
+- 画面上部に**全社合計**、その下に**所属ごとの一覧**が並びます
+- 見出し（対象・申請・承認・未申請・未承認）を**タップで並べ替え**。初期表示は未申請人数の多い順
+- **ブランド（CoCo壱／ラーメン大戦争 等）で絞り込み**、店舗名で検索
+- **行をタップ**すると、その所属のメンバー別内訳（申請・認定・未承認・差戻の件数、未申請バッジ）が開きます。名前から Myキャリアへ移動できます
+- **CSV** ボタンで、表示中の一覧をダウンロード（Excel対応のUTF-8 BOM付き）
+
+**読み取るときの注意**
+- 店舗と部署を掛け持ちしている人は**各行に計上**されるため、行の単純合計と全社合計は一致しません（全社合計は人物単位で重複排除）
+- 店舗にも部署にも所属していない人は「**所属なし**」行にまとまります。運用管理者以外がここに出ていたら、所属の設定漏れです`,
   },
   {
     id: 'roles',

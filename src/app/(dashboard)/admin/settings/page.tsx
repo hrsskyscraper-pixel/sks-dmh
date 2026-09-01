@@ -5,7 +5,7 @@ import { TopBar } from '@/components/layout/nav'
 import { CertificationManager } from '@/components/admin/certification-manager'
 import { EmailNotificationToggle } from '@/components/admin/email-notification-toggle'
 import Link from 'next/link'
-import { FolderKanban, Upload, Award, ChevronRight, BookOpen, Tag, Briefcase, Bell } from 'lucide-react'
+import { FolderKanban, Upload, Award, ChevronRight, BookOpen, Tag, Briefcase, Bell, BarChart3 } from 'lucide-react'
 import { canAdminister } from '@/lib/permissions'
 import { getEmailNotificationsSetting } from '@/lib/settings'
 
@@ -37,6 +37,20 @@ export default async function SettingsPage() {
 
         {/* 管理メニュー */}
         <div className="space-y-2">
+          <Link
+            href="/admin/store-stats"
+            className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white p-4 hover:bg-gray-50 transition-colors"
+          >
+            <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center flex-shrink-0">
+              <BarChart3 className="w-5 h-5 text-indigo-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-gray-800">店舗別スキル状況</p>
+              <p className="text-xs text-gray-500">全店の対象人数・申請／承認／未申請・未承認件数を一覧で把握</p>
+            </div>
+            <ChevronRight className="w-4 h-4 text-gray-300" />
+          </Link>
+
           <Link
             href="/admin/projects"
             className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white p-4 hover:bg-gray-50 transition-colors"
