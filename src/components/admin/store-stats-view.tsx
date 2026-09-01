@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 import { ChevronDown, ChevronUp, Download, Search, HelpCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { MemberNameLink } from '@/components/layout/member-name-link'
-import type { StoreStats, StoreStatRow } from '@/lib/store-stats'
+import type { StoreStats, StoreStatRow, StoreStatMember } from '@/lib/store-stats'
 
 type MetricKey = 'target' | 'applied' | 'certified' | 'notApplied' | 'pending'
 type SortKey = 'name' | MetricKey
@@ -44,7 +44,8 @@ export function StoreStatsView({ stats }: { stats: StoreStats }) {
     )
   }, [stats.rows, sortKey, asc, brand, query])
 
-  const shown = useMemo(
+  /** 表示中の行の単純合計（複数所属の人は各行に計上されている） */
+  const shownRaw = useMemo(
     () => rows.reduce(
       (s, r) => ({
         target: s.target + r.target,
@@ -56,6 +57,33 @@ export function StoreStatsView({ stats }: { stats: StoreStats }) {
       { target: 0, applied: 0, certified: 0, notApplied: 0, pending: 0 },
     ),
     [rows],
+  )
+
+  /** 表示中の行を人物単位で重複排除した合計（＝実人数の合計） */
+  const shownUnique = useMemo(() => {
+    const byId = new Map<string, StoreStatMember>()
+    for (const r of rows) for (const m of r.members) byId.set(m.id, m)
+    const members = [...byId.values()]
+    const applied = members.filter(m => m.applied > 0).length
+    return {
+      target: members.length,
+      applied,
+      certified: members.filter(m => m.certified > 0).length,
+      notApplied: members.length - applied,
+      pending: members.reduce((s, m) => s + m.pending, 0),
+    }
+  }, [rows])
+
+  /** 二重計上の戻し分（各行の合計 ＋ 重複分 ＝ 合計 になるようマイナスで持つ） */
+  const duplicated = useMemo(
+    () => ({
+      target: shownUnique.target - shownRaw.target,
+      applied: shownUnique.applied - shownRaw.applied,
+      certified: shownUnique.certified - shownRaw.certified,
+      notApplied: shownUnique.notApplied - shownRaw.notApplied,
+      pending: shownUnique.pending - shownRaw.pending,
+    }),
+    [shownRaw, shownUnique],
   )
 
   const toggleSort = (key: SortKey) => {
@@ -71,8 +99,12 @@ export function StoreStatsView({ stats }: { stats: StoreStats }) {
       r.brandName ?? '',
       r.target, r.applied, r.certified, r.notApplied, r.pending,
     ])
+    const footer = [
+      ['重複分（掛け持ちの二重計上）', '', '', duplicated.target, duplicated.applied, duplicated.certified, duplicated.notApplied, duplicated.pending],
+      ['合計（実人数）', '', '', shownUnique.target, shownUnique.applied, shownUnique.certified, shownUnique.notApplied, shownUnique.pending],
+    ]
     const esc = (v: string | number) => (typeof v === 'number' ? String(v) : `"${v.replace(/"/g, '""')}"`)
-    const csv = [header, ...body].map(cols => cols.map(esc).join(',')).join('\r\n')
+    const csv = [header, ...body, ...footer].map(cols => cols.map(esc).join(',')).join('\r\n')
     // Excel で開いても文字化けしないよう BOM 付き UTF-8
     const url = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' }))
     const a = document.createElement('a')
@@ -102,7 +134,7 @@ export function StoreStatsView({ stats }: { stats: StoreStats }) {
           ))}
         </div>
         <p className="text-[10px] text-gray-400 mt-2 leading-relaxed">
-          複数の所属を持つ人は各行に計上されるため、行の合計と全社合計は一致しません。
+          複数の所属を持つ人は各行に計上されるため、一覧の下に差し引く「重複分」の行を置き、合計が実人数と一致するようにしています。
         </p>
       </div>
 
@@ -124,6 +156,8 @@ export function StoreStatsView({ stats }: { stats: StoreStats }) {
               ['承認済み人数', '対象従業員のうち、認定済みの申請を1件以上持つ人数。'],
               ['未申請人数', '対象従業員数 − スキル申請人数。一度も申請していない人数。'],
               ['未承認件数', '承認待ちのまま残っている申請の「件数」（人数ではありません）。'],
+              ['重複分', '店舗と部署の掛け持ちなど、複数の所属に登録されている人の二重計上分。各行の合計から差し引くマイナスの数値です。'],
+              ['合計', '各行の合計 ＋ 重複分。同じ人を1人として数えた実人数（未承認件数は実件数）です。'],
             ].map(([term, desc]) => (
               <div key={term}>
                 <dt className="font-semibold text-gray-700 inline">{term}：</dt>
@@ -199,14 +233,25 @@ export function StoreStatsView({ stats }: { stats: StoreStats }) {
             )}
           </tbody>
           {rows.length > 0 && (
-            <tfoot className="bg-gray-50 border-t border-gray-200">
-              <tr className="font-semibold text-gray-700">
-                <td className="px-2 py-2">表示中 {rows.length}件の合計</td>
-                <td className={cn(NUM, 'px-1 py-2')}>{shown.target}</td>
-                <td className={cn(NUM, 'px-1 py-2')}>{shown.applied}</td>
-                <td className={cn(NUM, 'px-1 py-2')}>{shown.certified}</td>
-                <td className={cn(NUM, 'px-1 py-2 text-rose-600')}>{shown.notApplied}</td>
-                <td className={cn(NUM, 'px-1 py-2 text-amber-600')}>{shown.pending}</td>
+            <tfoot className="border-t border-gray-200">
+              <tr className="bg-white text-gray-600">
+                <td className="px-2 py-2">
+                  <span className="font-medium">重複分</span>
+                  <span className="text-[10px] text-gray-400 ml-1">掛け持ちの二重計上</span>
+                </td>
+                {COLUMNS.map(c => (
+                  <td key={c.key} className={cn(NUM, 'px-1 py-2', duplicated[c.key] === 0 ? 'text-gray-300' : 'text-gray-500')}>
+                    {duplicated[c.key] === 0 ? 0 : duplicated[c.key]}
+                  </td>
+                ))}
+              </tr>
+              <tr className="bg-gray-50 font-semibold text-gray-700 border-t border-gray-200">
+                <td className="px-2 py-2">合計（{rows.length}件・実人数）</td>
+                <td className={cn(NUM, 'px-1 py-2')}>{shownUnique.target}</td>
+                <td className={cn(NUM, 'px-1 py-2')}>{shownUnique.applied}</td>
+                <td className={cn(NUM, 'px-1 py-2')}>{shownUnique.certified}</td>
+                <td className={cn(NUM, 'px-1 py-2 text-rose-600')}>{shownUnique.notApplied}</td>
+                <td className={cn(NUM, 'px-1 py-2 text-amber-600')}>{shownUnique.pending}</td>
               </tr>
             </tfoot>
           )}
