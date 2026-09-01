@@ -9,12 +9,12 @@ import type { StoreStats, StoreStatRow, StoreStatMember } from '@/lib/store-stat
 type MetricKey = 'target' | 'applied' | 'certified' | 'notApplied' | 'pending'
 type SortKey = 'name' | MetricKey
 
-const COLUMNS: { key: MetricKey; short: string; full: string }[] = [
-  { key: 'target', short: '対象', full: '対象従業員数' },
-  { key: 'applied', short: '申請', full: 'スキル申請人数' },
-  { key: 'certified', short: '承認', full: '承認済み人数' },
-  { key: 'notApplied', short: '未申請', full: '未申請人数' },
-  { key: 'pending', short: '未承認', full: '未承認件数' },
+const COLUMNS: { key: MetricKey; short: string; unit: string; full: string }[] = [
+  { key: 'target', short: '対象', unit: '人数', full: '対象従業員数' },
+  { key: 'applied', short: '申請', unit: '人数', full: 'スキル申請人数' },
+  { key: 'certified', short: '承認', unit: '人数', full: '承認済み人数' },
+  { key: 'notApplied', short: '未申請', unit: '人数', full: '未申請人数' },
+  { key: 'pending', short: '未承認', unit: '件数', full: '未承認件数' },
 ]
 
 /** 項目ごとの色。サマリー・表・数え方パネルで同じ色を使い、どの数字の説明かを目で追えるようにする */
@@ -242,8 +242,16 @@ export function StoreStatsView({ stats }: { stats: StoreStats }) {
                 <SortButton label="所属" active={sortKey === 'name'} asc={asc} onClick={() => toggleSort('name')} color="text-gray-500" />
               </th>
               {COLUMNS.map(c => (
-                <th key={c.key} className={cn('px-1 py-2 font-medium', sortKey === c.key && 'bg-orange-50')} title={c.full}>
-                  <SortButton label={c.short} active={sortKey === c.key} asc={asc} onClick={() => toggleSort(c.key)} align="right" color={METRIC_COLOR[c.key]} />
+                <th key={c.key} className={cn('px-1 py-1.5 font-medium', sortKey === c.key && 'bg-orange-50')} title={c.full}>
+                  <SortButton
+                    label={c.short}
+                    unit={c.unit}
+                    active={sortKey === c.key}
+                    asc={asc}
+                    onClick={() => toggleSort(c.key)}
+                    align="center"
+                    color={METRIC_COLOR[c.key]}
+                  />
                 </th>
               ))}
             </tr>
@@ -289,20 +297,28 @@ export function StoreStatsView({ stats }: { stats: StoreStats }) {
   )
 }
 
-function SortButton({ label, active, asc, onClick, align = 'left', color }: { label: string; active: boolean; asc: boolean; onClick: () => void; align?: 'left' | 'right'; color: string }) {
+/**
+ * 並べ替えできる見出し。数値列は「対象 / 人数」のように2行・中央揃えで表示する。
+ * 並べ替えの矢印は数値列では文字の下に置く（横に並べると列幅を食い、店舗名の幅が削られるため）。
+ * 非表示のときも invisible で場所を確保し、押しても行の高さが動かないようにしている。
+ */
+function SortButton({ label, unit, active, asc, onClick, align = 'left', color }: { label: string; unit?: string; active: boolean; asc: boolean; onClick: () => void; align?: 'left' | 'center'; color: string }) {
+  const centered = align === 'center'
+  const Chevron = asc ? ChevronUp : ChevronDown
   return (
     <button
       onClick={onClick}
       className={cn(
-        'flex items-center gap-0.5 w-full',
-        align === 'right' ? 'justify-end' : 'justify-start',
+        'w-full flex items-center',
+        centered ? 'flex-col justify-center text-center leading-tight' : 'justify-start gap-0.5',
         // 見出しの色は項目ごとに固定（数字と同じ色）。並べ替え中は太字＋背景で示す
         color,
         active ? 'font-bold' : 'opacity-80 hover:opacity-100',
       )}
     >
-      {label}
-      {active && (asc ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />)}
+      <span>{label}</span>
+      {unit && <span>{unit}</span>}
+      <Chevron className={cn('w-3 h-3 flex-shrink-0', !active && 'invisible')} aria-hidden />
     </button>
   )
 }
