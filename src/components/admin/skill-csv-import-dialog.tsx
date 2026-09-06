@@ -141,7 +141,18 @@ export function SkillCsvImportDialog({ open, onOpenChange, projectId, projectNam
   }
 
   return (
-    <Dialog open={open} onOpenChange={v => { onOpenChange(v); if (!v) reset() }}>
+    <Dialog
+      open={open}
+      onOpenChange={v => {
+        onOpenChange(v)
+        if (!v) {
+          // 取込実行後に ×・背景タップで閉じた場合も、「閉じる」ボタンと同じく画面を同期する
+          const imported = result !== null
+          reset()
+          if (imported) onComplete()
+        }
+      }}
+    >
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="text-base flex items-center gap-2">

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -43,7 +43,11 @@ interface Props {
   teams: Pick<Team, 'id' | 'name' | 'type' | 'prefecture'>[]
   currentEmployeeId: string
   employeeNameMap: Record<string, string>
+  /** URL の ?project_id= から復元した初期選択（無ければ先頭） */
+  initialSelectedProjectId?: string | null
 }
+
+const PROJECT_QUERY_KEY = 'project_id'
 
 const CATEGORY_ROW_COLORS: Record<number, { checked: string; unchecked: string }> = {
   0: { checked: 'bg-blue-50 border-blue-200', unchecked: 'bg-blue-50/30 border-blue-100' },
@@ -67,6 +71,7 @@ export function ProjectManager({
   teams,
   currentEmployeeId,
   employeeNameMap,
+  initialSelectedProjectId = null,
 }: Props) {
   const supabase = createClient()
   const [isPending, startTransition] = useTransition()
@@ -94,8 +99,24 @@ export function ProjectManager({
   const [projectTeamsState, setProjectTeamsState] = useState(initialProjectTeams)
 
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
-    initialProjects[0]?.id ?? null
+    initialSelectedProjectId ?? initialProjects[0]?.id ?? null
   )
+
+  // 選択中の習得カリキュラムを URL（?project_id=）に同期する。
+  // 再読み込み・ブラウザの戻る・リンク共有でも同じカリキュラムが選ばれた状態になる。
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const url = new URL(window.location.href)
+    const current = url.searchParams.get(PROJECT_QUERY_KEY)
+    if (selectedProjectId) {
+      if (current === selectedProjectId) return
+      url.searchParams.set(PROJECT_QUERY_KEY, selectedProjectId)
+    } else {
+      if (current === null) return
+      url.searchParams.delete(PROJECT_QUERY_KEY)
+    }
+    window.history.replaceState(window.history.state, '', url.toString())
+  }, [selectedProjectId])
 
   // 習得カリキュラム作成・編集ダイアログ
   const [projectDialog, setProjectDialog] = useState<{ open: boolean; editing: SkillProject | null }>({ open: false, editing: null })
@@ -1312,7 +1333,12 @@ export function ProjectManager({
           phaseNames={selectedPhases.map(p => p.name)}
           currentSkills={currentSkillRows}
           onComplete={() => {
-            // ページ再読み込みしてデータ同期
+            // ページ再読み込みしてデータ同期。
+            // 取込先の習得カリキュラムを ?project_id= に載せてから再読み込みし、
+            // 再表示後も同じカリキュラムが選ばれたままになるようにする
+            const url = new URL(window.location.href)
+            url.searchParams.set(PROJECT_QUERY_KEY, selectedProject.id)
+            window.history.replaceState(window.history.state, '', url.toString())
             window.location.reload()
           }}
         />

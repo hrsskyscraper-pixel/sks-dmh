@@ -5,7 +5,7 @@ import { TopBar } from '@/components/layout/nav'
 import { ProjectManager } from '@/components/admin/project-manager'
 import { canAdminister } from '@/lib/permissions'
 
-export default async function ProjectsPage() {
+export default async function ProjectsPage({ searchParams }: { searchParams?: Promise<{ project_id?: string }> }) {
   const currentEmployee = await getCurrentEmployee()
   if (!currentEmployee) redirect('/login')
 
@@ -31,10 +31,19 @@ export default async function ProjectsPage() {
     db.from('employees').select('id, name'),
   ])
 
+  // URL の ?project_id= で選択中の習得カリキュラムを復元する
+  // （CSV取込完了後の再読み込みなどで、操作対象が先頭に戻らないようにする）
+  const requestedProjectId = (await searchParams)?.project_id
+  const initialSelectedProjectId =
+    requestedProjectId && (projects ?? []).some(p => p.id === requestedProjectId)
+      ? requestedProjectId
+      : null
+
   return (
     <>
       <TopBar title="習得カリキュラム管理" />
       <ProjectManager
+        initialSelectedProjectId={initialSelectedProjectId}
         projects={projects ?? []}
         phases={phases ?? []}
         projectSkills={projectSkills ?? []}
