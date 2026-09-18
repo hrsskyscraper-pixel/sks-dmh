@@ -3,10 +3,20 @@ name: Backup Restore Test
 # バックアップから一時的なPostgreSQLに復元し、データが正常に戻せるかをテスト
 # 本番DBには一切影響しない
 #
+# 自動実行: 毎週月曜 04:00 JST（日次バックアップの1時間後）
 # 手動実行: Actions タブ → "Backup Restore Test" → Run workflow
 # （デフォルトでは最新のバックアップを使用）
+#
+# 2026-09-18: スケジュール実行を追加。それまでは手動専用で、
+# 「仕組みはあるが動いていることを誰も確かめていない」状態だった。
+# バックアップは静かに壊れるので、人の記憶ではなくスケジュールに載せる。
+#
+# 注意: GitHub はリポジトリに60日間コミットが無いと scheduled workflow を自動停止する。
+#       長期間コミットが無いときは Actions タブから再有効化すること。
 
 on:
+  schedule:
+    - cron: '0 19 * * 0'   # 毎週 日曜 19:00 UTC = 月曜 04:00 JST
   workflow_dispatch:
     inputs:
       backup_file:
@@ -54,6 +64,26 @@ jobs:
           echo "file=$FILE" >> $GITHUB_OUTPUT
           echo "✅ 対象バックアップ: $FILE"
           ls -lh "$FILE"
+
+          # バックアップ自体が古くなっていないかを見る。
+          # 復元に成功しても、それが2週間前のダンプなら「守れている」ことにはならない。
+          # ファイル名に日付が入っている（db-YYYYMMDD-HHMMSS.dump.enc）ので、そこから判定する。
+          # git checkout 後の mtime は当てにならないため、mtime は使わない。
+          if [ "${{ inputs.backup_file }}" = "latest" ] || [ -z "${{ inputs.backup_file }}" ]; then
+            BASE=$(basename "$FILE")
+            DATE=$(echo "$BASE" | sed -E 's/^db-([0-9]{8})-.*/\1/')
+            if [ "$DATE" != "$BASE" ]; then
+              AGE_DAYS=$(( ( $(date -u +%s) - $(date -u -d "$DATE" +%s) ) / 86400 ))
+              echo "バックアップの日付: $DATE（$AGE_DAYS 日前）"
+              # 日次取得なので、2日以上古ければ取得側が止まっている
+              if [ "$AGE_DAYS" -gt 2 ]; then
+                echo "::error::最新のバックアップが $AGE_DAYS 日前です。日次バックアップ（backup-db.yml）が止まっている可能性があります"
+                exit 1
+              fi
+            else
+              echo "::warning::ファイル名から日付を読み取れませんでした: $BASE"
+            fi
+          fi
 
       - name: Decrypt backup
         env:
@@ -110,6 +140,36 @@ jobs:
             psql -h localhost -U postgres -d restore_test -t -c "
               SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename;
             "
+
+          # ここまでは「復元コマンドが通ったか」しか見ていない。
+          # 空のダンプを復元しても通ってしまうので、中身があることまで確かめる。
+          # 静かに成功するテストは、無いのと変わらない。
+          TABLES=$(docker run --rm --network host \
+            -e PGPASSWORD=testpass \
+            postgres:17-alpine \
+            psql -h localhost -U postgres -d restore_test -t -A -c \
+              "SELECT COUNT(*) FROM pg_tables WHERE schemaname='public';")
+
+          ROWS=$(docker run --rm --network host \
+            -e PGPASSWORD=testpass \
+            postgres:17-alpine \
+            psql -h localhost -U postgres -d restore_test -t -A -c \
+              "SELECT (SELECT COUNT(*) FROM employees)
+                    + (SELECT COUNT(*) FROM teams)
+                    + (SELECT COUNT(*) FROM skills);")
+
+          echo ""
+          echo "テーブル数: ${TABLES:-0} / 主要テーブルの合計行数: ${ROWS:-0}"
+
+          if [ "${TABLES:-0}" -lt 5 ]; then
+            echo "::error::復元後のテーブルが ${TABLES} 個しかありません。ダンプが不完全な可能性があります"
+            exit 1
+          fi
+
+          if [ "${ROWS:-0}" -eq 0 ]; then
+            echo "::error::復元はできましたが、主要テーブル（employees / teams / skills）が全て空です。ダンプの中身が壊れている可能性があります"
+            exit 1
+          fi
 
           echo ""
           echo "✅ 復元テスト成功"
