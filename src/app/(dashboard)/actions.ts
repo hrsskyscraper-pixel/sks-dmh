@@ -1,5 +1,7 @@
 'use server'
 
+import { countStalledForApprover } from '@/lib/stalled-approvals'
+
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
@@ -80,7 +82,16 @@ export async function getNavCounts(): Promise<NavCounts> {
     const certResultKeys = new Set<string>()
     for (const h of unreadCertResults ?? []) certResultKeys.add(h.achievement_id)
     const utr = unreadTeamReqCount ?? 0
-    return { notifCount: notifKeys.size + certResultKeys.size + utr, unreadTeamReqCount: utr }
+    // 承認者: 滞留している承認があれば、ベルに1件として数える（既読で消えない＝解消するまで残る）
+    let stalledFlag = 0
+    if (canApprove(effectiveEmp)) {
+      try {
+        const testIds = await getTestEmployeeIds()
+        const st = await countStalledForApprover(db, targetId, canAdminister(effectiveEmp), new Date(), testIds)
+        stalledFlag = st.count > 0 ? 1 : 0
+      } catch { stalledFlag = 0 }
+    }
+    return { notifCount: notifKeys.size + certResultKeys.size + utr + stalledFlag, unreadTeamReqCount: utr }
   }
 
   // --- ブロック2: 差し戻しスキル件数 ---

@@ -51,6 +51,7 @@ export function AnnouncementCard({ item, reactions: initReactions, comments: ini
   const isRanking = item.kind === 'ranking'
   const isWelcome = item.kind === 'welcome'
   const isDaily = item.kind === 'daily'
+  const isPraise = item.kind === 'praise'
 
   const toggleLike = () => {
     startTransition(async () => {
@@ -82,11 +83,12 @@ export function AnnouncementCard({ item, reactions: initReactions, comments: ini
   }
 
   return (
-    <div className={cn('rounded-lg px-3 py-2.5 border', isDaily ? 'bg-orange-50 border-orange-200' : isRanking ? 'bg-amber-50 border-amber-200' : isWelcome ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50/60 border-rose-100')}>
+    <div className={cn('rounded-lg px-3 py-2.5 border', isDaily ? 'bg-orange-50 border-orange-200' : isRanking ? 'bg-amber-50 border-amber-200' : isWelcome ? 'bg-emerald-50 border-emerald-200' : isPraise ? 'bg-sky-50 border-sky-200' : 'bg-rose-50/60 border-rose-100')}>
       <div className="flex items-start gap-2">
         {isDaily ? <Sunrise className="w-4 h-4 text-orange-500 flex-shrink-0 mt-0.5" />
           : isRanking ? <Trophy className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
           : isWelcome ? <PartyPopper className="w-4 h-4 text-emerald-500 flex-shrink-0 mt-0.5" />
+          : isPraise ? <MessageCircle className="w-4 h-4 text-sky-500 flex-shrink-0 mt-0.5" />
           : <Award className="w-4 h-4 text-rose-500 flex-shrink-0 mt-0.5" />}
         <div className="flex-1 min-w-0">
           {isDaily ? (
@@ -104,6 +106,19 @@ export function AnnouncementCard({ item, reactions: initReactions, comments: ini
                 </Link>
               )}
             </>
+          ) : isPraise ? (
+            <div className="flex items-start gap-2">
+              <CertRingAvatar employeeId={item.subjectId} src={item.subjectAvatar} name={item.subjectName ?? '?'} size={28} className="flex-shrink-0 mt-0.5" fallbackClassName="bg-sky-100 text-sky-700" />
+              <div className="min-w-0">
+                <p className="text-xs text-gray-600">
+                  <span className="font-semibold text-gray-800">{item.createdByName ?? 'リーダー'}</span> さんから
+                  {item.subjectStore && <span className="text-gray-500"> {item.subjectStore}の</span>}{' '}
+                  <MemberNameLink employeeId={item.subjectId} className="font-semibold text-gray-800">{item.subjectName}</MemberNameLink> さんへ
+                  {item.title && <span className="text-gray-400">（{item.title}）</span>}
+                </p>
+                {item.body && <p className="text-sm text-sky-900 font-medium whitespace-pre-line mt-0.5">「{item.body}」</p>}
+              </div>
+            </div>
           ) : isWelcome ? (
             <div className="flex items-center gap-2">
               <CertRingAvatar employeeId={item.subjectId} src={item.subjectAvatar} name={item.subjectName ?? '?'} size={28} className="flex-shrink-0" fallbackClassName="bg-emerald-100 text-emerald-700" />

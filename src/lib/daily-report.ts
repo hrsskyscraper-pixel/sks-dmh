@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
+import type { StalledApprovals } from '@/lib/stalled-approvals'
 
 const pad = (n: number) => String(n).padStart(2, '0')
 
@@ -39,6 +40,7 @@ export async function ensureDailyReportAnnouncement(
   db: SupabaseClient,
   excludedIds: Set<string>,
   now: Date,
+  stalled?: StalledApprovals,
 ): Promise<{ posted: boolean; period: string }> {
   // 前日(JST)のウィンドウ
   const jstNow = new Date(now.getTime() + 9 * 3600 * 1000)
@@ -184,6 +186,20 @@ export async function ensureDailyReportAnnouncement(
     lines.push('今日も、あなたの「できた！」をお待ちしています ☆')
     lines.push('素敵な１日になりますように (^^)')
     body = lines.join('\n')
+  }
+
+  // ⏳ 承認をお待ちの申請（申請の翌日中に承認されていないもの）。承認者名で出し、承認の滞留を解消してもらう
+  if (stalled && stalled.total > 0) {
+    const sl: string[] = ['', `⏳ 承認をお待ちの申請が ${stalled.total}件 あります（申請の翌日中に承認されていないもの）`]
+    for (const a of stalled.byApprover.slice(0, 10)) {
+      sl.push(`・${a.name}さん: ${a.count}件（最長 ${a.maxDays}日）`)
+    }
+    if (stalled.byApprover.length > 10) sl.push(`・…ほか${stalled.byApprover.length - 10}名`)
+    for (const u of stalled.unassigned.slice(0, 5)) {
+      sl.push(`・${u.teamName}: ${u.count}件（承認者が未設定です。運用管理者の方、お願いします）`)
+    }
+    sl.push('　承認センターからの認定を、どうぞよろしくお願いします！')
+    body = body + '\n' + sl.join('\n')
   }
 
   const expires = new Date(now.getTime() + 2 * 24 * 3600 * 1000) // 本日のお知らせには約2日間表示

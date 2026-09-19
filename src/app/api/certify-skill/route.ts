@@ -23,7 +23,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: '権限がありません' }, { status: 403 })
   }
 
-  const { achievementId, action, comment } = await request.json()
+  const { achievementId, action, comment, praise } = await request.json()
+  const praiseText: string | null = action === 'certified' && typeof praise === 'string' && praise.trim() ? praise.trim() : null
   if (!achievementId || !action || !['certified', 'rejected'].includes(action)) {
     return NextResponse.json({ error: '不正なリクエスト' }, { status: 400 })
   }
@@ -51,6 +52,7 @@ export async function POST(request: Request) {
     certified_by: certifier.id,
     certified_at: new Date().toISOString(),
     certify_comment: comment?.trim() || null,
+    praise_comment: praiseText,
     is_read: false,
   }).eq('id', achievementId)
 
@@ -63,6 +65,19 @@ export async function POST(request: Request) {
     actor_id: certifier.id,
     comment: comment?.trim() || null,
   })
+
+  // 本人への一言（公開）: お知らせ（kind='praise'）として本日のお知らせ／タイムラインに出す
+  if (praiseText) {
+    const sk = achievement.skills as { name: string } | null
+    await db.from('announcements').insert({
+      kind: 'praise',
+      subject_employee_id: achievement.employee_id,
+      title: sk?.name ?? null,
+      body: praiseText,
+      created_by: certifier.id,
+      expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    }).then(({ error }) => { if (error) console.error('一言のお知らせ投稿に失敗:', error.message) })
+  }
 
   // 級の行が認定されたら、社内資格の自動登録と級合格のお知らせ（失敗しても認定は成立しているので握りつぶす）
   if (action === 'certified') {
@@ -97,6 +112,7 @@ export async function POST(request: Request) {
         '',
         `${isCertified ? '認定者' : '差し戻し者'}: ${certifier.name}`,
         ...(comment?.trim() ? [`コメント: ${comment.trim()}`] : []),
+        ...(praiseText ? [`一言: ${praiseText}`] : []),
         '',
         `詳細はこちらから確認できます。`,
         skillsUrl,
@@ -107,7 +123,7 @@ export async function POST(request: Request) {
     if (emp.line_user_id) {
       await sendLineMessage(
         emp.line_user_id,
-        `【スキル認定 ${isCertified ? '承認' : '差し戻し'}】\nスキル「${skill.name}」が${statusText}。\n${isCertified ? '認定者' : '差し戻し者'}: ${certifier.name}\n${comment?.trim() ? `コメント: ${comment.trim()}\n` : ''}\n確認: ${skillsUrl}\nMission Board`
+        `【スキル認定 ${isCertified ? '承認' : '差し戻し'}】\nスキル「${skill.name}」が${statusText}。\n${isCertified ? '認定者' : '差し戻し者'}: ${certifier.name}\n${comment?.trim() ? `コメント: ${comment.trim()}\n` : ''}${praiseText ? `一言: ${praiseText}\n` : ''}\n確認: ${skillsUrl}\nMission Board`
       ).catch(err => console.error('スキル結果LINE通知失敗:', err))
     }
   })

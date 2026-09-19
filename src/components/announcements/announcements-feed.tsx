@@ -34,6 +34,7 @@ interface Props {
 function summaryTitle(item: AnnouncementItem): string {
   if (item.kind === 'welcome') return `🎉 ${item.subjectName ?? '新しい仲間'}さんが仲間入り`
   if (item.kind === 'grade') return `🏅 ${item.subjectName ?? '仲間'}さんが ${item.gradeLabel ?? ''} 合格`
+  if (item.kind === 'praise') return `💬 ${item.createdByName ?? 'リーダー'}さんから ${item.subjectName ?? '仲間'}さんへ一言`
   return item.title ?? 'お知らせ'
 }
 

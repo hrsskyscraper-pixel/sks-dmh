@@ -7,6 +7,8 @@ import { TopBar } from '@/components/layout/nav'
 import { NotificationList } from '@/components/notifications/notification-list'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
 import { getTestEmployeeIds } from '@/lib/test-data'
+import { canApprove, canAdminister } from '@/lib/permissions'
+import { countStalledForApprover } from '@/lib/stalled-approvals'
 
 export default async function NotificationsPage() {
   const currentEmployee = await getCurrentEmployee()
@@ -84,6 +86,11 @@ export default async function NotificationsPage() {
 
   // テスト社員からのリアクション・コメントは除外
   const testEmpIds = await getTestEmployeeIds()
+
+  // 承認者向け: 滞留している承認（申請の翌日中に承認されていないもの）の件数
+  const stalledApprovals = canApprove(targetEmployee)
+    ? await countStalledForApprover(createAdminClient(), targetId, canAdminister(targetEmployee), new Date(), testEmpIds).catch(() => ({ count: 0, maxDays: 0 }))
+    : { count: 0, maxDays: 0 }
   const visibleReactions = (reactions ?? []).filter(r => !testEmpIds.has(r.employee_id))
   const visibleComments = (comments ?? []).filter(c => !testEmpIds.has(c.employee_id))
 
@@ -115,6 +122,7 @@ export default async function NotificationsPage() {
         myAchievementResults={myAchievementResults ?? []}
         myTeamRequestResults={myTeamRequestResults ?? []}
         notificationsReadAt={targetEmployee.notifications_read_at}
+        stalledApprovals={stalledApprovals}
       />
     </>
   )

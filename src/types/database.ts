@@ -759,6 +759,7 @@ export type Database = {
           notes: string | null
           apply_comment: string | null
           certify_comment: string | null
+          praise_comment: string | null
           is_read: boolean
           photo_paths: string[]
           created_at: string
@@ -775,6 +776,7 @@ export type Database = {
           notes?: string | null
           apply_comment?: string | null
           certify_comment?: string | null
+          praise_comment?: string | null
           is_read?: boolean
           photo_paths?: string[]
           created_at?: string
@@ -791,6 +793,7 @@ export type Database = {
           notes?: string | null
           apply_comment?: string | null
           certify_comment?: string | null
+          praise_comment?: string | null
           is_read?: boolean
           photo_paths?: string[]
           created_at?: string
@@ -937,7 +940,7 @@ export type Database = {
       announcements: {
         Row: {
           id: string
-          kind: 'grade' | 'ranking' | 'welcome'
+          kind: 'grade' | 'ranking' | 'welcome' | 'daily' | 'praise'
           subject_employee_id: string | null
           grade_label: string | null
           title: string | null
@@ -949,7 +952,7 @@ export type Database = {
         }
         Insert: {
           id?: string
-          kind: 'grade' | 'ranking'
+          kind: 'grade' | 'ranking' | 'welcome' | 'daily' | 'praise'
           subject_employee_id?: string | null
           grade_label?: string | null
           title?: string | null
@@ -961,7 +964,7 @@ export type Database = {
         }
         Update: {
           id?: string
-          kind?: 'grade' | 'ranking' | 'welcome'
+          kind?: 'grade' | 'ranking' | 'welcome' | 'daily' | 'praise'
           subject_employee_id?: string | null
           grade_label?: string | null
           title?: string | null

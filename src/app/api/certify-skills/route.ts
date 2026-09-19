@@ -23,7 +23,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: '権限がありません' }, { status: 403 })
   }
 
-  const { achievementIds, action, comment } = await request.json()
+  const { achievementIds, action, comment, praise } = await request.json()
+  const praiseText: string | null = action === 'certified' && typeof praise === 'string' && praise.trim() ? praise.trim() : null
   if (
     !Array.isArray(achievementIds) ||
     achievementIds.length === 0 ||
@@ -60,6 +61,7 @@ export async function POST(request: Request) {
     certified_by: certifier.id,
     certified_at: new Date().toISOString(),
     certify_comment: trimmedComment,
+    praise_comment: praiseText,
     is_read: false,
   }).in('id', ids)
 
@@ -75,6 +77,27 @@ export async function POST(request: Request) {
       comment: trimmedComment,
     }))
   )
+
+  // 本人への一言（公開）: 申請者ごとに1件のお知らせ（スキル名は列挙）
+  if (praiseText) {
+    const byEmp: Record<string, string[]> = {}
+    for (const a of achievements) {
+      const sk = a.skills as { name: string } | null
+      ;(byEmp[a.employee_id] ??= []).push(sk?.name ?? '')
+    }
+    const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+    const { error: prErr } = await db.from('announcements').insert(
+      Object.entries(byEmp).map(([employee_id, names]) => ({
+        kind: 'praise' as const,
+        subject_employee_id: employee_id,
+        title: names.filter(Boolean).join('、'),
+        body: praiseText,
+        created_by: certifier.id,
+        expires_at: expires,
+      })),
+    )
+    if (prErr) console.error('一言のお知らせ投稿に失敗:', prErr.message)
+  }
 
   // 級の行が認定されたら、社内資格の自動登録と級合格のお知らせ（1件ずつ。失敗しても認定は成立）
   if (action === 'certified') {

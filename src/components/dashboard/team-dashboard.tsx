@@ -68,6 +68,7 @@ export function TeamDashboard({ currentEmployee, employees, skills, achievements
   const [isPending, startTransition] = useTransition()
   const [selectedAchievement, setSelectedAchievement] = useState<AchievementWithRelations | null>(null)
   const [certifyComment, setCertifyComment] = useState('')
+  const [certifyPraise, setCertifyPraise] = useState('')
   // 写真確認ゲート: 写真付き申請は、全枚数を拡大表示するまで認定できない
   const [photoViewedIds, setPhotoViewedIds] = useState<Set<string>>(new Set())
   const markPhotosViewed = (id: string) => setPhotoViewedIds(prev => prev.has(id) ? prev : new Set(prev).add(id))
@@ -78,6 +79,7 @@ export function TeamDashboard({ currentEmployee, employees, skills, achievements
   const [selectedAchIds, setSelectedAchIds] = useState<Set<string>>(new Set())
   const [bulkAction, setBulkAction] = useState<'certified' | 'rejected'>('certified')
   const [bulkComment, setBulkComment] = useState('')
+  const [bulkPraise, setBulkPraise] = useState('')
   const [bulkDialogOpen, setBulkDialogOpen] = useState(false)
   const [bulkSubmitting, setBulkSubmitting] = useState(false)
   const supabase = createClient()
@@ -88,7 +90,7 @@ export function TeamDashboard({ currentEmployee, employees, skills, achievements
     .sort((a, b) => new Date(b.certified_at ?? b.created_at).getTime() - new Date(a.certified_at ?? a.created_at).getTime())
   const hasPriority = priorityMemberIds && priorityMemberIds.size > 0
 
-  const handleCertify = (achievement: AchievementWithRelations, comment: string) => {
+  const handleCertify = (achievement: AchievementWithRelations, comment: string, praise = '') => {
     const c = comment.trim() || null
     const now = new Date().toISOString()
     // 楽観的更新（即時反映）: ダイアログを閉じ、リスト上のステータスを更新
@@ -96,29 +98,21 @@ export function TeamDashboard({ currentEmployee, employees, skills, achievements
       ? { ...a, status: 'certified', certify_comment: c, certified_by: currentEmployee.id, certified_at: now, is_read: false }
       : a))
     setSelectedAchievement(null)
-    setCertifyComment('')
+    setCertifyComment(''); setCertifyPraise('')
     toast.success(`「${achievement.skills?.name}」を認定しました！`)
-    // サーバー反映はバックグラウンドで（UIはブロックしない）
+    // サーバー反映はバックグラウンドで（UIはブロックしない）。
+    // 認定 API を通すことで、履歴・本人への通知・級の自動登録・一言のお知らせが承認センターと同じように動く
     startTransition(async () => {
-      const { data, error } = await supabase
-        .from('achievements')
-        .update({
-          status: 'certified',
-          certified_by: currentEmployee.id,
-          certified_at: now,
-          certify_comment: c,
-          is_read: false,
-        })
-        .eq('id', achievement.id)
-        .select('*, skills(*), employees!achievements_employee_id_fkey(*)')
-        .single()
-      if (error) {
-        toast.error('認定に失敗しました（元に戻しました）')
+      const res = await fetch('/api/certify-skill', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ achievementId: achievement.id, action: 'certified', comment: c, praise: praise.trim() || null }),
+      })
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}))
+        toast.error('認定に失敗しました（元に戻しました）', { description: j?.error })
         setAchievements(prev => prev.map(a => a.id === achievement.id ? achievement : a))
         return
-      }
-      if (data) {
-        setAchievements(prev => prev.map(a => a.id === achievement.id ? { ...a, ...(data as AchievementWithRelations) } : a))
       }
     })
   }
@@ -135,36 +129,27 @@ export function TeamDashboard({ currentEmployee, employees, skills, achievements
       ? { ...a, status: 'rejected', certify_comment: c, certified_by: currentEmployee.id, certified_at: now, is_read: false }
       : a))
     setSelectedAchievement(null)
-    setCertifyComment('')
+    setCertifyComment(''); setCertifyPraise('')
     toast.success(`「${achievement.skills?.name}」を差し戻しました`)
-    // サーバー反映はバックグラウンドで
+    // サーバー反映はバックグラウンドで（認定 API 経由: 履歴と本人への通知を確実にする）
     startTransition(async () => {
-      const { data, error } = await supabase
-        .from('achievements')
-        .update({
-          status: 'rejected',
-          certified_by: currentEmployee.id,
-          certified_at: now,
-          certify_comment: c,
-          is_read: false,
-        })
-        .eq('id', achievement.id)
-        .select('*, skills(*), employees!achievements_employee_id_fkey(*)')
-        .single()
-      if (error) {
-        toast.error('差し戻しに失敗しました（元に戻しました）')
+      const res = await fetch('/api/certify-skill', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ achievementId: achievement.id, action: 'rejected', comment: c }),
+      })
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}))
+        toast.error('差し戻しに失敗しました（元に戻しました）', { description: j?.error })
         setAchievements(prev => prev.map(a => a.id === achievement.id ? achievement : a))
         return
-      }
-      if (data) {
-        setAchievements(prev => prev.map(a => a.id === achievement.id ? { ...a, ...(data as AchievementWithRelations) } : a))
       }
     })
   }
 
   const openDialog = (achievement: AchievementWithRelations) => {
     setSelectedAchievement(achievement)
-    setCertifyComment('')
+    setCertifyComment(''); setCertifyPraise('')
   }
 
   const renderPendingCard = (achievement: AchievementWithRelations) => (
@@ -184,7 +169,7 @@ export function TeamDashboard({ currentEmployee, employees, skills, achievements
 
   const closeDialog = () => {
     setSelectedAchievement(null)
-    setCertifyComment('')
+    setCertifyComment(''); setCertifyPraise('')
   }
 
   // 一括選択（自分の申請は自己承認できないので選択不可。写真付きは拡大確認するまで選択不可）
@@ -218,14 +203,14 @@ export function TeamDashboard({ currentEmployee, employees, skills, achievements
       : a))
     setSelectedAchIds(new Set())
     setBulkDialogOpen(false)
-    setBulkComment('')
+    setBulkComment(''); setBulkPraise('')
     toast.success(action === 'certified' ? `${ids.length}件を認定しました` : `${ids.length}件を差し戻しました`)
 
     try {
       const res = await fetch('/api/certify-skills', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ achievementIds: ids, action, comment }),
+        body: JSON.stringify({ achievementIds: ids, action, comment, praise: action === 'certified' ? (bulkPraise.trim() || null) : null }),
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
@@ -438,13 +423,23 @@ export function TeamDashboard({ currentEmployee, employees, skills, achievements
                 />
                 <p className="text-[11px] text-red-500 mt-1">差し戻しには理由の入力が必須です。本人に通知されます。</p>
               </div>
+              <div>
+                <p className="text-xs font-medium text-gray-600 mb-1">本人への一言（公開・任意）</p>
+                <Textarea
+                  placeholder="例: ライス盛り、定量ぴったり。次はひとり調理いこう"
+                  value={certifyPraise}
+                  onChange={e => setCertifyPraise(e.target.value)}
+                  className="text-sm min-h-[60px] resize-none"
+                />
+                <p className="text-[11px] text-sky-700 mt-1">認定したときだけ、「本日のお知らせ」とタイムラインに店長からの一言として全員に公開されます。</p>
+              </div>
             </div>
           )}
           <DialogFooter className="flex-col gap-2 sm:flex-col">
             <div className="flex gap-2 w-full">
               <Button
                 className="flex-1 bg-green-500 hover:bg-green-600 text-white"
-                onClick={() => selectedAchievement && handleCertify(selectedAchievement, certifyComment)}
+                onClick={() => selectedAchievement && handleCertify(selectedAchievement, certifyComment, certifyPraise)}
                 disabled={isPending || !!(selectedAchievement && !photoConfirmed(selectedAchievement))}
               >
                 <CheckCircle2 className="w-4 h-4 mr-1" />
@@ -474,7 +469,7 @@ export function TeamDashboard({ currentEmployee, employees, skills, achievements
               <Button
                 size="sm"
                 className="bg-green-500 hover:bg-green-600 text-white"
-                onClick={() => { setBulkAction('certified'); setBulkComment(''); setBulkDialogOpen(true) }}
+                onClick={() => { setBulkAction('certified'); setBulkComment(''); setBulkPraise(''); setBulkDialogOpen(true) }}
               >
                 <CheckCircle2 className="w-3.5 h-3.5 mr-1" />まとめて認定
               </Button>
@@ -482,7 +477,7 @@ export function TeamDashboard({ currentEmployee, employees, skills, achievements
                 size="sm"
                 variant="outline"
                 className="text-red-500 border-red-200 hover:bg-red-50"
-                onClick={() => { setBulkAction('rejected'); setBulkComment(''); setBulkDialogOpen(true) }}
+                onClick={() => { setBulkAction('rejected'); setBulkComment(''); setBulkPraise(''); setBulkDialogOpen(true) }}
               >
                 <XCircle className="w-3.5 h-3.5 mr-1" />まとめて差し戻し
               </Button>
@@ -492,7 +487,7 @@ export function TeamDashboard({ currentEmployee, employees, skills, achievements
       )}
 
       {/* まとめて認定 / 差し戻しダイアログ */}
-      <Dialog open={bulkDialogOpen} onOpenChange={open => { if (!bulkSubmitting) { setBulkDialogOpen(open); if (!open) setBulkComment('') } }}>
+      <Dialog open={bulkDialogOpen} onOpenChange={open => { if (!bulkSubmitting) { setBulkDialogOpen(open); if (!open) setBulkComment(''); setBulkPraise('') } }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-base">
@@ -507,6 +502,17 @@ export function TeamDashboard({ currentEmployee, employees, skills, achievements
           />
           {bulkAction === 'rejected' && (
             <p className="text-[11px] text-red-500 -mt-1">差し戻しには理由の入力が必須です。本人に通知されます。</p>
+          )}
+          {bulkAction === 'certified' && (
+            <div>
+              <Textarea
+                value={bulkPraise}
+                onChange={e => setBulkPraise(e.target.value)}
+                placeholder="本人への一言（公開・任意・全員に同じ一言）"
+                rows={2}
+              />
+              <p className="text-[11px] text-sky-700 mt-1">「本日のお知らせ」とタイムラインに、店長からの一言として全員に公開されます。</p>
+            </div>
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setBulkDialogOpen(false)} disabled={bulkSubmitting}>キャンセル</Button>

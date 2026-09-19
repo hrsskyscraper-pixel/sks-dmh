@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getRankingExcludedIds } from '@/lib/test-data'
 import { ensureDailyReportAnnouncement } from '@/lib/daily-report'
+import { getStalledApprovals } from '@/lib/stalled-approvals'
+import { sendMail } from '@/lib/notifications/email'
+import { sendLineMessage } from '@/lib/notifications/line'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,6 +22,30 @@ export async function GET(request: Request) {
   }
   const db = createAdminClient()
   const excluded = await getRankingExcludedIds()
-  const res = await ensureDailyReportAnnouncement(db, excluded, new Date())
-  return NextResponse.json({ ok: true, ...res })
+  const now = new Date()
+  const stalled = await getStalledApprovals(db, now, excluded).catch(err => { console.error('滞留集計に失敗:', err); return null })
+  const res = await ensureDailyReportAnnouncement(db, excluded, now, stalled ?? undefined)
+
+  // 承認者本人へのリマインド（メール・LINE）。一括休止や上限で止まっていれば送られないが、仕様としては流す。
+  // デイリーレポートを投稿した日（1日1回）だけ送る＝何度呼ばれても二重送信しない
+  let reminded = 0
+  if (res.posted && stalled && stalled.byApprover.length > 0) {
+    const systemUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://sks-dmh.vercel.app'
+    for (const a of stalled.byApprover) {
+      const lines = a.items
+        .sort((x, y) => y.days - x.days)
+        .slice(0, 10)
+        .map(it => `・${it.employeeName}さん「${it.skillName}」（${it.days}日経過）`)
+      const more = a.items.length > 10 ? `\n・…ほか${a.items.length - 10}件` : ''
+      const text = `${a.name} 様\n\n承認をお待ちの申請が ${a.count}件 あります（申請の翌日中に承認されていないもの）。\n${lines.join('\n')}${more}\n\n承認センター: ${systemUrl}/approvals\n\nMission Board`
+      if (a.email) {
+        await sendMail({ to: a.email, subject: `【Mission Board】承認をお待ちの申請が ${a.count}件あります`, body: text }).catch(err => console.error('滞留リマインドメール失敗:', err))
+      }
+      if (a.lineUserId) {
+        await sendLineMessage(a.lineUserId, `【承認のお願い】\n${text}`).catch(err => console.error('滞留リマインドLINE失敗:', err))
+      }
+      reminded++
+    }
+  }
+  return NextResponse.json({ ok: true, ...res, stalled: stalled?.total ?? 0, reminded })
 }

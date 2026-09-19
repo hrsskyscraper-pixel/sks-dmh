@@ -98,6 +98,7 @@ export function ApprovalCenter({
 
   // スキル認定
   const [certifyComment, setCertifyComment] = useState('')
+  const [certifyPraise, setCertifyPraise] = useState('')
   const [certifyTarget, setCertifyTarget] = useState<any>(null)
   const [certifyAction, setCertifyAction] = useState<'certified' | 'rejected'>('certified')
 
@@ -107,6 +108,7 @@ export function ApprovalCenter({
   const [bulkAction, setBulkAction] = useState<'certified' | 'rejected'>('certified')
   const [bulkDialogOpen, setBulkDialogOpen] = useState(false)
   const [bulkComment, setBulkComment] = useState('')
+  const [bulkPraise, setBulkPraise] = useState('')
   const [bulkSubmitting, setBulkSubmitting] = useState(false)
 
   // 写真確認ゲート: 写真付き申請は、全枚数を拡大表示するまで認定できない（コメントは全文表示でOK）
@@ -140,14 +142,14 @@ export function ApprovalCenter({
     setProcessedAchIds(prev => new Set([...prev, ...ids]))
     setSelectedAchIds(new Set())
     setBulkDialogOpen(false)
-    setBulkComment('')
+    setBulkComment(''); setBulkPraise('')
     toast.success(action === 'certified' ? `${ids.length}件を認定しました` : `${ids.length}件を差し戻しました`)
 
     try {
       const res = await fetch('/api/certify-skills', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ achievementIds: ids, action, comment }),
+        body: JSON.stringify({ achievementIds: ids, action, comment, praise: action === 'certified' ? (bulkPraise.trim() || null) : null }),
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
@@ -184,7 +186,7 @@ export function ApprovalCenter({
 
     // ダイアログを即座に閉じてトーストを出す（待たせない＝もっさり解消）
     setCertifyTarget(null)
-    setCertifyComment('')
+    setCertifyComment(''); setCertifyPraise('')
     toast.success(action === 'certified' ? '認定しました' : '差し戻しました')
 
     // サーバー反映はバックグラウンド（通知は after() でレスポンス後送信なので高速）。
@@ -194,7 +196,7 @@ export function ApprovalCenter({
         const res = await fetch('/api/certify-skill', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ achievementId: target.id, action, comment }),
+          body: JSON.stringify({ achievementId: target.id, action, comment, praise: action === 'certified' ? (certifyPraise.trim() || null) : null }),
         })
         if (!res.ok) {
           const data = await res.json().catch(() => ({}))
@@ -628,12 +630,12 @@ export function ApprovalCenter({
                       </div>
                       <div className="flex gap-1 flex-shrink-0">
                         <Button size="sm" className="h-7 px-2 bg-green-500 hover:bg-green-600 text-[11px]"
-                          onClick={(e) => { e.stopPropagation(); setCertifyTarget(a); setCertifyAction('certified'); setCertifyComment('') }}
+                          onClick={(e) => { e.stopPropagation(); setCertifyTarget(a); setCertifyAction('certified'); setCertifyComment(''); setCertifyPraise('') }}
                           disabled={isPending || !photoConfirmed(a)}>
                           <CheckCircle className="w-3 h-3 mr-0.5" />認定
                         </Button>
                         <Button size="sm" variant="outline" className="h-7 px-2 text-[11px] text-red-500 border-red-200 hover:bg-red-50"
-                          onClick={(e) => { e.stopPropagation(); setCertifyTarget(a); setCertifyAction('rejected'); setCertifyComment('') }}
+                          onClick={(e) => { e.stopPropagation(); setCertifyTarget(a); setCertifyAction('rejected'); setCertifyComment(''); setCertifyPraise('') }}
                           disabled={isPending}>
                           <XCircle className="w-3 h-3 mr-0.5" />戻す
                         </Button>
@@ -723,7 +725,7 @@ export function ApprovalCenter({
               <Button
                 size="sm"
                 className="bg-green-500 hover:bg-green-600 text-white"
-                onClick={() => { setBulkAction('certified'); setBulkComment(''); setBulkDialogOpen(true) }}
+                onClick={() => { setBulkAction('certified'); setBulkComment(''); setBulkPraise(''); setBulkDialogOpen(true) }}
               >
                 <CheckCircle className="w-3.5 h-3.5 mr-1" />まとめて認定
               </Button>
@@ -731,7 +733,7 @@ export function ApprovalCenter({
                 size="sm"
                 variant="outline"
                 className="text-red-500 border-red-200 hover:bg-red-50"
-                onClick={() => { setBulkAction('rejected'); setBulkComment(''); setBulkDialogOpen(true) }}
+                onClick={() => { setBulkAction('rejected'); setBulkComment(''); setBulkPraise(''); setBulkDialogOpen(true) }}
               >
                 <XCircle className="w-3.5 h-3.5 mr-1" />まとめて差し戻し
               </Button>
@@ -741,7 +743,7 @@ export function ApprovalCenter({
       )}
 
       {/* まとめて認定 / 差し戻しダイアログ */}
-      <Dialog open={bulkDialogOpen} onOpenChange={open => { if (!bulkSubmitting) { setBulkDialogOpen(open); if (!open) setBulkComment('') } }}>
+      <Dialog open={bulkDialogOpen} onOpenChange={open => { if (!bulkSubmitting) { setBulkDialogOpen(open); if (!open) setBulkComment(''); setBulkPraise('') } }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-base">
@@ -756,6 +758,17 @@ export function ApprovalCenter({
           />
           {bulkAction === 'rejected' && (
             <p className="text-[11px] text-red-500 -mt-1">差し戻しには理由の入力が必須です。本人に通知されます。</p>
+          )}
+          {bulkAction === 'certified' && (
+            <div>
+              <Textarea
+                value={bulkPraise}
+                onChange={e => setBulkPraise(e.target.value)}
+                placeholder="本人への一言（公開・任意）例: ライス盛り、定量ぴったり。次はひとり調理いこう"
+                rows={2}
+              />
+              <p className="text-[11px] text-sky-700 -mt-1 mt-1">この一言は「本日のお知らせ」とタイムラインに、店長からの一言として全員に公開されます。本人だけに伝えたいことは上のコメントへ。</p>
+            </div>
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setBulkDialogOpen(false)} disabled={bulkSubmitting}>キャンセル</Button>
@@ -795,6 +808,17 @@ export function ApprovalCenter({
           />
           {certifyAction === 'rejected' && (
             <p className="text-[11px] text-red-500 -mt-1">差し戻しには理由の入力が必須です。本人に通知されます。</p>
+          )}
+          {certifyAction === 'certified' && (
+            <div>
+              <Textarea
+                value={certifyPraise}
+                onChange={e => setCertifyPraise(e.target.value)}
+                placeholder="本人への一言（公開・任意）例: ライス盛り、定量ぴったり。次はひとり調理いこう"
+                rows={2}
+              />
+              <p className="text-[11px] text-sky-700 -mt-1 mt-1">この一言は「本日のお知らせ」とタイムラインに、店長からの一言として全員に公開されます。本人だけに伝えたいことは上のコメントへ。</p>
+            </div>
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setCertifyTarget(null)}>キャンセル</Button>
@@ -916,12 +940,12 @@ export function ApprovalCenter({
                 return (
                   <div className="flex justify-center gap-2 pt-3 border-t mt-3">
                     <Button size="sm" className="bg-green-500 hover:bg-green-600 text-white"
-                      onClick={() => { setChatAchId(null); setCertifyTarget(ach); setCertifyAction('certified'); setCertifyComment('') }}
+                      onClick={() => { setChatAchId(null); setCertifyTarget(ach); setCertifyAction('certified'); setCertifyComment(''); setCertifyPraise('') }}
                       disabled={isPending}>
                       <CheckCircle className="w-3.5 h-3.5 mr-1" />認定
                     </Button>
                     <Button size="sm" variant="outline" className="text-red-500 border-red-200 hover:bg-red-50"
-                      onClick={() => { setChatAchId(null); setCertifyTarget(ach); setCertifyAction('rejected'); setCertifyComment('') }}
+                      onClick={() => { setChatAchId(null); setCertifyTarget(ach); setCertifyAction('rejected'); setCertifyComment(''); setCertifyPraise('') }}
                       disabled={isPending}>
                       <XCircle className="w-3.5 h-3.5 mr-1" />戻す
                     </Button>
