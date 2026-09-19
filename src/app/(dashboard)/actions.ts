@@ -60,7 +60,7 @@ export async function getNavCounts(): Promise<NavCounts> {
   }
 
   // --- ブロック1: 通知ベル＋チーム変更申請結果の未読 ---
-  const computeNotif = async (): Promise<{ notifCount: number; unreadTeamReqCount: number }> => {
+  const computeNotif = async (): Promise<{ notifCount: number; unreadTeamReqCount: number; stalledApprovals: { count: number; maxDays: number } }> => {
     const { data: targetAchievements } = await db.from('achievements').select('id').eq('employee_id', targetId)
     const targetAchIds = (targetAchievements ?? []).map(a => a.id)
     const [{ data: unreadReactions }, { data: unreadComments }, { data: unreadCertResults }, { count: unreadTeamReqCount }] = await Promise.all([
@@ -83,15 +83,15 @@ export async function getNavCounts(): Promise<NavCounts> {
     for (const h of unreadCertResults ?? []) certResultKeys.add(h.achievement_id)
     const utr = unreadTeamReqCount ?? 0
     // 承認者: 滞留している承認があれば、ベルに1件として数える（既読で消えない＝解消するまで残る）
-    let stalledFlag = 0
+    let stalledApprovals = { count: 0, maxDays: 0 }
     if (canApprove(effectiveEmp)) {
       try {
         const testIds = await getTestEmployeeIds()
-        const st = await countStalledForApprover(db, targetId, canAdminister(effectiveEmp), new Date(), testIds)
-        stalledFlag = st.count > 0 ? 1 : 0
-      } catch { stalledFlag = 0 }
+        stalledApprovals = await countStalledForApprover(db, targetId, canAdminister(effectiveEmp), new Date(), testIds)
+      } catch { stalledApprovals = { count: 0, maxDays: 0 } }
     }
-    return { notifCount: notifKeys.size + certResultKeys.size + utr + stalledFlag, unreadTeamReqCount: utr }
+    const stalledFlag = stalledApprovals.count > 0 ? 1 : 0
+    return { notifCount: notifKeys.size + certResultKeys.size + utr + stalledFlag, unreadTeamReqCount: utr, stalledApprovals }
   }
 
   // --- ブロック2: 差し戻しスキル件数 ---
@@ -212,6 +212,7 @@ export async function getNavCounts(): Promise<NavCounts> {
   return {
     notifCount: notif.notifCount,
     unreadTeamReqCount: notif.unreadTeamReqCount,
+    stalledApprovals: notif.stalledApprovals,
     pendingApprovalCount,
     rejectedSkillCount,
     overdueSkillCount,

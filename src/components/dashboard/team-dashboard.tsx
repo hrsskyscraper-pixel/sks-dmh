@@ -9,7 +9,6 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { CertRingAvatar } from '@/components/ui/cert-ring-avatar'
-import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { cn } from '@/lib/utils'
 import {
@@ -21,6 +20,7 @@ import {
 } from '@/components/ui/dialog'
 import { createClient } from '@/lib/supabase/client'
 import { SkillPhotoGallery } from '@/components/skills/skill-photo-gallery'
+import { CertifyCommentFields } from '@/components/approvals/certify-comment-fields'
 import type { Employee, Skill, Achievement } from '@/types/database'
 
 interface AchievementWithRelations extends Achievement {
@@ -413,26 +413,14 @@ export function TeamDashboard({ currentEmployee, employees, skills, achievements
                   )}
                 </div>
               )}
-              <div>
-                <p className="text-xs font-medium text-gray-600 mb-1">コメント（認定は任意・差し戻しは必須）</p>
-                <Textarea
-                  placeholder="認定の補足、または差し戻しの理由をご記入ください"
-                  value={certifyComment}
-                  onChange={e => setCertifyComment(e.target.value)}
-                  className="text-sm min-h-[80px] resize-none"
-                />
-                <p className="text-[11px] text-red-500 mt-1">差し戻しには理由の入力が必須です。本人に通知されます。</p>
-              </div>
-              <div>
-                <p className="text-xs font-medium text-gray-600 mb-1">本人への一言（公開・任意）</p>
-                <Textarea
-                  placeholder="例: ライス盛り、定量ぴったり。次はひとり調理いこう"
-                  value={certifyPraise}
-                  onChange={e => setCertifyPraise(e.target.value)}
-                  className="text-sm min-h-[60px] resize-none"
-                />
-                <p className="text-[11px] text-sky-700 mt-1">認定したときだけ、「本日のお知らせ」とタイムラインに店長からの一言として全員に公開されます。</p>
-              </div>
+              <CertifyCommentFields
+                mode="both"
+                comment={certifyComment}
+                onCommentChange={setCertifyComment}
+                praise={certifyPraise}
+                onPraiseChange={setCertifyPraise}
+                disabled={isPending}
+              />
             </div>
           )}
           <DialogFooter className="flex-col gap-2 sm:flex-col">
@@ -494,26 +482,15 @@ export function TeamDashboard({ currentEmployee, employees, skills, achievements
               {bulkAction === 'certified' ? `${selectedAchIds.size}件をまとめて認定` : `${selectedAchIds.size}件をまとめて差し戻し`}
             </DialogTitle>
           </DialogHeader>
-          <Textarea
-            value={bulkComment}
-            onChange={e => setBulkComment(e.target.value)}
-            placeholder={bulkAction === 'rejected' ? '差し戻しの理由を入力（必須・全件に適用）' : 'コメント（任意・全件に適用）'}
-            rows={2}
+          <CertifyCommentFields
+            mode={bulkAction}
+            bulk
+            comment={bulkComment}
+            onCommentChange={setBulkComment}
+            praise={bulkPraise}
+            onPraiseChange={setBulkPraise}
+            disabled={bulkSubmitting}
           />
-          {bulkAction === 'rejected' && (
-            <p className="text-[11px] text-red-500 -mt-1">差し戻しには理由の入力が必須です。本人に通知されます。</p>
-          )}
-          {bulkAction === 'certified' && (
-            <div>
-              <Textarea
-                value={bulkPraise}
-                onChange={e => setBulkPraise(e.target.value)}
-                placeholder="本人への一言（公開・任意・全員に同じ一言）"
-                rows={2}
-              />
-              <p className="text-[11px] text-sky-700 mt-1">「本日のお知らせ」とタイムラインに、店長からの一言として全員に公開されます。</p>
-            </div>
-          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setBulkDialogOpen(false)} disabled={bulkSubmitting}>キャンセル</Button>
             <Button

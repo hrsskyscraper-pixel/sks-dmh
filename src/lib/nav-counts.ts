@@ -15,6 +15,8 @@ export type NavCounts = {
   overdueSkillCount: number
   /** ホームのバッジ（遅れ/次の一歩） */
   dashboardBadge: { count: number; color: 'red' | 'blue' } | null
+  /** 承認者向け: 滞留している承認（申請の翌日中に承認されていないもの）。ベルの要対応と、ログイン時のモーダルに使う */
+  stalledApprovals: { count: number; maxDays: number }
 }
 
 export const EMPTY_NAV_COUNTS: NavCounts = {
@@ -24,4 +26,5 @@ export const EMPTY_NAV_COUNTS: NavCounts = {
   rejectedSkillCount: 0,
   overdueSkillCount: 0,
   dashboardBadge: null,
+  stalledApprovals: { count: 0, maxDays: 0 },
 }

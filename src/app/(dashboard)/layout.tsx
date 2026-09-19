@@ -13,6 +13,7 @@ import { CertRingProvider } from '@/components/layout/cert-ring-context'
 import { getCertRanksByEmployee } from '@/lib/cert-ranks'
 import { OnboardingDialog } from '@/components/onboarding/onboarding-dialog'
 import { IntroGuideDialog } from '@/components/onboarding/intro-guide-dialog'
+import { StalledApprovalDialog } from '@/components/approvals/stalled-approval-dialog'
 import { PendingScreen } from '@/components/onboarding/pending-screen'
 import { InviteRequiredScreen } from '@/components/onboarding/invite-required-screen'
 import { JoinCompletionBanner } from '@/components/onboarding/join-completion-banner'
@@ -140,6 +141,7 @@ export default async function DashboardLayout({
         {employee.role !== 'testuser' && !viewAsEmployee && (
           <IntroGuideDialog employeeId={employee.id} dismissed={!!employee.intro_dismissed_at} />
         )}
+        <StalledApprovalDialog />
         <BottomNav role={effectiveRole} avatarUrl={employee.avatar_url} employeeId={employee.id} employeeName={employee.name} fontScale={fontScale} />
         <Toaster position="top-center" richColors />
       </div>

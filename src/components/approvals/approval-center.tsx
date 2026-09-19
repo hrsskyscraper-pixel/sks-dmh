@@ -9,7 +9,6 @@ import { CertRingAvatar } from '@/components/ui/cert-ring-avatar'
 import { MemberNameLink } from '@/components/layout/member-name-link'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
@@ -18,6 +17,7 @@ import { StoreSelect } from '@/components/ui/store-select'
 import { CheckCircle, XCircle, UserPlus, GitPullRequest, Award, Inbox } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { SkillPhotoGallery } from '@/components/skills/skill-photo-gallery'
+import { CertifyCommentFields } from '@/components/approvals/certify-comment-fields'
 import { type Affiliation } from '@/lib/affiliations'
 import { AffiliationBadge } from '@/components/ui/affiliation'
 
@@ -750,26 +750,15 @@ export function ApprovalCenter({
               {bulkAction === 'certified' ? `${selectedAchIds.size}件をまとめて認定` : `${selectedAchIds.size}件をまとめて差し戻し`}
             </DialogTitle>
           </DialogHeader>
-          <Textarea
-            value={bulkComment}
-            onChange={e => setBulkComment(e.target.value)}
-            placeholder={bulkAction === 'rejected' ? '差し戻しの理由を入力（必須・全件に適用）' : 'コメント（任意・全件に適用）'}
-            rows={2}
+          <CertifyCommentFields
+            mode={bulkAction}
+            bulk
+            comment={bulkComment}
+            onCommentChange={setBulkComment}
+            praise={bulkPraise}
+            onPraiseChange={setBulkPraise}
+            disabled={bulkSubmitting}
           />
-          {bulkAction === 'rejected' && (
-            <p className="text-[11px] text-red-500 -mt-1">差し戻しには理由の入力が必須です。本人に通知されます。</p>
-          )}
-          {bulkAction === 'certified' && (
-            <div>
-              <Textarea
-                value={bulkPraise}
-                onChange={e => setBulkPraise(e.target.value)}
-                placeholder="本人への一言（公開・任意）例: ライス盛り、定量ぴったり。次はひとり調理いこう"
-                rows={2}
-              />
-              <p className="text-[11px] text-sky-700 -mt-1 mt-1">この一言は「本日のお知らせ」とタイムラインに、店長からの一言として全員に公開されます。本人だけに伝えたいことは上のコメントへ。</p>
-            </div>
-          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setBulkDialogOpen(false)} disabled={bulkSubmitting}>キャンセル</Button>
             <Button
@@ -800,26 +789,14 @@ export function ApprovalCenter({
           {certifyTarget?.photo_urls?.length > 0 && (
             <SkillPhotoGallery urls={certifyTarget.photo_urls} paths={certifyTarget.photo_paths} achievementId={certifyTarget.id} canDelete={isSystemAdmin} />
           )}
-          <Textarea
-            value={certifyComment}
-            onChange={e => setCertifyComment(e.target.value)}
-            placeholder={certifyAction === 'rejected' ? '差し戻しの理由を入力（必須）' : 'コメント（任意）'}
-            rows={2}
+          <CertifyCommentFields
+            mode={certifyAction}
+            comment={certifyComment}
+            onCommentChange={setCertifyComment}
+            praise={certifyPraise}
+            onPraiseChange={setCertifyPraise}
+            disabled={isPending}
           />
-          {certifyAction === 'rejected' && (
-            <p className="text-[11px] text-red-500 -mt-1">差し戻しには理由の入力が必須です。本人に通知されます。</p>
-          )}
-          {certifyAction === 'certified' && (
-            <div>
-              <Textarea
-                value={certifyPraise}
-                onChange={e => setCertifyPraise(e.target.value)}
-                placeholder="本人への一言（公開・任意）例: ライス盛り、定量ぴったり。次はひとり調理いこう"
-                rows={2}
-              />
-              <p className="text-[11px] text-sky-700 -mt-1 mt-1">この一言は「本日のお知らせ」とタイムラインに、店長からの一言として全員に公開されます。本人だけに伝えたいことは上のコメントへ。</p>
-            </div>
-          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setCertifyTarget(null)}>キャンセル</Button>
             <Button

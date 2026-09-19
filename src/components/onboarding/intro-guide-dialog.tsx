@@ -26,10 +26,13 @@ export function IntroGuideDialog({ employeeId, dismissed }: { employeeId: string
       sessionStorage.setItem(SESSION_KEY, '1')
     } catch { /* sessionStorage 不可でも表示はする */ }
     setOpen(true)
+    document.documentElement.dataset.introOpen = '1'
   }, [dismissed])
 
   const handleClose = async () => {
     setOpen(false)
+    delete document.documentElement.dataset.introOpen
+    window.dispatchEvent(new Event('mb:intro-closed'))
     if (dontShow) {
       try {
         await createClient().from('employees').update({ intro_dismissed_at: new Date().toISOString() }).eq('id', employeeId)
