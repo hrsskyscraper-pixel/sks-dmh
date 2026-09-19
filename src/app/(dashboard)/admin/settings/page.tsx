@@ -4,10 +4,12 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { TopBar } from '@/components/layout/nav'
 import { CertificationManager } from '@/components/admin/certification-manager'
 import { EmailNotificationToggle } from '@/components/admin/email-notification-toggle'
+import { LineNotificationToggle } from '@/components/admin/line-notification-toggle'
+import { OpsTeamRecipients, type OpsCandidate } from '@/components/admin/ops-team-recipients'
 import Link from 'next/link'
 import { FolderKanban, Upload, Award, ChevronRight, BookOpen, Tag, Briefcase, Bell, BarChart3 } from 'lucide-react'
 import { canAdminister } from '@/lib/permissions'
-import { getEmailNotificationsSetting } from '@/lib/settings'
+import { getEmailNotificationsSetting, getLineNotificationsSetting, getOpsTeamRecipientSetting } from '@/lib/settings'
 
 export default async function SettingsPage() {
   const currentEmployee = await getCurrentEmployee()
@@ -16,13 +18,25 @@ export default async function SettingsPage() {
   }
 
   const db = createAdminClient()
-  const [{ data: certifications }, emailSetting] = await Promise.all([
+  const [{ data: certifications }, emailSetting, lineSetting, opsSetting, { data: opsCandidatesRows }] = await Promise.all([
     db
       .from('certifications')
       .select('id, name, description, icon, color, order_index, is_active, created_at')
       .order('order_index'),
     getEmailNotificationsSetting(),
+    getLineNotificationsSetting(),
+    getOpsTeamRecipientSetting(),
+    // 運営チームの候補: 運用管理者・開発者（旧ロールの役員・運用管理者・開発者も含む）
+    db.from('employees').select('id, name, email, line_user_id, role, system_permission').eq('status', 'approved')
+      .or('system_permission.in.(ops_admin,developer),role.in.(admin,ops_manager,executive)').order('name'),
   ])
+  const opsCandidates: OpsCandidate[] = (opsCandidatesRows ?? []).map(e => ({
+    id: e.id,
+    name: e.name,
+    label: e.system_permission === 'developer' || e.role === 'admin' ? '開発者' : e.role === 'executive' ? '役員' : '運用管理者',
+    hasEmail: !!e.email,
+    hasLine: !!e.line_user_id,
+  }))
 
   return (
     <>
@@ -33,6 +47,19 @@ export default async function SettingsPage() {
           enabled={emailSetting.enabled}
           updatedBy={emailSetting.updatedBy}
           updatedAt={emailSetting.updatedAt}
+        />
+        {/* LINE通知の一括スイッチ（2026-09-20 追加） */}
+        <LineNotificationToggle
+          enabled={lineSetting.enabled}
+          updatedBy={lineSetting.updatedBy}
+          updatedAt={lineSetting.updatedAt}
+        />
+        {/* 改善提案・Q&A の通知先（一括休止に関係なく届く） */}
+        <OpsTeamRecipients
+          candidates={opsCandidates}
+          selectedIds={opsSetting.ids}
+          updatedBy={opsSetting.updatedBy}
+          updatedAt={opsSetting.updatedAt}
         />
 
         {/* 管理メニュー */}

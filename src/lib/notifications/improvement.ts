@@ -1,7 +1,7 @@
 import { sendMail } from './email'
 import { sendLineMessages } from './line'
 import { logNotification } from './log'
-import { getOpsAdmins, getDevelopers, getExecs, getEmployeeRecipient, type Recipient } from '@/lib/improvements'
+import { getOpsAdmins, getDevelopers, getExecs, getEmployeeRecipient, getOpsTeamRecipients, type Recipient } from '@/lib/improvements'
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://sks-dmh.vercel.app'
 const LOG_CATEGORY = 'improvement'
@@ -25,14 +25,17 @@ function dedupe(list: Recipient[]): Recipient[] {
   return list.filter(r => (seen.has(r.id) ? false : (seen.add(r.id), true)))
 }
 
-/** 宛先一覧へメール＋LINEを送り、結果を notification_log に記録する。 */
-async function notify(recipients: Recipient[], subject: string, emailBody: string, lineMsg: string) {
+/**
+ * 宛先一覧へメール＋LINEを送り、結果を notification_log に記録する。
+ * important=true は運営チーム宛て（一括休止に関係なく届ける）。
+ */
+async function notify(recipients: Recipient[], subject: string, emailBody: string, lineMsg: string, important = false) {
   const people = dedupe(recipients)
   const emails = [...new Set(people.map(r => r.email).filter((e): e is string => !!e))]
   const lineIds = [...new Set(people.map(r => r.line_user_id).filter((e): e is string => !!e))]
 
   if (emails.length > 0) {
-    const res = await sendMail({ to: emails, subject, body: emailBody })
+    const res = await sendMail({ to: emails, subject, body: emailBody, bypassPause: important })
     await logNotification({
       category: LOG_CATEGORY,
       channel: 'email',
@@ -43,7 +46,7 @@ async function notify(recipients: Recipient[], subject: string, emailBody: strin
     })
   }
   if (lineIds.length > 0) {
-    const results = await sendLineMessages(lineIds, lineMsg)
+    const results = await sendLineMessages(lineIds, lineMsg, { bypassPause: important })
     await Promise.all(
       results.map(r =>
         logNotification({
@@ -61,9 +64,9 @@ async function notify(recipients: Recipient[], subject: string, emailBody: strin
 
 // ① 申請時 → 運営管理者 + 開発者（開発者は申請時点から共有）。申請者には受付連絡。
 export async function notifyImprovementSubmitted(req: ImprovementReq) {
-  const [ops, devs, requester] = await Promise.all([getOpsAdmins(), getDevelopers(), getEmployeeRecipient(req.requester_id)])
+  const [team, requester] = await Promise.all([getOpsTeamRecipients(), getEmployeeRecipient(req.requester_id)])
   await notify(
-    [...ops, ...devs],
+    team,
     `【改善提案】新規申請: ${req.title}`,
     [
       `改善提案が申請されました。運営管理者による確認・承認をお願いします。`,
@@ -73,7 +76,8 @@ export async function notifyImprovementSubmitted(req: ImprovementReq) {
       '',
       `確認: ${url(req)}`,
     ].join('\n'),
-    `【改善提案・新規】\n${req.title}\n\n運営確認をお願いします。\n${url(req)}`
+    `【改善提案・新規】\n${req.title}\n\n運営確認をお願いします。\n${url(req)}`,
+    true,
   )
   if (requester) {
     await notify(

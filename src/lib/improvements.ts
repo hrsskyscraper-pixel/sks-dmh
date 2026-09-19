@@ -68,6 +68,22 @@ export async function getOpsAdmins(): Promise<Recipient[]> {
 }
 
 /** 開発者（developer）一覧 */
+/**
+ * 改善提案・Q&A の通知を届ける「運営チーム」。設定（app_settings.ops_team_recipient_ids）があればその人たち、
+ * 未設定なら 運用管理者＋開発者（従来どおり）。
+ */
+export async function getOpsTeamRecipients(): Promise<Recipient[]> {
+  const { getOpsTeamRecipientIds } = await import('@/lib/settings')
+  const ids = await getOpsTeamRecipientIds()
+  if (ids.length > 0) {
+    const db = createAdminClient()
+    const { data } = await db.from('employees').select('id, name, email, line_user_id').eq('status', 'approved').in('id', ids)
+    if (data && data.length > 0) return data as Recipient[]
+  }
+  const [ops, devs] = await Promise.all([getOpsAdmins(), getDevelopers()])
+  return [...ops, ...devs]
+}
+
 export async function getDevelopers(): Promise<Recipient[]> {
   const db = createAdminClient()
   const { data } = await db

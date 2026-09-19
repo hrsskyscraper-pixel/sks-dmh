@@ -20,7 +20,7 @@ interface Props {
  * 「LINEは届きます」だけを読むと実態と食い違う。誤解を避けるための一時的な注意書き。
  * LINE通知が復旧したら、この定数を false にする（注意書きが消える）。
  */
-const LINE_QUOTA_EXCEEDED = true
+const LINE_QUOTA_EXCEEDED = false // 2026-09-20: LINE は専用スイッチ（LineNotificationToggle）で管理するため注意書きは出さない
 
 /**
  * メール通知の一括スイッチ。
@@ -89,7 +89,8 @@ export function EmailNotificationToggle({ enabled: initialEnabled, updatedBy, up
         <p className="text-xs text-gray-500 leading-relaxed">
           Mission Board から送るメールをまとめて止めます。参加依頼・参加承認・チーム招待・スキル認定・改善提案など、
           <span className="font-semibold text-gray-700">すべてのメールが対象</span>です。
-          LINE通知とアプリ内のお知らせは、この設定の影響を受けません。
+          LINE通知とアプリ内のお知らせは、この設定の影響を受けません（LINE は下のスイッチで別に管理します）。
+          運営チーム宛ての改善提案・Q&amp;A の通知は、休止中も届きます。
         </p>
 
         {LINE_QUOTA_EXCEEDED && (

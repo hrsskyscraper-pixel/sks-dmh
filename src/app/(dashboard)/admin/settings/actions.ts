@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
 import { canAdminister } from '@/lib/permissions'
-import { setEmailNotificationsEnabled } from '@/lib/settings'
+import { setEmailNotificationsEnabled, setLineNotificationsEnabled, setOpsTeamRecipientIds } from '@/lib/settings'
 import { writeAuditLog } from '@/lib/audit'
 
 /**
@@ -23,6 +23,33 @@ export async function toggleEmailNotifications(enabled: boolean): Promise<{ erro
     details: { enabled },
   }).catch(console.error)
 
+  revalidatePath('/admin/settings')
+  return {}
+}
+
+/** LINE通知の一括スイッチ（メールと同じ扱い）。システム管理者のみ。監査ログに残す。 */
+export async function toggleLineNotifications(enabled: boolean): Promise<{ error?: string }> {
+  const me = await getCurrentEmployee()
+  if (!me || !canAdminister(me)) return { error: '権限がありません' }
+  const { error } = await setLineNotificationsEnabled(enabled, me.id)
+  if (error) return { error: '設定の保存に失敗しました' }
+  await writeAuditLog({
+    action: enabled ? 'line_notifications_enabled' : 'line_notifications_disabled',
+    actorId: me.id,
+    details: { enabled },
+  }).catch(console.error)
+  revalidatePath('/admin/settings')
+  return {}
+}
+
+/** 改善提案・Q&A の通知先（運営チーム）。システム管理者のみ。 */
+export async function setOpsTeamRecipients(ids: string[]): Promise<{ error?: string }> {
+  const me = await getCurrentEmployee()
+  if (!me || !canAdminister(me)) return { error: '権限がありません' }
+  const clean = [...new Set(ids.filter(x => typeof x === 'string' && x.length > 0))]
+  const { error } = await setOpsTeamRecipientIds(clean, me.id)
+  if (error) return { error: '設定の保存に失敗しました' }
+  await writeAuditLog({ action: 'ops_team_recipients_updated', actorId: me.id, details: { ids: clean } }).catch(console.error)
   revalidatePath('/admin/settings')
   return {}
 }

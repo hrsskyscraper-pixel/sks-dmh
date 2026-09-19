@@ -14,6 +14,8 @@ interface SendMailParams {
   cc?: string | string[]
   subject: string
   body: string
+  /** 一括休止に関係なく送る（運営チーム宛ての改善提案・Q&A など、件数が少なく確実に届けたいもの） */
+  bypassPause?: boolean
 }
 
 export interface SendResult {
@@ -35,12 +37,12 @@ function sleep(ms: number) {
  * 管理画面（設定 → メール通知）で一括停止されている場合は、ここで送信を止める。
  * メール送信の入口はこの関数だけなので、ここ1箇所で全通知に確実に効く。
  */
-export async function sendMail({ to, cc, subject, body }: SendMailParams): Promise<SendResult> {
+export async function sendMail({ to, cc, subject, body, bypassPause = false }: SendMailParams): Promise<SendResult> {
   const from = `Mission Board <${process.env.GMAIL_USER}>`
   const toStr = Array.isArray(to) ? to.join(', ') : to
   const ccStr = cc ? (Array.isArray(cc) ? cc.join(', ') : cc) : undefined
 
-  if (!(await isEmailNotificationsEnabled())) {
+  if (!bypassPause && !(await isEmailNotificationsEnabled())) {
     console.warn('[メール] 通知休止中のため送信スキップ:', { to: toStr, subject })
     return { ok: false, skipped: true, error: 'メール通知は休止中' }
   }
