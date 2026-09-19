@@ -32,6 +32,32 @@ SB_ACCOUNT=SKS sb db push --linked              # 未適用マイグレーショ
 
 ネットワークが IPv6 非対応だと `IPv6 is not supported` で接続できない。その場合は `SB_ACCOUNT=SKS sb link --project-ref wsxuhzpqyiuknfhncsni` で IPv4（pooler）接続に張り替える。
 
+### ステージング環境（2026-09-19 新設）
+- Supabase: `sks-dmh-staging`（ref `giwqelfbvsgucpnzzdao`、東京）。**本番とは別アカウント** `sks_dmh@z2o.jp`。
+  ダミーデータのみ。本番データはコピーしない。
+- 操作は `scripts/staging-db.sh`（`--db-url` で直結。本番のリンク `supabase/.temp` は触らない）:
+  ```bash
+  scripts/staging-db.sh migration list
+  scripts/staging-db.sh db push --dry-run   # → db push
+  scripts/staging-db.sh psql -At -c "select 1"
+  ```
+  パスワード・トークンは `~/.config/account-tokens.env` の `SUPABASE_DB_PASSWORD_SKS_STAGING` /
+  `SUPABASE_TOKEN_SKS_STAGING`（値は表示しない）。
+- Vercel: `sks-dmh-staging` プロジェクト（Production Branch = `staging`）。流れは
+  「作業ブランチ → `staging` に push → 原島さん確認 → `main` にマージ → 本番」。
+- **`staging` ブランチを本番の Vercel プロジェクトがビルドしないよう、本番側の Ignored Build Step で
+  main 以外を除外**している（Vercel の Hobby は 1日100デプロイ）。
+- keepalive: `/api/keepalive`（cron 1日1回）が本番・ステージング両方の Supabase を叩く。
+  ステージングの接続先は本番 Vercel の環境変数 `STAGING_SUPABASE_URL` / `STAGING_SUPABASE_ANON_KEY`。
+
+### Data API の権限ルール（migration `20260919000100_harden_data_api` 以降）
+- 新しく作るテーブル・関数は **`service_role` には自動で権限が付く**が、**`anon` / `authenticated` には付かない**
+  （新規テーブルの誤公開防止。RLS も event trigger で自動有効化される）。
+- ブラウザや RLS 尊重クライアント（`server.ts` / `client.ts`）から使うテーブル・RPC には、マイグレーションで
+  `GRANT SELECT[, INSERT, UPDATE, DELETE] ON public.<table> TO authenticated;` /
+  `GRANT EXECUTE ON FUNCTION public.<fn>(...) TO authenticated;` を**必ず書く**。書き忘れると
+  admin client は動くのにブラウザ側だけ `permission denied` になる。
+
 バックアップ（GitHub Actions から手動実行可能）:
 - `Database Backup` — 毎日 JST 03:00 に暗号化ダンプを非公開リポジトリ `sks-dmh-backups` へ送信
 - `Backup Restore Test` — 最新ダンプを使い捨て Postgres に復元して行数検証
