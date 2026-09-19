@@ -21,8 +21,8 @@
 #      （本番の `sb migration list --linked` を正として判定）
 #
 # 前提: gh（hrsskyscraper-pixel でログイン）、psql / pg_restore 17、supabase CLI、
-#       ~/.config/account-tokens.env に SUPABASE_DB_PASSWORD_SKS_STAGING、
-#       switcher の bin が PATH にあること（sb / mask-secrets）。
+#       ~/.config/account-tokens.env に SUPABASE_DB_PASSWORD_SKS_STAGING と SUPABASE_TOKEN_SKS
+#       （本番の適用状況の確認用。値は表示しない）。
 #
 # 追加で本物のメールを残したい人がいれば、実行前に環境変数で:
 #   STAGING_KEEP_EMAILS="a@example.com,b@example.com" scripts/staging-refresh.sh
@@ -100,8 +100,15 @@ echo "▶ マスクとログイン紐づけ"
 psqlS -q -v keep="${STAGING_KEEP_EMAILS:-}" -f "$ROOT/scripts/staging-refresh-post.sql" || exit 1
 
 # ---------- 6. 本番に未適用のマイグレーションを当て直す ----------
-echo "▶ 本番のマイグレーション状況を確認（sb migration list --linked）"
-LIST=$(cd "$ROOT" && SB_ACCOUNT=SKS sb migration list --linked 2>&1 | grep -v "new version\|recommend")
+echo "▶ 本番のマイグレーション状況を確認（supabase migration list --linked）"
+# sb ラッパーと同じ方式でトークンを注入する（PATH に sb が無い端末でも動くように）。値は表示しない
+PROD_TOKEN="${SUPABASE_TOKEN_SKS:-}"
+if [ -z "$PROD_TOKEN" ]; then
+  echo "staging-refresh: SUPABASE_TOKEN_SKS が $ENVFILE にありません（本番の適用状況を確認できないため中断）" >&2
+  exit 1
+fi
+LIST=$(cd "$ROOT" && SUPABASE_ACCESS_TOKEN="$PROD_TOKEN" command supabase migration list --linked 2>&1 | grep -v "new version\|recommend")
+unset PROD_TOKEN
 # 出力は表形式（LOCAL │ REMOTE │ TIME）または JSON（フックで整形された場合）のどちらか。REMOTE が空の行＝本番に未適用
 PENDING=$(printf '%s\n' "$LIST" | python3 -c '
 import sys, re, json
@@ -115,9 +122,17 @@ else:
         mm = re.match(r"^\s*(\d{14})\s*[|│]\s*[|│]", line)
         if mm: print(mm.group(1))
 ')
+# 判定できなかった（一覧に 14 桁の version が 1 つも無い）ときは、黙って進めずに止める。
+# 進めると「履歴は適用済みなのに列が無い」状態になり、画面でスキルが 0 件になる（2026-09-20 に実際に発生）
+if ! printf '%s\n' "$LIST" | grep -qE '[0-9]{14}'; then
+  echo "staging-refresh: 本番のマイグレーション一覧を取得できませんでした。出力:" >&2
+  printf '%s\n' "$LIST" | "$MASK" | head -20 >&2
+  echo "  復元・マスクは済んでいます。本番に未適用の version を確認して、手動で当ててください:" >&2
+  echo "  scripts/staging-db.sh psql -c \"delete from supabase_migrations.schema_migrations where version in ('<v1>','<v2>')\" && scripts/staging-db.sh db push" >&2
+  exit 1
+fi
 if [ -z "$PENDING" ]; then
-  echo "  本番に未適用のマイグレーションはありません（または判定できず）。必要なら手動で:"
-  echo "  scripts/staging-db.sh migration repair --status reverted <version> && scripts/staging-db.sh db push"
+  echo "  本番に未適用のマイグレーションはありません"
 else
   echo "  本番に未適用: $(echo "$PENDING" | tr '\n' ' ')"
   IN=$(echo "$PENDING" | sed "s/.*/'&'/" | paste -sd, -)
