@@ -13,10 +13,15 @@ import { getTestEmployeeIds, getTestTeamIds } from '@/lib/test-data'
  * - 承認済み人数  : 対象従業員のうち、認定済み（certified）の申請を1件以上持つ人数。
  * - 未申請人数    : 対象従業員数 − スキル申請人数（一度も申請していない人数）。
  * - 未承認件数    : 対象従業員の申請のうち、承認待ち（pending）の「件数」。人数ではない。
+ * - 停滞人数      : 対象従業員のうち、最後の動き（最終申請日。一度も申請していない人は登録日）から
+ *                  STALLED_DAYS 日以上、申請が1件も無い人数。2026-09-19 のMTGで「停滞＝申請なし7日」と決定。
  *
  * 複数店舗に所属する社員は各店舗に計上されるため、店舗行の単純合計は全社合計と一致しない。
  * 全社合計は社員IDで重複排除して算出する。
  */
+
+/** 停滞と判定する日数（最後の動きからの経過日数） */
+export const STALLED_DAYS = 7
 
 export type StoreStatMember = {
   id: string
@@ -26,6 +31,12 @@ export type StoreStatMember = {
   certified: number
   pending: number
   rejected: number
+  /** 最終申請日時（ISO）。一度も申請していなければ null */
+  lastAppliedAt: string | null
+  /** 最後の動き（最終申請、なければ登録）からの経過日数 */
+  stalledDays: number
+  /** stalledDays >= STALLED_DAYS */
+  stalled: boolean
 }
 
 export type StoreStatRow = {
@@ -43,6 +54,8 @@ export type StoreStatRow = {
   notApplied: number
   /** 未承認件数（承認待ちの申請件数） */
   pending: number
+  /** 停滞人数（最後の動きから STALLED_DAYS 日以上、申請が無い人数） */
+  stalled: number
   members: StoreStatMember[]
 }
 
@@ -52,6 +65,7 @@ export type StoreStatsTotal = {
   certified: number
   notApplied: number
   pending: number
+  stalled: number
 }
 
 export type StoreStats = {
@@ -71,12 +85,12 @@ export async function buildStoreStats(): Promise<StoreStats> {
   const [teamRows, brandRows, empRows, memberRows, achRows] = await Promise.all([
     db.from('teams').select('id, name, type, brand_id, is_test').in('type', ['store', 'department']),
     db.from('brands').select('id, name'),
-    fetchAllRows<{ id: string; name: string }>((from, to) =>
-      db.from('employees').select('id, name').eq('status', 'approved').order('id').range(from, to)),
+    fetchAllRows<{ id: string; name: string; created_at: string }>((from, to) =>
+      db.from('employees').select('id, name, created_at').eq('status', 'approved').order('id').range(from, to)),
     fetchAllRows<{ team_id: string; employee_id: string }>((from, to) =>
       db.from('team_members').select('team_id, employee_id').order('team_id').order('employee_id').range(from, to)),
-    fetchAllRows<{ employee_id: string; status: string }>((from, to) =>
-      db.from('achievements').select('employee_id, status').order('id').range(from, to)),
+    fetchAllRows<{ employee_id: string; status: string; created_at: string }>((from, to) =>
+      db.from('achievements').select('employee_id, status, created_at').order('id').range(from, to)),
   ])
 
   const brandNameById: Record<string, string> = Object.fromEntries((brandRows.data ?? []).map(b => [b.id, b.name]))
@@ -87,19 +101,28 @@ export async function buildStoreStats(): Promise<StoreStats> {
   const targets = empRows.filter(e => !testEmpIds.has(e.id))
   const targetIds = new Set(targets.map(e => e.id))
   const nameById: Record<string, string> = Object.fromEntries(targets.map(e => [e.id, e.name]))
+  const registeredAtById: Record<string, string> = Object.fromEntries(targets.map(e => [e.id, e.created_at]))
+  const now = Date.now()
 
   // 社員ごとの申請状況
-  type Counts = { applied: number; certified: number; pending: number; rejected: number }
+  type Counts = { applied: number; certified: number; pending: number; rejected: number; lastAppliedAt: string | null }
   const countsByEmp: Record<string, Counts> = {}
   for (const a of achRows) {
     if (!targetIds.has(a.employee_id)) continue
-    const c = (countsByEmp[a.employee_id] ??= { applied: 0, certified: 0, pending: 0, rejected: 0 })
+    const c = (countsByEmp[a.employee_id] ??= { applied: 0, certified: 0, pending: 0, rejected: 0, lastAppliedAt: null })
     c.applied++
     if (a.status === 'certified') c.certified++
     else if (a.status === 'pending') c.pending++
     else if (a.status === 'rejected') c.rejected++
+    if (!c.lastAppliedAt || a.created_at > c.lastAppliedAt) c.lastAppliedAt = a.created_at
   }
-  const countsOf = (id: string): Counts => countsByEmp[id] ?? { applied: 0, certified: 0, pending: 0, rejected: 0 }
+  const countsOf = (id: string): Counts => countsByEmp[id] ?? { applied: 0, certified: 0, pending: 0, rejected: 0, lastAppliedAt: null }
+  /** 最後の動き（最終申請。なければ登録）からの経過日数 */
+  const stalledDaysOf = (id: string, lastAppliedAt: string | null): number => {
+    const base = lastAppliedAt ?? registeredAtById[id]
+    if (!base) return 0
+    return Math.max(0, Math.floor((now - new Date(base).getTime()) / 86400000))
+  }
 
   // 所属（店舗・部署）→ 対象従業員
   const teamIds = new Set(teams.map(t => t.id))
@@ -114,8 +137,12 @@ export async function buildStoreStats(): Promise<StoreStats> {
 
   const buildMembers = (ids: string[]): StoreStatMember[] =>
     ids
-      .map(id => ({ id, name: nameById[id] ?? '', ...countsOf(id) }))
-      .sort((a, b) => a.applied - b.applied || b.pending - a.pending || a.name.localeCompare(b.name, 'ja'))
+      .map(id => {
+        const c = countsOf(id)
+        const stalledDays = stalledDaysOf(id, c.lastAppliedAt)
+        return { id, name: nameById[id] ?? '', ...c, stalledDays, stalled: stalledDays >= STALLED_DAYS }
+      })
+      .sort((a, b) => a.applied - b.applied || b.stalledDays - a.stalledDays || b.pending - a.pending || a.name.localeCompare(b.name, 'ja'))
 
   const summarize = (id: string, name: string, type: StoreStatRow['type'], brandName: string | null, memberIds: string[]): StoreStatRow => {
     const members = buildMembers(memberIds)
@@ -130,6 +157,7 @@ export async function buildStoreStats(): Promise<StoreStats> {
       certified: members.filter(m => m.certified > 0).length,
       notApplied: members.length - applied,
       pending: members.reduce((s, m) => s + m.pending, 0),
+      stalled: members.filter(m => m.stalled).length,
       members,
     }
   }
@@ -159,6 +187,7 @@ export async function buildStoreStats(): Promise<StoreStats> {
     certified: allMembers.filter(m => m.certified > 0).length,
     notApplied: allMembers.length - appliedTotal,
     pending: allMembers.reduce((s, m) => s + m.pending, 0),
+    stalled: allMembers.filter(m => m.stalled).length,
   }
 
   const brands = [...new Set(rows.map(r => r.brandName).filter((b): b is string => !!b))].sort((a, b) => a.localeCompare(b, 'ja'))

@@ -4,9 +4,9 @@ import { useMemo, useState } from 'react'
 import { ChevronDown, ChevronUp, Download, Search, HelpCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { MemberNameLink } from '@/components/layout/member-name-link'
-import type { StoreStats, StoreStatRow, StoreStatMember } from '@/lib/store-stats'
+import { STALLED_DAYS, type StoreStats, type StoreStatRow, type StoreStatMember } from '@/lib/store-stats'
 
-type MetricKey = 'target' | 'applied' | 'certified' | 'notApplied' | 'pending'
+type MetricKey = 'target' | 'applied' | 'certified' | 'notApplied' | 'pending' | 'stalled'
 type SortKey = 'name' | MetricKey
 
 const COLUMNS: { key: MetricKey; short: string; unit: string; full: string }[] = [
@@ -15,6 +15,7 @@ const COLUMNS: { key: MetricKey; short: string; unit: string; full: string }[] =
   { key: 'certified', short: '承認', unit: '人数', full: '承認済み人数' },
   { key: 'notApplied', short: '未申請', unit: '人数', full: '未申請人数' },
   { key: 'pending', short: '未承認', unit: '件数', full: '未承認件数' },
+  { key: 'stalled', short: '停滞', unit: '人数', full: `停滞人数（${STALLED_DAYS}日以上申請なし）` },
 ]
 
 /** 項目ごとの色。サマリー・表・数え方パネルで同じ色を使い、どの数字の説明かを目で追えるようにする */
@@ -24,6 +25,7 @@ const METRIC_COLOR: Record<MetricKey, string> = {
   certified: 'text-emerald-600',
   notApplied: 'text-rose-600',
   pending: 'text-amber-600',
+  stalled: 'text-purple-600',
 }
 
 /**
@@ -36,6 +38,7 @@ const DEFINITIONS: { label: string; match: string; color: string; desc: string }
   { label: '承認済み人数', match: '承認', color: METRIC_COLOR.certified, desc: '対象従業員のうち、認定済みの申請を1件以上持つ人数。' },
   { label: '未申請人数', match: '未申請', color: METRIC_COLOR.notApplied, desc: '対象従業員数 − スキル申請人数。一度も申請していない人数。' },
   { label: '未承認件数', match: '未承認', color: METRIC_COLOR.pending, desc: '承認待ちのまま残っている申請の「件数」（人数ではありません）。' },
+  { label: '停滞人数', match: '停滞', color: METRIC_COLOR.stalled, desc: `最後の動き（最終申請日。一度も申請していない人は登録日）から ${STALLED_DAYS} 日以上、申請が1件も無い人数。育成が止まっている人の目安です。` },
   { label: '重複分', match: '重複分', color: 'text-gray-500', desc: '店舗と部署の掛け持ちなど、複数の所属に登録されている人の二重計上分。各行の合計から差し引くマイナスの数値です。' },
   { label: '合計', match: '合計', color: 'text-gray-800', desc: '各行の合計 ＋ 重複分。同じ人を1人として数えた実人数（未承認件数は実件数）です。' },
 ]
@@ -49,6 +52,7 @@ const MEMBER_FILTER: Record<MetricKey, (m: StoreStatMember) => boolean> = {
   certified: m => m.certified > 0,
   notApplied: m => m.applied === 0,
   pending: m => m.pending > 0,
+  stalled: m => m.stalled,
 }
 
 const FILTER_CAPTION: Record<MetricKey, string> = {
@@ -57,6 +61,7 @@ const FILTER_CAPTION: Record<MetricKey, string> = {
   certified: '認定を受けたことがある人',
   notApplied: '一度も申請していない人',
   pending: '承認待ちの申請がある人',
+  stalled: `${STALLED_DAYS}日以上、申請が止まっている人`,
 }
 
 export function StoreStatsView({ stats }: { stats: StoreStats }) {
@@ -93,8 +98,9 @@ export function StoreStatsView({ stats }: { stats: StoreStats }) {
         certified: s.certified + r.certified,
         notApplied: s.notApplied + r.notApplied,
         pending: s.pending + r.pending,
+        stalled: s.stalled + r.stalled,
       }),
-      { target: 0, applied: 0, certified: 0, notApplied: 0, pending: 0 },
+      { target: 0, applied: 0, certified: 0, notApplied: 0, pending: 0, stalled: 0 },
     ),
     [rows],
   )
@@ -111,6 +117,7 @@ export function StoreStatsView({ stats }: { stats: StoreStats }) {
       certified: members.filter(m => m.certified > 0).length,
       notApplied: members.length - applied,
       pending: members.reduce((s, m) => s + m.pending, 0),
+      stalled: members.filter(m => m.stalled).length,
     }
   }, [rows])
 
@@ -122,6 +129,7 @@ export function StoreStatsView({ stats }: { stats: StoreStats }) {
       certified: shownUnique.certified - shownRaw.certified,
       notApplied: shownUnique.notApplied - shownRaw.notApplied,
       pending: shownUnique.pending - shownRaw.pending,
+      stalled: shownUnique.stalled - shownRaw.stalled,
     }),
     [shownRaw, shownUnique],
   )
@@ -132,16 +140,16 @@ export function StoreStatsView({ stats }: { stats: StoreStats }) {
   }
 
   const downloadCsv = () => {
-    const header = ['所属', '区分', 'ブランド', '対象従業員数', 'スキル申請人数', '承認済み人数', '未申請人数', '未承認件数']
+    const header = ['所属', '区分', 'ブランド', '対象従業員数', 'スキル申請人数', '承認済み人数', '未申請人数', '未承認件数', `停滞人数（${STALLED_DAYS}日以上申請なし）`]
     const body = rows.map(r => [
       r.name,
       r.type === 'store' ? '店舗' : r.type === 'department' ? '部署' : 'その他',
       r.brandName ?? '',
-      r.target, r.applied, r.certified, r.notApplied, r.pending,
+      r.target, r.applied, r.certified, r.notApplied, r.pending, r.stalled,
     ])
     const footer = [
-      ['重複分（掛け持ちの二重計上）', '', '', duplicated.target, duplicated.applied, duplicated.certified, duplicated.notApplied, duplicated.pending],
-      ['合計（実人数）', '', '', shownUnique.target, shownUnique.applied, shownUnique.certified, shownUnique.notApplied, shownUnique.pending],
+      ['重複分（掛け持ちの二重計上）', '', '', duplicated.target, duplicated.applied, duplicated.certified, duplicated.notApplied, duplicated.pending, duplicated.stalled],
+      ['合計（実人数）', '', '', shownUnique.target, shownUnique.applied, shownUnique.certified, shownUnique.notApplied, shownUnique.pending, shownUnique.stalled],
     ]
     const esc = (v: string | number) => (typeof v === 'number' ? String(v) : `"${v.replace(/"/g, '""')}"`)
     const csv = [header, ...body, ...footer].map(cols => cols.map(esc).join(',')).join('\r\n')
@@ -159,7 +167,7 @@ export function StoreStatsView({ stats }: { stats: StoreStats }) {
       {/* 全社サマリー */}
       <div className="rounded-xl border border-gray-200 bg-white p-3">
         <p className="text-xs font-semibold text-gray-700 mb-2">全社合計</p>
-        <div className="grid grid-cols-5 gap-1">
+        <div className="grid grid-cols-6 gap-1">
           {COLUMNS.map(c => (
             <div key={c.key} className="rounded-lg bg-gray-50 py-2 text-center">
               <p className={cn('text-[10px] leading-none font-medium', METRIC_COLOR[c.key])}>{c.short}</p>
@@ -278,7 +286,7 @@ export function StoreStatsView({ stats }: { stats: StoreStats }) {
               <StatRow key={r.id} row={r} expanded={expanded === r.id} onToggle={() => setExpanded(prev => (prev === r.id ? null : r.id))} />
             ))}
             {rows.length === 0 && (
-              <tr><td colSpan={6} className="px-3 py-8 text-center text-gray-400">該当する所属がありません</td></tr>
+              <tr><td colSpan={7} className="px-3 py-8 text-center text-gray-400">該当する所属がありません</td></tr>
             )}
           </tbody>
           {rows.length > 0 && (
@@ -301,6 +309,7 @@ export function StoreStatsView({ stats }: { stats: StoreStats }) {
                 <td className={cn(NUM, 'px-1 py-2', METRIC_COLOR.certified)}>{shownUnique.certified}</td>
                 <td className={cn(NUM, 'px-1 py-2', METRIC_COLOR.notApplied)}>{shownUnique.notApplied}</td>
                 <td className={cn(NUM, 'px-1 py-2', METRIC_COLOR.pending)}>{shownUnique.pending}</td>
+                <td className={cn(NUM, 'px-1 py-2', METRIC_COLOR.stalled)}>{shownUnique.stalled}</td>
               </tr>
             </tfoot>
           )}
@@ -367,10 +376,11 @@ function StatRow({ row, expanded, onToggle }: { row: StoreStatRow; expanded: boo
         <td className={cn(NUM, 'px-1 py-2 font-medium', METRIC_COLOR.certified)}>{row.certified}</td>
         <td className={cn(NUM, 'px-1 py-2 font-medium', row.notApplied > 0 ? METRIC_COLOR.notApplied : 'text-gray-300')}>{row.notApplied}</td>
         <td className={cn(NUM, 'px-1 py-2 font-medium', row.pending > 0 ? METRIC_COLOR.pending : 'text-gray-300')}>{row.pending}</td>
+        <td className={cn(NUM, 'px-1 py-2 font-medium', row.stalled > 0 ? METRIC_COLOR.stalled : 'text-gray-300')}>{row.stalled}</td>
       </tr>
       {expanded && (
         <tr>
-          <td colSpan={6} className="bg-gray-50/70 px-2 py-2">
+          <td colSpan={7} className="bg-gray-50/70 px-2 py-2">
             {row.brandName && <p className="text-[10px] text-gray-500 mb-1.5">ブランド: {row.brandName}</p>}
             {row.members.length === 0 ? (
               <p className="text-[11px] text-gray-400 py-2 text-center">対象の従業員がいません</p>
@@ -406,6 +416,11 @@ function StatRow({ row, expanded, onToggle }: { row: StoreStatRow; expanded: boo
                         <span className="flex-1 min-w-0 truncate text-[11px] text-gray-700">
                           <MemberNameLink employeeId={m.id}>{m.name}</MemberNameLink>
                         </span>
+                        {m.stalled && (
+                          <span className="flex-shrink-0 rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-medium text-purple-700 tabular-nums" title={m.lastAppliedAt ? `最終申請 ${new Date(m.lastAppliedAt).toLocaleDateString('ja-JP')}` : '一度も申請なし'}>
+                            停滞{m.stalledDays}日
+                          </span>
+                        )}
                         {m.applied === 0 ? (
                           <span className={cn('flex-shrink-0 rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-medium', 'text-rose-700')}>未申請</span>
                         ) : (
@@ -414,6 +429,7 @@ function StatRow({ row, expanded, onToggle }: { row: StoreStatRow; expanded: boo
                             <span className={METRIC_COLOR.certified}> / 認定{m.certified}</span>
                             {m.pending > 0 && <span className={METRIC_COLOR.pending}> / 未承認{m.pending}</span>}
                             {m.rejected > 0 && <span className="text-gray-400"> / 差戻{m.rejected}</span>}
+                            {m.lastAppliedAt && <span className="text-gray-400"> / 最終 {new Date(m.lastAppliedAt).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })}</span>}
                           </span>
                         )}
                       </li>
