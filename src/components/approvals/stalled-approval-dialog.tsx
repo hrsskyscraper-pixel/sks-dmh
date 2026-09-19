@@ -7,13 +7,14 @@ import { Button } from '@/components/ui/button'
 import { CheckCircle } from 'lucide-react'
 import { useNavData } from '@/components/layout/nav-data-context'
 
-const SESSION_KEY = 'stalled_approval_shown'
+/** ブラウザのタブ（セッション）ごとに1回。ログアウト時に nav.tsx が消すので、ログインし直せばまた出る */
+export const STALLED_APPROVAL_SESSION_KEY = 'stalled_approval_shown'
 
 /**
  * 承認者がログインしたとき、滞留している承認（申請の翌日中に承認されていないもの）があれば、
  * 「Mission Board へようこそ！」と同じように最初にモーダルで知らせ、「承認する」で承認センターへ促す。
  * - ベルの「要対応」と同じ内容・同じ件数（getNavCounts の stalledApprovals）
- * - ブラウザのセッションごとに1回。承認しても解消しなくても、次回ログインまでは出ない
+ * - ブラウザのセッションごとに1回。ログアウトすると鍵を消すので、ログインし直せば再び出る
  * - ようこそモーダルが開いている間は待ち、閉じられてから出す（重ねない）
  */
 export function StalledApprovalDialog() {
@@ -25,11 +26,11 @@ export function StalledApprovalDialog() {
   useEffect(() => {
     if (decided || stalledApprovals.count === 0) return
     try {
-      if (sessionStorage.getItem(SESSION_KEY)) { setDecided(true); return }
+      if (sessionStorage.getItem(STALLED_APPROVAL_SESSION_KEY)) { setDecided(true); return }
     } catch { /* sessionStorage 不可でも表示はする */ }
 
     const show = () => {
-      try { sessionStorage.setItem(SESSION_KEY, '1') } catch { /* noop */ }
+      try { sessionStorage.setItem(STALLED_APPROVAL_SESSION_KEY, '1') } catch { /* noop */ }
       setDecided(true)
       setOpen(true)
     }

@@ -8,6 +8,8 @@ import { cn } from '@/lib/utils'
 import { CertRingAvatar } from '@/components/ui/cert-ring-avatar'
 import { createClient } from '@/lib/supabase/client'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
+import { INTRO_GUIDE_SESSION_KEY } from '@/components/onboarding/intro-guide-dialog'
+import { STALLED_APPROVAL_SESSION_KEY } from '@/components/approvals/stalled-approval-dialog'
 import { useNavData, useNotificationCount } from '@/components/layout/nav-data-context'
 import type { Role } from '@/types/database'
 import { canAdminister } from '@/lib/permissions'
@@ -81,6 +83,11 @@ export function AccountSettingsMenu({ employeeId, employeeName, role, fontScale 
   const handleLogout = async () => {
     // view-as cookie をクリア
     document.cookie = `${VIEW_AS_COOKIE}=; path=/; max-age=0`
+    // 「ログインごとに1回」のモーダル（ようこそ／承認の要対応）の表示済み記録を消し、次のログインで再び出るようにする
+    try {
+      sessionStorage.removeItem(INTRO_GUIDE_SESSION_KEY)
+      sessionStorage.removeItem(STALLED_APPROVAL_SESSION_KEY)
+    } catch { /* noop */ }
     const supabase = createClient()
     await supabase.auth.signOut()
     router.push('/login')

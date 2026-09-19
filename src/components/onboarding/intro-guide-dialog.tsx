@@ -8,7 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { CheckCircle2, TrendingUp, Heart, BookOpen } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
-const SESSION_KEY = 'intro_guide_shown'
+export const INTRO_GUIDE_SESSION_KEY = 'intro_guide_shown'
 
 /**
  * ログイン時のツール説明モーダル。
@@ -22,8 +22,8 @@ export function IntroGuideDialog({ employeeId, dismissed }: { employeeId: string
   useEffect(() => {
     if (dismissed) return
     try {
-      if (sessionStorage.getItem(SESSION_KEY)) return
-      sessionStorage.setItem(SESSION_KEY, '1')
+      if (sessionStorage.getItem(INTRO_GUIDE_SESSION_KEY)) return
+      sessionStorage.setItem(INTRO_GUIDE_SESSION_KEY, '1')
     } catch { /* sessionStorage 不可でも表示はする */ }
     setOpen(true)
     document.documentElement.dataset.introOpen = '1'
