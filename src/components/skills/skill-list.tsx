@@ -273,6 +273,11 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
 
   const handleSubmitApply = (skill: Skill, comment: string, photos: File[]) => {
     // 級・ゴールで前提が残っていれば、申請コメントの先頭に注記を付けて承認者に見えるようにする
+    // 級・ゴールは前提がすべて認定されるまで申請できない（2026-09-20 決定）
+    if ((milestoneOf(skill.id, skills, skillPhaseMap, phases, achievements)?.remaining ?? 0) > 0) {
+      toast.error('前提のスキルがまだ認定されていません', { description: '前提がすべて認定されると申請できるようになります' })
+      return
+    }
     const finalComment = [prerequisiteNote(milestoneOf(skill.id, skills, skillPhaseMap, phases, achievements)), comment.trim()].filter(Boolean).join('\n') || null
 
     if (viewAs) { toast.error('プレビュー中は申請できません', { description: 'ご自身のアカウントでお試しください' }); return }
@@ -985,7 +990,7 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
                 <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
                   <p className="font-semibold flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />この{applyMilestone.kind === 'goal' ? 'ゴール' : '級'}には、まだ認定されていない前提が {applyMilestone.remaining} 件あります</p>
                   <p className="mt-1 text-amber-700">先にこれらの習得を進めましょう: {applyMilestone.remainingSkills.slice(0, 5).map(s => s.name).join('、')}{applyMilestone.remainingSkills.length > 5 ? ` ほか${applyMilestone.remainingSkills.length - 5}件` : ''}</p>
-                  <p className="mt-1 text-[10px] text-amber-600">このまま申請すると、承認者にも「前提未認定」として表示されます</p>
+                  <p className="mt-1 text-[10px] text-amber-600">前提がすべて認定されると、この申請ができるようになります</p>
                 </div>
               )}
               <div>
@@ -1004,9 +1009,9 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
             <Button
               className="w-full bg-orange-500 hover:bg-orange-600 text-white"
               onClick={() => applyDialogSkill && handleSubmitApply(applyDialogSkill, applyComment, applyPhotos)}
-              disabled={isPending}
+              disabled={isPending || (applyMilestone?.remaining ?? 0) > 0}
             >
-              {isPending ? '申請中...' : applyMilestone && applyMilestone.remaining > 0 ? '前提が残っていますが申請する' : 'できました！申請する'}
+              {isPending ? '申請中...' : applyMilestone && applyMilestone.remaining > 0 ? '前提が揃うと申請できます' : 'できました！申請する'}
             </Button>
           </DialogFooter>
         </DialogContent>
