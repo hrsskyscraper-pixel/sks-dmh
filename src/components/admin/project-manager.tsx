@@ -653,7 +653,11 @@ export function ProjectManager({
             disabled={isPending}
           />
           <span className={cn('text-[10px] h-6 w-20 flex items-center justify-center border rounded-md cursor-pointer', skill.target_date_hint ? 'text-gray-700 bg-white border-gray-200' : 'text-gray-400 bg-gray-50 border-gray-200')}>
-            {skill.target_date_hint ? `${parseInt(skill.target_date_hint.slice(5, 7))}/${parseInt(skill.target_date_hint.slice(8, 10))}` : '予定日'}
+            {skill.target_date_hint
+              ? (/^\d{4}-\d{2}-\d{2}$/.test(skill.target_date_hint)
+                  ? `${parseInt(skill.target_date_hint.slice(5, 7))}/${parseInt(skill.target_date_hint.slice(8, 10))}`
+                  : skill.target_date_hint)   /* 「8月中旬」のような文字の目安はそのまま出す */
+              : '予定日'}
           </span>
         </div>
         <Button
@@ -839,12 +843,9 @@ export function ProjectManager({
               )}
               {selectedPhases.map(phase => {
                 const phaseSkills = skillsState.filter(s => skillPhaseMap[s.id] === phase.id)
-                const sorted = phaseSkills.sort((a, b) => {
-                  const catA = categories.indexOf(a.category)
-                  const catB = categories.indexOf(b.category)
-                  if (catA !== catB) return catA - catB
-                  return a.order_index - b.order_index
-                })
+                // 並びは「標準的な習得順」（order_index）。区分ごとにはまとめない
+                // （できました表の列順＝この順で習得を進める想定。区分は行の色で見分ける）
+                const sorted = phaseSkills.sort((a, b) => a.order_index - b.order_index)
                 if (sorted.length === 0) return null
                 return (
                   <div

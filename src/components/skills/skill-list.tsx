@@ -24,6 +24,7 @@ import { calcSkillTargetHours } from '@/lib/skill-progress'
 import { SkillStatsContent } from '@/components/skills/skill-stats-content'
 import { sortCategories } from '@/lib/category-order'
 import { cn } from '@/lib/utils'
+import { milestoneOf, prerequisiteNote } from '@/lib/milestones'
 import { SkillPhotoInput } from '@/components/skills/skill-photo-input'
 import { SkillPhotoGallery } from '@/components/skills/skill-photo-gallery'
 import { uploadSkillPhotos } from '@/lib/skill-photos'
@@ -267,7 +268,13 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
     }
   }
 
+  /** 申請ダイアログで開いているスキルが級・ゴールなら、その前提の到達状況（前提未認定の注意表示に使う） */
+  const applyMilestone = applyDialogSkill ? milestoneOf(applyDialogSkill.id, skills, skillPhaseMap, phases, achievements) : null
+
   const handleSubmitApply = (skill: Skill, comment: string, photos: File[]) => {
+    // 級・ゴールで前提が残っていれば、申請コメントの先頭に注記を付けて承認者に見えるようにする
+    const finalComment = [prerequisiteNote(milestoneOf(skill.id, skills, skillPhaseMap, phases, achievements)), comment.trim()].filter(Boolean).join('\n') || null
+
     if (viewAs) { toast.error('プレビュー中は申請できません', { description: 'ご自身のアカウントでお試しください' }); return }
     const existing = getAchievement(skill.id)
 
@@ -286,7 +293,7 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
           .update({
             status: 'pending',
             achieved_at: new Date().toISOString(),
-            apply_comment: comment.trim() || null,
+            apply_comment: finalComment,
             certify_comment: null,
             ...photoUpdate,
           })
@@ -296,11 +303,11 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
 
         if (error) { toast.error('再申請に失敗しました', { description: error.message }); return }
         setAchievements(prev => prev.map(a => a.id === existing.id ? { ...a, ...(data as AchievementWithCertifier) } : a))
-        await supabase.from('achievement_history').insert({ achievement_id: existing.id, action: 'reapply', actor_id: employeeId, comment: comment.trim() || null })
+        await supabase.from('achievement_history').insert({ achievement_id: existing.id, action: 'reapply', actor_id: employeeId, comment: finalComment })
         setReapplyDialogSkill(null)
         setReapplyComment('')
         setReapplyPhotos([])
-        fetch('/api/skill-notification', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ employeeId, skillName: skill.name, isReapply: true, comment: comment.trim() || null }) }).catch(() => {})
+        fetch('/api/skill-notification', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ employeeId, skillName: skill.name, isReapply: true, comment: finalComment }) }).catch(() => {})
         toast.success(`「${skill.name}」を再申請しました！`, { description: '認定者の確認をお待ちください' })
         setTimeout(() => window.location.reload(), 500)
       } else {
@@ -312,14 +319,14 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
         }
         const { data, error } = await supabase
           .from('achievements')
-          .insert({ employee_id: employeeId, skill_id: skill.id, status: 'pending', apply_comment: comment.trim() || null, photo_paths: photoPaths })
+          .insert({ employee_id: employeeId, skill_id: skill.id, status: 'pending', apply_comment: finalComment, photo_paths: photoPaths })
           .select()
           .single()
 
         if (error) { toast.error('申請に失敗しました', { description: error.message }); return }
         setAchievements(prev => [...prev, data])
-        await supabase.from('achievement_history').insert({ achievement_id: data.id, action: 'apply', actor_id: employeeId, comment: comment.trim() || null })
-        fetch('/api/skill-notification', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ employeeId, skillName: skill.name, isReapply: false, comment: comment.trim() || null }) }).catch(() => {})
+        await supabase.from('achievement_history').insert({ achievement_id: data.id, action: 'apply', actor_id: employeeId, comment: finalComment })
+        fetch('/api/skill-notification', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ employeeId, skillName: skill.name, isReapply: false, comment: finalComment }) }).catch(() => {})
         setApplyDialogSkill(null)
         setApplyComment('')
         setApplyPhotos([])
@@ -974,6 +981,13 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
                   <Badge className={cn('text-[10px] border-0', getCategoryColor(applyDialogSkill.category, categories))}>{applyDialogSkill.category}</Badge>
                 </div>
               </div>
+              {applyMilestone && applyMilestone.remaining > 0 && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                  <p className="font-semibold flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />この{applyMilestone.kind === 'goal' ? 'ゴール' : '級'}には、まだ認定されていない前提が {applyMilestone.remaining} 件あります</p>
+                  <p className="mt-1 text-amber-700">先にこれらの習得を進めましょう: {applyMilestone.remainingSkills.slice(0, 5).map(s => s.name).join('、')}{applyMilestone.remainingSkills.length > 5 ? ` ほか${applyMilestone.remainingSkills.length - 5}件` : ''}</p>
+                  <p className="mt-1 text-[10px] text-amber-600">このまま申請すると、承認者にも「前提未認定」として表示されます</p>
+                </div>
+              )}
               <div>
                 <p className="text-xs font-medium text-gray-600 mb-1">コメント（任意）</p>
                 <Textarea
@@ -992,7 +1006,7 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
               onClick={() => applyDialogSkill && handleSubmitApply(applyDialogSkill, applyComment, applyPhotos)}
               disabled={isPending}
             >
-              {isPending ? '申請中...' : 'できました！申請する'}
+              {isPending ? '申請中...' : applyMilestone && applyMilestone.remaining > 0 ? '前提が残っていますが申請する' : 'できました！申請する'}
             </Button>
           </DialogFooter>
         </DialogContent>

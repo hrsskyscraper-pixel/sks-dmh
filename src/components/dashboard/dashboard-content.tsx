@@ -14,7 +14,7 @@ import { createClient } from '@/lib/supabase/client'
 import { setSelectedProject } from '@/app/(dashboard)/actions'
 import { SkillStatsContent } from '@/components/skills/skill-stats-content'
 import { MilestoneCard } from '@/components/dashboard/milestone-card'
-import { computeMilestones } from '@/lib/milestones'
+import { computeMilestones, milestoneOf, prerequisiteNote } from '@/lib/milestones'
 import { SkillPhotoInput } from '@/components/skills/skill-photo-input'
 import { uploadSkillPhotos } from '@/lib/skill-photos'
 import { Textarea } from '@/components/ui/textarea'
@@ -186,7 +186,13 @@ export function DashboardContent({
   const pendingIds = new Set(achievementList.filter(a => a.status === 'pending').map(a => a.skill_id))
   const rejectedIds = new Set(achievementList.filter(a => a.status === 'rejected').map(a => a.skill_id))
 
+  /** 申請ダイアログで開いているスキルが級・ゴールなら、その前提の到達状況（前提未認定の注意表示に使う） */
+  const applyMilestone = applyDialogSkill ? milestoneOf(applyDialogSkill.id, skills, skillPhaseMap, projectPhases, achievementList) : null
+
   const handleRequest = (skill: Skill, comment?: string, photos: File[] = []) => {
+    // 級・ゴールで前提が残っていれば、申請コメントの先頭に注記を付けて承認者に見えるようにする
+    const finalComment = [prerequisiteNote(milestoneOf(skill.id, skills, skillPhaseMap, projectPhases, achievementList)), comment?.trim()].filter(Boolean).join('\n') || null
+
     if (!isOwnDashboard) {
       toast.error('プレビュー中は申請できません', { description: 'プレビュー（view-as）を解除し、ご自身のアカウントでお試しください' })
       return
@@ -205,24 +211,24 @@ export function DashboardContent({
         // 差し戻し → 再申請
         const { data, error } = await supabase
           .from('achievements')
-          .update({ status: 'pending', achieved_at: new Date().toISOString(), apply_comment: comment?.trim() || null, certify_comment: null, ...photoField })
+          .update({ status: 'pending', achieved_at: new Date().toISOString(), apply_comment: finalComment, certify_comment: null, ...photoField })
           .eq('id', existing.id)
           .select()
           .single()
         if (error) { toast.error('申請に失敗しました', { description: error.message }); return }
         setAchievementList(prev => prev.map(a => a.id === existing.id ? data : a))
-        await supabase.from('achievement_history').insert({ achievement_id: existing.id, action: 'reapply' as const, actor_id: employee.id, comment: comment?.trim() || null })
+        await supabase.from('achievement_history').insert({ achievement_id: existing.id, action: 'reapply' as const, actor_id: employee.id, comment: finalComment })
       } else {
         const { data, error } = await supabase
           .from('achievements')
-          .insert({ employee_id: employee.id, skill_id: skill.id, status: 'pending', apply_comment: comment?.trim() || null, photo_paths: photoPaths })
+          .insert({ employee_id: employee.id, skill_id: skill.id, status: 'pending', apply_comment: finalComment, photo_paths: photoPaths })
           .select()
           .single()
         if (error) { toast.error('申請に失敗しました', { description: error.message }); return }
         setAchievementList(prev => [...prev, data])
-        await supabase.from('achievement_history').insert({ achievement_id: data.id, action: 'apply' as const, actor_id: employee.id, comment: comment?.trim() || null })
+        await supabase.from('achievement_history').insert({ achievement_id: data.id, action: 'apply' as const, actor_id: employee.id, comment: finalComment })
       }
-      fetch('/api/skill-notification', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ employeeId: employee.id, skillName: skill.name, isReapply: !!existing, comment: comment?.trim() || null }) }).catch(() => {})
+      fetch('/api/skill-notification', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ employeeId: employee.id, skillName: skill.name, isReapply: !!existing, comment: finalComment }) }).catch(() => {})
       setApplyDialogSkill(null)
       setApplyComment('')
       setApplyPhotos([])
@@ -621,6 +627,13 @@ export function DashboardContent({
                   <Badge className={cn('text-[10px] border-0', getCategoryColor(applyDialogSkill.category, categories))}>{applyDialogSkill.category}</Badge>
                 </div>
               </div>
+              {applyMilestone && applyMilestone.remaining > 0 && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                  <p className="font-semibold flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />この{applyMilestone.kind === 'goal' ? 'ゴール' : '級'}には、まだ認定されていない前提が {applyMilestone.remaining} 件あります</p>
+                  <p className="mt-1 text-amber-700">先にこれらの習得を進めましょう: {applyMilestone.remainingSkills.slice(0, 5).map(s => s.name).join('、')}{applyMilestone.remainingSkills.length > 5 ? ` ほか${applyMilestone.remainingSkills.length - 5}件` : ''}</p>
+                  <p className="mt-1 text-[10px] text-amber-600">このまま申請すると、承認者にも「前提未認定」として表示されます</p>
+                </div>
+              )}
               <div>
                 <p className="text-xs font-medium text-gray-600 mb-1">コメント（任意）</p>
                 <Textarea placeholder="習得したポイントや、気付いたこと、学んだことなど" value={applyComment} onChange={e => setApplyComment(e.target.value)} className="text-sm min-h-[80px] resize-none" />
@@ -630,7 +643,7 @@ export function DashboardContent({
           )}
           <DialogFooter>
             <Button className="w-full bg-orange-500 hover:bg-orange-600 text-white" onClick={() => applyDialogSkill && handleRequest(applyDialogSkill, applyComment, applyPhotos)} disabled={isPending}>
-              {isPending ? '申請中...' : 'できました！申請する'}
+              {isPending ? '申請中...' : applyMilestone && applyMilestone.remaining > 0 ? '前提が残っていますが申請する' : 'できました！申請する'}
             </Button>
           </DialogFooter>
         </DialogContent>

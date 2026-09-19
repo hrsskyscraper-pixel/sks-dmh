@@ -100,3 +100,27 @@ export function computeMilestones(
 export function normalizeCertName(name: string): string {
   return name.normalize('NFKC').replace(/\s+/g, '')
 }
+
+/** 指定スキルがマイルストーンなら、その到達状況を返す（通常スキルは null） */
+export function milestoneOf(
+  skillId: string,
+  skills: MilestoneSkillLike[],
+  skillPhaseMap: Record<string, string | null>,
+  phases: { id: string; order_index: number }[],
+  achievements: { skill_id: string; status: string }[],
+): MilestoneProgress | null {
+  const target = skills.find(s => s.id === skillId)
+  if (!target || (target.milestone_kind !== 'grade' && target.milestone_kind !== 'goal')) return null
+  return computeMilestones(skills, skillPhaseMap, phases, achievements).find(m => m.skillId === skillId) ?? null
+}
+
+/**
+ * 前提が残ったまま級・ゴールを申請したときに、申請コメントの先頭へ付ける注記。
+ * 承認者が承認センターや対話履歴で「前提未認定」を見られるようにする。
+ */
+export function prerequisiteNote(m: MilestoneProgress | null): string | null {
+  if (!m || m.remaining === 0) return null
+  const names = m.remainingSkills.slice(0, 5).map(s => s.name).join('、')
+  const more = m.remainingSkills.length > 5 ? ` ほか${m.remainingSkills.length - 5}件` : ''
+  return `【前提未認定 ${m.remaining}件】${names}${more}`
+}
