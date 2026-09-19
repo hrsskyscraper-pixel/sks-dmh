@@ -600,6 +600,31 @@ export async function toggleSkillCheckpoint(skillId: string, isCheckpoint: boole
   return {}
 }
 
+/**
+ * スキルのマイルストーン設定（級／全体ゴール／自動登録する社内資格）。システム管理者のみ。
+ * kind=null で通常スキルに戻す（cert も外す）。cert は kind='grade' のときだけ意味を持つ。
+ */
+export async function updateSkillMilestone(
+  skillId: string,
+  kind: 'grade' | 'goal' | null,
+  cert: string | null,
+): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: '認証エラー' }
+
+  const { data: emp } = await supabase.from('employees').select('role, system_permission').eq('auth_user_id', user.id).single()
+  if (!emp || !canAdminister(emp)) return { error: '権限がありません' }
+
+  const adminDb = createAdminClient()
+  const { error } = await adminDb
+    .from('skills')
+    .update({ milestone_kind: kind, milestone_cert: kind === 'grade' ? (cert?.trim() || null) : null })
+    .eq('id', skillId)
+  if (error) return { error: error.message }
+  return {}
+}
+
 export async function changeEmployeeRole(employeeId: string, newRole: string, newEmploymentType: string): Promise<{ error?: string }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()

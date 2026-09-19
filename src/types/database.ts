@@ -713,6 +713,10 @@ export type Database = {
           standard_hours: number | null
           is_checkpoint: boolean
           created_at: string
+          /** 'grade'=級（同区分の手前を数える）/ 'goal'=全体ゴール / null=通常 */
+          milestone_kind: 'grade' | 'goal' | null
+          /** 認定時に自動登録する社内資格名（null は到達表示のみ） */
+          milestone_cert: string | null
         }
         Insert: {
           id?: string
@@ -724,6 +728,8 @@ export type Database = {
           standard_hours?: number | null
           is_checkpoint?: boolean
           created_at?: string
+          milestone_kind?: 'grade' | 'goal' | null
+          milestone_cert?: string | null
         }
         Update: {
           id?: string
@@ -735,6 +741,8 @@ export type Database = {
           standard_hours?: number | null
           is_checkpoint?: boolean
           created_at?: string
+          milestone_kind?: 'grade' | 'goal' | null
+          milestone_cert?: string | null
         }
         Relationships: []
       }

@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { sendMail } from '@/lib/notifications/email'
 import { sendLineMessage } from '@/lib/notifications/line'
 import { canApprove } from '@/lib/permissions'
+import { registerGradeCertification } from '@/lib/grade-registration'
 
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -34,7 +35,7 @@ export async function POST(request: Request) {
   // 対象の achievement を取得
   const { data: achievement } = await db
     .from('achievements')
-    .select('id, employee_id, skill_id, status, skills(name), employees!achievements_employee_id_fkey(name, email, line_user_id)')
+    .select('id, employee_id, skill_id, status, skills(name, milestone_kind, milestone_cert), employees!achievements_employee_id_fkey(name, email, line_user_id)')
     .eq('id', achievementId)
     .single()
   if (!achievement) return NextResponse.json({ error: '対象が見つかりません' }, { status: 404 })
@@ -62,6 +63,15 @@ export async function POST(request: Request) {
     actor_id: certifier.id,
     comment: comment?.trim() || null,
   })
+
+  // 級の行が認定されたら、社内資格の自動登録と級合格のお知らせ（失敗しても認定は成立しているので握りつぶす）
+  if (action === 'certified') {
+    const sk = achievement.skills as { milestone_cert?: string | null } | null
+    if (sk?.milestone_cert) {
+      await registerGradeCertification(db, { employeeId: achievement.employee_id, certName: sk.milestone_cert, actorId: certifier.id })
+        .catch(err => console.error('社内資格の自動登録に失敗:', err))
+    }
+  }
 
   // 通知（メール / LINE）はレスポンス送出後に実行する。
   // メール/LINE送信は数秒かかることがあり、待つと操作がもっさりするため。

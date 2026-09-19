@@ -13,6 +13,8 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { setSelectedProject } from '@/app/(dashboard)/actions'
 import { SkillStatsContent } from '@/components/skills/skill-stats-content'
+import { MilestoneCard } from '@/components/dashboard/milestone-card'
+import { computeMilestones } from '@/lib/milestones'
 import { SkillPhotoInput } from '@/components/skills/skill-photo-input'
 import { uploadSkillPhotos } from '@/lib/skill-photos'
 import { Textarea } from '@/components/ui/textarea'
@@ -477,6 +479,11 @@ export function DashboardContent({
       </Card>
 
       {setupNoticeSlot}
+
+      {/* 次の級まで（級・全体ゴールが設定されているカリキュラムのみ表示） */}
+      {currentProject && (
+        <MilestoneCard milestones={computeMilestones(skills, skillPhaseMap, projectPhases, achievementList)} />
+      )}
 
       {/* ⚠️ 対応が必要（全社未承認・自チーム未承認・チーム変更承認依頼・期限遅れ・差し戻しをここに集約） */}
       {(() => {
