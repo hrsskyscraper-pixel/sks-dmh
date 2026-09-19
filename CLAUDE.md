@@ -34,7 +34,15 @@ SB_ACCOUNT=SKS sb db push --linked              # 未適用マイグレーショ
 
 ### ステージング環境（2026-09-19 新設）
 - Supabase: `sks-dmh-staging`（ref `giwqelfbvsgucpnzzdao`、東京）。**本番とは別アカウント** `sks_dmh@z2o.jp`。
-  ダミーデータのみ。本番データはコピーしない。
+- **データは「本番の最新バックアップをマスクして復元」したもの**（2026-09-20 決定。それまではダミーのみ）。
+  作り直しは `scripts/staging-refresh.sh`（須貝さんが自分のターミナルで実行。復号パスフレーズを対話入力する）。
+  中身: ダンプ取得 → `scripts/restore-backup.sh` で復元（＝復元テストを兼ねる）→ Data API 権限の付け直し →
+  マスク（`scripts/staging-refresh-post.sql`: 運営チーム・テストアカウント以外のメールを `@staging.invalid` に、
+  LINE ID・生年月日・SNS を空に）→ Google ログイン時にメールで社員行を紐づけるトリガ（ステージング限定）→
+  本番に未適用のマイグレーションを当て直し。
+  **本番へ流れるのはコードとマイグレーションだけ**。ステージングで変えた設定・データは本番に流れない
+  （必要なら SQL に起こしてマイグレーションにする）。写真（storage）は復元されないので表示されない。
+  メール・LINE のキーはステージングに置かない（通知は送られない）。
 - 操作は `scripts/staging-db.sh`（`--db-url` で直結。本番のリンク `supabase/.temp` は触らない）:
   ```bash
   scripts/staging-db.sh migration list
