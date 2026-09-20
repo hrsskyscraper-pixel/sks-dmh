@@ -83,8 +83,10 @@ export async function getStalledApprovals(db: SupabaseClient, now: Date, exclude
   if (stalledRows.length === 0) return { items: [], byApprover: [], byTeam: [], unassigned: [], total: 0 }
 
   const empIds = [...new Set(stalledRows.map(a => a.employee_id))]
-  const [{ data: memberRows }, { data: empRows }] = await Promise.all([
+  const [{ data: memberRows }, { data: leaderRows }, { data: empRows }] = await Promise.all([
     db.from('team_members').select('employee_id, team_id, teams(id, name, type)').in('employee_id', empIds),
+    // 担当リーダーとしてだけ登録され、メンバー行が無い人（旧データ）もそのチームの所属として扱う
+    db.from('team_managers').select('employee_id, team_id, teams(id, name, type)').in('employee_id', empIds),
     db.from('employees').select('id, name').in('id', empIds),
   ])
   const nameById: Record<string, string> = Object.fromEntries((empRows ?? []).map(e => [e.id, e.name]))
@@ -92,7 +94,8 @@ export async function getStalledApprovals(db: SupabaseClient, now: Date, exclude
   // 申請者 → 所属チーム（店舗を優先。無ければ部署・PJ）
   type TeamRef = { id: string; name: string; type: string }
   const teamByEmp: Record<string, TeamRef | null> = {}
-  for (const m of (memberRows ?? []) as { employee_id: string; team_id: string; teams: TeamRef | TeamRef[] | null }[]) {
+  type AffRow = { employee_id: string; team_id: string; teams: TeamRef | TeamRef[] | null }
+  for (const m of [...((memberRows ?? []) as AffRow[]), ...((leaderRows ?? []) as AffRow[])]) {
     const t = Array.isArray(m.teams) ? m.teams[0] : m.teams
     if (!t) continue
     const cur = teamByEmp[m.employee_id]
