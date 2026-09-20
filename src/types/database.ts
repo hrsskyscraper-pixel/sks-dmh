@@ -19,6 +19,10 @@ export type Database = {
           name_kana: string | null
           email: string
           hire_date: string | null
+          /** 退職日（migration 20260920000300）。NULL＝在籍中 */
+          left_at?: string | null
+          /** 最終利用日時（migration 20260920000300） */
+          last_login_at?: string | null
           birth_date: string | null
           role: 'employee' | 'store_manager' | 'manager' | 'admin' | 'ops_manager' | 'executive' | 'testuser'
           business_role_ids: string[]
@@ -52,6 +56,8 @@ export type Database = {
           name_kana?: string | null
           email: string
           hire_date?: string | null
+          left_at?: string | null
+          last_login_at?: string | null
           birth_date?: string | null
           role?: 'employee' | 'store_manager' | 'manager' | 'admin' | 'ops_manager' | 'executive' | 'testuser'
           business_role_ids?: string[]
@@ -85,6 +91,8 @@ export type Database = {
           name_kana?: string | null
           email?: string
           hire_date?: string | null
+          left_at?: string | null
+          last_login_at?: string | null
           birth_date?: string | null
           role?: 'employee' | 'store_manager' | 'manager' | 'admin' | 'ops_manager' | 'executive' | 'testuser'
           business_role_ids?: string[]
@@ -763,6 +771,8 @@ export type Database = {
           is_read: boolean
           photo_paths: string[]
           created_at: string
+          /** 認定の演出を本人に見せた日時（migration 20260920000300）。明示 select で省くことがあるため任意 */
+          celebrated_at?: string | null
         }
         Insert: {
           id?: string
@@ -777,6 +787,7 @@ export type Database = {
           apply_comment?: string | null
           certify_comment?: string | null
           praise_comment?: string | null
+          celebrated_at?: string | null
           is_read?: boolean
           photo_paths?: string[]
           created_at?: string
@@ -794,6 +805,7 @@ export type Database = {
           apply_comment?: string | null
           certify_comment?: string | null
           praise_comment?: string | null
+          celebrated_at?: string | null
           is_read?: boolean
           photo_paths?: string[]
           created_at?: string
@@ -1266,6 +1278,75 @@ export type Database = {
           actor_id?: string | null
           type?: string
           comment?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      qa_questions: {
+        Row: {
+          id: string
+          asker_id: string
+          title: string
+          body: string
+          status: 'open' | 'resolved'
+          answer_count: number
+          resolved_at: string | null
+          resolved_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          asker_id: string
+          title: string
+          body: string
+          status?: 'open' | 'resolved'
+          answer_count?: number
+          resolved_at?: string | null
+          resolved_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          asker_id?: string
+          title?: string
+          body?: string
+          status?: 'open' | 'resolved'
+          answer_count?: number
+          resolved_at?: string | null
+          resolved_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      login_days: {
+        Row: { employee_id: string; day: string; first_at: string; last_at: string }
+        Insert: { employee_id: string; day: string; first_at?: string; last_at?: string }
+        Update: { employee_id?: string; day?: string; first_at?: string; last_at?: string }
+        Relationships: []
+      }
+      qa_answers: {
+        Row: {
+          id: string
+          question_id: string
+          author_id: string
+          body: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          question_id: string
+          author_id: string
+          body: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          question_id?: string
+          author_id?: string
+          body?: string
           created_at?: string
         }
         Relationships: []

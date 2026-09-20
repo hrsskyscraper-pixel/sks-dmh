@@ -8,12 +8,13 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { CertRingAvatar } from '@/components/ui/cert-ring-avatar'
 import { cn } from '@/lib/utils'
-import { AlertTriangle, ChevronRight, Camera, Loader2, ClipboardList, Users, Instagram, Target, CalendarDays, Pencil, BookOpen, Building2, Undo2, Lightbulb } from 'lucide-react'
+import { AlertTriangle, ChevronRight, Camera, Loader2, ClipboardList, Users, Instagram, Target, CalendarDays, Pencil, BookOpen, Building2, Undo2, Lightbulb, MessageCircleQuestion } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { setSelectedProject } from '@/app/(dashboard)/actions'
 import { SkillStatsContent } from '@/components/skills/skill-stats-content'
 import { MilestoneCard } from '@/components/dashboard/milestone-card'
+import { LevelUpCelebration, type CelebrationItem } from '@/components/dashboard/level-up-celebration'
 import { computeMilestones, milestoneOf, prerequisiteNote } from '@/lib/milestones'
 import { SkillPhotoInput } from '@/components/skills/skill-photo-input'
 import { uploadSkillPhotos } from '@/lib/skill-photos'
@@ -45,6 +46,8 @@ interface Props {
   pendingTeamRequestsCount?: number
   currentGoal: (Pick<Goal, 'id' | 'content' | 'set_at' | 'deadline'> & { reason?: string }) | null
   isOwnDashboard: boolean
+  /** レベルアップ演出（認定済みでまだ見せていない分。本人のホームのみ） */
+  celebration?: { items: CelebrationItem[]; completedPhases: string[] }
   careerSummary?: Record<string, string[]>
   storeName?: string | null
   position?: string | null
@@ -109,7 +112,7 @@ function calcHireYear(hireDate: string | null): number {
 export function DashboardContent({
   employee, skills, achievements: initialAchievements, cumulativeHours, milestones,
   projectPhases, skillPhaseMap, currentProject, employeeProjects,
-  globalPendingAchievementsCount = 0, teamPendingAchievementsCount = 0, pendingTeamRequestsCount = 0,
+  globalPendingAchievementsCount = 0, teamPendingAchievementsCount = 0, pendingTeamRequestsCount = 0, celebration,
   currentGoal: initialGoal, isOwnDashboard, careerSummary = {}, storeName = null, position = null, internalCerts = [], employeeId, hasGoalRecords = false,
   skillManuals = {},
   rankingSlot, checkpointSlot, announcementsSlot, skillRankingSlot, setupNoticeSlot
@@ -490,6 +493,9 @@ export function DashboardContent({
       </Card>
 
       {setupNoticeSlot}
+      {celebration && isOwnDashboard && (
+        <LevelUpCelebration items={celebration.items} completedPhases={celebration.completedPhases} employeeName={employee.name} />
+      )}
 
       {/* 次の級まで（級・全体ゴールが設定されているカリキュラムのみ表示） */}
       {currentProject && (
@@ -605,6 +611,20 @@ export function DashboardContent({
       {rankingSlot}
       {skillRankingSlot}
       {checkpointSlot}
+
+      {/* Q&A（2026-09-19 決定: 改善提案の上に置く。誰でも質問・回答できる） */}
+      <Link href="/qa" className="block">
+        <div className="rounded-xl border border-gray-200 bg-white px-4 py-3 hover:bg-gray-50 transition-colors flex items-center gap-3">
+          <div className="w-9 h-9 rounded-full bg-sky-100 flex items-center justify-center flex-shrink-0">
+            <MessageCircleQuestion className="w-4 h-4 text-sky-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-gray-800">Q&amp;A</p>
+            <p className="text-xs text-gray-500">分からないことを聞けます。誰でも回答できます</p>
+          </div>
+          <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0" />
+        </div>
+      </Link>
 
       {/* 改善提案・ご要望 */}
       <Link href="/improvements" className="block">

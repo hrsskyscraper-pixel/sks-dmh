@@ -176,7 +176,7 @@ export default async function DashboardPage({
       ? db.from('project_skills').select('skill_id, project_phase_id').eq('project_id', selectedProject.id)
       : Promise.resolve({ data: [] }),
     db.from('skills').select('id, name, phase, category, order_index, target_date_hint, standard_hours, is_checkpoint, created_at, milestone_kind, milestone_cert').order('order_index'),
-    db.from('achievements').select('id, skill_id, employee_id, status, achieved_at, certified_by, certified_at, cumulative_hours_at_achievement, notes, apply_comment, certify_comment, praise_comment, is_read, photo_paths, created_at, skills(id, name, phase, category, order_index, target_date_hint, standard_hours, is_checkpoint, created_at, milestone_kind, milestone_cert), certified_employee:employees!achievements_certified_by_fkey(name, avatar_url)').eq('employee_id', employee.id),
+    db.from('achievements').select('id, skill_id, employee_id, status, achieved_at, certified_by, certified_at, cumulative_hours_at_achievement, notes, apply_comment, certify_comment, praise_comment, is_read, photo_paths, created_at, celebrated_at, skills(id, name, phase, category, order_index, target_date_hint, standard_hours, is_checkpoint, created_at, milestone_kind, milestone_cert), certified_employee:employees!achievements_certified_by_fkey(name, avatar_url)').eq('employee_id', employee.id),
     db.rpc('get_employee_cumulative_hours', {
       p_employee_id: employee.id,
       p_as_of_date: new Date().toISOString().split('T')[0],
@@ -225,6 +225,29 @@ export default async function DashboardPage({
 
   const projectPhases = projectPhaseRows ?? []
   const milestones = buildMilestoneMap(projectPhases)
+
+  // レベルアップ演出（2026-09-19 決定 ②）: 認定済みでまだ見せていないもの。本人のホームでだけ出す（view-as では消費しない）
+  type AchRow = { id: string; skill_id: string; status: string; celebrated_at?: string | null; praise_comment: string | null; skills: { name: string; milestone_kind?: 'grade' | 'goal' | null; milestone_cert?: string | null } | null; certified_employee: { name: string } | null }
+  const uncelebrated = viewAsId ? [] : ((achievements ?? []) as unknown as AchRow[]).filter(a => a.status === 'certified' && !a.celebrated_at)
+  const celebrationItems = uncelebrated.map(a => ({
+    achievementId: a.id,
+    skillName: a.skills?.name ?? 'スキル',
+    milestoneKind: (a.skills?.milestone_kind ?? null) as 'grade' | 'goal' | null,
+    milestoneCert: a.skills?.milestone_cert ?? null,
+    praise: a.praise_comment ?? null,
+    certifierName: a.certified_employee?.name ?? null,
+  }))
+  // この認定でフェーズの全スキルがそろったフェーズ（選択中カリキュラム内）
+  const completedPhases: string[] = []
+  if (uncelebrated.length > 0) {
+    const certifiedSkillIds = new Set((achievements ?? []).filter(a => a.status === 'certified').map(a => a.skill_id))
+    const touchedPhaseIds = new Set(uncelebrated.map(a => skillPhaseMap[a.skill_id]).filter((x): x is string => !!x))
+    for (const ph of projectPhases) {
+      if (!touchedPhaseIds.has(ph.id)) continue
+      const phaseSkillIds = Object.entries(skillPhaseMap).filter(([, pid]) => pid === ph.id).map(([sid]) => sid)
+      if (phaseSkillIds.length > 0 && phaseSkillIds.every(sid => certifiedSkillIds.has(sid))) completedPhases.push(ph.name)
+    }
+  }
 
   const lastPhase = projectPhases[projectPhases.length - 1]
   const standardEndHours = lastPhase?.end_hours ?? 0
@@ -281,6 +304,7 @@ export default async function DashboardPage({
           return (goalRows ?? [])[0] ?? null
         })()}
         isOwnDashboard={!viewAsId}
+        celebration={celebrationItems.length > 0 ? { items: celebrationItems, completedPhases } : undefined}
         careerSummary={(() => {
           const empMap = Object.fromEntries((allEmployeesForCareer ?? []).map(e => [e.id, e.name]))
           const summary: Record<string, string[]> = {}

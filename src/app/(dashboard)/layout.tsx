@@ -17,7 +17,7 @@ import { StalledApprovalDialog } from '@/components/approvals/stalled-approval-d
 import { PendingScreen } from '@/components/onboarding/pending-screen'
 import { InviteRequiredScreen } from '@/components/onboarding/invite-required-screen'
 import { JoinCompletionBanner } from '@/components/onboarding/join-completion-banner'
-import { canAdminister, isTrainingLeader } from '@/lib/permissions'
+import { canAdminister } from '@/lib/permissions'
 import { MemberLinkProvider } from '@/components/layout/member-link-context'
 import { LineLinkFloatingButton } from '@/components/layout/line-link-floating-button'
 import { FontScaleSync } from '@/components/layout/font-scale-sync'
@@ -133,7 +133,8 @@ export default async function DashboardLayout({
           />
         )}
         <main className="pb-20 max-w-2xl mx-auto">
-          <MemberLinkProvider canView={canAdminister(employee) || isTrainingLeader(employee)}>
+          {/* Myキャリアは全社員が互いに閲覧できる（2026-09-20）。名前リンクは全員に出す */}
+          <MemberLinkProvider canView={true}>
             {children}
           </MemberLinkProvider>
         </main>

@@ -33,6 +33,8 @@ export async function getNavCounts(): Promise<NavCounts> {
   if (!employee) return EMPTY_NAV_COUNTS
 
   const cookieStore = await cookies()
+  // ログイン（利用）記録: 1人1日1行（JST）。描画後に呼ばれるここで、1日1回だけ書く（cookie で抑止）
+  await recordLoginDay(employee.id, cookieStore).catch(e => console.error('[login_days]', e))
   const viewAsId = cookieStore.get(VIEW_AS_COOKIE)?.value ?? null
   const db = createAdminClient()
 
@@ -457,6 +459,8 @@ export async function updateEmployeeProfile(employeeId: string, fields: {
   birth_date: string | null
   instagram_url: string | null
   line_url: string | null
+  /** 退職日（システム管理者のみ更新できる。undefined＝変更しない） */
+  left_at?: string | null
 }): Promise<{ error?: string }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -466,12 +470,13 @@ export async function updateEmployeeProfile(employeeId: string, fields: {
   if (!emp) return { error: '権限がありません' }
   const isSelf = emp.id === employeeId
   if (!isSelf && !canApprove(emp)) return { error: '権限がありません' }
+  if (fields.left_at !== undefined && !canAdminister(emp)) return { error: '退職日を変更できるのはシステム管理者だけです' }
 
   if (!fields.last_name.trim()) return { error: '姓を入力してください' }
 
   const adminDb = createAdminClient()
   // 氏名変更の監査用に変更前の表示名を取得
-  const { data: before } = await adminDb.from('employees').select('name').eq('id', employeeId).single()
+  const { data: before } = await adminDb.from('employees').select('name, left_at').eq('id', employeeId).single()
   const newName = `${fields.last_name.trim()} ${fields.first_name.trim()}`.trim()
 
   // name は last_name/first_name から trigger(trg_sync_employee_name)で自動同期される
@@ -482,8 +487,19 @@ export async function updateEmployeeProfile(employeeId: string, fields: {
     birth_date: fields.birth_date,
     instagram_url: fields.instagram_url,
     line_url: fields.line_url,
+    ...(fields.left_at !== undefined ? { left_at: fields.left_at } : {}),
   }).eq('id', employeeId)
   if (error) return { error: error.message }
+
+  // 退職日の変更は監査ログに残す（入退社フローの記録。2026-09-19 決定 ⑦）
+  if (fields.left_at !== undefined && (before?.left_at ?? null) !== fields.left_at) {
+    await writeAuditLog({
+      action: 'update_left_at',
+      actorId: emp.id,
+      targetId: employeeId,
+      details: { from: before?.left_at ?? null, to: fields.left_at },
+    }).catch(() => {})
+  }
 
   // 氏名変更は重要な変更として監査ログに残す
   if (before && before.name !== newName) {
@@ -671,4 +687,49 @@ export async function changeEmployeeRole(employeeId: string, newRole: string, ne
   })
 
   return {}
+}
+
+
+const LOGIN_DAY_COOKIE = 'mb_login_day'
+
+/** JST の日付（YYYY-MM-DD） */
+function jstToday(): string {
+  return new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10)
+}
+
+/**
+ * ログイン（利用）記録（2026-09-19 決定 ⑦「ログイン状況 記録する」）。
+ * login_days に 1人1日1行を upsert し、employees.last_login_at を更新する。
+ * 同じ日に何度も書かないよう、当日の日付を cookie に持つ。view-as 中でもログイン本人の記録にする。
+ */
+async function recordLoginDay(employeeId: string, cookieStore: Awaited<ReturnType<typeof cookies>>) {
+  const today = jstToday()
+  if (cookieStore.get(LOGIN_DAY_COOKIE)?.value === today) return
+  const db = createAdminClient()
+  const now = new Date().toISOString()
+  const { data: existing } = await db.from('login_days').select('day').eq('employee_id', employeeId).eq('day', today).maybeSingle()
+  if (existing) {
+    await db.from('login_days').update({ last_at: now }).eq('employee_id', employeeId).eq('day', today)
+  } else {
+    await db.from('login_days').insert({ employee_id: employeeId, day: today, first_at: now, last_at: now })
+  }
+  await db.from('employees').update({ last_login_at: now }).eq('id', employeeId)
+  try {
+    cookieStore.set(LOGIN_DAY_COOKIE, today, { path: '/', httpOnly: true, sameSite: 'lax', maxAge: 60 * 60 * 24 })
+  } catch { /* 描画中で cookie を書けない場合は次回また判定する（DB 側で二重にはならない） */ }
+}
+
+/**
+ * レベルアップ演出を見せたことを記録する（本人の認定済み申請のみ）。
+ */
+export async function markAchievementsCelebrated(achievementIds: string[]): Promise<void> {
+  const employee = await getCurrentEmployee()
+  if (!employee || achievementIds.length === 0) return
+  const db = createAdminClient()
+  await db.from('achievements')
+    .update({ celebrated_at: new Date().toISOString() })
+    .in('id', achievementIds.slice(0, 200))
+    .eq('employee_id', employee.id)
+    .eq('status', 'certified')
+    .is('celebrated_at', null)
 }

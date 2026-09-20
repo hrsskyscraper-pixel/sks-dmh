@@ -78,7 +78,7 @@ function calcAge(birthDate: string | null): number | null {
 }
 
 interface Props {
-  employee: { id: string; name: string; name_kana: string | null; email: string; role: string; employment_type: string; system_permission: SystemPermission; business_role_ids: string[]; hire_date: string | null; birth_date: string | null; avatar_url: string | null; instagram_url: string | null; line_url: string | null; line_user_id: string | null }
+  employee: { id: string; name: string; name_kana: string | null; email: string; role: string; employment_type: string; system_permission: SystemPermission; business_role_ids: string[]; hire_date: string | null; left_at?: string | null; birth_date: string | null; avatar_url: string | null; instagram_url: string | null; line_url: string | null; line_user_id: string | null }
   careerRecords: CareerRecord[]
   employeeMap: Record<string, EmployeeInfo>
   allEmployees: EmployeeInfo[]
@@ -138,6 +138,8 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
   const [editSystemPermission, setEditSystemPermission] = useState<SystemPermission>(employee.system_permission)
   const [editBusinessRoleIds, setEditBusinessRoleIds] = useState<Set<string>>(new Set(employee.business_role_ids ?? []))
   const [editBirthDate, setEditBirthDate] = useState(employee.birth_date ?? '')
+  const [editLeftAt, setEditLeftAt] = useState(employee.left_at ?? '')
+  const [currentLeftAt, setCurrentLeftAt] = useState<string | null>(employee.left_at ?? null)
   const [editInstagram, setEditInstagram] = useState(employee.instagram_url ?? '')
   const [editLineUrl, setEditLineUrl] = useState(employee.line_url ?? '')
   const [currentEmploymentType, setCurrentEmploymentType] = useState<EmploymentType>(employee.employment_type as EmploymentType)
@@ -181,8 +183,10 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
         birth_date: editBirthDate || null,
         instagram_url: editInstagram || null,
         line_url: editLineUrl || null,
+        ...(canEditPermission ? { left_at: editLeftAt || null } : {}),
       })
       if (res.error) { toast.error(res.error); return }
+      if (canEditPermission) setCurrentLeftAt(editLeftAt || null)
       setEmployeeName(`${editLastName.trim()} ${editFirstName.trim()}`.trim())
       setCurrentNameKana(`${editLastNameKana.trim()} ${editFirstNameKana.trim()}`.trim() || null)
       if (canEditPermission) {
@@ -434,6 +438,11 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
                     {currentHireDate} 入社{getHireYearLabel(currentHireDate) ? `（${getHireYearLabel(currentHireDate)}）` : ''}
                   </Badge>
                 )}
+                {currentLeftAt && (canEdit || isSelf) && (
+                  <Badge className="text-[10px] bg-gray-200 text-gray-700 border-0">
+                    {currentLeftAt} 退職
+                  </Badge>
+                )}
               </div>
 
               {/* 社内資格 */}
@@ -587,6 +596,12 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
               <label className="text-xs font-medium text-gray-600">生年月日</label>
               <Input type="date" value={editBirthDate} onChange={e => setEditBirthDate(e.target.value)} className="mt-1" />
             </div>
+            {canEditPermission && (
+              <div>
+                <label className="text-xs font-medium text-gray-600">退職日<span className="ml-1 text-gray-400 font-normal">（退職したときに記録。在籍日数の計算に使います）</span></label>
+                <Input type="date" value={editLeftAt} onChange={e => setEditLeftAt(e.target.value)} className="mt-1" />
+              </div>
+            )}
             <div>
               <label className="text-xs font-medium text-gray-600">Instagram</label>
               <Input value={editInstagram} onChange={e => setEditInstagram(e.target.value)} placeholder="@username or URL" className="mt-1" />

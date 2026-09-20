@@ -30,6 +30,19 @@ function dedupe(list: Recipient[]): Recipient[] {
  * important=true は運営チーム宛て（一括休止に関係なく届ける）。
  */
 async function notify(recipients: Recipient[], subject: string, emailBody: string, lineMsg: string, important = false) {
+  return notifyRecipients(recipients, subject, emailBody, lineMsg, { important, category: LOG_CATEGORY })
+}
+
+/** 改善提案以外（Q&A など）からも使える汎用版。category は notification_log の分類 */
+export async function notifyRecipients(
+  recipients: Recipient[],
+  subject: string,
+  emailBody: string,
+  lineMsg: string,
+  opts: { important?: boolean; category?: string } = {},
+) {
+  const important = opts.important ?? false
+  const category = opts.category ?? LOG_CATEGORY
   const people = dedupe(recipients)
   const emails = [...new Set(people.map(r => r.email).filter((e): e is string => !!e))]
   const lineIds = [...new Set(people.map(r => r.line_user_id).filter((e): e is string => !!e))]
@@ -37,7 +50,7 @@ async function notify(recipients: Recipient[], subject: string, emailBody: strin
   if (emails.length > 0) {
     const res = await sendMail({ to: emails, subject, body: emailBody, bypassPause: important })
     await logNotification({
-      category: LOG_CATEGORY,
+      category,
       channel: 'email',
       recipient: emails.join(', '),
       subject,
@@ -50,7 +63,7 @@ async function notify(recipients: Recipient[], subject: string, emailBody: strin
     await Promise.all(
       results.map(r =>
         logNotification({
-          category: LOG_CATEGORY,
+          category,
           channel: 'line',
           recipient: r.lineUserId,
           subject,

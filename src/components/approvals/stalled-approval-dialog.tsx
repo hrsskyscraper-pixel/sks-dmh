@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { CheckCircle } from 'lucide-react'
 import { useNavData } from '@/components/layout/nav-data-context'
+import { acquireModal } from '@/lib/modal-queue'
 
 /** ブラウザのタブ（セッション）ごとに1回。ログアウト時に nav.tsx が消すので、ログインし直せばまた出る */
 export const STALLED_APPROVAL_SESSION_KEY = 'stalled_approval_shown'
@@ -21,33 +22,40 @@ export function StalledApprovalDialog() {
   const { stalledApprovals } = useNavData()
   const router = useRouter()
   const [open, setOpen] = useState(false)
-  const [decided, setDecided] = useState(false)
+  const decidedRef = useRef(false)
+
+  const releaseRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
-    if (decided || stalledApprovals.count === 0) return
+    if (decidedRef.current || stalledApprovals.count === 0) return
     try {
-      if (sessionStorage.getItem(STALLED_APPROVAL_SESSION_KEY)) { setDecided(true); return }
+      if (sessionStorage.getItem(STALLED_APPROVAL_SESSION_KEY)) { decidedRef.current = true; return }
     } catch { /* sessionStorage 不可でも表示はする */ }
-
-    const show = () => {
+    decidedRef.current = true
+    let cancelled = false
+    // ようこそ／レベルアップの後に出す（重ねない）
+    acquireModal().then(release => {
+      if (cancelled) { release(); return }
       try { sessionStorage.setItem(STALLED_APPROVAL_SESSION_KEY, '1') } catch { /* noop */ }
-      setDecided(true)
+      releaseRef.current = release
       setOpen(true)
-    }
-    if (document.documentElement.dataset.introOpen) {
-      window.addEventListener('mb:intro-closed', show, { once: true })
-      return () => window.removeEventListener('mb:intro-closed', show)
-    }
-    show()
-  }, [stalledApprovals.count, decided])
+    })
+    return () => { cancelled = true }
+  }, [stalledApprovals.count])
+
+  const closeDialog = () => {
+    setOpen(false)
+    releaseRef.current?.()
+    releaseRef.current = null
+  }
 
   const goApprove = () => {
-    setOpen(false)
+    closeDialog()
     router.push('/approvals?tab=skills')
   }
 
   return (
-    <Dialog open={open} onOpenChange={o => { if (!o) setOpen(false) }}>
+    <Dialog open={open} onOpenChange={o => { if (!o) closeDialog() }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-base flex items-center gap-2">
@@ -73,7 +81,7 @@ export function StalledApprovalDialog() {
             <CheckCircle className="w-4 h-4 mr-1" />
             承認する
           </Button>
-          <Button variant="outline" onClick={() => setOpen(false)} className="w-full">あとで</Button>
+          <Button variant="outline" onClick={closeDialog} className="w-full">あとで</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

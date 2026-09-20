@@ -19,43 +19,12 @@ export default async function EmployeeDetailPage({ params, searchParams }: { par
   const { id } = await params
   const db = createAdminClient()
 
-  // アクセス権限チェック
+  // 閲覧権限（2026-09-20 決定: Myキャリアは全社員が互いに閲覧できる。スプレッドシート No61）
+  //   - 閲覧: 承認済みの社員なら誰でも（このレイアウト配下に入れている時点で承認済み）
+  //   - 編集: これまでどおり 管理者 と 研修リーダー（担当チームのメンバーに限らない。従来の canEdit を踏襲）
+  //   - 機微な項目（メール・生年月日）: 本人とシステム管理者のみ（従来どおり。下の employeeForCard で落とす）
   const isFullAccess = canAdminister(currentEmployee)
   const isTeamAccess = isTrainingLeader(currentEmployee)
-  const isSelfOnly = !isFullAccess && !isTeamAccess
-
-  // 権限が無い相手でも redirect() せず、画面内で「権限がありません」を描画する。
-  // soft-navigation 中の redirect() はクライアント例外（Application error）を
-  // 引き起こすため、リダイレクトを使わない。
-  let accessDenied = isSelfOnly && currentEmployee.id !== id
-
-  // マネジャー・店長: 自チーム/習得カリキュラムのメンバーのみ
-  if (isTeamAccess && currentEmployee.id !== id) {
-    const { data: myTeams } = await db.from('team_managers').select('team_id').eq('employee_id', currentEmployee.id)
-    const myTeamIds = (myTeams ?? []).map(t => t.team_id)
-
-    const { data: teamMembersAccess } = myTeamIds.length > 0
-      ? await db.from('team_members').select('employee_id').in('team_id', myTeamIds)
-      : { data: [] }
-
-    const accessibleIds = new Set([
-      ...(teamMembersAccess ?? []).map(m => m.employee_id),
-      currentEmployee.id,
-    ])
-    if (!accessibleIds.has(id)) accessDenied = true
-  }
-
-  if (accessDenied) {
-    return (
-      <>
-        <TopBar title="メンバーキャリア" />
-        <div className="px-6 py-16 text-center space-y-3">
-          <p className="text-sm text-gray-500">このメンバーを閲覧する権限がありません。</p>
-          <Link href="/" className="inline-block text-sm text-orange-600 hover:underline">ホームに戻る</Link>
-        </div>
-      </>
-    )
-  }
 
   const canEdit = isFullAccess || isTeamAccess
 
@@ -68,7 +37,7 @@ export default async function EmployeeDetailPage({ params, searchParams }: { par
     { data: goals },
     { data: certs },
   ] = await Promise.all([
-    db.from('employees').select('id, name, last_name, first_name, name_kana, email, role, system_permission, business_role_ids, employment_type, hire_date, birth_date, avatar_url, instagram_url, line_url, line_user_id, status, invited_by, approved_by, approved_at').eq('id', id).single() as unknown as Promise<{ data: { id: string; name: string; last_name: string; first_name: string; name_kana: string | null; email: string; role: string; system_permission: SystemPermission; business_role_ids: string[]; employment_type: string; hire_date: string | null; birth_date: string | null; avatar_url: string | null; instagram_url: string | null; line_url: string | null; line_user_id: string | null; status: 'pending' | 'approved'; invited_by: string | null; approved_by: string | null; approved_at: string | null } | null }>,
+    db.from('employees').select('id, name, last_name, first_name, name_kana, email, role, system_permission, business_role_ids, employment_type, hire_date, left_at, birth_date, avatar_url, instagram_url, line_url, line_user_id, status, invited_by, approved_by, approved_at').eq('id', id).single() as unknown as Promise<{ data: { id: string; name: string; last_name: string; first_name: string; name_kana: string | null; email: string; role: string; system_permission: SystemPermission; business_role_ids: string[]; employment_type: string; hire_date: string | null; left_at: string | null; birth_date: string | null; avatar_url: string | null; instagram_url: string | null; line_url: string | null; line_user_id: string | null; status: 'pending' | 'approved'; invited_by: string | null; approved_by: string | null; approved_at: string | null } | null }>,
     db.from('career_records').select('*').eq('employee_id', id).order('occurred_at', { ascending: false }),
     db.from('employees').select('id, name, avatar_url').order('name'),
     db.from('team_members').select('team_id').eq('employee_id', id),
@@ -156,11 +125,11 @@ export default async function EmployeeDetailPage({ params, searchParams }: { par
   const memberTeamIds = (memberTeamRows ?? []).map(m => m.team_id)
   const isSelf = currentEmployee.id === id
 
-  // メールアドレスは本人とシステム管理者にのみ表示（個人情報保護）。
-  // リーダーが他メンバーを見るときは空文字にする。
+  // メールアドレスと生年月日は本人とシステム管理者にのみ表示（個人情報保護）。
+  // 他のメンバーが見るときは空にする（全社閲覧に広げても、機微な項目の見え方は変えない）。
   const employeeForCard = canViewEmail(currentEmployee, employee.id)
     ? employee
-    : { ...employee, email: '' }
+    : { ...employee, email: '', birth_date: null }
 
   return (
     <>
