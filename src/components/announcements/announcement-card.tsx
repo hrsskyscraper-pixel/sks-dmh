@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { MemberNameLink } from '@/components/layout/member-name-link'
-import type { AnnouncementItem, AnnouncementReaction, AnnouncementComment } from '@/lib/announcements'
+import type { AnnouncementItem, AnnouncementReaction, AnnouncementComment, DailyReportPayload } from '@/lib/announcements'
 
 const HEART = '❤️'
 
@@ -94,7 +94,9 @@ export function AnnouncementCard({ item, reactions: initReactions, comments: ini
           {isDaily ? (
             <>
               {item.title && <p className="text-sm font-semibold text-orange-800">{item.title}</p>}
-              {item.body && <p className="text-xs text-gray-700 whitespace-pre-line mt-0.5 leading-relaxed">{item.body}</p>}
+              {item.payload ? <DailyReportBody payload={item.payload} body={item.body} /> : (
+                item.body && <p className="text-xs text-gray-700 whitespace-pre-line mt-0.5 leading-relaxed">{item.body}</p>
+              )}
             </>
           ) : isRanking ? (
             <>
@@ -191,6 +193,76 @@ export function AnnouncementCard({ item, reactions: initReactions, comments: ini
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+
+/**
+ * デイリーレポートの本文（構造化データがあるとき）。
+ * 名前はタイムラインの絞り込みリンク（その日・その人の分だけ表示。解除すれば全部見える）。
+ * 本文末尾の「承認をお待ちの申請」などの追記は、テキスト本文から該当部分を拾って下に出す。
+ */
+function DailyReportBody({ payload, body }: { payload: DailyReportPayload; body: string | null }) {
+  const p = payload
+  const slash = `${Number(p.date.slice(5, 7))}/${Number(p.date.slice(8, 10))}`
+  const tl = (params: Record<string, string>) => `/timeline?${new URLSearchParams({ date: p.date, ...params }).toString()}`
+  const totalCerts = p.achievers.reduce((s, a) => s + a.count, 0)
+  const nameLink = (href: string, name: string) => (
+    <Link href={href} className="font-semibold text-orange-800 underline decoration-orange-300 underline-offset-2 hover:text-orange-600">{name}</Link>
+  )
+  // テキスト本文の「⏳ 承認をお待ちの申請」以降は追記部分。構造化に含めないのでそのまま出す
+  const extraIdx = body ? body.indexOf('⏳') : -1
+  const extra = extraIdx >= 0 ? body!.slice(extraIdx) : null
+  const achieverPeople = p.achievers.length + p.achieversMore
+
+  return (
+    <div className="text-xs text-gray-700 mt-0.5 leading-relaxed space-y-2">
+      <p>{slash}は全社で {achieverPeople}人 {totalCerts}件 のスキルが認定されました！</p>
+      {p.achievers.length > 0 && (
+        <div>
+          <p>🏅 スキルを習得した方✨  おめでとうございます！</p>
+          <ul className="pl-1">
+            {p.achievers.map(a => (
+              <li key={a.id}>・{nameLink(tl({ achiever: a.id }), `${a.name}さん`)}{a.store && <span className="text-gray-500">　{a.store}</span>}
+                <span className="text-gray-500">{a.count > 1 ? `（${a.count}件：${a.skill} ほか）` : `（${a.skill}）`}</span></li>
+            ))}
+            {p.achieversMore > 0 && <li>・…ほか{p.achieversMore}名が習得！</li>}
+          </ul>
+        </div>
+      )}
+      {p.certifiers.length > 0 && (
+        <div>
+          <p>🤝 認定いただいた方✨ ありがとうございました</p>
+          <ul className="pl-1">
+            {p.certifiers.slice(0, 8).map(c => (
+              <li key={c.id}>・{nameLink(tl({ certifier: c.id }), `${c.name}さん`)}{c.count > 1 && <span className="text-gray-500">（{c.count}件）</span>}</li>
+            ))}
+            {p.certifiers.length > 8 && <li>・…ほか{p.certifiers.length - 8}名</li>}
+          </ul>
+        </div>
+      )}
+      {p.praisers.length > 0 && (
+        <div>
+          <p>💬 メッセージを贈った方✨ ありがとうございました</p>
+          <ul className="pl-1">
+            {p.praisers.slice(0, 8).map(c => (
+              <li key={c.id}>・{nameLink(tl({ praiser: c.id }), `${c.name}さん`)}{c.count > 1 && <span className="text-gray-500">（{c.count}件）</span>}</li>
+            ))}
+            {p.praisers.length > 8 && <li>・…ほか{p.praisers.length - 8}名</li>}
+          </ul>
+        </div>
+      )}
+      {p.applicants.people > 0 && <p>✨ 新しい挑戦 … {p.applicants.people}名が新しいスキル{p.applicants.count}件を申請しました</p>}
+      {p.newMembers.length > 0 && (
+        <p>🎉 新しい仲間 … {p.newMembers.map((m, i) => (
+          <span key={m.id}>{i > 0 && '、'}<MemberNameLink employeeId={m.id} className="font-semibold">{m.name}</MemberNameLink>さん</span>
+        ))}が仲間入り！<br />　Mission Board へようこそ！</p>
+      )}
+      {p.streak >= 3 && <p>🔥 {p.streak}日連続で習得が生まれています！</p>}
+      <p>今日も、あなたの「できた！」をお待ちしています ☆<br />素敵な１日になりますように (^^)</p>
+      {extra && <p className="whitespace-pre-line border-t border-orange-200 pt-1.5">{extra}</p>}
+      <p className="text-[10px] text-gray-400">名前をタップすると、タイムラインがその日のその方の分に絞り込まれます</p>
     </div>
   )
 }

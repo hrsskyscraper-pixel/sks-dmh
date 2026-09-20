@@ -2,7 +2,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
 import { canApprove, canAdminister } from '@/lib/permissions'
 import { getTestEmployeeIds, getRankingExcludedIds } from '@/lib/test-data'
-import { getAnnouncementsData } from '@/lib/announcements'
+import { getAnnouncementsData, getViewerTeamIds } from '@/lib/announcements'
 import { ensureMonthlyRankingAnnouncement } from '@/lib/skill-ranking'
 import { ensureDailyReportAnnouncement } from '@/lib/daily-report'
 import { AnnouncementsFeed } from '@/components/announcements/announcements-feed'
@@ -25,7 +25,9 @@ export async function AnnouncementsServer() {
     await ensureDailyReportAnnouncement(db, rankingExcluded, nowForReport)
   }
 
-  const { items, reactions, comments, reactorNames, reactorAvatars } = await getAnnouncementsData(db, { activeOnly: true })
+  // 店長からの一言は「自分に関係あるもの」だけ（本人・書いた人・同じ店舗／部署・運用管理者）。タイムラインは全社
+  const viewer = { id: me.id, teamIds: await getViewerTeamIds(db, me.id), isAdmin: canAdminister(me) }
+  const { items, reactions, comments, reactorNames, reactorAvatars } = await getAnnouncementsData(db, { activeOnly: true, viewer })
   const canPost = canApprove(me)
 
   // 投稿対象メンバー（管理者は全員、リーダーは担当チームのメンバー）

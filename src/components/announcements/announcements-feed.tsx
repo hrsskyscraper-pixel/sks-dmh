@@ -11,6 +11,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Megaphone, PartyPopper, ChevronDown, ChevronUp } from 'lucide-react'
 import { postGradeAnnouncement } from '@/app/(dashboard)/announcements/actions'
 import { AnnouncementCard } from '@/components/announcements/announcement-card'
+import { WelcomeGroupCard } from '@/components/announcements/welcome-group-card'
+import { groupWelcomeItems, welcomeGroupTitle } from '@/lib/announcement-groups'
 import type { AnnouncementItem, AnnouncementReaction, AnnouncementComment } from '@/lib/announcements'
 
 interface Props {
@@ -115,29 +117,41 @@ export function AnnouncementsFeed({
             </p>
           ) : (
             <div className="space-y-2">
-              {items.map(item => {
-                const fullCard = (
+              {groupWelcomeItems(items).map(entry => {
+                // 同じ日に複数名が仲間入り → 1枚にまとめる（タップで内訳）
+                const key = entry.kind === 'single' ? entry.item.id : entry.key
+                const fullCard = entry.kind === 'single' ? (
                   <AnnouncementCard
-                    item={item}
-                    reactions={reactions.filter(r => r.announcement_id === item.id)}
-                    comments={comments.filter(c => c.announcement_id === item.id)}
+                    item={entry.item}
+                    reactions={reactions.filter(r => r.announcement_id === entry.item.id)}
+                    comments={comments.filter(c => c.announcement_id === entry.item.id)}
+                    reactorNames={reactorNames}
+                    reactorAvatars={reactorAvatars}
+                    currentEmployeeId={currentEmployeeId}
+                  />
+                ) : (
+                  <WelcomeGroupCard
+                    items={entry.items}
+                    reactions={reactions}
+                    comments={comments}
                     reactorNames={reactorNames}
                     reactorAvatars={reactorAvatars}
                     currentEmployeeId={currentEmployeeId}
                   />
                 )
                 // ホームでは前日以前はタイトルのみ折りたたみ。今日のものはそのまま表示。
-                const isOlder = collapseOlder && !!todayKey && jstKey(item.createdAt) !== todayKey
-                if (!isOlder) return <div key={item.id}>{fullCard}</div>
-                const open = expandedOlder.has(item.id)
+                const isOlder = collapseOlder && !!todayKey && jstKey(entry.date) !== todayKey
+                if (!isOlder) return <div key={key}>{fullCard}</div>
+                const open = expandedOlder.has(key)
+                const title = entry.kind === 'single' ? summaryTitle(entry.item) : `🎉 ${welcomeGroupTitle(entry.items)}`
                 return (
-                  <div key={item.id}>
+                  <div key={key}>
                     <button
-                      onClick={() => toggleOlder(item.id)}
+                      onClick={() => toggleOlder(key)}
                       className="w-full flex items-center gap-2 text-left rounded-lg border border-gray-100 bg-gray-50/60 px-2.5 py-1.5 hover:bg-gray-100 transition-colors"
                     >
-                      <span className="text-[10px] text-gray-400 flex-shrink-0 tabular-nums">{fmtMonthDay(item.createdAt)}</span>
-                      <span className="text-xs text-gray-600 truncate flex-1">{summaryTitle(item)}</span>
+                      <span className="text-[10px] text-gray-400 flex-shrink-0 tabular-nums">{fmtMonthDay(entry.date)}</span>
+                      <span className="text-xs text-gray-600 truncate flex-1">{title}</span>
                       {open ? <ChevronUp className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" /> : <ChevronDown className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />}
                     </button>
                     {open && <div className="mt-1">{fullCard}</div>}

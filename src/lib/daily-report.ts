@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import type { StalledApprovals } from '@/lib/stalled-approvals'
+import type { DailyReportPayload } from '@/lib/announcements'
 
 const pad = (n: number) => String(n).padStart(2, '0')
 
@@ -70,13 +71,31 @@ export async function ensureDailyReportAnnouncement(
 
   const byEmp: Record<string, { count: number; skill: string }> = {}
   const certifierIds = new Set<string>()
+  const certCountByCertifier: Record<string, number> = {}
   for (const c of certList) {
     const sk = Array.isArray(c.skills) ? c.skills[0] : c.skills
     const e = (byEmp[c.employee_id] ??= { count: 0, skill: sk?.name ?? '' })
     e.count++
     if (!e.skill && sk?.name) e.skill = sk.name
-    if (c.certified_by && !excludedIds.has(c.certified_by)) certifierIds.add(c.certified_by)
+    if (c.certified_by && !excludedIds.has(c.certified_by)) {
+      certifierIds.add(c.certified_by)
+      certCountByCertifier[c.certified_by] = (certCountByCertifier[c.certified_by] ?? 0) + 1
+    }
   }
+
+  // 前日に「本人への一言（公開）」を贈った人（店長からの一言）
+  const { data: praiseRows } = await db
+    .from('announcements')
+    .select('created_by')
+    .eq('kind', 'praise')
+    .gte('created_at', fromISO)
+    .lt('created_at', toISO)
+  const praiseCountBy: Record<string, number> = {}
+  for (const r of praiseRows ?? []) {
+    if (!r.created_by || excludedIds.has(r.created_by)) continue
+    praiseCountBy[r.created_by] = (praiseCountBy[r.created_by] ?? 0) + 1
+  }
+  const praiserIds = Object.keys(praiseCountBy).sort((a, b) => praiseCountBy[b] - praiseCountBy[a])
   const achieverIds = Object.keys(byEmp)
   const totalCerts = certList.length
 
@@ -102,8 +121,8 @@ export async function ensureDailyReportAnnouncement(
     .lt('approved_at', toISO)
   const newMemberList = (newMembers ?? []).filter(e => !excludedIds.has(e.id))
 
-  // 名前解決（習得者・認定者）
-  const nameIds = [...new Set([...achieverIds, ...certifierIds])]
+  // 名前解決（習得者・認定者・一言を贈った人）
+  const nameIds = [...new Set([...achieverIds, ...certifierIds, ...praiserIds])]
   const { data: emps } = nameIds.length > 0
     ? await db.from('employees').select('id, name').in('id', nameIds)
     : { data: [] as { id: string; name: string }[] }
@@ -127,10 +146,11 @@ export async function ensureDailyReportAnnouncement(
     pick(tmRows as AffRow[], 'department'); pick(tgRows as AffRow[], 'department')
   }
 
-  const quiet = totalCerts === 0 && applicantIds.size === 0 && newMemberList.length === 0
+  const quiet = totalCerts === 0 && applicantIds.size === 0 && newMemberList.length === 0 && praiserIds.length === 0
 
   let title: string
   let body: string
+  let payload: DailyReportPayload | null = null
   if (quiet) {
     // 静かな日: 否定形を避け、丁寧で前向きな招待にする
     title = `☀️ 今日のMBレポート（${monthDay}）`
@@ -157,12 +177,25 @@ export async function ensureDailyReportAnnouncement(
       if (ranked.length > top.length) lines.push(`・…ほか${ranked.length - top.length}名が習得！`)
     }
 
-    if (certifierIds.size > 0) {
+    const certifierList = [...certifierIds].sort((a, b) => (certCountByCertifier[b] ?? 0) - (certCountByCertifier[a] ?? 0))
+    if (certifierList.length > 0) {
       lines.push('')
       lines.push('🤝 認定いただいた方✨ ありがとうございました')
-      for (const id of [...certifierIds].slice(0, 8)) {
-        lines.push(`・${nameById[id] ?? 'リーダー'}さん`)
+      for (const id of certifierList.slice(0, 8)) {
+        const n = certCountByCertifier[id] ?? 0
+        lines.push(`・${nameById[id] ?? 'リーダー'}さん${n > 1 ? `（${n}件）` : ''}`)
       }
+      if (certifierList.length > 8) lines.push(`・…ほか${certifierList.length - 8}名`)
+    }
+
+    if (praiserIds.length > 0) {
+      lines.push('')
+      lines.push('💬 メッセージを贈った方✨ ありがとうございました')
+      for (const id of praiserIds.slice(0, 8)) {
+        const n = praiseCountBy[id]
+        lines.push(`・${nameById[id] ?? 'リーダー'}さん${n > 1 ? `（${n}件）` : ''}`)
+      }
+      if (praiserIds.length > 8) lines.push(`・…ほか${praiserIds.length - 8}名`)
     }
 
     if (applicantIds.size > 0) {
@@ -186,6 +219,21 @@ export async function ensureDailyReportAnnouncement(
     lines.push('今日も、あなたの「できた！」をお待ちしています ☆')
     lines.push('素敵な１日になりますように (^^)')
     body = lines.join('\n')
+
+    // 構造化データ（名前リンク → タイムラインの絞り込みに使う）
+    const rankedAll = achieverIds
+      .map(id => ({ id, ...byEmp[id] }))
+      .sort((a, b) => b.count - a.count || (nameById[a.id] ?? '').localeCompare(nameById[b.id] ?? '', 'ja'))
+    payload = {
+      date: period,
+      achievers: rankedAll.slice(0, 8).map(r => ({ id: r.id, name: nameById[r.id] ?? '仲間', store: storeByEmp[r.id] ?? null, count: r.count, skill: r.skill })),
+      achieversMore: Math.max(0, rankedAll.length - 8),
+      certifiers: certifierList.map(id => ({ id, name: nameById[id] ?? 'リーダー', count: certCountByCertifier[id] ?? 0 })),
+      praisers: praiserIds.map(id => ({ id, name: nameById[id] ?? 'リーダー', count: praiseCountBy[id] })),
+      applicants: { people: applicantIds.size, count: appTotal },
+      newMembers: newMemberList.map(e => ({ id: e.id, name: e.name })),
+      streak,
+    }
   }
 
   // ⏳ 承認をお待ちの申請（申請の翌日中に承認されていないもの）。承認者名で出し、承認の滞留を解消してもらう
@@ -204,7 +252,7 @@ export async function ensureDailyReportAnnouncement(
 
   const expires = new Date(now.getTime() + 2 * 24 * 3600 * 1000) // 本日のお知らせには約2日間表示
   try {
-    await db.from('announcements').insert({ kind: 'daily', period, title, body, expires_at: expires.toISOString() })
+    await db.from('announcements').insert({ kind: 'daily', period, title, body, expires_at: expires.toISOString(), payload })
     return { posted: true, period }
   } catch {
     return { posted: false, period }

@@ -961,6 +961,7 @@ export type Database = {
           created_by: string | null
           created_at: string
           expires_at: string
+          payload?: Json | null
         }
         Insert: {
           id?: string
@@ -973,6 +974,7 @@ export type Database = {
           created_by?: string | null
           created_at?: string
           expires_at?: string
+          payload?: Json | null
         }
         Update: {
           id?: string
@@ -985,6 +987,7 @@ export type Database = {
           created_by?: string | null
           created_at?: string
           expires_at?: string
+          payload?: Json | null
         }
         Relationships: []
       }
