@@ -18,7 +18,7 @@ export type NavCounts = {
   /** LINE通知の一括スイッチが有効か（休止中は LINE連携の案内を出さない） */
   lineNotificationsEnabled: boolean
   /** 承認者向け: 滞留している承認（申請の翌日中に承認されていないもの）。ベルの要対応と、ログイン時のモーダルに使う */
-  stalledApprovals: { count: number; maxDays: number }
+  stalledApprovals: { count: number; maxDays: number; unassignedTeams: number }
 }
 
 export const EMPTY_NAV_COUNTS: NavCounts = {
@@ -28,6 +28,6 @@ export const EMPTY_NAV_COUNTS: NavCounts = {
   rejectedSkillCount: 0,
   overdueSkillCount: 0,
   dashboardBadge: null,
-  stalledApprovals: { count: 0, maxDays: 0 },
+  stalledApprovals: { count: 0, maxDays: 0, unassignedTeams: 0 },
   lineNotificationsEnabled: true,
 }

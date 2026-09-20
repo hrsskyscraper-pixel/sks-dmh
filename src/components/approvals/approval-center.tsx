@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { toast } from 'sonner'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -46,6 +47,8 @@ const ROLE_OPTIONS_ADMIN = [
 
 interface Props {
   pendingAchievements: any[]
+  /** 承認者で絞り込み中（デイリーレポートの名前リンクから）。解除で /approvals へ */
+  filterApprover?: { id: string; name: string; count: number } | null
   applicantAff?: Record<string, Affiliation[]>
   applicantCurricula?: Record<string, string[]>
   pendingTeamRequests: any[]
@@ -66,11 +69,11 @@ interface Props {
 export function ApprovalCenter({
   pendingAchievements, applicantAff = {}, applicantCurricula = {}, pendingTeamRequests, pendingJoins,
   teamMap, projectTeams, currentEmployeeId, isSystemAdmin, approverRole, storeDeptTeams,
-  recentAchievements, recentTeamRequests, recentJoins, reviewerMap, auditLogs,
+  recentAchievements, recentTeamRequests, recentJoins, reviewerMap, auditLogs, filterApprover = null,
 }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
-  const [tab, setTab] = useState<Tab>('all')
+  const [tab, setTab] = useState<Tab>(filterApprover ? 'skill' : 'all')
   const [doneFilter, setDoneFilter] = useState<'all' | 'skill' | 'team' | 'join' | 'audit'>('all')
   const [donePersonFilter, setDonePersonFilter] = useState<'all' | 'actor' | 'target' | 'member'>('all')
   const [memberFilterId, setMemberFilterId] = useState<string | null>(null)
@@ -336,6 +339,15 @@ export function ApprovalCenter({
 
   return (
     <div className="px-4 py-4 space-y-3">
+      {filterApprover && (
+        <div className="flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2">
+          <span className="px-1.5 py-0.5 rounded bg-red-500 text-white text-[10px] font-bold flex-shrink-0">要対応</span>
+          <p className="flex-1 min-w-0 text-xs text-gray-800">
+            <span className="font-semibold">{filterApprover.name}</span> さんが担当するメンバーの承認待ち <span className="font-semibold text-amber-700">{filterApprover.count}件</span>
+          </p>
+          <Link href="/approvals" className="text-xs font-medium text-orange-700 hover:underline whitespace-nowrap">解除して全部見る</Link>
+        </div>
+      )}
       {/* タブ */}
       <div className="flex gap-1.5 overflow-x-auto pb-1">
         {tabs.map(t => (

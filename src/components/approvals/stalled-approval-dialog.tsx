@@ -27,7 +27,7 @@ export function StalledApprovalDialog() {
   const releaseRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
-    if (decidedRef.current || stalledApprovals.count === 0) return
+    if (decidedRef.current || (stalledApprovals.count === 0 && stalledApprovals.unassignedTeams === 0)) return
     try {
       if (sessionStorage.getItem(STALLED_APPROVAL_SESSION_KEY)) { decidedRef.current = true; return }
     } catch { /* sessionStorage 不可でも表示はする */ }
@@ -41,7 +41,7 @@ export function StalledApprovalDialog() {
       setOpen(true)
     })
     return () => { cancelled = true }
-  }, [stalledApprovals.count])
+  }, [stalledApprovals.count, stalledApprovals.unassignedTeams])
 
   const closeDialog = () => {
     setOpen(false)
@@ -60,9 +60,10 @@ export function StalledApprovalDialog() {
         <DialogHeader>
           <DialogTitle className="text-base flex items-center gap-2">
             <span className="px-1.5 py-0.5 rounded bg-red-500 text-white text-[10px] font-bold">要対応</span>
-            承認をお待ちの申請があります
+            {stalledApprovals.count > 0 ? '承認をお待ちの申請があります' : '承認者が未設定の店舗・チームがあります'}
           </DialogTitle>
         </DialogHeader>
+        {stalledApprovals.count > 0 && (
         <div className="flex items-start gap-3 rounded-lg px-3 py-3 border border-amber-300 bg-amber-50">
           <div className="w-9 h-9 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center flex-shrink-0 text-lg">⏳</div>
           <div className="flex-1 min-w-0">
@@ -73,14 +74,33 @@ export function StalledApprovalDialog() {
             <p className="text-[11px] text-gray-500 mt-0.5">申請の翌日中に承認されていないものです。承認センターで認定または差し戻しをお願いします。</p>
           </div>
         </div>
-        <p className="text-xs text-gray-600 leading-relaxed">
-          早めの承認が、本人の「次の一歩」につながります。承認時の「本人への一言」も、ぜひ添えてください。
-        </p>
+        )}
+        {stalledApprovals.unassignedTeams > 0 && (
+          <div className="flex items-start gap-3 rounded-lg px-3 py-3 border border-rose-200 bg-rose-50">
+            <div className="w-9 h-9 rounded-full bg-rose-100 text-rose-700 flex items-center justify-center flex-shrink-0 text-lg">🏬</div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm text-gray-800">
+                <span className="font-semibold">承認者が未設定の店舗・チーム</span> が <span className="font-semibold text-rose-700">{stalledApprovals.unassignedTeams}件</span> あります
+              </p>
+              <p className="text-[11px] text-gray-500 mt-0.5">承認できる人がいないため、申請が止まっています。所属一覧で担当リーダーの設定をお願いします（運用管理者の方へ）。</p>
+              <Button variant="outline" onClick={() => { closeDialog(); router.push('/admin/teams') }} className="mt-2 h-8 text-xs border-rose-300 text-rose-700 hover:bg-rose-100">
+                所属一覧（設定画面）へ
+              </Button>
+            </div>
+          </div>
+        )}
+        {stalledApprovals.count > 0 && (
+          <p className="text-xs text-gray-600 leading-relaxed">
+            早めの承認が、本人の「次の一歩」につながります。承認時の「本人への一言」も、ぜひ添えてください。
+          </p>
+        )}
         <DialogFooter className="flex-col gap-2 sm:flex-col sm:items-stretch">
-          <Button onClick={goApprove} className="w-full bg-green-500 hover:bg-green-600 text-white">
-            <CheckCircle className="w-4 h-4 mr-1" />
-            承認する
-          </Button>
+          {stalledApprovals.count > 0 && (
+            <Button onClick={goApprove} className="w-full bg-green-500 hover:bg-green-600 text-white">
+              <CheckCircle className="w-4 h-4 mr-1" />
+              承認する
+            </Button>
+          )}
           <Button variant="outline" onClick={closeDialog} className="w-full">あとで</Button>
         </DialogFooter>
       </DialogContent>

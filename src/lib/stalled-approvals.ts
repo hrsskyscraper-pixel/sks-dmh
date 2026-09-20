@@ -37,8 +37,8 @@ export interface ApproverSummary {
 export interface StalledApprovals {
   items: StalledItem[]
   byApprover: ApproverSummary[]
-  /** 承認者がいないチームの滞留（チーム名 → 件数） */
-  unassigned: { teamName: string; count: number }[]
+  /** 承認者がいないチームの滞留（チーム → 件数）。teamId が null は「所属なし」 */
+  unassigned: { teamId: string | null; teamName: string; count: number }[]
   total: number
 }
 
@@ -134,14 +134,15 @@ export async function getStalledApprovals(db: SupabaseClient, now: Date, exclude
   const byApprover = Object.values(byApproverMap).sort((a, b) => b.maxDays - a.maxDays || b.count - a.count || a.name.localeCompare(b.name, 'ja'))
 
   // 承認者がいない分
-  const unassignedMap: Record<string, number> = {}
+  const unassignedMap: Record<string, { teamId: string | null; teamName: string; count: number }> = {}
   for (const it of items) {
     if (it.approverIds.length === 0) {
-      const key = it.teamName ?? '所属なし'
-      unassignedMap[key] = (unassignedMap[key] ?? 0) + 1
+      const key = it.teamId ?? '__none__'
+      const u = (unassignedMap[key] ??= { teamId: it.teamId, teamName: it.teamName ?? '所属なし', count: 0 })
+      u.count++
     }
   }
-  const unassigned = Object.entries(unassignedMap).map(([teamName, count]) => ({ teamName, count })).sort((a, b) => b.count - a.count)
+  const unassigned = Object.values(unassignedMap).sort((a, b) => b.count - a.count)
 
   return { items, byApprover, unassigned, total: items.length }
 }
@@ -156,16 +157,21 @@ export async function countStalledForApprover(
   isAdmin: boolean,
   now: Date,
   excludedIds: Set<string>,
-): Promise<{ count: number; maxDays: number }> {
+): Promise<{ count: number; maxDays: number; unassignedTeams: number }> {
+  // 管理者: 全社の滞留に加えて「承認者が未設定の店舗・チーム」の数も返す（ログイン時の案内に使う）
+  if (isAdmin) {
+    const all = await getStalledApprovals(db, now, excludedIds)
+    return { count: all.total, maxDays: all.items.reduce((m, i) => Math.max(m, i.days), 0), unassignedTeams: all.unassigned.length }
+  }
   const threshold = new Date(now.getTime() - (STALLED_APPROVAL_DAYS - 1) * DAY).toISOString()
   let q = db.from('achievements').select('employee_id, achieved_at').eq('status', 'pending').lt('achieved_at', threshold)
   if (!isAdmin) {
     const { data: managed } = await db.from('team_managers').select('team_id').eq('employee_id', approverId)
     const teamIds = (managed ?? []).map(m => m.team_id)
-    if (teamIds.length === 0) return { count: 0, maxDays: 0 }
+    if (teamIds.length === 0) return { count: 0, maxDays: 0, unassignedTeams: 0 }
     const { data: members } = await db.from('team_members').select('employee_id').in('team_id', teamIds)
     const memberIds = [...new Set((members ?? []).map(m => m.employee_id))].filter(id => id !== approverId && !excludedIds.has(id))
-    if (memberIds.length === 0) return { count: 0, maxDays: 0 }
+    if (memberIds.length === 0) return { count: 0, maxDays: 0, unassignedTeams: 0 }
     q = q.in('employee_id', memberIds)
   }
   const { data } = await q
@@ -176,5 +182,5 @@ export async function countStalledForApprover(
     const d = jstDayDiff(a.achieved_at, now)
     if (d >= STALLED_APPROVAL_DAYS) { count++; maxDays = Math.max(maxDays, d) }
   }
-  return { count, maxDays }
+  return { count, maxDays, unassignedTeams: 0 }
 }

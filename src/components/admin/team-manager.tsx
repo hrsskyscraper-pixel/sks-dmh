@@ -196,7 +196,16 @@ export function TeamManager({
   const [reviewComment, setReviewComment] = useState('')
 
   // ===== Expanded teams =====
-  const [expandedTeams, setExpandedTeams] = useState<Set<string>>(new Set())
+  // デイリーレポート等の店舗名リンク（?team=）: 該当チームを開き、都道府県の折りたたみも開いてスクロールする
+  const focusTeamId = searchParams.get('team')
+  const [expandedTeams, setExpandedTeams] = useState<Set<string>>(() => new Set(focusTeamId ? [focusTeamId] : []))
+  useEffect(() => {
+    if (!focusTeamId) return
+    const t = setTimeout(() => {
+      document.getElementById(`team-${focusTeamId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 300)
+    return () => clearTimeout(t)
+  }, [focusTeamId])
 
   // ===== ドラッグ＆ドロップ =====
   const [dragEmp, setDragEmp] = useState<{ id: string; teamId: string; from: 'member' | 'manager' } | null>(null)
@@ -208,7 +217,10 @@ export function TeamManager({
   const [primaryConflict, setPrimaryConflict] = useState<{ empId: string; teamId: string; existingPrimaryId: string } | null>(null)
 
   // ===== 都道府県折りたたみ =====
-  const [expandedPrefs, setExpandedPrefs] = useState<Set<string>>(new Set())
+  const [expandedPrefs, setExpandedPrefs] = useState<Set<string>>(() => {
+    const ft = focusTeamId ? initialTeams.find(t => t.id === focusTeamId) : null
+    return new Set(ft?.prefecture ? [ft.prefecture] : [])
+  })
   const [showAllTeams, setShowAllTeams] = useState(false)
   const [showTestStores, setShowTestStores] = useState(false)
   const togglePref = (pref: string) => setExpandedPrefs(prev => {
@@ -1124,7 +1136,7 @@ export function TeamManager({
         const isMemberOfMe = !isManagedByMe && memberIds.includes(effectiveEmployee.id)
 
         return (
-          <Card key={team.id} className={isManagedByMe ? 'border-orange-300 bg-orange-50' : isMemberOfMe ? 'border-green-200 bg-green-50' : ''}>
+          <Card key={team.id} id={`team-${team.id}`} className={isManagedByMe ? 'border-orange-300 bg-orange-50' : isMemberOfMe ? 'border-green-200 bg-green-50' : ''}>
             <CardHeader className="pb-2 pt-3 px-4">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -1430,7 +1442,7 @@ export function TeamManager({
         const isManagedByMe = managerIds.includes(effectiveEmployee.id)
         const isMemberOfMe = !isManagedByMe && memberIds.includes(effectiveEmployee.id)
         return (
-          <Card key={team.id} className={`${isManagedByMe ? 'border-orange-300 bg-orange-50' : isMemberOfMe ? 'border-green-200 bg-green-50' : ''}`}>
+          <Card key={team.id} id={`team-${team.id}`} className={`${isManagedByMe ? 'border-orange-300 bg-orange-50' : isMemberOfMe ? 'border-green-200 bg-green-50' : ''}`}>
             <CardHeader className="pb-2 pt-3 px-4">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -1591,7 +1603,7 @@ export function TeamManager({
                 const isManagedByMe = managerIds.includes(effectiveEmployee.id)
                 const isMemberOfMe = !isManagedByMe && memberIds.includes(effectiveEmployee.id)
                 return (
-                  <Card key={storeTeam.id} className={`mb-1.5 ${isManagedByMe ? 'border-orange-300 bg-orange-50' : isMemberOfMe ? 'border-green-200 bg-green-50' : ''}`}>
+                  <Card key={storeTeam.id} id={`team-${storeTeam.id}`} className={`mb-1.5 ${isManagedByMe ? 'border-orange-300 bg-orange-50' : isMemberOfMe ? 'border-green-200 bg-green-50' : ''}`}>
                     <CardHeader className="pb-2 pt-3 px-4">
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -1770,7 +1782,7 @@ export function TeamManager({
               テスト店舗（{testStores.length}）
             </button>
             {showTestStores && testStores.map(storeTeam => (
-              <Card key={storeTeam.id} className="mb-1.5 border-gray-200 bg-gray-50">
+              <Card key={storeTeam.id} id={`team-${storeTeam.id}`} className="mb-1.5 border-gray-200 bg-gray-50">
                 <CardHeader className="pb-2 pt-3 px-4">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 flex-1 min-w-0">

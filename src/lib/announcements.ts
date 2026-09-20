@@ -11,6 +11,12 @@ export type DailyReportPayload = {
   applicants: { people: number; count: number }
   newMembers: { id: string; name: string }[]
   streak: number
+  /** 承認の滞留（承認者名でリンク→承認センターの絞り込み。承認者未設定の店舗は運用管理者向けに分けて出す） */
+  stalled?: {
+    total: number
+    byApprover: { id: string; name: string; count: number; maxDays: number }[]
+    unassigned: { teamId: string | null; teamName: string; count: number }[]
+  }
 }
 
 export type AnnouncementItem = {

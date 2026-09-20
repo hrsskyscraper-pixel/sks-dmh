@@ -205,16 +205,18 @@ export function AnnouncementCard({ item, reactions: initReactions, comments: ini
  */
 function DailyReportBody({ payload, body }: { payload: DailyReportPayload; body: string | null }) {
   const p = payload
+  const [stalledOpen, setStalledOpen] = useState(false)
   const slash = `${Number(p.date.slice(5, 7))}/${Number(p.date.slice(8, 10))}`
   const tl = (params: Record<string, string>) => `/timeline?${new URLSearchParams({ date: p.date, ...params }).toString()}`
   const totalCerts = p.achievers.reduce((s, a) => s + a.count, 0)
   const nameLink = (href: string, name: string) => (
     <Link href={href} className="font-semibold text-orange-800 underline decoration-orange-300 underline-offset-2 hover:text-orange-600">{name}</Link>
   )
-  // テキスト本文の「⏳ 承認をお待ちの申請」以降は追記部分。構造化に含めないのでそのまま出す
-  const extraIdx = body ? body.indexOf('⏳') : -1
+  // 構造化データに滞留が無い古いレポートは、テキスト本文の「⏳」以降をそのまま出す
+  const extraIdx = body && !p.stalled ? body.indexOf('⏳') : -1
   const extra = extraIdx >= 0 ? body!.slice(extraIdx) : null
   const achieverPeople = p.achievers.length + p.achieversMore
+  const STALLED_SHOWN = 10
 
   return (
     <div className="text-xs text-gray-700 mt-0.5 leading-relaxed space-y-2">
@@ -262,7 +264,38 @@ function DailyReportBody({ payload, body }: { payload: DailyReportPayload; body:
       {p.streak >= 3 && <p>🔥 {p.streak}日連続で習得が生まれています！</p>}
       <p>今日も、あなたの「できた！」をお待ちしています ☆<br />素敵な１日になりますように (^^)</p>
       {extra && <p className="whitespace-pre-line border-t border-orange-200 pt-1.5">{extra}</p>}
-      <p className="text-[10px] text-gray-400">名前をタップすると、タイムラインがその日のその方の分に絞り込まれます</p>
+      {p.stalled && p.stalled.total > 0 && (
+        <div className="border-t border-orange-200 pt-1.5 space-y-2">
+          <div>
+            <p>⏳ <span className="font-semibold">承認者の方へ</span> 承認待ち申請が {p.stalled.total}件 あります<span className="text-gray-500">（申請の翌日中に承認されていないもの）</span></p>
+            <ul className="pl-1">
+              {(stalledOpen ? p.stalled.byApprover : p.stalled.byApprover.slice(0, STALLED_SHOWN)).map(a => (
+                <li key={a.id}>・{nameLink(`/approvals?approver=${a.id}`, `${a.name}さん`)}: {a.count}件<span className="text-gray-500">（最長 {a.maxDays}日）</span></li>
+              ))}
+              {p.stalled.byApprover.length > STALLED_SHOWN && (
+                <li>
+                  <button onClick={() => setStalledOpen(v => !v)} className="text-orange-700 underline decoration-orange-300 underline-offset-2 hover:text-orange-600">
+                    {stalledOpen ? '・閉じる' : `・…ほか${p.stalled.byApprover.length - STALLED_SHOWN}名（タップで全員を表示）`}
+                  </button>
+                </li>
+              )}
+            </ul>
+            <p>　承認センターからの認定を、どうぞよろしくお願いします！</p>
+          </div>
+          {p.stalled.unassigned.length > 0 && (
+            <div>
+              <p>🏬 <span className="font-semibold">運用管理者の方へ</span> 承認者未定の店舗・チームがあります。対応をお願いします。</p>
+              <ul className="pl-1">
+                {p.stalled.unassigned.map(u => (
+                  <li key={u.teamId ?? 'none'}>・{u.teamId ? nameLink(`/admin/teams?team=${u.teamId}`, u.teamName) : <span className="font-semibold">{u.teamName}</span>}: {u.count}件</li>
+                ))}
+              </ul>
+              <p className="text-[10px] text-gray-400">店舗名をタップすると所属一覧の該当チームが開きます（担当リーダーの設定）</p>
+            </div>
+          )}
+        </div>
+      )}
+      <p className="text-[10px] text-gray-400">名前をタップすると、タイムライン（承認者は承認センター）がその方の分に絞り込まれます</p>
     </div>
   )
 }
