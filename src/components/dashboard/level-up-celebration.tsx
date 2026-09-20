@@ -23,6 +23,8 @@ interface Props {
   /** この認定で「フェーズが全部そろった」フェーズ名 */
   completedPhases: string[]
   employeeName: string
+  /** 見本表示（管理者の確認用）。閉じても記録しない */
+  preview?: boolean
 }
 
 const COLORS = ['#f97316', '#fbbf24', '#34d399', '#60a5fa', '#f472b6', '#a78bfa']
@@ -32,7 +34,7 @@ const COLORS = ['#f97316', '#fbbf24', '#34d399', '#60a5fa', '#f472b6', '#a78bfa'
  * 承認がおりたあと、本人が次にホームを開いたときに一度だけ出す。紙吹雪＋認定スキル名。
  * 級到達・フェーズ完了はバッジで強調する。閉じると celebrated_at を記録し、以後は出ない。
  */
-export function LevelUpCelebration({ items, completedPhases, employeeName }: Props) {
+export function LevelUpCelebration({ items, completedPhases, employeeName, preview = false }: Props) {
   const [open, setOpen] = useState(false)
   const releaseRef = useRef<(() => void) | null>(null)
   const startedRef = useRef(false)
@@ -64,13 +66,14 @@ export function LevelUpCelebration({ items, completedPhases, employeeName }: Pro
     setOpen(false)
     releaseRef.current?.()
     releaseRef.current = null
-    markAchievementsCelebrated(items.map(i => i.achievementId)).catch(() => { /* 次回また出るだけ */ })
+    if (!preview) markAchievementsCelebrated(items.map(i => i.achievementId)).catch(() => { /* 次回また出るだけ */ })
   }
 
   const grades = items.filter(i => i.milestoneKind === 'grade')
   const goals = items.filter(i => i.milestoneKind === 'goal')
   const normals = items.filter(i => !i.milestoneKind)
-  const praises = items.filter(i => i.praise)
+  // まとめて認定したときは同じ一言が件数ぶん並ぶので、同じ文面（同じ書き手）は1つにまとめる
+  const praises = items.filter(i => i.praise).filter((i, idx, arr) => arr.findIndex(x => x.praise === i.praise && x.certifierName === i.certifierName) === idx)
   const headline = goals.length > 0
     ? `${goals[0].skillName} 到達！`
     : grades.length > 0
@@ -118,6 +121,7 @@ export function LevelUpCelebration({ items, completedPhases, employeeName }: Pro
         </DialogHeader>
 
         <div className="relative space-y-3 text-center">
+          {preview && <p className="text-[11px] font-bold text-amber-700 bg-amber-50 rounded px-2 py-1 inline-block">見本（実際の認定ではありません）</p>}
           <p className="text-sm text-gray-600">{employeeName} さん、おめでとうございます！</p>
 
           {(grades.length > 0 || goals.length > 0) && (

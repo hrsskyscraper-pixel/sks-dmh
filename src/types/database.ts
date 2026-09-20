@@ -21,6 +21,8 @@ export type Database = {
           hire_date: string | null
           /** 退職日（migration 20260920000300）。NULL＝在籍中 */
           left_at?: string | null
+          /** 社員番号（migration 20260920000600） */
+          employee_number?: string | null
           /** 最終利用日時（migration 20260920000300） */
           last_login_at?: string | null
           birth_date: string | null
@@ -58,6 +60,7 @@ export type Database = {
           hire_date?: string | null
           left_at?: string | null
           last_login_at?: string | null
+          employee_number?: string | null
           birth_date?: string | null
           role?: 'employee' | 'store_manager' | 'manager' | 'admin' | 'ops_manager' | 'executive' | 'testuser'
           business_role_ids?: string[]
@@ -93,6 +96,7 @@ export type Database = {
           hire_date?: string | null
           left_at?: string | null
           last_login_at?: string | null
+          employee_number?: string | null
           birth_date?: string | null
           role?: 'employee' | 'store_manager' | 'manager' | 'admin' | 'ops_manager' | 'executive' | 'testuser'
           business_role_ids?: string[]

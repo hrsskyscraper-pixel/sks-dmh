@@ -47,7 +47,7 @@ interface Props {
   currentGoal: (Pick<Goal, 'id' | 'content' | 'set_at' | 'deadline'> & { reason?: string }) | null
   isOwnDashboard: boolean
   /** レベルアップ演出（認定済みでまだ見せていない分。本人のホームのみ） */
-  celebration?: { items: CelebrationItem[]; completedPhases: string[] }
+  celebration?: { items: CelebrationItem[]; completedPhases: string[]; preview?: boolean }
   careerSummary?: Record<string, string[]>
   storeName?: string | null
   position?: string | null
@@ -494,7 +494,7 @@ export function DashboardContent({
 
       {setupNoticeSlot}
       {celebration && isOwnDashboard && (
-        <LevelUpCelebration items={celebration.items} completedPhases={celebration.completedPhases} employeeName={employee.name} />
+        <LevelUpCelebration items={celebration.items} completedPhases={celebration.completedPhases} employeeName={employee.name} preview={celebration.preview} />
       )}
 
       {/* 次の級まで（級・全体ゴールが設定されているカリキュラムのみ表示） */}

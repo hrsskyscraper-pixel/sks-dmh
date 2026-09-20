@@ -14,13 +14,13 @@ export default async function RosterImportPage() {
   if (!employee || !canAdminister(employee)) redirect('/')
 
   const db = createAdminClient()
-  const employees = await fetchAllRows<{ id: string; name: string; name_kana: string | null; email: string; hire_date: string | null; left_at?: string | null; employment_type: string; status: string }>((from, to) =>
-    db.from('employees').select('id, name, name_kana, email, hire_date, left_at, employment_type, status').order('id').range(from, to))
+  const employees = await fetchAllRows<{ id: string; name: string; name_kana: string | null; email: string; hire_date: string | null; left_at?: string | null; employment_type: string; status: string; employee_number?: string | null }>((from, to) =>
+    db.from('employees').select('id, name, name_kana, email, hire_date, left_at, employment_type, status, employee_number').order('id').range(from, to))
 
   return (
     <>
       <TopBar title="名簿の一括取込" />
-      <RosterImport employees={employees.map(e => ({ ...e, left_at: e.left_at ?? null }))} />
+      <RosterImport employees={employees.map(e => ({ ...e, left_at: e.left_at ?? null, employee_number: e.employee_number ?? null }))} />
     </>
   )
 }

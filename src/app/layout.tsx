@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { cookies } from "next/headers";
 import { FONT_SCALE_COOKIE, normalizeFontScale } from "@/lib/font-scale";
 import "./globals.css";
+import { EnvBadge } from "@/components/layout/env-badge";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -34,6 +35,7 @@ export default async function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        <EnvBadge />
         {children}
       </body>
     </html>

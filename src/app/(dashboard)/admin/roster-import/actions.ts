@@ -11,11 +11,15 @@ export type RosterUpdate = {
   hireDate?: string | null
   leftAt?: string | null
   employmentType?: '社員' | 'メイト' | null
+  /** 社員番号（名簿の値。退職者データとの突き合わせに使う） */
+  employeeNumber?: string | null
+  /** フリガナ（MB 側が空のときだけ入れる） */
+  nameKana?: string | null
 }
 
 /**
  * 名簿の一括取込（2026-09-19 決定 ⑦）。氏名（またはメール）で突き合わせた結果を、確認のうえ反映する。
- * 変えるのは 入社日・退職日・雇用区分 だけ。氏名やロールは触らない。
+ * 変えるのは 入社日・退職日・雇用区分・社員番号・（空のときだけ）フリガナ。氏名やロールは触らない。
  * システム管理者のみ。1件ずつ監査ログに残す。
  */
 export async function applyRosterUpdates(updates: RosterUpdate[]): Promise<{ applied: number; error?: string }> {
@@ -26,7 +30,7 @@ export async function applyRosterUpdates(updates: RosterUpdate[]): Promise<{ app
 
   const db = createAdminClient()
   const ids = updates.map(u => u.employeeId)
-  const { data: before } = await db.from('employees').select('id, name, hire_date, left_at, employment_type').in('id', ids)
+  const { data: before } = await db.from('employees').select('id, name, hire_date, left_at, employment_type, employee_number, name_kana').in('id', ids)
   const beforeById = Object.fromEntries((before ?? []).map(e => [e.id, e]))
 
   let applied = 0
@@ -37,6 +41,8 @@ export async function applyRosterUpdates(updates: RosterUpdate[]): Promise<{ app
     if (u.hireDate !== undefined && u.hireDate !== (b.hire_date ?? null)) patch.hire_date = u.hireDate
     if (u.leftAt !== undefined && u.leftAt !== (b.left_at ?? null)) patch.left_at = u.leftAt
     if (u.employmentType && u.employmentType !== b.employment_type) patch.employment_type = u.employmentType
+    if (u.employeeNumber && u.employeeNumber !== (b.employee_number ?? null)) patch.employee_number = u.employeeNumber
+    if (u.nameKana && !b.name_kana) patch.name_kana = u.nameKana
     if (Object.keys(patch).length === 0) continue
     const { error } = await db.from('employees').update(patch).eq('id', u.employeeId)
     if (error) return { applied, error: `${b.name}: ${error.message}` }
@@ -45,7 +51,7 @@ export async function applyRosterUpdates(updates: RosterUpdate[]): Promise<{ app
       action: 'roster_import',
       actorId: me.id,
       targetId: u.employeeId,
-      details: { from: { hire_date: b.hire_date, left_at: b.left_at, employment_type: b.employment_type }, to: patch },
+      details: { from: { hire_date: b.hire_date, left_at: b.left_at, employment_type: b.employment_type, employee_number: b.employee_number }, to: patch },
     }).catch(() => {})
   }
   revalidatePath('/admin/store-stats')

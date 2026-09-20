@@ -48,7 +48,7 @@ function TeamRankingSkeleton() {
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ project_id?: string; line_linked?: string; line_error?: string }>
+  searchParams?: Promise<{ project_id?: string; line_linked?: string; line_error?: string; preview?: string }>
 }) {
   const currentEmployee = await getCurrentEmployee()
   if (!currentEmployee) redirect('/login')
@@ -304,7 +304,19 @@ export default async function DashboardPage({
           return (goalRows ?? [])[0] ?? null
         })()}
         isOwnDashboard={!viewAsId}
-        celebration={celebrationItems.length > 0 ? { items: celebrationItems, completedPhases } : undefined}
+        celebration={
+          celebrationItems.length > 0 ? { items: celebrationItems, completedPhases }
+            // 管理者の確認用: /?preview=celebration で見本を出す（記録しない）
+            : (params?.preview === 'celebration' && canAdminister(currentEmployee)) ? {
+              preview: true,
+              items: [
+                { achievementId: 'preview-1', skillName: '調理3級', milestoneKind: 'grade', milestoneCert: '調理３級', praise: 'ライス盛り、定量ぴったりで安定してきたね！毎回きちんと確認する姿勢が素晴らしい。次はスピードも意識して、ひとり調理に挑戦しよう。期待しています！', certifierName: '店長 太郎' },
+                { achievementId: 'preview-2', skillName: 'ひとり調理', milestoneKind: null, milestoneCert: null, praise: null, certifierName: '店長 太郎' },
+                { achievementId: 'preview-3', skillName: '厨房立ち上げ', milestoneKind: null, milestoneCert: null, praise: null, certifierName: '店長 太郎' },
+              ],
+              completedPhases: ['フェーズ２'],
+            } : undefined
+        }
         careerSummary={(() => {
           const empMap = Object.fromEntries((allEmployeesForCareer ?? []).map(e => [e.id, e.name]))
           const summary: Record<string, string[]> = {}

@@ -16,6 +16,7 @@ import { IntroGuideDialog } from '@/components/onboarding/intro-guide-dialog'
 import { StalledApprovalDialog } from '@/components/approvals/stalled-approval-dialog'
 import { PendingScreen } from '@/components/onboarding/pending-screen'
 import { InviteRequiredScreen } from '@/components/onboarding/invite-required-screen'
+import { LeftScreen } from '@/components/onboarding/left-screen'
 import { JoinCompletionBanner } from '@/components/onboarding/join-completion-banner'
 import { canAdminister } from '@/lib/permissions'
 import { MemberLinkProvider } from '@/components/layout/member-link-context'
@@ -40,6 +41,12 @@ export default async function DashboardLayout({
     return <InviteRequiredScreen email={user.email ?? ''} />
   }
   let employee = employeeRaw
+
+  // 退職日を過ぎたアカウントは使えない（2026-09-20 決定。退職時にアカウント停止と一緒に記録する運用）
+  const todayJst = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10)
+  if (employee.left_at && employee.left_at <= todayJst) {
+    return <LeftScreen leftAt={employee.left_at} />
+  }
 
   // 既存ユーザーでavatar_url未設定の場合、Googleの写真を自動設定
   if (!employee.avatar_url && user.user_metadata.avatar_url) {
