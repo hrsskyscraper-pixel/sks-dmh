@@ -202,8 +202,11 @@ export function TeamManager({
   useEffect(() => {
     if (!focusTeamId) return
     const t = setTimeout(() => {
-      document.getElementById(`team-${focusTeamId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    }, 300)
+      const el = document.getElementById(`team-${focusTeamId}`)
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      el?.classList.add('ring-2', 'ring-orange-400')
+      setTimeout(() => el?.classList.remove('ring-2', 'ring-orange-400'), 3000)
+    }, 400)
     return () => clearTimeout(t)
   }, [focusTeamId])
 
@@ -219,9 +222,11 @@ export function TeamManager({
   // ===== 都道府県折りたたみ =====
   const [expandedPrefs, setExpandedPrefs] = useState<Set<string>>(() => {
     const ft = focusTeamId ? initialTeams.find(t => t.id === focusTeamId) : null
-    return new Set(ft?.prefecture ? [ft.prefecture] : [])
+    // 店舗は都道府県で折りたたまれている（都道府県なしは「その他」）。該当の折りたたみを開いておく
+    return new Set(ft && ft.type === 'store' ? [ft.prefecture || 'その他'] : [])
   })
-  const [showAllTeams, setShowAllTeams] = useState(false)
+  // ?team= で来たときは、担当チーム以外も含む全店舗の一覧を開いた状態にする（そうしないと該当店舗が描画されない）
+  const [showAllTeams, setShowAllTeams] = useState(!!focusTeamId)
   const [showTestStores, setShowTestStores] = useState(false)
   const togglePref = (pref: string) => setExpandedPrefs(prev => {
     const next = new Set(prev)

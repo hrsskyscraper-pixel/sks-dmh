@@ -48,7 +48,7 @@ const ROLE_OPTIONS_ADMIN = [
 interface Props {
   pendingAchievements: any[]
   /** 承認者で絞り込み中（デイリーレポートの名前リンクから）。解除で /approvals へ */
-  filterApprover?: { id: string; name: string; count: number } | null
+  filterApprover?: { id: string; name: string; count: number; kind?: 'team' | 'approver' } | null
   applicantAff?: Record<string, Affiliation[]>
   applicantCurricula?: Record<string, string[]>
   pendingTeamRequests: any[]
@@ -343,7 +343,10 @@ export function ApprovalCenter({
         <div className="flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2">
           <span className="px-1.5 py-0.5 rounded bg-red-500 text-white text-[10px] font-bold flex-shrink-0">要対応</span>
           <p className="flex-1 min-w-0 text-xs text-gray-800">
-            <span className="font-semibold">{filterApprover.name}</span> さんが担当するメンバーの承認待ち <span className="font-semibold text-amber-700">{filterApprover.count}件</span>
+            {filterApprover.kind === 'team'
+              ? <><span className="font-semibold">{filterApprover.name}</span> のメンバーの承認待ち </>
+              : <><span className="font-semibold">{filterApprover.name}</span> さんが担当するメンバーの承認待ち </>}
+            <span className="font-semibold text-amber-700">{filterApprover.count}件</span>
           </p>
           <Link href="/approvals" className="text-xs font-medium text-orange-700 hover:underline whitespace-nowrap">解除して全部見る</Link>
         </div>

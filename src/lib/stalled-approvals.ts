@@ -34,9 +34,20 @@ export interface ApproverSummary {
   items: StalledItem[]
 }
 
+export interface TeamStalledSummary {
+  teamId: string
+  teamName: string
+  count: number
+  maxDays: number
+  approverIds: string[]
+  approverNames: string[]
+}
+
 export interface StalledApprovals {
   items: StalledItem[]
   byApprover: ApproverSummary[]
+  /** 店舗・部署ごとの滞留（承認者がいるチームのみ。承認者名を添える）。レポート表示用に重複を避ける */
+  byTeam: TeamStalledSummary[]
   /** 承認者がいないチームの滞留（チーム → 件数）。teamId が null は「所属なし」 */
   unassigned: { teamId: string | null; teamName: string; count: number }[]
   total: number
@@ -69,7 +80,7 @@ export async function getStalledApprovals(db: SupabaseClient, now: Date, exclude
     .filter(a => !excludedIds.has(a.employee_id))
     .map(a => ({ ...a, days: jstDayDiff(a.achieved_at, now) }))
     .filter(a => a.days >= STALLED_APPROVAL_DAYS)
-  if (stalledRows.length === 0) return { items: [], byApprover: [], unassigned: [], total: 0 }
+  if (stalledRows.length === 0) return { items: [], byApprover: [], byTeam: [], unassigned: [], total: 0 }
 
   const empIds = [...new Set(stalledRows.map(a => a.employee_id))]
   const [{ data: memberRows }, { data: empRows }] = await Promise.all([
@@ -133,6 +144,16 @@ export async function getStalledApprovals(db: SupabaseClient, now: Date, exclude
   }
   const byApprover = Object.values(byApproverMap).sort((a, b) => b.maxDays - a.maxDays || b.count - a.count || a.name.localeCompare(b.name, 'ja'))
 
+  // 店舗・部署ごと（承認者がいるチームのみ）
+  const byTeamMap: Record<string, TeamStalledSummary> = {}
+  for (const it of items) {
+    if (!it.teamId || it.approverIds.length === 0) continue
+    const t = (byTeamMap[it.teamId] ??= { teamId: it.teamId, teamName: it.teamName ?? '', count: 0, maxDays: 0, approverIds: it.approverIds, approverNames: it.approverIds.map(id => approverInfo[id]?.name ?? '').filter(Boolean) })
+    t.count++
+    t.maxDays = Math.max(t.maxDays, it.days)
+  }
+  const byTeam = Object.values(byTeamMap).sort((a, b) => b.count - a.count || b.maxDays - a.maxDays || a.teamName.localeCompare(b.teamName, 'ja'))
+
   // 承認者がいない分
   const unassignedMap: Record<string, { teamId: string | null; teamName: string; count: number }> = {}
   for (const it of items) {
@@ -144,7 +165,7 @@ export async function getStalledApprovals(db: SupabaseClient, now: Date, exclude
   }
   const unassigned = Object.values(unassignedMap).sort((a, b) => b.count - a.count)
 
-  return { items, byApprover, unassigned, total: items.length }
+  return { items, byApprover, byTeam, unassigned, total: items.length }
 }
 
 /**

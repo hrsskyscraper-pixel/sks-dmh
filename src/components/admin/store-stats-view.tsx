@@ -1,6 +1,7 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { ChevronDown, ChevronUp, Download, Search, HelpCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { MemberNameLink } from '@/components/layout/member-name-link'
@@ -98,7 +99,17 @@ export function StoreStatsView({ stats }: { stats: StoreStats }) {
   const [asc, setAsc] = useState(false)
   const [brand, setBrand] = useState<string>('all')
   const [query, setQuery] = useState('')
-  const [expanded, setExpanded] = useState<string | null>(null)
+  // デイリーレポートの「所属なし」リンク等: ?open=none（または チームID）で行を開き、?filter= で内訳を絞る
+  const searchParams = useSearchParams()
+  const openParam = searchParams.get('open')
+  const focusRowId = openParam === 'none' ? '__none__' : openParam
+  const focusFilter = (['target', 'applied', 'certified', 'notApplied', 'pending', 'stalled'] as MetricKey[]).find(k => k === searchParams.get('filter')) ?? null
+  const [expanded, setExpanded] = useState<string | null>(focusRowId)
+  useEffect(() => {
+    if (!focusRowId) return
+    const t = setTimeout(() => document.getElementById(`stat-row-${focusRowId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300)
+    return () => clearTimeout(t)
+  }, [focusRowId])
   const [showDef, setShowDef] = useState(false)
   const [hireMonth, setHireMonth] = useState<string>('all')
   const [scope, setScope] = useState<Scope>('all')
@@ -400,7 +411,7 @@ export function StoreStatsView({ stats }: { stats: StoreStats }) {
           </thead>
           <tbody className="divide-y divide-gray-100">
             {rows.map(r => (
-              <StatRow key={r.id} row={r} expanded={expanded === r.id} onToggle={() => setExpanded(prev => (prev === r.id ? null : r.id))} />
+              <StatRow key={r.id} row={r} expanded={expanded === r.id} onToggle={() => setExpanded(prev => (prev === r.id ? null : r.id))} initialFilter={r.id === focusRowId && focusFilter ? focusFilter : undefined} />
             ))}
             {rows.length === 0 && (
               <tr><td colSpan={11} className="px-3 py-8 text-center text-gray-400">該当する所属がありません</td></tr>
@@ -468,15 +479,15 @@ function SortButton({ label, unit, active, asc, onClick, align = 'left', color }
   )
 }
 
-function StatRow({ row, expanded, onToggle }: { row: StoreStatRow; expanded: boolean; onToggle: () => void }) {
-  // 展開したときに表示するメンバーの絞り込み（既定は全員）
-  const [filter, setFilter] = useState<MetricKey>('target')
+function StatRow({ row, expanded, onToggle, initialFilter }: { row: StoreStatRow; expanded: boolean; onToggle: () => void; initialFilter?: MetricKey }) {
+  // 展開したときに表示するメンバーの絞り込み（既定は全員。URL で指定があればそれ）
+  const [filter, setFilter] = useState<MetricKey>(initialFilter ?? 'target')
   const filteredMembers = useMemo(() => row.members.filter(MEMBER_FILTER[filter]), [row.members, filter])
   const leftCount = row.cohort.filter(c => c.leftAt).length
 
   return (
     <>
-      <tr onClick={onToggle} className={cn('cursor-pointer hover:bg-orange-50/40', expanded && 'bg-orange-50/60')}>
+      <tr id={`stat-row-${row.id}`} onClick={onToggle} className={cn('cursor-pointer hover:bg-orange-50/40 scroll-mt-24', expanded && 'bg-orange-50/60')}>
         <td className="px-2 py-2 max-w-0">
           <div className="flex items-center gap-1">
             {expanded ? <ChevronUp className="w-3 h-3 text-gray-400 flex-shrink-0" /> : <ChevronDown className="w-3 h-3 text-gray-300 flex-shrink-0" />}

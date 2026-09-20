@@ -14,7 +14,10 @@ export type DailyReportPayload = {
   /** 承認の滞留（承認者名でリンク→承認センターの絞り込み。承認者未設定の店舗は運用管理者向けに分けて出す） */
   stalled?: {
     total: number
-    byApprover: { id: string; name: string; count: number; maxDays: number }[]
+    /** 店舗・部署ごと（承認者がいるチーム）。店舗名→承認センターの絞り込み */
+    byTeam?: { teamId: string; teamName: string; count: number; maxDays: number; approverNames: string[] }[]
+    /** 旧形式（承認者ごと）。2026-09-20 の途中まで */
+    byApprover?: { id: string; name: string; count: number; maxDays: number }[]
     unassigned: { teamId: string | null; teamName: string; count: number }[]
   }
 }

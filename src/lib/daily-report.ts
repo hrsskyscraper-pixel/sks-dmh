@@ -239,10 +239,10 @@ export async function ensureDailyReportAnnouncement(
   // ⏳ 承認をお待ちの申請（申請の翌日中に承認されていないもの）。承認者名で出し、承認の滞留を解消してもらう
   if (stalled && stalled.total > 0) {
     const sl: string[] = ['', `⏳ 承認者の方へ 承認待ち申請が ${stalled.total}件 あります（申請の翌日中に承認されていないもの）`]
-    for (const a of stalled.byApprover.slice(0, 10)) {
-      sl.push(`・${a.name}さん: ${a.count}件（最長 ${a.maxDays}日）`)
+    for (const t of stalled.byTeam.slice(0, 10)) {
+      sl.push(`・${t.teamName} ${t.count}件 最長${t.maxDays}日（承認者 ${t.approverNames.map(n => `${n}さん`).join('、')}）`)
     }
-    if (stalled.byApprover.length > 10) sl.push(`・…ほか${stalled.byApprover.length - 10}名`)
+    if (stalled.byTeam.length > 10) sl.push(`・…ほか${stalled.byTeam.length - 10}店舗・チーム`)
     sl.push('　承認センターからの認定を、どうぞよろしくお願いします！')
     if (stalled.unassigned.length > 0) {
       sl.push('', '🏬 運用管理者の方へ 承認者未定の店舗・チームがあります。対応をお願いします。')
@@ -253,7 +253,7 @@ export async function ensureDailyReportAnnouncement(
     if (payload) {
       payload.stalled = {
         total: stalled.total,
-        byApprover: stalled.byApprover.map(a => ({ id: a.approverId, name: a.name, count: a.count, maxDays: a.maxDays })),
+        byTeam: stalled.byTeam.map(t => ({ teamId: t.teamId, teamName: t.teamName, count: t.count, maxDays: t.maxDays, approverNames: t.approverNames })),
         unassigned: stalled.unassigned.map(u => ({ teamId: u.teamId, teamName: u.teamName, count: u.count })),
       }
     }

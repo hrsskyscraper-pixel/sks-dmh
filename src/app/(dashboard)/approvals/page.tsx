@@ -14,7 +14,7 @@ import { signSkillPhotoPaths } from '@/lib/skill-photos'
 import { getAffiliationsAndCurricula } from '@/lib/affiliations'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
-export default async function ApprovalsPage({ searchParams }: { searchParams?: Promise<{ approver?: string; tab?: string }> }) {
+export default async function ApprovalsPage({ searchParams }: { searchParams?: Promise<{ approver?: string; team?: string; tab?: string }> }) {
   const employee = await getCurrentEmployee()
   if (!employee) redirect('/login')
   const sp = (await searchParams) ?? {}
@@ -71,9 +71,19 @@ export default async function ApprovalsPage({ searchParams }: { searchParams?: P
 
   // デイリーレポートの承認者名リンクからの絞り込み（?approver=）: その承認者が担当するチームのメンバーの申請だけ。
   // 見られるのは 管理者 か 本人。他の人が指定しても無視する
+  // ?team= は、その店舗・部署のメンバーの申請だけ（管理者 か そのチームの担当リーダー）
   let filterApprover: { id: string; name: string; count: number } | null = null
   let approverMemberIds: Set<string> | null = null
-  if (sp.approver && /^[0-9a-f-]{36}$/.test(sp.approver) && (isSystemAdmin || sp.approver === employee.id)) {
+  if (sp.team && /^[0-9a-f-]{36}$/.test(sp.team) && (isSystemAdmin || managedTeamIds.includes(sp.team))) {
+    const [{ data: team }, { data: members }] = await Promise.all([
+      db.from('teams').select('id, name').eq('id', sp.team).maybeSingle(),
+      db.from('team_members').select('employee_id').eq('team_id', sp.team),
+    ])
+    if (team) {
+      approverMemberIds = new Set((members ?? []).map(m => m.employee_id))
+      filterApprover = { id: team.id, name: team.name, count: 0 }
+    }
+  } else if (sp.approver && /^[0-9a-f-]{36}$/.test(sp.approver) && (isSystemAdmin || sp.approver === employee.id)) {
     const [{ data: ap }, { data: managed }] = await Promise.all([
       db.from('employees').select('id, name').eq('id', sp.approver).maybeSingle(),
       db.from('team_managers').select('team_id').eq('employee_id', sp.approver),
@@ -277,7 +287,7 @@ export default async function ApprovalsPage({ searchParams }: { searchParams?: P
         recentJoins={recentJoinsForClient as any[]}
         reviewerMap={reviewerMap as Record<string, { id: string; name: string; avatar_url: string | null }>}
         auditLogs={(auditLogs ?? []) as any[]}
-        filterApprover={filterApprover}
+        filterApprover={filterApprover ? { ...filterApprover, kind: sp.team ? 'team' as const : 'approver' as const } : null}
       />
     </>
   )

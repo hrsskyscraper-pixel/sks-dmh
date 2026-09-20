@@ -268,18 +268,33 @@ function DailyReportBody({ payload, body }: { payload: DailyReportPayload; body:
         <div className="border-t border-orange-200 pt-1.5 space-y-2">
           <div>
             <p>⏳ <span className="font-semibold">承認者の方へ</span> 承認待ち申請が {p.stalled.total}件 あります<span className="text-gray-500">（申請の翌日中に承認されていないもの）</span></p>
-            <ul className="pl-1">
-              {(stalledOpen ? p.stalled.byApprover : p.stalled.byApprover.slice(0, STALLED_SHOWN)).map(a => (
-                <li key={a.id}>・{nameLink(`/approvals?approver=${a.id}`, `${a.name}さん`)}: {a.count}件<span className="text-gray-500">（最長 {a.maxDays}日）</span></li>
-              ))}
-              {p.stalled.byApprover.length > STALLED_SHOWN && (
-                <li>
-                  <button onClick={() => setStalledOpen(v => !v)} className="text-orange-700 underline decoration-orange-300 underline-offset-2 hover:text-orange-600">
-                    {stalledOpen ? '・閉じる' : `・…ほか${p.stalled.byApprover.length - STALLED_SHOWN}名（タップで全員を表示）`}
-                  </button>
-                </li>
-              )}
-            </ul>
+            {p.stalled.byTeam ? (
+              <ul className="pl-1">
+                {(stalledOpen ? p.stalled.byTeam : p.stalled.byTeam.slice(0, STALLED_SHOWN)).map(t => (
+                  <li key={t.teamId}>・{nameLink(`/approvals?team=${t.teamId}`, t.teamName)} {t.count}件<span className="text-gray-500"> 最長{t.maxDays}日（承認者 {t.approverNames.map(n => `${n}さん`).join('、')}）</span></li>
+                ))}
+                {p.stalled.byTeam.length > STALLED_SHOWN && (
+                  <li>
+                    <button onClick={() => setStalledOpen(v => !v)} className="text-orange-700 underline decoration-orange-300 underline-offset-2 hover:text-orange-600">
+                      {stalledOpen ? '・閉じる' : `・…ほか${p.stalled.byTeam.length - STALLED_SHOWN}店舗・チーム（タップで全部を表示）`}
+                    </button>
+                  </li>
+                )}
+              </ul>
+            ) : p.stalled.byApprover ? (
+              <ul className="pl-1">
+                {(stalledOpen ? p.stalled.byApprover : p.stalled.byApprover.slice(0, STALLED_SHOWN)).map(a => (
+                  <li key={a.id}>・{nameLink(`/approvals?approver=${a.id}`, `${a.name}さん`)}: {a.count}件<span className="text-gray-500">（最長 {a.maxDays}日）</span></li>
+                ))}
+                {p.stalled.byApprover.length > STALLED_SHOWN && (
+                  <li>
+                    <button onClick={() => setStalledOpen(v => !v)} className="text-orange-700 underline decoration-orange-300 underline-offset-2 hover:text-orange-600">
+                      {stalledOpen ? '・閉じる' : `・…ほか${p.stalled.byApprover.length - STALLED_SHOWN}名（タップで全員を表示）`}
+                    </button>
+                  </li>
+                )}
+              </ul>
+            ) : null}
             <p>　承認センターからの認定を、どうぞよろしくお願いします！</p>
           </div>
           {p.stalled.unassigned.length > 0 && (
@@ -287,15 +302,15 @@ function DailyReportBody({ payload, body }: { payload: DailyReportPayload; body:
               <p>🏬 <span className="font-semibold">運用管理者の方へ</span> 承認者未定の店舗・チームがあります。対応をお願いします。</p>
               <ul className="pl-1">
                 {p.stalled.unassigned.map(u => (
-                  <li key={u.teamId ?? 'none'}>・{u.teamId ? nameLink(`/admin/teams?team=${u.teamId}`, u.teamName) : <span className="font-semibold">{u.teamName}</span>}: {u.count}件</li>
+                  <li key={u.teamId ?? 'none'}>・{u.teamId ? nameLink(`/admin/teams?team=${u.teamId}`, u.teamName) : nameLink('/admin/store-stats?open=none&filter=pending', u.teamName)}: {u.count}件{!u.teamId && <span className="text-gray-500">（店舗・部署に所属していない人の申請。所属の設定をお願いします）</span>}</li>
                 ))}
               </ul>
-              <p className="text-[10px] text-gray-400">店舗名をタップすると所属一覧の該当チームが開きます（担当リーダーの設定）</p>
+              <p className="text-[10px] text-gray-400">店舗名をタップすると所属一覧の該当チームが開きます（担当リーダーの設定）。「所属なし」は店舗別スキル状況の該当メンバー一覧が開きます</p>
             </div>
           )}
         </div>
       )}
-      <p className="text-[10px] text-gray-400">名前をタップすると、タイムライン（承認者は承認センター）がその方の分に絞り込まれます</p>
+      <p className="text-[10px] text-gray-400">名前をタップするとタイムラインが、店舗名をタップすると承認センターが、その分だけに絞り込まれます</p>
     </div>
   )
 }
