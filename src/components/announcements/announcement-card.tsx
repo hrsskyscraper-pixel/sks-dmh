@@ -216,7 +216,8 @@ function DailyReportBody({ payload, body }: { payload: DailyReportPayload; body:
   const extraIdx = body && !p.stalled ? body.indexOf('⏳') : -1
   const extra = extraIdx >= 0 ? body!.slice(extraIdx) : null
   const achieverPeople = p.achievers.length + p.achieversMore
-  const STALLED_SHOWN = 10
+  /** 承認待ちの店舗一覧は5件まで。6件目以降はタップで開く */
+  const STALLED_SHOWN = 5
 
   return (
     <div className="text-xs text-gray-700 mt-0.5 leading-relaxed space-y-2">
@@ -276,7 +277,7 @@ function DailyReportBody({ payload, body }: { payload: DailyReportPayload; body:
                 {p.stalled.byTeam.length > STALLED_SHOWN && (
                   <li>
                     <button onClick={() => setStalledOpen(v => !v)} className="text-orange-700 underline decoration-orange-300 underline-offset-2 hover:text-orange-600">
-                      {stalledOpen ? '・閉じる' : `・…ほか${p.stalled.byTeam.length - STALLED_SHOWN}店舗・チーム（タップで全部を表示）`}
+                      {stalledOpen ? '・閉じる' : `・…ほか${p.stalled.byTeam.length - STALLED_SHOWN}店舗・チーム（タップで表示）`}
                     </button>
                   </li>
                 )}

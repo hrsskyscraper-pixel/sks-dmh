@@ -239,10 +239,10 @@ export async function ensureDailyReportAnnouncement(
   // ⏳ 承認をお待ちの申請（申請の翌日中に承認されていないもの）。承認者名で出し、承認の滞留を解消してもらう
   if (stalled && stalled.total > 0) {
     const sl: string[] = ['', `⏳ 承認者の方へ 承認待ち申請が ${stalled.total}件 あります（申請の翌日中に承認されていないもの）`]
-    for (const t of stalled.byTeam.slice(0, 10)) {
+    for (const t of stalled.byTeam.slice(0, 5)) {
       sl.push(`・${t.teamName} ${t.count}件 最長${t.maxDays}日（承認者 ${t.approverNames.map(n => `${n}さん`).join('、')}）`)
     }
-    if (stalled.byTeam.length > 10) sl.push(`・…ほか${stalled.byTeam.length - 10}店舗・チーム`)
+    if (stalled.byTeam.length > 5) sl.push(`・…ほか${stalled.byTeam.length - 5}店舗・チーム`)
     sl.push('　承認センターからの認定を、どうぞよろしくお願いします！')
     if (stalled.unassigned.length > 0) {
       // 理由ごとにまとめる（同じ説明文を各行に繰り返さない）
