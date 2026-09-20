@@ -312,6 +312,7 @@ function DailyReportBody({ payload, body }: { payload: DailyReportPayload; body:
                 ))}
               </ul>
               <p className="text-[10px] text-gray-400">承認者がいない店舗はタップで所属一覧の該当チーム（担当リーダーの設定）へ。承認者ご本人の申請は承認センターの該当店舗へ。「所属なし」は店舗別スキル状況の該当メンバー一覧へ</p>
+              <p><Link href="/admin/teams?attention=1" className="text-orange-700 underline decoration-orange-300 underline-offset-2 hover:text-orange-600">該当の店舗・チームをまとめて見る →</Link></p>
             </div>
           )}
         </div>

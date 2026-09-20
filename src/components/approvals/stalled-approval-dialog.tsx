@@ -83,8 +83,8 @@ export function StalledApprovalDialog() {
                 <span className="font-semibold">承認できる人がいない申請のある店舗・チーム</span> が <span className="font-semibold text-rose-700">{stalledApprovals.unassignedTeams}件</span> あります
               </p>
               <p className="text-[11px] text-gray-500 mt-0.5">承認者が未設定、または承認者ご本人の申請のため止まっています。所属一覧で担当リーダーの設定、または承認センターでの承認をお願いします（運用管理者の方へ）。</p>
-              <Button variant="outline" onClick={() => { closeDialog(); router.push('/admin/teams') }} className="mt-2 h-8 text-xs border-rose-300 text-rose-700 hover:bg-rose-100">
-                所属一覧（設定画面）へ
+              <Button variant="outline" onClick={() => { closeDialog(); router.push('/admin/teams?attention=1') }} className="mt-2 h-8 text-xs border-rose-300 text-rose-700 hover:bg-rose-100">
+                該当の店舗・チームを見る
               </Button>
             </div>
           </div>

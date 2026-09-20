@@ -494,7 +494,7 @@ export function DashboardContent({
 
       {setupNoticeSlot}
       {celebration && isOwnDashboard && (
-        <LevelUpCelebration items={celebration.items} completedPhases={celebration.completedPhases} employeeName={employee.name} preview={celebration.preview} />
+        <LevelUpCelebration items={celebration.items} completedPhases={celebration.completedPhases} employeeName={employee.name} employeeId={employee.id} employeeAvatar={avatarUrl ?? employee.avatar_url} preview={celebration.preview} />
       )}
 
       {/* 次の級まで（級・全体ゴールが設定されているカリキュラムのみ表示） */}

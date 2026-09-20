@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Award, Sparkles, Trophy } from 'lucide-react'
+import { CertRingAvatar } from '@/components/ui/cert-ring-avatar'
 import { markAchievementsCelebrated } from '@/app/(dashboard)/actions'
 import { acquireModal } from '@/lib/modal-queue'
 
@@ -16,6 +17,8 @@ export interface CelebrationItem {
   /** 店長からの一言（公開） */
   praise: string | null
   certifierName: string | null
+  certifierId: string | null
+  certifierAvatar: string | null
 }
 
 interface Props {
@@ -23,6 +26,9 @@ interface Props {
   /** この認定で「フェーズが全部そろった」フェーズ名 */
   completedPhases: string[]
   employeeName: string
+  /** 本人の顔写真（お祝い画面の主役） */
+  employeeId?: string
+  employeeAvatar?: string | null
   /** 見本表示（管理者の確認用）。閉じても記録しない */
   preview?: boolean
 }
@@ -34,7 +40,7 @@ const COLORS = ['#f97316', '#fbbf24', '#34d399', '#60a5fa', '#f472b6', '#a78bfa'
  * 承認がおりたあと、本人が次にホームを開いたときに一度だけ出す。紙吹雪＋認定スキル名。
  * 級到達・フェーズ完了はバッジで強調する。閉じると celebrated_at を記録し、以後は出ない。
  */
-export function LevelUpCelebration({ items, completedPhases, employeeName, preview = false }: Props) {
+export function LevelUpCelebration({ items, completedPhases, employeeName, employeeId, employeeAvatar, preview = false }: Props) {
   const [open, setOpen] = useState(false)
   const releaseRef = useRef<(() => void) | null>(null)
   const startedRef = useRef(false)
@@ -122,7 +128,10 @@ export function LevelUpCelebration({ items, completedPhases, employeeName, previ
 
         <div className="relative space-y-3 text-center">
           {preview && <p className="text-[11px] font-bold text-amber-700 bg-amber-50 rounded px-2 py-1 inline-block">見本（実際の認定ではありません）</p>}
-          <p className="text-sm text-gray-600">{employeeName} さん、おめでとうございます！</p>
+          <div className="flex flex-col items-center gap-1.5">
+            <CertRingAvatar employeeId={employeeId} src={employeeAvatar ?? undefined} name={employeeName} size={72} fallbackClassName="bg-orange-100 text-orange-700 text-xl" />
+            <p className="text-sm text-gray-600">{employeeName} さん、おめでとうございます！</p>
+          </div>
 
           {(grades.length > 0 || goals.length > 0) && (
             <div className="flex flex-wrap justify-center gap-2">
@@ -158,11 +167,15 @@ export function LevelUpCelebration({ items, completedPhases, employeeName, previ
           )}
 
           {praises.length > 0 && (
-            <div className="rounded-xl bg-sky-50 border border-sky-100 px-3 py-2 text-left space-y-1">
+            <div className="rounded-xl bg-sky-50 border border-sky-100 px-3 py-2.5 text-left space-y-2">
               {praises.slice(0, 3).map(i => (
-                <p key={i.achievementId} className="text-sm text-sky-900 leading-relaxed">
-                  「{i.praise}」<span className="text-[11px] text-sky-600 ml-1">{i.certifierName ? `— ${i.certifierName}` : ''}</span>
-                </p>
+                <div key={i.achievementId} className="flex items-start gap-2">
+                  <CertRingAvatar employeeId={i.certifierId} src={i.certifierAvatar ?? undefined} name={i.certifierName ?? '?'} size={32} className="flex-shrink-0 mt-0.5" fallbackClassName="bg-sky-100 text-sky-700" />
+                  <div className="min-w-0">
+                    {i.certifierName && <p className="text-[11px] font-semibold text-sky-700">{i.certifierName} さんから</p>}
+                    <p className="text-sm text-sky-900 leading-relaxed">「{i.praise}」</p>
+                  </div>
+                </div>
               ))}
             </div>
           )}
