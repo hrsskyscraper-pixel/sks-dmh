@@ -31,7 +31,7 @@ export default async function InvitePage({
   // 招待取得
   const { data: inv } = await db
     .from('team_invitations')
-    .select('id, team_id, project_team_id, invited_by, target_employee_id, custom_message, expires_at, used_at, as_manager, is_self_select, allowed_team_types, revoked_at')
+    .select('id, team_id, project_team_id, invited_by, target_employee_id, custom_message, expires_at, used_at, used_by, as_manager, is_self_select, allowed_team_types, revoked_at')
     .eq('id', id)
     .maybeSingle()
 
@@ -79,8 +79,11 @@ export default async function InvitePage({
     // 自己選択型（共通1リンク）は再利用可能。used_at では失効させず revoked_at で制御する。
     if (inv.revoked_at) return errorScreen('この招待リンクは無効化されています。')
   } else if (inv.target_employee_id) {
-    // 特定メンバー宛の個別招待のみ単発（1回使ったら失効）。
-    if (inv.used_at) return errorScreen('この招待は既に使用済みです。')
+    // 特定メンバー宛の個別招待のみ単発（参加手続きを終えたら失効）。
+    // 判定は used_by（参加した人）で行う。used_at だけの行は、以前の実装が「リンクを開いただけ」で
+    // 付けていたもので、参加は済んでいない（2026-09-20 に判明。開いただけで失効し、参加ボタンが
+    // 「使用済み」で止まる不具合の原因だった）。
+    if (inv.used_by) return errorScreen('この招待は既に使用済みです。')
   } else {
     // チーム共有リンク（宛先未指定）は複数人が参加できる再利用リンク。
     // used_at では失効させず、無効化（revoked_at）・期限切れでのみ失効する。
@@ -183,10 +186,10 @@ export default async function InvitePage({
       .is('invited_by', null)
   }
 
-  // 単発の個別招待（target_employee_id 付き）はリンク流用防止のため使用済みにする
-  if (inv.target_employee_id && !inv.used_at) {
-    await db.from('team_invitations').update({ used_at: new Date().toISOString() }).eq('id', inv.id)
-  }
+  // 個別招待（target_employee_id 付き）は、ここでは消費しない。
+  // 以前はリンク流用防止のため「開いただけ」で used_at を付けていたが、その直後の参加操作が
+  // 「既に使用済み」で拒否される不具合になっていた。流用防止は宛先チェック
+  // （target_employee_id と本人の一致）で足りており、消費は参加完了時（acceptInvitation）に行う。
 
   if (!me) return errorScreen('ユーザー情報の取得・作成に失敗しました')
 

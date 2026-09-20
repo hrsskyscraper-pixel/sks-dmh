@@ -58,7 +58,7 @@ export async function createInvitation(params: {
   targetEmployeeId: string
   customMessage?: string
   asManager?: boolean
-}): Promise<{ error?: string; invitationId?: string }> {
+}): Promise<{ error?: string; invitationId?: string; delivery?: InvitationDelivery }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '認証エラー' }
@@ -121,17 +121,39 @@ export async function createInvitation(params: {
     .single()
   if (insertError || !inv) return { error: insertError?.message ?? '招待作成に失敗しました' }
 
-  // 通知送信（非同期・失敗しても招待は残す）
-  sendInvitationNotification({
-    invitationId: inv.id,
-    inviter: { name: inviter.name },
-    target: { name: target.name, email: target.email, line_user_id: target.line_user_id },
-    teamName: team.name,
-    customMessage: params.customMessage,
-  }).catch(err => console.error('招待通知送信失敗:', err))
+  // 通知送信（失敗しても招待は残す）。結果を返して、画面で「送れていない」ことを正直に見せる
+  // （メール休止中や未設定のときに「送信しました」と出るのは不親切。2026-09-20 須貝さん指摘）
+  let delivery: InvitationDelivery = { mail: 'failed', line: target.line_user_id ? 'failed' : 'none' }
+  try {
+    const r = await sendInvitationNotification({
+      invitationId: inv.id,
+      inviter: { name: inviter.name },
+      target: { name: target.name, email: target.email, line_user_id: target.line_user_id },
+      teamName: team.name,
+      customMessage: params.customMessage,
+    })
+    const mail: InvitationDelivery['mail'] = r.mail.ok ? 'sent'
+      : !r.mail.skipped ? 'failed'
+        : /休止/.test(r.mail.error ?? '') ? 'paused'
+          : /未設定/.test(r.mail.error ?? '') ? 'unconfigured'
+            : 'none'
+    const line: InvitationDelivery['line'] = !r.line ? 'none' : r.line.ok ? 'sent' : r.line.skipped ? 'paused' : 'failed'
+    delivery = { mail, line, mailError: r.mail.ok ? undefined : r.mail.error }
+  } catch (err) {
+    console.error('招待通知送信失敗:', err)
+  }
 
   revalidatePath('/admin/teams')
-  return { invitationId: inv.id }
+  return { invitationId: inv.id, delivery }
+}
+
+/** 招待通知の配送結果（画面の案内に使う） */
+export interface InvitationDelivery {
+  /** sent=送った / paused=一括休止中 / unconfigured=送信設定なし（開発環境など） / none=宛先なし / failed=送信失敗 */
+  mail: 'sent' | 'paused' | 'unconfigured' | 'none' | 'failed'
+  /** none=LINE未連携 */
+  line: 'sent' | 'paused' | 'none' | 'failed'
+  mailError?: string
 }
 
 export interface AcceptInvitationProfile {
@@ -167,13 +189,14 @@ export async function acceptInvitation(
   // 招待取得
   const { data: inv } = await db
     .from('team_invitations')
-    .select('id, team_id, project_team_id, target_employee_id, expires_at, used_at, as_manager')
+    .select('id, team_id, project_team_id, target_employee_id, expires_at, used_at, used_by, as_manager')
     .eq('id', invitationId)
     .single()
   if (!inv) return { error: '招待が見つかりません' }
   // 単発で失効するのは特定メンバー宛の個別招待のみ。
   // チーム共有リンク（宛先未指定）は複数人が使える再利用リンクなので used_at では弾かない。
-  if (inv.target_employee_id && inv.used_at) return { error: 'この招待は既に使用済みです' }
+  // 参加が済んだ個別招待だけを「使用済み」にする（used_by で判定。used_at だけの行は旧実装の「開いた記録」）
+  if (inv.target_employee_id && inv.used_by) return { error: 'この招待は既に使用済みです' }
   if (new Date(inv.expires_at) < new Date()) return { error: 'この招待は期限切れです' }
   if (inv.target_employee_id && inv.target_employee_id !== me.id) {
     return { error: 'この招待はあなた宛ではありません' }

@@ -15,7 +15,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import { createInvitation, createInvitationLink, listTeamShareLinks, revokeInviteLink } from '@/app/invite/actions'
+import { createInvitation, createInvitationLink, type InvitationDelivery, listTeamShareLinks, revokeInviteLink } from '@/app/invite/actions'
 import type { Employee } from '@/types/database'
 
 interface Props {
@@ -41,6 +41,7 @@ export function InviteMemberDialog({ open, onOpenChange, teamId, teamName, invit
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [sentInviteUrl, setSentInviteUrl] = useState<string | null>(null)
+  const [delivery, setDelivery] = useState<InvitationDelivery | null>(null)
 
   // リンク発行モード
   const [generatedUrl, setGeneratedUrl] = useState<string | null>(null)
@@ -84,6 +85,7 @@ export function InviteMemberDialog({ open, onOpenChange, teamId, teamName, invit
     setMessage('')
     setSearch('')
     setSentInviteUrl(null)
+    setDelivery(null)
     setGeneratedUrl(null)
     setConfirmingRevokeId(null)
     setMode('member')
@@ -104,7 +106,10 @@ export function InviteMemberDialog({ open, onOpenChange, teamId, teamName, invit
       }
       const url = `${window.location.origin}/invite/${res.invitationId}`
       setSentInviteUrl(url)
-      toast.success(`${selected?.name}さんに招待を送信しました`)
+      setDelivery(res.delivery ?? null)
+      const d = res.delivery
+      if (!d || d.mail === 'sent' || d.line === 'sent') toast.success(`${selected?.name}さんに招待を送信しました`)
+      else toast.warning('招待を作成しました（通知は送っていません。招待URLを直接お渡しください）')
     })
   }
 
@@ -176,14 +181,41 @@ export function InviteMemberDialog({ open, onOpenChange, teamId, teamName, invit
         {/* ==== 送信/発行完了画面 ==== */}
         {sentInviteUrl ? (
           <div className="space-y-3">
-            <div className="flex items-center gap-2 bg-emerald-50 text-emerald-700 rounded-lg px-3 py-2">
-              <Check className="w-4 h-4" />
-              <span className="text-sm">招待を送信しました</span>
-            </div>
-            <p className="text-xs text-gray-600">
-              {selected?.name}さんにメール
-              {selected?.line_user_id ? '・LINE通知' : ''}で参加依頼をお送りしました。
-            </p>
+            {(() => {
+              const d = delivery
+              const mailSent = !d || d.mail === 'sent'
+              const lineSent = !!d && d.line === 'sent'
+              const anySent = mailSent || lineSent
+              const mailReason =
+                d?.mail === 'paused' ? 'メール通知が一括休止中のため'
+                  : d?.mail === 'unconfigured' ? 'この環境ではメール送信が設定されていないため'
+                    : d?.mail === 'none' ? 'メールアドレスが未登録のため'
+                      : d?.mail === 'failed' ? 'メールの送信に失敗したため'
+                        : ''
+              return (
+                <>
+                  <div className={`flex items-center gap-2 rounded-lg px-3 py-2 ${anySent ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800 border border-amber-200'}`}>
+                    <Check className="w-4 h-4" />
+                    <span className="text-sm">{anySent ? '招待を送信しました' : '招待を作成しました（通知は送っていません）'}</span>
+                  </div>
+                  <div className="text-xs text-gray-600 space-y-1">
+                    {mailSent && <p>{selected?.name}さんにメールで参加依頼をお送りしました。</p>}
+                    {!mailSent && (
+                      <p className="text-amber-800">
+                        {mailReason}、<span className="font-semibold">招待メールは送っていません</span>。
+                        {d?.mail === 'paused' && '再開は 設定 → メール通知 から。'}
+                      </p>
+                    )}
+                    {lineSent && <p>LINE には届いています。</p>}
+                    {d?.line === 'paused' && <p className="text-amber-800">LINE通知も一括休止中のため送っていません。</p>}
+                    {d?.line === 'failed' && <p className="text-amber-800">LINE の送信に失敗しました。</p>}
+                    {!anySent && (
+                      <p className="font-medium text-gray-800">下の招待URLをコピーして、LINE などで {selected?.name}さんに直接お渡しください。</p>
+                    )}
+                  </div>
+                </>
+              )
+            })()}
             <div className="border border-gray-200 rounded-lg p-2 bg-gray-50">
               <p className="text-[10px] text-gray-500 mb-1">招待URL</p>
               <div className="flex items-center gap-2">
