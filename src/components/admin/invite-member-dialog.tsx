@@ -203,11 +203,13 @@ export function InviteMemberDialog({ open, onOpenChange, teamId, teamName, invit
                     {!mailSent && (
                       <p className="text-amber-800">
                         {mailReason}、<span className="font-semibold">招待メールは送っていません</span>。
-                        {d?.mail === 'paused' && '再開は 設定 → メール通知 から。'}
+                        {d?.mail === 'paused' && (d.canResumeMail
+                          ? '再開は 設定 → メール通知 から。'
+                          : 'メール通知の再開は運用管理者が行います。急ぐときは運用管理者にご連絡ください。')}
                       </p>
                     )}
                     {lineSent && <p>LINE には届いています。</p>}
-                    {d?.line === 'paused' && <p className="text-amber-800">LINE通知も一括休止中のため送っていません。</p>}
+                    {d?.line === 'paused' && <p className="text-amber-800">LINE通知も一括休止中のため送っていません{d.canResumeMail ? '（設定 → LINE通知 から再開できます）' : ''}。</p>}
                     {d?.line === 'failed' && <p className="text-amber-800">LINE の送信に失敗しました。</p>}
                     {!anySent && (
                       <p className="font-medium text-gray-800">下の招待URLをコピーして、LINE などで {selected?.name}さんに直接お渡しください。</p>

@@ -123,7 +123,7 @@ export async function createInvitation(params: {
 
   // 通知送信（失敗しても招待は残す）。結果を返して、画面で「送れていない」ことを正直に見せる
   // （メール休止中や未設定のときに「送信しました」と出るのは不親切。2026-09-20 須貝さん指摘）
-  let delivery: InvitationDelivery = { mail: 'failed', line: target.line_user_id ? 'failed' : 'none' }
+  let delivery: InvitationDelivery = { mail: 'failed', line: target.line_user_id ? 'failed' : 'none', canResumeMail: canAdminister(inviter) }
   try {
     const r = await sendInvitationNotification({
       invitationId: inv.id,
@@ -138,7 +138,7 @@ export async function createInvitation(params: {
           : /未設定/.test(r.mail.error ?? '') ? 'unconfigured'
             : 'none'
     const line: InvitationDelivery['line'] = !r.line ? 'none' : r.line.ok ? 'sent' : r.line.skipped ? 'paused' : 'failed'
-    delivery = { mail, line, mailError: r.mail.ok ? undefined : r.mail.error }
+    delivery = { mail, line, mailError: r.mail.ok ? undefined : r.mail.error, canResumeMail: canAdminister(inviter) }
   } catch (err) {
     console.error('招待通知送信失敗:', err)
   }
@@ -154,6 +154,8 @@ export interface InvitationDelivery {
   /** none=LINE未連携 */
   line: 'sent' | 'paused' | 'none' | 'failed'
   mailError?: string
+  /** 招待した本人が 設定 → メール通知 を操作できるか（システム管理者）。案内文の出し分けに使う */
+  canResumeMail?: boolean
 }
 
 export interface AcceptInvitationProfile {
