@@ -15,6 +15,7 @@ import { canAdminister, canApprove } from '@/lib/permissions'
 import { getAuthUser, getCurrentEmployee } from '@/lib/supabase/auth-cache'
 import { EMPTY_NAV_COUNTS, type NavCounts } from '@/lib/nav-counts'
 import { getTestEmployeeIds } from '@/lib/test-data'
+import { isLineNotificationsEnabled } from '@/lib/settings'
 import { buildMilestoneMap } from '@/lib/milestone'
 import { countOverdueSkills } from '@/lib/skill-progress'
 import type { Role, SystemPermission } from '@/types/database'
@@ -194,12 +195,14 @@ export async function getNavCounts(): Promise<NavCounts> {
     return countOverdueSkills(skills, certifiedIds, pendingIds, rejectedIds, skillPhaseMap, phases ?? [], milestones, cumHours)
   }
 
-  const [notif, rejectedSkillCount, pendingApprovalCount, pendingCards, overdueSkillCount] = await Promise.all([
+  const [notif, rejectedSkillCount, pendingApprovalCount, pendingCards, overdueSkillCount, lineNotificationsEnabled] = await Promise.all([
     computeNotif(),
     computeRejected(),
     computePendingApproval(),
     computePendingAchievementCards(),
     computeOverdue(),
+    // LINE通知を休止しているときは「LINE連携で通知を受け取る」の案内を出さない（2026-09-20 須貝さん指示）
+    isLineNotificationsEnabled(),
   ])
 
   // ホームアイコンのバッジ＝ホームに出ている対応カードの枚数（赤）
@@ -215,6 +218,7 @@ export async function getNavCounts(): Promise<NavCounts> {
     notifCount: notif.notifCount,
     unreadTeamReqCount: notif.unreadTeamReqCount,
     stalledApprovals: notif.stalledApprovals,
+    lineNotificationsEnabled,
     pendingApprovalCount,
     rejectedSkillCount,
     overdueSkillCount,

@@ -15,6 +15,8 @@ export type NavCounts = {
   overdueSkillCount: number
   /** ホームのバッジ（遅れ/次の一歩） */
   dashboardBadge: { count: number; color: 'red' | 'blue' } | null
+  /** LINE通知の一括スイッチが有効か（休止中は LINE連携の案内を出さない） */
+  lineNotificationsEnabled: boolean
   /** 承認者向け: 滞留している承認（申請の翌日中に承認されていないもの）。ベルの要対応と、ログイン時のモーダルに使う */
   stalledApprovals: { count: number; maxDays: number }
 }
@@ -27,4 +29,5 @@ export const EMPTY_NAV_COUNTS: NavCounts = {
   overdueSkillCount: 0,
   dashboardBadge: null,
   stalledApprovals: { count: 0, maxDays: 0 },
+  lineNotificationsEnabled: true,
 }

@@ -8,6 +8,7 @@ import { Mail, AlertCircle, CheckCircle } from 'lucide-react'
 import { AcceptInvitationButton } from './accept-button'
 import { InAppBrowserWarning } from '@/components/layout/in-app-browser-warning'
 import { WelcomeContent } from './welcome-content'
+import { isLineNotificationsEnabled } from '@/lib/settings'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,6 +22,8 @@ export default async function InvitePage({
   const { id } = await params
   const sp = searchParams ? await searchParams : undefined
   const isPreview = sp?.preview === '1'
+  // LINE通知が一括休止中なら、参加後の「LINE連携のおすすめ」は出さない
+  const lineEnabled = await isLineNotificationsEnabled()
   const previewStep = sp?.step // 'accept' などでフェーズを指定
 
   const supabase = await createClient()
@@ -239,6 +242,7 @@ export default async function InvitePage({
               initialLastName={isPreview ? '' : me.last_name}
               initialFirstName={isPreview ? '' : me.first_name}
               previewMode={isPreview}
+              lineEnabled={lineEnabled}
               selfSelect
               teams={(pickTeamsRes.data ?? []) as { id: string; name: string; type: string; prefecture: string | null }[]}
             />
@@ -337,6 +341,7 @@ export default async function InvitePage({
               initialLastName={isPreview ? '' : me.last_name}
               initialFirstName={isPreview ? '' : me.first_name}
               previewMode={isPreview}
+              lineEnabled={lineEnabled}
             />
           )}
 
