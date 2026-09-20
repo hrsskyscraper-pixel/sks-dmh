@@ -302,10 +302,16 @@ function DailyReportBody({ payload, body }: { payload: DailyReportPayload; body:
               <p>🏬 <span className="font-semibold">運用管理者の方へ</span> 承認者未定の店舗・チームがあります。対応をお願いします。</p>
               <ul className="pl-1">
                 {p.stalled.unassigned.map(u => (
-                  <li key={u.teamId ?? 'none'}>・{u.teamId ? nameLink(`/admin/teams?team=${u.teamId}`, u.teamName) : nameLink('/admin/store-stats?open=none&filter=pending', u.teamName)}: {u.count}件{!u.teamId && <span className="text-gray-500">（店舗・部署に所属していない人の申請。所属の設定をお願いします）</span>}</li>
+                  <li key={`${u.teamId ?? 'none'}:${u.selfOnly ? 'self' : 'none'}`}>
+                    ・{u.teamId
+                      ? nameLink(u.selfOnly ? `/approvals?team=${u.teamId}` : `/admin/teams?team=${u.teamId}`, u.teamName)
+                      : nameLink('/admin/store-stats?open=none&filter=pending', u.teamName)}: {u.count}件
+                    {u.selfOnly && <span className="text-gray-500">（承認者ご本人の申請。別の承認者か運用管理者の承認が必要です）</span>}
+                    {!u.teamId && <span className="text-gray-500">（店舗・部署に所属していない人の申請。所属の設定をお願いします）</span>}
+                  </li>
                 ))}
               </ul>
-              <p className="text-[10px] text-gray-400">店舗名をタップすると所属一覧の該当チームが開きます（担当リーダーの設定）。「所属なし」は店舗別スキル状況の該当メンバー一覧が開きます</p>
+              <p className="text-[10px] text-gray-400">承認者がいない店舗はタップで所属一覧の該当チーム（担当リーダーの設定）へ。承認者ご本人の申請は承認センターの該当店舗へ。「所属なし」は店舗別スキル状況の該当メンバー一覧へ</p>
             </div>
           )}
         </div>
