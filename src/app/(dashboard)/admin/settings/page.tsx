@@ -149,6 +149,20 @@ export default async function SettingsPage() {
           </Link>
 
           <Link
+            href="/admin/roster-import"
+            className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white p-4 hover:bg-gray-50 transition-colors"
+          >
+            <div className="w-10 h-10 rounded-lg bg-teal-100 flex items-center justify-center flex-shrink-0">
+              <Upload className="w-5 h-5 text-teal-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-gray-800">名簿の一括取込</p>
+              <p className="text-xs text-gray-500">入社日・退職日・社員／PA を CSV から一括で登録（定着率の計算に使います）</p>
+            </div>
+            <ChevronRight className="w-4 h-4 text-gray-300" />
+          </Link>
+
+          <Link
             href="/admin/notifications"
             className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white p-4 hover:bg-gray-50 transition-colors"
           >
