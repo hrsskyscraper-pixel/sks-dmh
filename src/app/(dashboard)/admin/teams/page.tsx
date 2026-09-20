@@ -91,14 +91,14 @@ export default async function AdminTeamsPage({ searchParams }: { searchParams?: 
 
   // 「承認できる人がいない申請のある店舗・チーム」だけを出すモード（ログイン時の要対応モーダル → このページ）
   // 承認者が未設定のチームと、承認者ご本人の申請しか無いチームの両方を拾う（承認の滞留の集計と同じ規則）
-  let attention: { teamId: string; teamName: string; count: number; selfOnly: boolean }[] | undefined
+  let attention: { teamId: string; teamName: string; count: number; maxDays: number; selfOnly: boolean }[] | undefined
   if (sp.attention === '1' && canAdminister(currentEmployee)) {
     try {
       const excluded = await getRankingExcludedIds()
       const stalled = await getStalledApprovals(db, new Date(), excluded)
       attention = stalled.unassigned
         .filter(u => u.teamId)
-        .map(u => ({ teamId: u.teamId as string, teamName: u.teamName, count: u.count, selfOnly: u.selfOnly }))
+        .map(u => ({ teamId: u.teamId as string, teamName: u.teamName, count: u.count, maxDays: u.maxDays, selfOnly: u.selfOnly }))
     } catch (e) {
       console.error('[所属一覧] 要対応チームの集計に失敗:', e)
     }

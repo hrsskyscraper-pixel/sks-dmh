@@ -245,16 +245,33 @@ export async function ensureDailyReportAnnouncement(
     if (stalled.byTeam.length > 10) sl.push(`・…ほか${stalled.byTeam.length - 10}店舗・チーム`)
     sl.push('　承認センターからの認定を、どうぞよろしくお願いします！')
     if (stalled.unassigned.length > 0) {
-      sl.push('', '🏬 運用管理者の方へ 承認者未定の店舗・チームがあります。対応をお願いします。')
-      for (const u of stalled.unassigned.slice(0, 10)) sl.push(`・${u.teamName}: ${u.count}件${u.selfOnly ? '（承認者ご本人の申請。別の承認者か運用管理者の承認が必要）' : ''}`)
-      if (stalled.unassigned.length > 10) sl.push(`・…ほか${stalled.unassigned.length - 10}件`)
+      // 理由ごとにまとめる（同じ説明文を各行に繰り返さない）
+      const noApprover = stalled.unassigned.filter(u => u.teamId && !u.selfOnly)
+      const selfOnly = stalled.unassigned.filter(u => u.teamId && u.selfOnly)
+      const noTeam = stalled.unassigned.filter(u => !u.teamId)
+      sl.push('', '🏬 運用管理者の方へ 承認できる人がいない申請があります。対応をお願いします。')
+      const listOf = (arr: typeof stalled.unassigned) => arr.slice(0, 10).map(u => `・${u.teamName} ${u.count}件 最長${u.maxDays}日`)
+      if (noApprover.length > 0) {
+        sl.push('', '【承認者が未設定の店舗・チーム】所属一覧で担当リーダーの設定をお願いします')
+        sl.push(...listOf(noApprover))
+        if (noApprover.length > 10) sl.push(`・…ほか${noApprover.length - 10}件`)
+      }
+      if (selfOnly.length > 0) {
+        sl.push('', '【承認者ご本人の申請】別の承認者か運用管理者の承認が必要です')
+        sl.push(...listOf(selfOnly))
+        if (selfOnly.length > 10) sl.push(`・…ほか${selfOnly.length - 10}件`)
+      }
+      if (noTeam.length > 0) {
+        sl.push('', '【店舗・部署に所属していない人の申請】所属の設定をお願いします')
+        sl.push(...listOf(noTeam))
+      }
     }
     body = body + '\n' + sl.join('\n')
     if (payload) {
       payload.stalled = {
         total: stalled.total,
         byTeam: stalled.byTeam.map(t => ({ teamId: t.teamId, teamName: t.teamName, count: t.count, maxDays: t.maxDays, approverNames: t.approverNames })),
-        unassigned: stalled.unassigned.map(u => ({ teamId: u.teamId, teamName: u.teamName, count: u.count, selfOnly: u.selfOnly })),
+        unassigned: stalled.unassigned.map(u => ({ teamId: u.teamId, teamName: u.teamName, count: u.count, maxDays: u.maxDays, selfOnly: u.selfOnly })),
       }
     }
   }

@@ -297,24 +297,43 @@ function DailyReportBody({ payload, body }: { payload: DailyReportPayload; body:
             ) : null}
             <p>　承認センターからの認定を、どうぞよろしくお願いします！</p>
           </div>
-          {p.stalled.unassigned.length > 0 && (
-            <div>
-              <p>🏬 <span className="font-semibold">運用管理者の方へ</span> 承認者未定の店舗・チームがあります。対応をお願いします。</p>
-              <ul className="pl-1">
-                {p.stalled.unassigned.map(u => (
-                  <li key={`${u.teamId ?? 'none'}:${u.selfOnly ? 'self' : 'none'}`}>
-                    ・{u.teamId
-                      ? nameLink(u.selfOnly ? `/approvals?team=${u.teamId}` : `/admin/teams?team=${u.teamId}`, u.teamName)
-                      : nameLink('/admin/store-stats?open=none&filter=pending', u.teamName)}: {u.count}件
-                    {u.selfOnly && <span className="text-gray-500">（承認者ご本人の申請。別の承認者か運用管理者の承認が必要です）</span>}
-                    {!u.teamId && <span className="text-gray-500">（店舗・部署に所属していない人の申請。所属の設定をお願いします）</span>}
-                  </li>
-                ))}
-              </ul>
-              <p className="text-[10px] text-gray-400">承認者がいない店舗はタップで所属一覧の該当チーム（担当リーダーの設定）へ。承認者ご本人の申請は承認センターの該当店舗へ。「所属なし」は店舗別スキル状況の該当メンバー一覧へ</p>
-              <p><Link href="/admin/teams?attention=1" className="text-orange-700 underline decoration-orange-300 underline-offset-2 hover:text-orange-600">該当の店舗・チームをまとめて見る →</Link></p>
-            </div>
-          )}
+          {p.stalled.unassigned.length > 0 && (() => {
+            // 理由ごとにまとめて、説明は見出しに1行だけ（各行に同じ説明を繰り返さない）
+            const u = p.stalled!.unassigned
+            const noApprover = u.filter(x => x.teamId && !x.selfOnly)
+            const selfOnly = u.filter(x => x.teamId && x.selfOnly)
+            const noTeam = u.filter(x => !x.teamId)
+            const row = (x: typeof u[number], href: string | null) => (
+              <li key={`${x.teamId ?? 'none'}:${x.selfOnly ? 'self' : 'none'}`}>
+                ・{href ? nameLink(href, x.teamName) : <span className="font-semibold">{x.teamName}</span>}
+                {' '}{x.count}件<span className="text-gray-500">{x.maxDays ? ` 最長${x.maxDays}日` : ''}</span>
+              </li>
+            )
+            return (
+              <div className="space-y-2">
+                <p>🏬 <span className="font-semibold">運用管理者の方へ</span> 承認できる人がいない申請があります。対応をお願いします。</p>
+                {noApprover.length > 0 && (
+                  <div>
+                    <p className="text-gray-600">【承認者が未設定の店舗・チーム】店舗名をタップすると所属一覧が開きます。担当リーダーの設定をお願いします</p>
+                    <ul className="pl-1">{noApprover.map(x => row(x, `/admin/teams?team=${x.teamId}`))}</ul>
+                  </div>
+                )}
+                {selfOnly.length > 0 && (
+                  <div>
+                    <p className="text-gray-600">【承認者ご本人の申請】自分の申請は自分で承認できません。別の承認者か運用管理者の承認をお願いします（店舗名をタップで承認センターへ）</p>
+                    <ul className="pl-1">{selfOnly.map(x => row(x, `/approvals?team=${x.teamId}`))}</ul>
+                  </div>
+                )}
+                {noTeam.length > 0 && (
+                  <div>
+                    <p className="text-gray-600">【店舗・部署に所属していない人の申請】所属の設定をお願いします</p>
+                    <ul className="pl-1">{noTeam.map(x => row(x, '/admin/store-stats?open=none&filter=pending'))}</ul>
+                  </div>
+                )}
+                <p><Link href="/admin/teams?attention=1" className="text-orange-700 underline decoration-orange-300 underline-offset-2 hover:text-orange-600">該当の店舗・チームをまとめて見る →</Link></p>
+              </div>
+            )
+          })()}
         </div>
       )}
       <p className="text-[10px] text-gray-400">名前をタップするとタイムラインが、店舗名をタップすると承認センターが、その分だけに絞り込まれます</p>

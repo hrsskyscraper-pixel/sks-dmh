@@ -18,7 +18,7 @@ export type DailyReportPayload = {
     byTeam?: { teamId: string; teamName: string; count: number; maxDays: number; approverNames: string[] }[]
     /** 旧形式（承認者ごと）。2026-09-20 の途中まで */
     byApprover?: { id: string; name: string; count: number; maxDays: number }[]
-    unassigned: { teamId: string | null; teamName: string; count: number; selfOnly?: boolean }[]
+    unassigned: { teamId: string | null; teamName: string; count: number; maxDays?: number; selfOnly?: boolean }[]
   }
 }
 

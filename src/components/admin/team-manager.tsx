@@ -41,7 +41,7 @@ interface Props {
   brands?: { id: string; name: string; color: string | null }[]
   activeProjects?: { id: string; name: string; phaseCount?: number }[]
   /** ?attention=1 のとき: 承認できる人がいない申請のある店舗・チーム（これだけを一覧に出す） */
-  attention?: { teamId: string; teamName: string; count: number; selfOnly: boolean }[]
+  attention?: { teamId: string; teamName: string; count: number; maxDays: number; selfOnly: boolean }[]
 }
 
 type RequestType = TeamChangeRequest['request_type']
@@ -202,8 +202,6 @@ export function TeamManager({
   // デイリーレポート等の店舗名リンク（?team=）: 該当チームを開き、都道府県の折りたたみも開いてスクロールする
   const focusTeamId = searchParams.get('team')
   const attentionIds = attention ? new Set(attention.map(a => a.teamId)) : null
-  const attentionById: Record<string, { teamId: string; teamName: string; count: number; selfOnly: boolean }> =
-    Object.fromEntries((attention ?? []).map(a => [a.teamId, a]))
   const [expandedTeams, setExpandedTeams] = useState<Set<string>>(() => new Set(focusTeamId ? [focusTeamId] : (attention ?? []).map(a => a.teamId)))
   useEffect(() => {
     if (!focusTeamId) return
@@ -1016,22 +1014,29 @@ export function TeamManager({
             <span className="text-lg leading-none">🏬</span>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-bold text-gray-800">承認できる人がいない申請のある店舗・チーム（{attention.length}件）</p>
-              <p className="text-[11px] text-gray-600 mt-0.5">
-                下に該当の所属だけを表示しています。<b>承認者が未設定</b>の所属は担当リーダーを設定してください。
-                <b>承認者ご本人の申請</b>だけが止まっている所属は、運用管理者が承認センターから承認してください。
-              </p>
-              {attention.length > 0 && (
-                <ul className="mt-1.5 space-y-0.5">
-                  {attention.map(a => (
-                    <li key={a.teamId} className="text-[11px] text-gray-700">
-                      ・<span className="font-semibold">{a.teamName}</span> {a.count}件
-                      <span className={a.selfOnly ? 'text-amber-700' : 'text-rose-700'}>
-                        {a.selfOnly ? '（承認者ご本人の申請）' : '（承認者が未設定）'}
-                      </span>
-                      {a.selfOnly && <a href={`/approvals?team=${a.teamId}`} className="ml-1 text-orange-700 underline">承認センターへ</a>}
-                    </li>
-                  ))}
-                </ul>
+              <p className="text-[11px] text-gray-600 mt-0.5">下に該当の所属だけを表示しています。</p>
+              {attention.filter(a => !a.selfOnly).length > 0 && (
+                <div className="mt-1.5">
+                  <p className="text-[11px] font-semibold text-rose-700">承認者が未設定の店舗・チーム — 担当リーダーの設定をお願いします</p>
+                  <ul className="space-y-0.5">
+                    {attention.filter(a => !a.selfOnly).map(a => (
+                      <li key={a.teamId} className="text-[11px] text-gray-700">・<span className="font-semibold">{a.teamName}</span> {a.count}件 最長{a.maxDays}日</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {attention.filter(a => a.selfOnly).length > 0 && (
+                <div className="mt-1.5">
+                  <p className="text-[11px] font-semibold text-amber-700">承認者ご本人の申請 — 別の承認者か運用管理者の承認が必要です</p>
+                  <ul className="space-y-0.5">
+                    {attention.filter(a => a.selfOnly).map(a => (
+                      <li key={a.teamId} className="text-[11px] text-gray-700">
+                        ・<span className="font-semibold">{a.teamName}</span> {a.count}件 最長{a.maxDays}日
+                        <a href={`/approvals?team=${a.teamId}`} className="ml-1 text-orange-700 underline">承認センターへ</a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )}
               <a href="/admin/teams" className="inline-block mt-2 text-xs font-medium text-orange-700 underline">すべての所属を表示</a>
             </div>

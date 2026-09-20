@@ -49,7 +49,7 @@ export interface StalledApprovals {
   /** 店舗・部署ごとの滞留（承認者がいるチームのみ。承認者名を添える）。レポート表示用に重複を避ける */
   byTeam: TeamStalledSummary[]
   /** 承認者がいない滞留（チーム → 件数）。teamId が null は「所属なし」。selfOnly=承認者はいるが申請者がその承認者本人（別の承認者が要る） */
-  unassigned: { teamId: string | null; teamName: string; count: number; selfOnly: boolean }[]
+  unassigned: { teamId: string | null; teamName: string; count: number; maxDays: number; selfOnly: boolean }[]
   total: number
 }
 
@@ -158,17 +158,18 @@ export async function getStalledApprovals(db: SupabaseClient, now: Date, exclude
   const byTeam = Object.values(byTeamMap).sort((a, b) => b.count - a.count || b.maxDays - a.maxDays || a.teamName.localeCompare(b.teamName, 'ja'))
 
   // 承認者がいない分
-  const unassignedMap: Record<string, { teamId: string | null; teamName: string; count: number; selfOnly: boolean }> = {}
+  const unassignedMap: Record<string, { teamId: string | null; teamName: string; count: number; maxDays: number; selfOnly: boolean }> = {}
   for (const it of items) {
     if (it.approverIds.length === 0) {
       // チームに承認者はいるが、申請者がその承認者本人（自分の申請は自分で承認できない）→ selfOnly
       const teamHasApprover = !!it.teamId && (approversByTeam[it.teamId]?.length ?? 0) > 0
       const key = `${it.teamId ?? '__none__'}:${teamHasApprover ? 'self' : 'none'}`
-      const u = (unassignedMap[key] ??= { teamId: it.teamId, teamName: it.teamName ?? '所属なし', count: 0, selfOnly: teamHasApprover })
+      const u = (unassignedMap[key] ??= { teamId: it.teamId, teamName: it.teamName ?? '所属なし', count: 0, maxDays: 0, selfOnly: teamHasApprover })
       u.count++
+      u.maxDays = Math.max(u.maxDays, it.days)
     }
   }
-  const unassigned = Object.values(unassignedMap).sort((a, b) => b.count - a.count)
+  const unassigned = Object.values(unassignedMap).sort((a, b) => b.count - a.count || b.maxDays - a.maxDays)
 
   return { items, byApprover, byTeam, unassigned, total: items.length }
 }
