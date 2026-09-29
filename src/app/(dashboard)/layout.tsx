@@ -21,7 +21,7 @@ import { MemberLinkProvider } from '@/components/layout/member-link-context'
 import { LineLinkFloatingButton } from '@/components/layout/line-link-floating-button'
 import { FontScaleSync } from '@/components/layout/font-scale-sync'
 import { normalizeFontScale } from '@/lib/font-scale'
-import type { Role } from '@/types/database'
+import type { Role, SystemPermission } from '@/types/database'
 
 export default async function DashboardLayout({
   children,
@@ -92,8 +92,11 @@ export default async function DashboardLayout({
     ? await db.from('employees').select('name, role, system_permission, notifications_read_at').eq('id', viewAsId).single()
     : { data: null }
 
-  // BottomNav は viewAs 社員のロールで表示を切り替える
+  // BottomNav は viewAs 社員のロール・権限で表示を切り替える
   const effectiveRole: Role = (viewAsEmployee?.role as Role | undefined) ?? role
+  const effectivePermission = viewAsEmployee
+    ? (viewAsEmployee.system_permission as SystemPermission | null)
+    : (employee.system_permission as SystemPermission | null)
 
   // 文字サイズは「自分の」表示設定なので、view-as 対象ではなくログイン本人の値を使う
   const fontScale = normalizeFontScale(employee.font_scale)
@@ -140,7 +143,7 @@ export default async function DashboardLayout({
         {employee.role !== 'testuser' && !viewAsEmployee && (
           <IntroGuideDialog employeeId={employee.id} dismissed={!!employee.intro_dismissed_at} />
         )}
-        <BottomNav role={effectiveRole} avatarUrl={employee.avatar_url} employeeId={employee.id} employeeName={employee.name} fontScale={fontScale} />
+        <BottomNav role={effectiveRole} systemPermission={effectivePermission} avatarUrl={employee.avatar_url} employeeId={employee.id} employeeName={employee.name} fontScale={fontScale} />
         <Toaster position="top-center" richColors />
       </div>
       </CertRingProvider>

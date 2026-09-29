@@ -600,39 +600,6 @@ export async function toggleSkillCheckpoint(skillId: string, isCheckpoint: boole
   return {}
 }
 
-export async function changeEmployeeRole(employeeId: string, newRole: string, newEmploymentType: string): Promise<{ error?: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: '認証エラー' }
-
-  const { data: actor } = await supabase.from('employees').select('id, role, system_permission').eq('auth_user_id', user.id).single()
-  // UI では管理者以外に出していないが、サーバーアクションは直接呼べるので必ず検査する
-  if (!actor || !canAdminister(actor)) return { error: '権限がありません' }
-
-  // 旧ロール取得
-  const adminDb = createAdminClient()
-  const { data: target } = await adminDb.from('employees').select('role, employment_type, name').eq('id', employeeId).single()
-  if (!target) return { error: '対象社員が見つかりません' }
-
-  const { error } = await adminDb.from('employees').update({
-    role: newRole as 'employee' | 'store_manager' | 'manager' | 'admin' | 'ops_manager' | 'executive',
-    employment_type: newEmploymentType as '社員' | 'メイト',
-  }).eq('id', employeeId)
-  if (error) return { error: error.message }
-
-  // 監査ログ
-  await writeAuditLog({
-    action: 'change_role',
-    actorId: actor.id,
-    targetId: employeeId,
-    details: {
-      old_role: target.role,
-      old_employment_type: target.employment_type,
-      new_role: newRole,
-      new_employment_type: newEmploymentType,
-      target_name: target.name,
-    },
-  })
-
-  return {}
-}
+// 旧「◯◯に変更」用の changeEmployeeRole はここにあったが、2026-09-29 に削除した。
+// 旧 role 列だけを書き換えるため「運用管理者に変更」を押しても権限が変わらず、誤解を招いていた。
+// 雇用形態・業務役職・システム権限の変更は、メンバーキャリアの「プロフィールを編集」に一本化している。
