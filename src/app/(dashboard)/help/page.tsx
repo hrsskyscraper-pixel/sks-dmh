@@ -1632,6 +1632,12 @@ function renderContent(content: string): React.ReactNode[] {
       }
       if (rows.length > 0) {
         const [header, ...body] = rows
+        // ◯✕△ のような記号の列は中央寄せで折り返さない。
+        // 文章が入る列は左寄せで折り返す（折り返さないと表が画面幅を大きく超える）
+        const colCount = Math.max(...rows.map(r => r.length))
+        const isTextCol = Array.from({ length: colCount }, (_, c) =>
+          body.some(r => (r[c] ?? '').replace(/\*\*/g, '').length > 8),
+        )
         elements.push(
           <div key={`t${key++}`} className="my-2 overflow-x-auto">
             <table className="w-full text-xs border-collapse">
@@ -1640,9 +1646,9 @@ function renderContent(content: string): React.ReactNode[] {
                   {header.map((cell, j) => (
                     <th
                       key={j}
-                      className={`bg-gray-50 px-2 py-1.5 font-medium text-gray-700 border border-gray-200 ${j === 0 ? 'text-left' : 'text-center whitespace-nowrap'}`}
+                      className={`bg-gray-50 px-2 py-1.5 font-medium text-gray-700 border border-gray-200 ${j === 0 || isTextCol[j] ? 'text-left' : 'text-center whitespace-nowrap'}`}
                     >
-                      {cell}
+                      {renderInline(cell)}
                     </th>
                   ))}
                 </tr>
@@ -1653,17 +1659,19 @@ function renderContent(content: string): React.ReactNode[] {
                     {row.map((cell, j) => (
                       <td
                         key={j}
-                        className={`px-2 py-1.5 border border-gray-200 ${
+                        className={`px-2 py-1.5 border border-gray-200 align-top ${
                           j === 0
-                            ? 'font-medium text-gray-700 bg-gray-50/50'
-                            : 'text-center text-gray-600 whitespace-nowrap'
+                            ? `font-medium text-gray-700 bg-gray-50/50${isTextCol[0] ? '' : ' whitespace-nowrap'}`
+                            : isTextCol[j]
+                              ? 'text-left text-gray-600'
+                              : 'text-center text-gray-600 whitespace-nowrap'
                         } ${
                           cell === '◯' ? 'text-green-600 font-semibold' :
                           cell === '✕' ? 'text-gray-300' :
                           cell === '△' ? 'text-amber-600 font-semibold' : ''
                         }`}
                       >
-                        {cell}
+                        {renderInline(cell)}
                       </td>
                     ))}
                   </tr>
