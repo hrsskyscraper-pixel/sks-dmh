@@ -11,7 +11,7 @@ import { VIEW_AS_COOKIE } from '@/lib/view-as'
 import { SELECTED_PROJECT_COOKIE } from '@/lib/selected-project'
 import { FONT_SCALE_COOKIE, isValidFontScale } from '@/lib/font-scale'
 import { writeAuditLog } from '@/lib/audit'
-import { canAdminister, canApprove } from '@/lib/permissions'
+import { canAdminister, canApprove, permissionFromLegacyRole } from '@/lib/permissions'
 import { getAuthUser, getCurrentEmployee } from '@/lib/supabase/auth-cache'
 import { EMPTY_NAV_COUNTS, type NavCounts } from '@/lib/nav-counts'
 import { getTestEmployeeIds } from '@/lib/test-data'
@@ -663,15 +663,20 @@ export async function changeEmployeeRole(employeeId: string, newRole: string, ne
   if (!user) return { error: '認証エラー' }
 
   const { data: actor } = await supabase.from('employees').select('id, role, system_permission').eq('auth_user_id', user.id).single()
-  if (!actor) return { error: '権限がありません' }
+  // 権限変更は運用管理者・開発者のみ（UI では隠しているが、サーバーアクションは直接呼べるので必ず検査する）
+  if (!actor || !canAdminister(actor)) return { error: '権限がありません' }
 
   // 旧ロール取得
   const adminDb = createAdminClient()
-  const { data: target } = await adminDb.from('employees').select('role, employment_type, name').eq('id', employeeId).single()
+  const { data: target } = await adminDb.from('employees').select('role, employment_type, name, system_permission').eq('id', employeeId).single()
   if (!target) return { error: '対象社員が見つかりません' }
 
+  // 旧 role だけを書くと system_permission が据え置かれ、「変えたのに権限が変わらない」状態になる。
+  // 権限判定は system_permission を優先するため、選ばれた表示ロールから導いて必ず両方を書く。
+  const nextPermission = permissionFromLegacyRole(newRole)
   const { error } = await adminDb.from('employees').update({
     role: newRole as 'employee' | 'store_manager' | 'manager' | 'admin' | 'ops_manager' | 'executive',
+    system_permission: nextPermission,
     employment_type: newEmploymentType as '社員' | 'メイト',
   }).eq('id', employeeId)
   if (error) return { error: error.message }
@@ -684,7 +689,9 @@ export async function changeEmployeeRole(employeeId: string, newRole: string, ne
     details: {
       old_role: target.role,
       old_employment_type: target.employment_type,
+      old_system_permission: target.system_permission,
       new_role: newRole,
+      new_system_permission: nextPermission,
       new_employment_type: newEmploymentType,
       target_name: target.name,
     },

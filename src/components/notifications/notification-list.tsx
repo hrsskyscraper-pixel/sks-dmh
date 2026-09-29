@@ -356,7 +356,8 @@ export function NotificationList({ reactions, comments, achievementMap, employee
             </>
           )
         } else {
-          href = '/team?tab=requests'
+          // 「申請」タブは所属一覧側にある（/team のタブは overview/pending/history のみ）
+          href = '/admin/teams?tab=requests'
           body = (
             <>
               <span className={cn('font-semibold', isClicked ? 'text-orange-400' : 'text-orange-600')}>
