@@ -18,8 +18,8 @@ import { createClient } from '@/lib/supabase/client'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
 import { Store, FolderKanban, Building2, ChevronDown, ChevronRight, MapPin, Award, Star, Instagram, MessageCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { changeEmployeeRole, setEmployeeTest } from '@/app/(dashboard)/actions'
-import type { Employee, Role, EmploymentType, Team, TeamMember } from '@/types/database'
+import { setEmployeeTest } from '@/app/(dashboard)/actions'
+import type { Employee, Team, TeamMember } from '@/types/database'
 
 // UI上の表示役割
 type DisplayRole = '開発者' | '役員' | '運用管理者' | 'マネジャー' | '店長' | '社員' | 'メイト'
@@ -63,8 +63,6 @@ interface Props {
   defaultMyTeams?: boolean
 }
 
-const TEAM_MANAGER_ROLES: DisplayRole[] = ['メイト', '社員']
-
 const DISPLAY_ROLE_COLORS: Record<DisplayRole, string> = {
   '開発者':     'bg-purple-100 text-purple-700',
   '役員':       'bg-rose-100 text-rose-700',
@@ -94,8 +92,6 @@ const CARD_BG_COLORS: Record<DisplayRole, string> = {
   '社員':       'bg-green-50 border-green-200',
   'メイト':     'bg-pink-50 border-pink-200',
 }
-
-const ALL_DISPLAY_ROLES: DisplayRole[] = ['社員', 'メイト', '店長', 'マネジャー', '運用管理者', '役員', '開発者']
 
 const DISPLAY_ROLE_ORDER: Record<DisplayRole, number> = {
   '社員':       0,
@@ -210,33 +206,10 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
       (a, b) => (TYPE_ORDER[a.type] - TYPE_ORDER[b.type]) || (Number(b.shared) - Number(a.shared)) || a.name.localeCompare(b.name, 'ja')
     )
 
-  const handleDisplayRoleChange = (employeeId: string, displayRole: DisplayRole) => {
-    if (!canEdit && !(isTeamManager && managedSet.has(employeeId))) return
-    let role: Role
-    let employment_type: EmploymentType
-
-    if (displayRole === '開発者')           { role = 'admin';        employment_type = '社員' }
-    else if (displayRole === '役員')       { role = 'executive';   employment_type = '社員' }
-    else if (displayRole === '運用管理者') { role = 'ops_manager';  employment_type = '社員' }
-    else if (displayRole === 'マネジャー') { role = 'manager';     employment_type = '社員' }
-    else if (displayRole === '店長')       { role = 'store_manager'; employment_type = '社員' }
-    else if (displayRole === 'メイト')     { role = 'employee';     employment_type = 'メイト' }
-    else                                  { role = 'employee';     employment_type = '社員' }
-
-    startTransition(async () => {
-      const { error } = await changeEmployeeRole(employeeId, role, employment_type)
-      if (error) {
-        toast.error(error)
-        return
-      }
-
-      setEmployees(prev =>
-        prev.map(e => e.id === employeeId ? { ...e, role, employment_type } : e)
-      )
-      toast.success(`${displayRole}に変更しました`)
-    })
-  }
-
+  // 雇用形態・業務役職・システム権限の変更は、メンバーキャリアの
+  // 「プロフィールを編集」に一本化している（2026-09-29）。
+  // かつてここに ⋮ メニューからの「◯◯に変更」があったが、旧 role 列しか書き換えず、
+  // 「運用管理者に変更」を押しても実際の権限は変わらないため誤解を招いていた。
   const handleAvatarUpload = async (employeeId: string, file: File) => {
     if (!canEdit && !(isTeamManager && managedSet.has(employeeId))) return
     setUploadingId(employeeId)
@@ -441,7 +414,6 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
         // 詳細（メンバーキャリア）ページは 2026-09-20 から全社員が閲覧できる
         // （/admin/employees/[id] のアクセス制御と一致。編集可否は別、機微な項目は本人＋管理者のみ）。
         const canViewDetail = true
-        const availableRoles = canEdit ? ALL_DISPLAY_ROLES : TEAM_MANAGER_ROLES
         return (
           <Card key={employee.id} className={CARD_BG_COLORS[displayRole]}>
             <CardContent className="py-3 px-4">
@@ -613,17 +585,6 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
                             メンバーキャリア
                           </Link>
                         </DropdownMenuItem>
-                        {availableRoles
-                          .filter(r => r !== displayRole)
-                          .map(r => (
-                            <DropdownMenuItem
-                              key={r}
-                              onClick={() => handleDisplayRoleChange(employee.id, r)}
-                              className="text-sm"
-                            >
-                              {r}に変更
-                            </DropdownMenuItem>
-                          ))}
                         {canEdit && (
                           <DropdownMenuItem
                             onClick={() => handleToggleTest(employee.id, !employee.is_test)}

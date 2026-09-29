@@ -11,21 +11,34 @@ import { VIEW_AS_COOKIE } from '@/lib/view-as'
 import { INTRO_GUIDE_SESSION_KEY } from '@/components/onboarding/intro-guide-dialog'
 import { STALLED_APPROVAL_SESSION_KEY } from '@/components/approvals/stalled-approval-dialog'
 import { useNavData, useNotificationCount } from '@/components/layout/nav-data-context'
-import type { Role } from '@/types/database'
-import { canAdminister } from '@/lib/permissions'
+import type { Role, SystemPermission } from '@/types/database'
+import { canAdminister, canApprove } from '@/lib/permissions'
 import { setFontScale } from '@/app/(dashboard)/actions'
 import { FONT_SCALE_COOKIE, FONT_SCALE_OPTIONS, DEFAULT_FONT_SCALE } from '@/lib/font-scale'
 
-const navItems = [
-  { href: '/',                 label: 'ホーム',     icon: LayoutDashboard,    roles: ['employee', 'store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'] },
-  { href: '/skills',           label: 'スキル',     icon: CheckSquare,        roles: ['employee', 'store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'] },
-  { href: '/timeline',         label: 'TL',         icon: MessageSquare,      roles: ['employee', 'store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'] },
-  { href: '/approvals',        label: '承認',        icon: BadgeCheck,         roles: ['store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'] },
-  { href: '/admin/teams',      label: '所属',        icon: Building2,          roles: ['employee', 'store_manager', 'manager', 'admin', 'ops_manager', 'executive', 'testuser'] },
-] as const
+/**
+ * 下部ナビの項目。
+ * 表示条件は必ず system_permission（permissions.ts のヘルパー）で判定する。
+ * 旧 role で出し分けると、権限はあるのにタブが出ない人が生まれる
+ * （2026-09-29 に本番で15名発生。リーダー権限なのに「承認」が出ていなかった）。
+ */
+const navItems: {
+  href: string
+  label: string
+  icon: React.ComponentType<{ className?: string }>
+  visible?: (emp: { role?: Role | null; system_permission?: SystemPermission | null }) => boolean
+}[] = [
+  { href: '/',                 label: 'ホーム',     icon: LayoutDashboard },
+  { href: '/skills',           label: 'スキル',     icon: CheckSquare },
+  { href: '/timeline',         label: 'TL',         icon: MessageSquare },
+  { href: '/approvals',        label: '承認',        icon: BadgeCheck,  visible: canApprove },
+  { href: '/admin/teams',      label: '所属',        icon: Building2 },
+]
 
 interface NavProps {
   role: Role
+  /** 権限判定の正本。未指定のときだけ role から推定される（permissions.ts） */
+  systemPermission?: SystemPermission | null
   avatarUrl?: string | null
   employeeId?: string
   employeeName?: string
@@ -76,7 +89,7 @@ function FontScaleSelector({ fontScale }: { fontScale: number }) {
  * Myキャリアへの直接遷移に変更したため、このメニューは Myキャリアページの
  * ヘッダー（ベルアイコンの左）に歯車として設置し、下方向に開く。
  */
-export function AccountSettingsMenu({ employeeId, employeeName, role, fontScale = DEFAULT_FONT_SCALE }: { employeeId?: string; employeeName?: string; role?: Role; fontScale?: number }) {
+export function AccountSettingsMenu({ employeeId, employeeName, role, systemPermission, fontScale = DEFAULT_FONT_SCALE }: { employeeId?: string; employeeName?: string; role?: Role; systemPermission?: SystemPermission | null; fontScale?: number }) {
   const [open, setOpen] = useState(false)
   const router = useRouter()
 
@@ -153,7 +166,7 @@ export function AccountSettingsMenu({ employeeId, employeeName, role, fontScale 
               <Lightbulb className="w-4 h-4 text-gray-400" />
               改善提案
             </Link>
-            {role && canAdminister({ role }) && (
+            {canAdminister({ role, system_permission: systemPermission }) && (
               <Link
                 href="/admin/settings"
                 onClick={() => setOpen(false)}
@@ -196,13 +209,13 @@ export function AccountSettingsMenu({ employeeId, employeeName, role, fontScale 
   )
 }
 
-export function BottomNav({ role, avatarUrl, employeeId }: NavProps) {
+export function BottomNav({ role, systemPermission, avatarUrl, employeeId }: NavProps) {
   const pathname = usePathname()
   const { unreadTeamReqCount, pendingApprovalCount, dashboardBadge, rejectedSkillCount, overdueSkillCount } = useNavData()
   const unreadRequestCount = unreadTeamReqCount
   // スキルナビ＝遅延スキル＋差し戻し未処理の合計
   const skillBadgeCount = rejectedSkillCount + overdueSkillCount
-  const visibleItems = navItems.filter(item => (item.roles as readonly string[]).includes(role))
+  const visibleItems = navItems.filter(item => !item.visible || item.visible({ role, system_permission: systemPermission }))
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50 safe-area-pb">

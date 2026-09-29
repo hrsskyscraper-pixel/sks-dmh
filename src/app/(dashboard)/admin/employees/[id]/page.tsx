@@ -140,6 +140,7 @@ export default async function EmployeeDetailPage({ params, searchParams }: { par
             employeeId={currentEmployee.id}
             employeeName={currentEmployee.name}
             role={currentEmployee.role}
+            systemPermission={currentEmployee.system_permission}
             fontScale={currentEmployee.font_scale ?? undefined}
           />
         ) : undefined}
