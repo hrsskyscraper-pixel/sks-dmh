@@ -20,7 +20,9 @@ export async function SetupIncompleteNotice({ employeeId }: { employeeId: string
     db.from('skill_projects').select('id, name, is_active').in('id', projIds),
     db.from('project_phases').select('project_id').in('project_id', projIds),
     db.from('teams').select('id, name').in('id', teamIds),
-    db.from('employees').select('name').eq('role', 'ops_manager').eq('status', 'approved'),
+    // 宛先は system_permission で引く。旧 role='ops_manager' で引くと、業務役職が「役員」の
+    // 運用管理者（role='executive'）が漏れる（2026-09-29 に本番で3名漏れていた）
+    db.from('employees').select('name').eq('system_permission', 'ops_admin').eq('status', 'approved'),
   ])
   const hasPhases = new Set((phaseRows ?? []).map(r => r.project_id))
   const teamNameById = Object.fromEntries((teams ?? []).map(t => [t.id, t.name]))
