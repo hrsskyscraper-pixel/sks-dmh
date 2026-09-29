@@ -23,6 +23,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { createClient } from '@/lib/supabase/client'
 import type { Employee, Team, TeamMember, TeamManager, TeamChangeRequest, Role } from '@/types/database'
+import { getDisplayRole, DISPLAY_ROLE_ORDER } from '@/lib/display-role'
 import { canAdminister, canApprove, isTrainingLeader } from '@/lib/permissions'
 import { addTeamMembers, removeTeamMember, reorderTeamMembers } from '@/app/(dashboard)/admin/teams/actions'
 
@@ -906,19 +907,6 @@ export function TeamManager({
 
     setRequestDialog({ requestType: req.request_type, teamId: req.team_id, payload, label })
     setRequestComment('')
-  }
-
-  const getDisplayRole = (emp: Pick<Employee, 'role' | 'employment_type'>) => {
-    if (emp.role === 'admin') return '開発者'
-    if (emp.role === 'executive') return '役員'
-    if (emp.role === 'ops_manager') return '運用管理者'
-    if (emp.role === 'manager') return 'マネジャー'
-    if (emp.role === 'store_manager') return '店長'
-    return emp.employment_type ?? '社員'
-  }
-
-  const DISPLAY_ROLE_ORDER: Record<string, number> = {
-    '社員': 0, 'メイト': 1, '店長': 1.5, 'マネジャー': 2, '運用管理者': 3, '役員': 3.5, '開発者': 4,
   }
 
   const sortEmployees = <T extends Pick<Employee, 'role' | 'employment_type' | 'name'>>(list: T[]) =>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { JOIN_ROLE_OPTIONS_LEADER, JOIN_ROLE_OPTIONS_ADMIN } from '@/lib/display-role'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -34,27 +35,13 @@ interface Props {
   approverRole: string
 }
 
-const ROLE_OPTIONS_STORE_MANAGER = [
-  { value: 'mate', label: 'メイト' },
-  { value: 'employee', label: '社員' },
-]
-
-const ROLE_OPTIONS_SYSTEM_ADMIN = [
-  { value: 'mate', label: 'メイト' },
-  { value: 'employee', label: '社員' },
-  { value: 'store_manager', label: '店長' },
-  { value: 'manager', label: 'マネジャー' },
-  { value: 'ops_manager', label: '運用管理者' },
-  { value: 'executive', label: '役員' },
-]
-
 export function ApprovalManager({ pendingEmployees, teams, projectTeams, currentEmployeeId, isSystemAdmin, approverRole }: Props) {
   const router = useRouter()
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [confirmTarget, setConfirmTarget] = useState<PendingEmployee | null>(null)
   const [processing, setProcessing] = useState(false)
 
-  const roleOptions = isSystemAdmin ? ROLE_OPTIONS_SYSTEM_ADMIN : ROLE_OPTIONS_STORE_MANAGER
+  const roleOptions = isSystemAdmin ? JOIN_ROLE_OPTIONS_ADMIN : JOIN_ROLE_OPTIONS_LEADER
 
   // 承認設定の状態
   const [settings, setSettings] = useState<Record<string, {

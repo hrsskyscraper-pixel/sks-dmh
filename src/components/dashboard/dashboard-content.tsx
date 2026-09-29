@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition, useEffect } from 'react'
+import { getDisplayRole, type DisplayRole } from '@/lib/display-role'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Card, CardContent } from '@/components/ui/card'
@@ -107,6 +108,15 @@ function calcHireYear(hireDate: string | null): number {
   const hireFY = hire.getMonth() >= 3 ? hire.getFullYear() : hire.getFullYear() - 1
   const todayFY = today.getMonth() >= 3 ? today.getFullYear() : today.getFullYear() - 1
   return Math.max(1, todayFY - hireFY + 1)
+}
+
+/** ホーム上部の肩書きバッジの色。社員・メイトは出さない（従来どおり） */
+const HEADER_ROLE_BADGE: Partial<Record<DisplayRole, string>> = {
+  '店長':       'bg-teal-400/40 text-teal-100',
+  'マネジャー': 'bg-blue-400/40 text-blue-100',
+  '運用管理者': 'bg-purple-400/40 text-purple-100',
+  '役員':       'bg-rose-400/40 text-rose-100',
+  '開発者':     'bg-red-400/40 text-red-100',
 }
 
 export function DashboardContent({
@@ -378,11 +388,11 @@ export function DashboardContent({
                 {currentProject && (
                   <span className="text-[10px] bg-white/15 text-orange-100 rounded-full px-2 py-0.5">{currentProject.name}</span>
                 )}
-                {employee.role === 'store_manager' && <span className="text-[10px] bg-teal-400/40 text-teal-100 rounded-full px-2 py-0.5 font-medium">店長</span>}
-                {employee.role === 'manager' && <span className="text-[10px] bg-blue-400/40 text-blue-100 rounded-full px-2 py-0.5 font-medium">マネジャー</span>}
-                {employee.role === 'ops_manager' && <span className="text-[10px] bg-purple-400/40 text-purple-100 rounded-full px-2 py-0.5 font-medium">運用管理者</span>}
-                {employee.role === 'executive' && <span className="text-[10px] bg-rose-400/40 text-rose-100 rounded-full px-2 py-0.5 font-medium">役員</span>}
-                {employee.role === 'admin' && <span className="text-[10px] bg-red-400/40 text-red-100 rounded-full px-2 py-0.5 font-medium">開発者</span>}
+                {HEADER_ROLE_BADGE[getDisplayRole(employee)] && (
+                  <span className={`text-[10px] rounded-full px-2 py-0.5 font-medium ${HEADER_ROLE_BADGE[getDisplayRole(employee)]}`}>
+                    {getDisplayRole(employee)}
+                  </span>
+                )}
                 {position && <span className="text-[10px] bg-sky-400/40 text-sky-100 rounded-full px-2 py-0.5 font-medium">{position}</span>}
                 {internalCerts.map(name => (
                   <span key={name} className="text-[10px] bg-emerald-400/40 text-emerald-100 rounded-full px-2 py-0.5 font-medium">{name}</span>
