@@ -606,7 +606,8 @@ export async function changeEmployeeRole(employeeId: string, newRole: string, ne
   if (!user) return { error: '認証エラー' }
 
   const { data: actor } = await supabase.from('employees').select('id, role, system_permission').eq('auth_user_id', user.id).single()
-  if (!actor) return { error: '権限がありません' }
+  // UI では管理者以外に出していないが、サーバーアクションは直接呼べるので必ず検査する
+  if (!actor || !canAdminister(actor)) return { error: '権限がありません' }
 
   // 旧ロール取得
   const adminDb = createAdminClient()
