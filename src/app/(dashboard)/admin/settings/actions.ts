@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
+import { getRealEmployee } from '@/lib/supabase/auth-cache'
 import { canAdminister } from '@/lib/permissions'
 import { setEmailNotificationsEnabled, setLineNotificationsEnabled, setOpsTeamRecipientIds } from '@/lib/settings'
 import { writeAuditLog } from '@/lib/audit'
@@ -11,7 +11,7 @@ import { writeAuditLog } from '@/lib/audit'
  * システム管理者（運用管理者・開発者）のみ実行可能。誰がいつ切り替えたかは監査ログに残す。
  */
 export async function toggleEmailNotifications(enabled: boolean): Promise<{ error?: string }> {
-  const me = await getCurrentEmployee()
+  const me = await getRealEmployee()
   if (!me || !canAdminister(me)) return { error: '権限がありません' }
 
   const { error } = await setEmailNotificationsEnabled(enabled, me.id)
@@ -29,7 +29,7 @@ export async function toggleEmailNotifications(enabled: boolean): Promise<{ erro
 
 /** LINE通知の一括スイッチ（メールと同じ扱い）。システム管理者のみ。監査ログに残す。 */
 export async function toggleLineNotifications(enabled: boolean): Promise<{ error?: string }> {
-  const me = await getCurrentEmployee()
+  const me = await getRealEmployee()
   if (!me || !canAdminister(me)) return { error: '権限がありません' }
   const { error } = await setLineNotificationsEnabled(enabled, me.id)
   if (error) return { error: '設定の保存に失敗しました' }
@@ -44,7 +44,7 @@ export async function toggleLineNotifications(enabled: boolean): Promise<{ error
 
 /** 改善提案・Q&A の通知先（運営チーム）。システム管理者のみ。 */
 export async function setOpsTeamRecipients(ids: string[]): Promise<{ error?: string }> {
-  const me = await getCurrentEmployee()
+  const me = await getRealEmployee()
   if (!me || !canAdminister(me)) return { error: '権限がありません' }
   const clean = [...new Set(ids.filter(x => typeof x === 'string' && x.length > 0))]
   const { error } = await setOpsTeamRecipientIds(clean, me.id)

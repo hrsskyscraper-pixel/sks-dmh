@@ -1,35 +1,20 @@
-import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
+import { getViewAsContext } from '@/lib/supabase/auth-cache'
 import { TopBar } from '@/components/layout/nav'
 import { NotificationList } from '@/components/notifications/notification-list'
-import { VIEW_AS_COOKIE } from '@/lib/view-as'
 import { getTestEmployeeIds } from '@/lib/test-data'
 import { canApprove, canAdminister } from '@/lib/permissions'
 import { countStalledForApprover } from '@/lib/stalled-approvals'
 
 export default async function NotificationsPage() {
-  const currentEmployee = await getCurrentEmployee()
-  if (!currentEmployee) redirect('/login')
-
-  // view-as対応: 対象社員を特定
-  const cookieStore = await cookies()
-  const canViewAs = true // 全ロールでView-as可能（閲覧のみ）
-  const viewAsId = canViewAs ? (cookieStore.get(VIEW_AS_COOKIE)?.value ?? null) : null
+  // view-as は auth-cache が解決する（getCurrentEmployee が「見ている相手」を返す）
+  const { real, effective: targetEmployee, viewingAs } = await getViewAsContext()
+  if (!real || !targetEmployee) redirect('/login')
 
   // view-as中またはtestuserはRLS回避のためadmin clientを使用
-  const db = (viewAsId || currentEmployee.role === 'testuser') ? createAdminClient() : await createClient()
-
-  let targetEmployee = currentEmployee
-  if (viewAsId) {
-    const { data } = await db.from('employees')
-      .select('id, role, system_permission, notifications_read_at')
-      .eq('id', viewAsId)
-      .single()
-    if (data) targetEmployee = { ...currentEmployee, ...data }
-  }
+  const db = (viewingAs || real.role === 'testuser') ? createAdminClient() : await createClient()
 
   const targetId = targetEmployee.id
 
@@ -106,7 +91,7 @@ export default async function NotificationsPage() {
   // Next.js の render 中に revalidatePath を呼べないため、書き込みのみ行う。
   // ベルのカウントは次回ナビゲーション時のレイアウト再評価で更新される。
   const adminDb = createAdminClient()
-  const targetIdForRead = viewAsId ?? currentEmployee.id
+  const targetIdForRead = targetEmployee.id
   await adminDb.from('employees')
     .update({ notifications_read_at: new Date().toISOString() })
     .eq('id', targetIdForRead)

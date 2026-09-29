@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
+import { getRealEmployee } from '@/lib/supabase/auth-cache'
 import { canAdminister } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
 
@@ -23,7 +23,7 @@ export type RosterUpdate = {
  * システム管理者のみ。1件ずつ監査ログに残す。
  */
 export async function applyRosterUpdates(updates: RosterUpdate[]): Promise<{ applied: number; error?: string }> {
-  const me = await getCurrentEmployee()
+  const me = await getRealEmployee()
   if (!me || !canAdminister(me)) return { applied: 0, error: '権限がありません' }
   if (updates.length === 0) return { applied: 0 }
   if (updates.length > 1000) return { applied: 0, error: '一度に取り込めるのは1,000件までです' }

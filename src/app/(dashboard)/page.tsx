@@ -5,7 +5,7 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
+import { getViewAsContext } from '@/lib/supabase/auth-cache'
 import { TopBar } from '@/components/layout/nav'
 import { DashboardContent } from '@/components/dashboard/dashboard-content'
 import { TestUserGuide } from '@/components/testuser/test-user-guide'
@@ -14,7 +14,6 @@ import { CheckpointRecords } from '@/components/dashboard/checkpoint-records'
 import { AnnouncementsServer } from '@/components/announcements/announcements-server'
 import { SetupIncompleteNotice } from '@/components/dashboard/setup-incomplete-notice'
 import { SkillRankingServer } from '@/components/dashboard/skill-ranking-server'
-import { VIEW_AS_COOKIE } from '@/lib/view-as'
 import { SELECTED_PROJECT_COOKIE } from '@/lib/selected-project'
 import { buildMilestoneMap } from '@/lib/milestone'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
@@ -50,17 +49,13 @@ export default async function DashboardPage({
 }: {
   searchParams?: Promise<{ project_id?: string; line_linked?: string; line_error?: string; preview?: string }>
 }) {
-  const currentEmployee = await getCurrentEmployee()
-  if (!currentEmployee) redirect('/login')
+  // view-as は auth-cache が解決する（effective が「見ている相手」）
+  const { real: currentEmployee, effective: employee, viewingAs } = await getViewAsContext()
+  if (!currentEmployee || !employee) redirect('/login')
 
-  const supabase = await createClient()
-
-  const cookieStore = await cookies()
-  const canViewAs = true // 全ロールでView-as可能（閲覧のみ）
-  const viewAsId = canViewAs ? (cookieStore.get(VIEW_AS_COOKIE)?.value ?? null) : null
 
   // testuser で view-as 未設定 → ガイド画面を表示
-  if (currentEmployee.role === 'testuser' && !viewAsId) {
+  if (currentEmployee.role === 'testuser' && !viewingAs) {
     const adminDb = createAdminClient()
     const { data: testEmployees } = await adminDb
       .from('employees')
@@ -78,14 +73,7 @@ export default async function DashboardPage({
   // testuser はRLSを回避するため admin client でデータ取得
   const db = createAdminClient()
 
-  // targetEmployee と searchParams を並列取得
-  const [targetEmployeeResult, params] = await Promise.all([
-    viewAsId
-      ? db.from('employees').select('id, name, last_name, first_name, name_kana, email, role, business_role_ids, system_permission, employment_type, hire_date, birth_date, avatar_url, instagram_url, line_url, line_user_id, line_friend, status, requested_team_id, requested_project_team_id, approved_by, approved_at, invited_by, invitation_id, notifications_read_at, font_scale, intro_dismissed_at, is_test, auth_user_id, created_at, updated_at').eq('id', viewAsId).single()
-      : Promise.resolve({ data: null }),
-    searchParams ?? Promise.resolve(undefined),
-  ])
-  const employee = (targetEmployeeResult as { data: typeof currentEmployee | null }).data ?? currentEmployee
+  const params = await (searchParams ?? Promise.resolve(undefined))
 
   // 参加習得カリキュラム一覧（team_members と team_managers は並列取得）
   const [{ data: myTeamRows }, { data: myManagerRows }] = await Promise.all([
@@ -228,7 +216,7 @@ export default async function DashboardPage({
 
   // レベルアップ演出（2026-09-19 決定 ②）: 認定済みでまだ見せていないもの。本人のホームでだけ出す（view-as では消費しない）
   type AchRow = { id: string; skill_id: string; status: string; celebrated_at?: string | null; praise_comment: string | null; certified_by: string | null; skills: { name: string; milestone_kind?: 'grade' | 'goal' | null; milestone_cert?: string | null } | null; certified_employee: { name: string; avatar_url: string | null } | null }
-  const uncelebrated = viewAsId ? [] : ((achievements ?? []) as unknown as AchRow[]).filter(a => a.status === 'certified' && !a.celebrated_at)
+  const uncelebrated = viewingAs ? [] : ((achievements ?? []) as unknown as AchRow[]).filter(a => a.status === 'certified' && !a.celebrated_at)
   const celebrationItems = uncelebrated.map(a => ({
     achievementId: a.id,
     skillName: a.skills?.name ?? 'スキル',
@@ -305,7 +293,7 @@ export default async function DashboardPage({
           // フォールバック: 旧 goals テーブル
           return (goalRows ?? [])[0] ?? null
         })()}
-        isOwnDashboard={!viewAsId}
+        isOwnDashboard={!viewingAs}
         celebration={
           celebrationItems.length > 0 ? { items: celebrationItems, completedPhases }
             // 管理者の確認用: /?preview=celebration で見本を出す（記録しない）

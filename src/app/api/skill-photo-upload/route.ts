@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
+import { getRealEmployee } from '@/lib/supabase/auth-cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { SKILL_PHOTOS_BUCKET, MAX_SKILL_PHOTOS } from '@/lib/skill-photos'
 
@@ -7,7 +7,7 @@ import { SKILL_PHOTOS_BUCKET, MAX_SKILL_PHOTOS } from '@/lib/skill-photos'
 // ブラウザから直接ストレージに上げるとバケットの RLS 評価で弾かれるケースがあるため、
 // 認証を確認したうえで service-role クライアントでアップロードする（RLS 非依存・パスは本人IDで固定）。
 export async function POST(req: NextRequest) {
-  const employee = await getCurrentEmployee()
+  const employee = await getRealEmployee()
   if (!employee) return NextResponse.json({ error: '認証が必要です' }, { status: 401 })
 
   const form = await req.formData()

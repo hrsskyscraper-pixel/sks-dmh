@@ -12,7 +12,7 @@ import { SELECTED_PROJECT_COOKIE } from '@/lib/selected-project'
 import { FONT_SCALE_COOKIE, isValidFontScale } from '@/lib/font-scale'
 import { writeAuditLog } from '@/lib/audit'
 import { canAdminister, canApprove } from '@/lib/permissions'
-import { getAuthUser, getCurrentEmployee } from '@/lib/supabase/auth-cache'
+import { getAuthUser, getRealEmployee, getViewAsContext } from '@/lib/supabase/auth-cache'
 import { EMPTY_NAV_COUNTS, type NavCounts } from '@/lib/nav-counts'
 import { getTestEmployeeIds } from '@/lib/test-data'
 import { isLineNotificationsEnabled } from '@/lib/settings'
@@ -30,24 +30,21 @@ import type { Role, SystemPermission } from '@/types/database'
 export async function getNavCounts(): Promise<NavCounts> {
   const user = await getAuthUser()
   if (!user) return EMPTY_NAV_COUNTS
-  const employee = await getCurrentEmployee()
-  if (!employee) return EMPTY_NAV_COUNTS
+  // view-as は auth-cache が1か所で解決する。バッジは「見ている相手」の数、
+  // ログイン記録は「本人」に付ける（view-as 中に相手の記録を作らない）。
+  const { real, effective: employee } = await getViewAsContext()
+  if (!real || !employee) return EMPTY_NAV_COUNTS
 
   const cookieStore = await cookies()
   // ログイン（利用）記録: 1人1日1行（JST）。描画後に呼ばれるここで、1日1回だけ書く（cookie で抑止）
-  await recordLoginDay(employee.id, cookieStore).catch(e => console.error('[login_days]', e))
-  const viewAsId = cookieStore.get(VIEW_AS_COOKIE)?.value ?? null
+  await recordLoginDay(real.id, cookieStore).catch(e => console.error('[login_days]', e))
   const db = createAdminClient()
 
-  const { data: viewAsEmployee } = viewAsId
-    ? await db.from('employees').select('role, system_permission, notifications_read_at').eq('id', viewAsId).single()
-    : { data: null }
-
-  const targetId = viewAsId ?? employee.id
-  const notifReadAt = (viewAsId ? viewAsEmployee?.notifications_read_at : employee.notifications_read_at) ?? '1970-01-01T00:00:00Z'
+  const targetId = employee.id
+  const notifReadAt = employee.notifications_read_at ?? '1970-01-01T00:00:00Z'
   const effectiveEmp = {
-    role: (viewAsEmployee?.role as Role | undefined) ?? (employee.role as Role),
-    system_permission: (viewAsEmployee?.system_permission as SystemPermission | null | undefined) ?? employee.system_permission,
+    role: employee.role as Role,
+    system_permission: employee.system_permission as SystemPermission | null,
   }
 
   // 承認待ち achievements 全件（employee_id）は、管理者の場合ブロック3とブロック4の
@@ -231,6 +228,12 @@ export async function setViewAs(employeeId: string) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return
 
+  // view-as は運用管理者・開発者だけ。UI では目アイコンを隠しているが、
+  // サーバーアクションは直接呼べるので必ず検査する（cookie を立てるだけで
+  // 他人の画面を開ける状態にしない）
+  const me = await getRealEmployee()
+  if (!me || !canAdminister(me)) return
+
   const cookieStore = await cookies()
   cookieStore.set(VIEW_AS_COOKIE, employeeId, { path: '/' })
   revalidatePath('/', 'layout')
@@ -359,14 +362,16 @@ export async function markNotificationsRead(): Promise<{ error?: string }> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '認証エラー' }
 
-  // view-as中は対象社員のnotifications_read_atを更新
-  const cookieStore = await cookies()
-  const viewAsId = cookieStore.get(VIEW_AS_COOKIE)?.value ?? null
+  // view-as 中は何も書かない。以前は「見ている相手」の notifications_read_at を
+  // 更新していたため、管理者が覗いただけでその人の通知が既読になっていた。
+  const { viewingAs } = await getViewAsContext()
+  if (viewingAs) return {}
 
   const adminDb = createAdminClient()
-  const { error } = viewAsId
-    ? await adminDb.from('employees').update({ notifications_read_at: new Date().toISOString() }).eq('id', viewAsId)
-    : await adminDb.from('employees').update({ notifications_read_at: new Date().toISOString() }).eq('auth_user_id', user.id)
+  const { error } = await adminDb
+    .from('employees')
+    .update({ notifications_read_at: new Date().toISOString() })
+    .eq('auth_user_id', user.id)
 
   if (error) return { error: error.message }
   return {}
@@ -695,7 +700,8 @@ async function recordLoginDay(employeeId: string, cookieStore: Awaited<ReturnTyp
  * レベルアップ演出を見せたことを記録する（本人の認定済み申請のみ）。
  */
 export async function markAchievementsCelebrated(achievementIds: string[]): Promise<void> {
-  const employee = await getCurrentEmployee()
+  // 書き込みなので view-as では入れ替えない（他人の申請を既読にしない）
+  const employee = await getRealEmployee()
   if (!employee || achievementIds.length === 0) return
   const db = createAdminClient()
   await db.from('achievements')

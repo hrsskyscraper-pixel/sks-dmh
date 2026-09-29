@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
+import { getRealEmployee } from '@/lib/supabase/auth-cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { canAdminister } from '@/lib/permissions'
 import { SKILL_PHOTOS_BUCKET } from '@/lib/skill-photos'
@@ -7,7 +7,7 @@ import { SKILL_PHOTOS_BUCKET } from '@/lib/skill-photos'
 // スキル申請写真の削除。管理者以上（canAdminister）のみ許可。
 // 添付した本人や一般リーダーは削除できない。
 export async function POST(req: NextRequest) {
-  const employee = await getCurrentEmployee()
+  const employee = await getRealEmployee()
   if (!employee) return NextResponse.json({ error: '認証が必要です' }, { status: 401 })
   if (!canAdminister(employee)) {
     return NextResponse.json({ error: '写真の削除は管理者のみ可能です' }, { status: 403 })

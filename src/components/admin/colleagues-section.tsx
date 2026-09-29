@@ -1,10 +1,8 @@
-import { cookies } from 'next/headers'
 import { Users2, ChevronDown } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
 import { TopBar } from '@/components/layout/nav'
 import { EmployeeManager } from '@/components/admin/employee-manager'
-import { VIEW_AS_COOKIE } from '@/lib/view-as'
 import { buildMilestoneMap, calcStandardPct } from '@/lib/milestone'
 import type { Employee, Role, SystemPermission, Team, TeamMember } from '@/types/database'
 import { canAdminister, isTrainingLeader } from '@/lib/permissions'
@@ -29,23 +27,9 @@ export async function ColleaguesSection({ embedded = false }: { embedded?: boole
 
   const db = createAdminClient()
 
-  const cookieStore = await cookies()
-  const viewAsId = cookieStore.get(VIEW_AS_COOKIE)?.value ?? null
-  let effectiveRole: Role = currentEmployee.role
-  let effectiveSystemPermission: SystemPermission | null | undefined = currentEmployee.system_permission
-
-  if (viewAsId) {
-    const { data: viewAsEmp } = await db
-      .from('employees')
-      .select('role, system_permission')
-      .eq('id', viewAsId)
-      .single()
-    if (viewAsEmp) {
-      effectiveRole = viewAsEmp.role as Role
-      effectiveSystemPermission = viewAsEmp.system_permission as SystemPermission | null | undefined
-    }
-  }
-
+  // view-as は auth-cache が解決する（currentEmployee が「見ている相手」）
+  const effectiveRole: Role = currentEmployee.role as Role
+  const effectiveSystemPermission: SystemPermission | null | undefined = currentEmployee.system_permission
   const effectiveEmp = { role: effectiveRole, system_permission: effectiveSystemPermission }
   const isSystemAdmin = canAdminister(effectiveEmp)
   const isTeamManager = isTrainingLeader(effectiveEmp)
@@ -163,7 +147,7 @@ export async function ColleaguesSection({ embedded = false }: { embedded?: boole
   }
 
   // マネジャー/店長が管理するチームのメンバーID
-  const effectiveEmployeeId = viewAsId ?? currentEmployee.id
+  const effectiveEmployeeId = currentEmployee.id
   let managedMemberIds: string[] = []
   if (isTeamManager) {
     const { data: managed } = await db

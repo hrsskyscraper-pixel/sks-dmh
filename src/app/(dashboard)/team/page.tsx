@@ -1,11 +1,9 @@
-import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
+import { getViewAsContext } from '@/lib/supabase/auth-cache'
 import { TopBar } from '@/components/layout/nav'
 import { TeamDashboard } from '@/components/dashboard/team-dashboard'
-import { VIEW_AS_COOKIE } from '@/lib/view-as'
 import { buildMilestoneMap, calcStandardPct } from '@/lib/milestone'
 import { canApprove, canAdminister } from '@/lib/permissions'
 import { getTestEmployeeIds } from '@/lib/test-data'
@@ -13,25 +11,15 @@ import { signSkillPhotoPaths } from '@/lib/skill-photos'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 export default async function TeamPage() {
-  const currentEmployee = await getCurrentEmployee()
-  if (!currentEmployee || !canApprove(currentEmployee)) {
+  // view-as は auth-cache が解決する（effective が「見ている相手」）
+  const { real, effective: currentEmployee, viewingAs } = await getViewAsContext()
+  if (!real || !currentEmployee || !canApprove(currentEmployee)) {
     redirect('/')
   }
 
   const supabase = await createClient()
-  const db = currentEmployee.role === 'testuser' ? createAdminClient() : supabase
-
-  const cookieStore = await cookies()
-  const viewAsId = cookieStore.get(VIEW_AS_COOKIE)?.value ?? null
-  let effectiveEmployeeId = currentEmployee.id
-  if (viewAsId) {
-    const { data: viewAsEmp } = await db
-      .from('employees')
-      .select('id')
-      .eq('id', viewAsId)
-      .single()
-    if (viewAsEmp) effectiveEmployeeId = viewAsEmp.id
-  }
+  const db = (viewingAs || real.role === 'testuser') ? createAdminClient() : supabase
+  const effectiveEmployeeId = currentEmployee.id
 
   // effectiveEmployeeId 確定後の全クエリを並列実行
   const [

@@ -540,6 +540,7 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
                 </div>
 
                 <div className="flex items-center gap-1">
+                    {canEdit && (
                     <Button
                       variant="ghost"
                       size="sm"
@@ -552,6 +553,7 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
                     >
                       <Eye className="w-4 h-4" />
                     </Button>
+                    )}
                     {canEditThis && (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
