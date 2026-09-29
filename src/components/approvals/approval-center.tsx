@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { JOIN_ROLE_OPTIONS_LEADER, JOIN_ROLE_OPTIONS_ADMIN } from '@/lib/display-role'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Card, CardContent } from '@/components/ui/card'
@@ -30,19 +31,6 @@ const REQUEST_TYPE_LABELS: Record<string, string> = {
   add_manager: 'リーダー追加',
   remove_manager: 'リーダー削除',
 }
-
-const ROLE_OPTIONS_MANAGER = [
-  { value: 'mate', label: 'メイト' },
-  { value: 'employee', label: '社員' },
-]
-const ROLE_OPTIONS_ADMIN = [
-  { value: 'mate', label: 'メイト' },
-  { value: 'employee', label: '社員' },
-  { value: 'store_manager', label: '店長' },
-  { value: 'manager', label: 'マネジャー' },
-  { value: 'ops_manager', label: '運用管理者' },
-  { value: 'executive', label: '役員' },
-]
 
 interface Props {
   pendingAchievements: any[]
@@ -228,7 +216,7 @@ export function ApprovalCenter({
   const [joinTeamId, setJoinTeamId] = useState('')
   const [joinProjectTeamId, setJoinProjectTeamId] = useState('')
   const [joinRole, setJoinRole] = useState('')
-  const roleOptions = isSystemAdmin ? ROLE_OPTIONS_ADMIN : ROLE_OPTIONS_MANAGER
+  const roleOptions = isSystemAdmin ? JOIN_ROLE_OPTIONS_ADMIN : JOIN_ROLE_OPTIONS_LEADER
 
   const openJoinApproval = (emp: any) => {
     setJoinTarget(emp)

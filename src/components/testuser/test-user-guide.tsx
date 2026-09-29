@@ -1,6 +1,7 @@
 'use client'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { displayRoleOrderOf } from '@/lib/display-role'
 import { Button } from '@/components/ui/button'
 import { Eye, Users2 } from 'lucide-react'
 import { setViewAs } from '@/app/(dashboard)/actions'
@@ -22,16 +23,8 @@ export function TestUserGuide({ employees }: { employees: TestEmployee[] }) {
     ops_manager: '社内管理者',
   }
 
-  const getSortKey = (emp: TestEmployee) => {
-    if (emp.role === 'employee' && emp.employment_type !== 'メイト') return 0 // 社員
-    if (emp.role === 'employee' && emp.employment_type === 'メイト') return 1 // メイト
-    if (emp.role === 'store_manager') return 1.5
-    if (emp.role === 'manager') return 2
-    if (emp.role === 'ops_manager') return 3
-    if (emp.role === 'executive') return 3.5
-    if (emp.role === 'admin') return 4
-    return 5
-  }
+  // 並び順は表示の呼び名に合わせる（lib/display-role.ts が正本）
+  const getSortKey = (emp: TestEmployee) => displayRoleOrderOf(emp)
   const sorted = [...employees].sort((a, b) => getSortKey(a) - getSortKey(b))
 
   return (

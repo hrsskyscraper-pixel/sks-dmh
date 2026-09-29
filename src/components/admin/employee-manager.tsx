@@ -20,19 +20,9 @@ import { Store, FolderKanban, Building2, ChevronDown, ChevronRight, MapPin, Awar
 import { cn } from '@/lib/utils'
 import { setEmployeeTest } from '@/app/(dashboard)/actions'
 import type { Employee, Team, TeamMember } from '@/types/database'
+import { getDisplayRole, DISPLAY_ROLE_ORDER, type DisplayRole } from '@/lib/display-role'
 
 // UI上の表示役割
-type DisplayRole = '開発者' | '役員' | '運用管理者' | 'マネジャー' | '店長' | '社員' | 'メイト'
-
-function getDisplayRole(employee: Employee): DisplayRole {
-  if (employee.role === 'admin') return '開発者'
-  if (employee.role === 'executive') return '役員'
-  if (employee.role === 'ops_manager') return '運用管理者'
-  if (employee.role === 'manager') return 'マネジャー'
-  if (employee.role === 'store_manager') return '店長'
-  if (employee.employment_type === 'メイト') return 'メイト'
-  return '社員'
-}
 
 // 入社年度（4月始まり会計年度ベース）から「入社X年目」を計算
 function getHireYearLabel(hireDate: string | null): string {
@@ -93,15 +83,6 @@ const CARD_BG_COLORS: Record<DisplayRole, string> = {
   'メイト':     'bg-pink-50 border-pink-200',
 }
 
-const DISPLAY_ROLE_ORDER: Record<DisplayRole, number> = {
-  '社員':       0,
-  'メイト':     1,
-  '店長':       2,
-  'マネジャー': 3,
-  '運用管理者': 4,
-  '役員':       5,
-  '開発者':     6,
-}
 
 export function EmployeeManager({ employees: initialEmployees, canEdit = true, isTeamManager = false, managedMemberIds = [], employeeStats = {}, teams = [], teamMembers = [], positionByEmployee = {}, certsByEmployee = {}, certMaster = [], teamManagersList = [], projectTeamIds = [], currentEmployeeId, defaultMyTeams = false }: Props) {
   const [employees, setEmployees] = useState(initialEmployees)
