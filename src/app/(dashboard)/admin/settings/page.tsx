@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { getDisplayRole } from '@/lib/display-role'
 import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { TopBar } from '@/components/layout/nav'
@@ -26,14 +27,14 @@ export default async function SettingsPage() {
     getEmailNotificationsSetting(),
     getLineNotificationsSetting(),
     getOpsTeamRecipientSetting(),
-    // 運営チームの候補: 運用管理者・開発者（旧ロールの役員・運用管理者・開発者も含む）
-    db.from('employees').select('id, name, email, line_user_id, role, system_permission').eq('status', 'approved')
-      .or('system_permission.in.(ops_admin,developer),role.in.(admin,ops_manager,executive)').order('name'),
+    // 運営チームの候補: 運用管理者・開発者（権限で引く。旧 role で引くと取りこぼす）
+    db.from('employees').select('id, name, email, line_user_id, role, employment_type, system_permission').eq('status', 'approved')
+      .in('system_permission', ['ops_admin', 'developer']).order('name'),
   ])
   const opsCandidates: OpsCandidate[] = (opsCandidatesRows ?? []).map(e => ({
     id: e.id,
     name: e.name,
-    label: e.system_permission === 'developer' || e.role === 'admin' ? '開発者' : e.role === 'executive' ? '役員' : '運用管理者',
+    label: getDisplayRole(e),
     hasEmail: !!e.email,
     hasLine: !!e.line_user_id,
   }))
