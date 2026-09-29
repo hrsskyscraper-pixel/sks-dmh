@@ -3,7 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { sendApprovalNotification } from '@/lib/notifications'
 import { writeAuditLog } from '@/lib/audit'
-import { canAdminister, canApprove } from '@/lib/permissions'
+import { canAdminister, canApprove, permissionFromLegacyRole } from '@/lib/permissions'
 import { createWelcomeAnnouncement } from '@/lib/announcements'
 
 // mate ロールは DB 上は employee + employment_type='メイト' として保存
@@ -90,11 +90,15 @@ export async function POST(request: Request) {
   }
 
   const { dbRole, employmentType } = resolveRole(role)
+  // 旧 role だけを書くと system_permission が据え置かれ、「店長として承認したのに
+  // 承認できない・承認タブが出ない」状態になる。呼び名から権限を導いて必ず両方を書く。
+  const nextPermission = permissionFromLegacyRole(dbRole)
 
   // 1. employee を approved に更新（承認後は requested_team_id をクリア）
   const { error: updateErr } = await db.from('employees').update({
     status: 'approved' as const,
     role: dbRole as 'employee' | 'store_manager' | 'manager' | 'admin' | 'ops_manager' | 'executive',
+    system_permission: nextPermission,
     employment_type: employmentType,
     approved_by: approver.id,
     approved_at: new Date().toISOString(),
@@ -109,7 +113,7 @@ export async function POST(request: Request) {
     action: 'approve_join',
     actorId: approver.id,
     targetId: employeeId,
-    details: { role: dbRole, employment_type: employmentType, team_id: effectiveTeamId, target_name: target.name },
+    details: { role: dbRole, system_permission: nextPermission, employment_type: employmentType, team_id: effectiveTeamId, target_name: target.name },
   })
 
   // 2. team_members に追加（設定されている場合のみ）
