@@ -30,6 +30,15 @@ function inferFromRole(role: Role | null | undefined): SystemPermission {
   }
 }
 
+/**
+ * 旧 role → system_permission（書き込み用）。
+ * inferFromRole は「未設定のときの推定」だが、こちらは呼び名を選んで権限を書き込むときに使う。
+ * 同じ対応表を2か所に書かないよう inferFromRole に委譲する。
+ */
+export function permissionFromLegacyRole(role: string): SystemPermission {
+  return inferFromRole(role as Role)
+}
+
 /** Employee から実効システム権限を取得 */
 export function getSystemPermission(emp: EmpLike | null | undefined): SystemPermission {
   if (!emp) return 'training_member'
