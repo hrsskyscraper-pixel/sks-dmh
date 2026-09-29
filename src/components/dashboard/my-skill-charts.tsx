@@ -66,7 +66,8 @@ export async function MySkillCharts({
       linkedTeamIds.length > 0
         ? db.from('teams').select('id, name').in('id', linkedTeamIds)
         : Promise.resolve({ data: [] as { id: string; name: string }[] }),
-      db.from('employees').select('name').eq('role', 'ops_manager').eq('status', 'approved'),
+      // 宛先は system_permission で引く（旧 role だと役員の運用管理者が漏れる）
+      db.from('employees').select('name').eq('system_permission', 'ops_admin').eq('status', 'approved'),
     ])
     const setupItems = (teamRows ?? []).map(t => ({ teamName: t.name, curriculumName: selectedProject.name }))
     const recipients = (opsRows ?? []).map(o => o.name)

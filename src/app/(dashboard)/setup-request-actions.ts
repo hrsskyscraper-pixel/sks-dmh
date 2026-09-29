@@ -6,7 +6,7 @@ import { sendMail } from '@/lib/notifications/email'
 import { sendLineMessages } from '@/lib/notifications/line'
 
 /**
- * 習得カリキュラムのセットアップ依頼を、社内の運営管理者（ops_manager / executive）に通知する。
+ * 習得カリキュラムのセットアップ依頼を、社内の運用管理者（system_permission='ops_admin'）に通知する。
  * セットアップ未完了（フェーズ未設定）のカリキュラムが設定されたチームのリーダーが押す。
  */
 export async function requestCurriculumSetup(
@@ -24,7 +24,7 @@ export async function requestCurriculumSetup(
   const { data: ops } = await db
     .from('employees')
     .select('id, name, email, line_user_id')
-    .eq('role', 'ops_manager')
+    .eq('system_permission', 'ops_admin')
     .eq('status', 'approved')
   const opsList = ops ?? []
   if (opsList.length === 0) return { error: '運営管理者が登録されていません。開発者にご連絡ください。' }
