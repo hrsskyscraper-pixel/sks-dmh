@@ -28,10 +28,11 @@ import Link from 'next/link'
 import { SkillCsvImportDialog } from './skill-csv-import-dialog'
 import type { CsvSkillRow } from '@/app/(dashboard)/admin/projects/csv-actions'
 import { createClient } from '@/lib/supabase/client'
-import { updateSkillCategory, updateSkillStandardHours, updateSkillName, toggleSkillCheckpoint, createSkill, deleteSkill, reorderSkills, updateSkillTargetDate, updateSkillMilestone } from '@/app/(dashboard)/actions'
+import { updateSkillCategory, updateSkillStandardHours, updateSkillName, toggleSkillCheckpoint, createSkill, deleteSkill, getSkillDeletionImpact, type SkillDeletionImpact, reorderSkills, updateSkillTargetDate, updateSkillMilestone } from '@/app/(dashboard)/actions'
 import { updateProject } from '@/app/(dashboard)/admin/projects/actions'
 import { sortCategories } from '@/lib/category-order'
 import { cn } from '@/lib/utils'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import type { SkillProject, ProjectPhase, ProjectSkill, Skill, Team } from '@/types/database'
 
 interface Props {
@@ -94,6 +95,8 @@ export function ProjectManager({
   const [collapsedUnassignedGroups, setCollapsedUnassignedGroups] = useState<Set<string>>(new Set())
   // CSVインポートダイアログ
   const [showCsvImport, setShowCsvImport] = useState(false)
+  // スキル削除の確認（消える認定の件数を見せてから消す。2026-10-19）
+  const [deleteTarget, setDeleteTarget] = useState<{ skill: Skill; impact: SkillDeletionImpact | null } | null>(null)
 
   // ---- state ----
   const [projects, setProjects] = useState(initialProjects)
@@ -325,6 +328,29 @@ export function ProjectManager({
       setPhases(prev => prev.filter(p => p.id !== phaseId))
       setProjectSkills(prev => prev.map(ps => ps.project_phase_id === phaseId ? { ...ps, project_phase_id: null } : ps))
       toast.success('フェーズを削除しました')
+    })
+  }
+
+  // ===== スキル削除 =====
+
+  function openDeleteSkill(skill: Skill) {
+    setDeleteTarget({ skill, impact: null })
+    getSkillDeletionImpact(skill.id).then(res => {
+      if (res.error || !res.impact) { toast.error(res.error ?? '削除の影響を確認できませんでした'); setDeleteTarget(null); return }
+      setDeleteTarget(prev => prev && prev.skill.id === skill.id ? { ...prev, impact: res.impact! } : prev)
+    })
+  }
+
+  function confirmDeleteSkill() {
+    if (!deleteTarget?.impact) return
+    const { skill, impact } = deleteTarget
+    startTransition(async () => {
+      const result = await deleteSkill(skill.id, impact.certified + impact.pending + impact.rejected)
+      if (result.error) { toast.error(result.error); return }
+      setSkillsState(prev => prev.filter(s => s.id !== skill.id))
+      setProjectSkills(prev => prev.filter(ps => ps.skill_id !== skill.id))
+      setDeleteTarget(null)
+      toast.success('スキルを削除しました')
     })
   }
 
@@ -664,15 +690,7 @@ export function ProjectManager({
           variant="ghost" size="sm"
           className="h-7 w-7 p-0 text-gray-300 hover:text-red-500 flex-shrink-0"
           disabled={isPending}
-          onClick={() => {
-            if (!confirm(`「${skill.name}」を削除しますか？\n\nこのスキルに関連する認定データも削除されます。`)) return
-            startTransition(async () => {
-              const result = await deleteSkill(skill.id)
-              if (result.error) { toast.error(result.error); return }
-              setSkillsState(prev => prev.filter(s => s.id !== skill.id))
-              toast.success('スキルを削除しました')
-            })
-          }}
+          onClick={() => openDeleteSkill(skill)}
         >
           <Trash2 className="w-3.5 h-3.5" />
         </Button>
@@ -1394,6 +1412,53 @@ export function ProjectManager({
           }}
         />
       )}
+
+      {deleteTarget && (() => {
+        const { skill, impact } = deleteTarget
+        const inSelected = projectSkills.some(ps => ps.project_id === selectedProjectId && ps.skill_id === skill.id)
+        const records = impact ? impact.certified + impact.pending + impact.rejected : 0
+        return (
+          <ConfirmDialog
+            open
+            onOpenChange={open => { if (!open && !isPending) setDeleteTarget(null) }}
+            title={`「${skill.name}」を削除しますか`}
+            confirmLabel={records > 0 ? `認定の記録 ${records}件ごと削除する` : 'スキルを削除する'}
+            onConfirm={confirmDeleteSkill}
+            pending={isPending}
+            confirmDisabled={!impact}
+            alternative={inSelected && selectedProject ? {
+              label: `「${selectedProject.name}」から外すだけにする（認定は残ります）`,
+              onClick: () => { handleToggleSkill(skill.id, false); setDeleteTarget(null) },
+            } : undefined}
+          >
+            {!impact ? (
+              <p>このスキルに付いている記録を確認しています…</p>
+            ) : (
+              <>
+                <p>削除すると、<b>元に戻せません</b>。</p>
+                {records > 0 ? (
+                  <p className="rounded-md bg-red-50 px-3 py-2 text-red-800">
+                    <b>{impact.people}人分</b>の記録が一緒に消えます（認定 {impact.certified}件・申請中 {impact.pending}件・差し戻し {impact.rejected}件）。
+                    Myキャリアや達成率からも消えます。
+                  </p>
+                ) : (
+                  <p>このスキルには、申請・認定の記録はありません。</p>
+                )}
+                {impact.projectNames.length > 0 && (
+                  <p>
+                    次の{impact.projectNames.length}つの習得カリキュラムすべてから消えます: {impact.projectNames.join('、')}
+                  </p>
+                )}
+                {inSelected && (
+                  <p className="text-gray-500">
+                    このカリキュラムに要らないだけなら、「外すだけにする」を選んでください。スキルと認定の記録は残り、ほかのカリキュラムにも影響しません。
+                  </p>
+                )}
+              </>
+            )}
+          </ConfirmDialog>
+        )
+      })()}
     </div>
   )
 }
