@@ -20,6 +20,8 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   // 開発版はブラウザのタブ名でも見分けられるようにする
   title: isStagingEnv() ? "【開発版】Mission Board" : "Mission Board",
+  // タブのアイコンも開発版は緑（app/icon.svg の自動付与では出し分けられないので public に置いて指定する）
+  icons: { icon: isStagingEnv() ? "/icon-staging.svg" : "/icon.svg" },
   description: "GAPから、次の一歩へ。",
 };
 
