@@ -162,6 +162,21 @@ html[data-env="staging"] {
   --color-orange-950: oklch(0.262 0.051 172.552);
 }
 
+/*
+ * ブランドのグラデーション（オレンジ → 赤）を、開発版では緑の濃淡にする。
+ * 赤は注意の色としても使うので変えず、オレンジから始まるグラデーションの終点だけ差し替える
+ * （上で orange-* は緑に置き換え済み。800 は濃い緑、100 は淡い緑）。
+ */
+html[data-env="staging"] [class*="from-orange-"].to-red-500 {
+  --tw-gradient-to: var(--color-orange-800);
+}
+html[data-env="staging"] [class*="from-orange-"].to-red-50 {
+  --tw-gradient-to: var(--color-orange-100);
+}
+html[data-env="staging"] [class*="to-orange-"].from-amber-400 {
+  --tw-gradient-from: var(--color-orange-300);
+}
+
 /* 固定した帯のぶん中身を下げ、上端に貼り付く見出しも帯の下に出す */
 html[data-env="staging"] body {
   padding-top: var(--staging-band-h);
