@@ -128,3 +128,28 @@
 @keyframes dash-march {
   to { stroke-dashoffset: -14; }  /* dash(4)+gap(3)=7 × 2 でシームレスループ */
 }
+
+/*
+ * 開発版（ステージング）の色合い。本番と取り違えないよう、画面全体を暖色に寄せる
+ * （root layout が <html data-env="staging"> を付ける。本番には付かない）。
+ * ページの地色（bg-gray-50 等）と shadcn の背景色をまとめて差し替える。
+ */
+html[data-env="staging"] {
+  --staging-accent: oklch(0.65 0.19 45);
+  --background: oklch(0.95 0.06 75);
+  --muted: oklch(0.93 0.06 75);
+  --secondary: oklch(0.93 0.06 75);
+  --accent: oklch(0.92 0.07 75);
+  --color-gray-50: oklch(0.95 0.06 75);
+  --color-gray-100: oklch(0.92 0.07 75);
+  --color-slate-50: oklch(0.95 0.06 75);
+  --color-slate-100: oklch(0.92 0.07 75);
+}
+
+.staging-stripes {
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--staging-accent) 0 12px,
+    oklch(0.55 0.17 40) 12px 24px
+  );
+}

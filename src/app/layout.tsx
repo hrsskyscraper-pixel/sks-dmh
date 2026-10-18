@@ -4,6 +4,8 @@ import { cookies } from "next/headers";
 import { FONT_SCALE_COOKIE, normalizeFontScale } from "@/lib/font-scale";
 import "./globals.css";
 import { EnvBadge } from "@/components/layout/env-badge";
+import { StagingWriteGuard } from "@/components/layout/staging-write-guard";
+import { isStagingEnv } from "@/lib/app-env";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -16,7 +18,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Mission Board",
+  // 開発版はブラウザのタブ名でも見分けられるようにする
+  title: isStagingEnv() ? "【開発版】Mission Board" : "Mission Board",
   description: "GAPから、次の一歩へ。",
 };
 
@@ -29,13 +32,15 @@ export default async function RootLayout({
   // DB が正の値で、ログイン後に FontScaleSync が Cookie を最新化する。
   const cookieStore = await cookies();
   const fontScale = normalizeFontScale(cookieStore.get(FONT_SCALE_COOKIE)?.value);
+  const staging = isStagingEnv();
 
   return (
-    <html lang="en" style={{ fontSize: `${fontScale}%` }}>
+    <html lang="en" data-env={staging ? "staging" : undefined} style={{ fontSize: `${fontScale}%` }}>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <EnvBadge />
+        {staging && <StagingWriteGuard />}
         {children}
       </body>
     </html>
