@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
 import { SELECTED_PROJECT_COOKIE } from '@/lib/selected-project'
 import { FONT_SCALE_COOKIE, isValidFontScale } from '@/lib/font-scale'
@@ -572,7 +573,37 @@ export async function reorderSkills(skillIds: string[]): Promise<{ error?: strin
   return {}
 }
 
-export async function deleteSkill(skillId: string): Promise<{ error?: string }> {
+/** スキルを削除したときに一緒に消えるもの（削除の確認画面に出す） */
+export type SkillDeletionImpact = {
+  certified: number
+  pending: number
+  rejected: number
+  people: number
+  /** このスキルが入っている習得カリキュラム（削除すると全部から消える） */
+  projectNames: string[]
+}
+
+async function loadSkillDeletionImpact(skillId: string): Promise<SkillDeletionImpact> {
+  const adminDb = createAdminClient()
+  const [achievements, projectRows] = await Promise.all([
+    fetchAllRows<{ id: string; status: string; employee_id: string }>((from, to) =>
+      adminDb.from('achievements').select('id, status, employee_id').eq('skill_id', skillId).order('id').range(from, to)),
+    adminDb.from('project_skills').select('skill_projects(name)').eq('skill_id', skillId),
+  ])
+  const count = (s: string) => achievements.filter(a => a.status === s).length
+  const projectNames = (projectRows.data ?? [])
+    .map(r => (r.skill_projects as unknown as { name: string } | null)?.name)
+    .filter((n): n is string => !!n)
+  return {
+    certified: count('certified'),
+    pending: count('pending'),
+    rejected: count('rejected'),
+    people: new Set(achievements.map(a => a.employee_id)).size,
+    projectNames,
+  }
+}
+
+export async function getSkillDeletionImpact(skillId: string): Promise<{ impact?: SkillDeletionImpact; error?: string }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '認証エラー' }
@@ -580,9 +611,38 @@ export async function deleteSkill(skillId: string): Promise<{ error?: string }> 
   const { data: emp } = await supabase.from('employees').select('role, system_permission').eq('auth_user_id', user.id).single()
   if (!emp || !canAdminister(emp)) return { error: '権限がありません' }
 
+  return { impact: await loadSkillDeletionImpact(skillId) }
+}
+
+/**
+ * スキルを削除する。認定・申請の記録も一緒に消え（CASCADE）、すべての習得カリキュラムから外れる。元に戻せない。
+ * 2026-10-19: 確認画面で見せた件数（expectedRecords）より記録が増えていたら消さない。
+ * 確認のあとに誰かが申請・認定した記録を、知らないまま消さないため。
+ */
+export async function deleteSkill(skillId: string, expectedRecords: number): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: '認証エラー' }
+
+  const { data: emp } = await supabase.from('employees').select('id, role, system_permission').eq('auth_user_id', user.id).single()
+  if (!emp || !canAdminister(emp)) return { error: '権限がありません' }
+
+  const impact = await loadSkillDeletionImpact(skillId)
+  const records = impact.certified + impact.pending + impact.rejected
+  if (records > expectedRecords) {
+    return { error: '確認のあとに、このスキルの申請・認定が増えました。もう一度確認してから削除してください' }
+  }
+
   const adminDb = createAdminClient()
+  const { data: skill } = await adminDb.from('skills').select('name').eq('id', skillId).single()
   const { error } = await adminDb.from('skills').delete().eq('id', skillId)
   if (error) return { error: error.message }
+
+  await writeAuditLog({
+    action: 'delete_skill',
+    actorId: emp.id,
+    details: { skill_id: skillId, skill_name: skill?.name ?? null, ...impact },
+  }).catch(() => {})
   return {}
 }
 
