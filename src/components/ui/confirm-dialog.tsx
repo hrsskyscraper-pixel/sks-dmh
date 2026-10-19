@@ -44,7 +44,7 @@ export function ConfirmDialog({
         </DialogHeader>
         <DialogFooter className="flex-col gap-2 sm:flex-col">
           {alternative && (
-            <Button onClick={alternative.onClick} disabled={pending} className="w-full">
+            <Button onClick={alternative.onClick} disabled={pending} className="h-auto w-full whitespace-normal py-2">
               {alternative.label}
             </Button>
           )}
@@ -52,7 +52,7 @@ export function ConfirmDialog({
             variant={destructive ? 'destructive' : 'default'}
             onClick={onConfirm}
             disabled={pending || confirmDisabled}
-            className="w-full"
+            className="h-auto w-full whitespace-normal py-2"
           >
             {confirmLabel}
           </Button>
