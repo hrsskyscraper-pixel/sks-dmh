@@ -23,6 +23,8 @@ export type Database = {
           left_at?: string | null
           /** 社員番号（migration 20260920000600） */
           employee_number?: string | null
+          roster_dept?: string | null
+          roster_dept_at?: string | null
           /** 最終利用日時（migration 20260920000300） */
           last_login_at?: string | null
           birth_date: string | null
@@ -61,6 +63,8 @@ export type Database = {
           left_at?: string | null
           last_login_at?: string | null
           employee_number?: string | null
+          roster_dept?: string | null
+          roster_dept_at?: string | null
           birth_date?: string | null
           role?: 'employee' | 'store_manager' | 'manager' | 'admin' | 'ops_manager' | 'executive' | 'testuser'
           business_role_ids?: string[]
@@ -97,6 +101,8 @@ export type Database = {
           left_at?: string | null
           last_login_at?: string | null
           employee_number?: string | null
+          roster_dept?: string | null
+          roster_dept_at?: string | null
           birth_date?: string | null
           role?: 'employee' | 'store_manager' | 'manager' | 'admin' | 'ops_manager' | 'executive' | 'testuser'
           business_role_ids?: string[]
@@ -1354,6 +1360,27 @@ export type Database = {
           question_id?: string
           author_id?: string
           body?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
+      roster_dept_aliases: {
+        Row: {
+          roster_name: string
+          team_id: string
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          roster_name: string
+          team_id: string
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          roster_name?: string
+          team_id?: string
+          created_by?: string | null
           created_at?: string
         }
         Relationships: []

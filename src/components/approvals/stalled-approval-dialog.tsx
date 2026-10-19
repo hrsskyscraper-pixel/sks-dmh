@@ -19,7 +19,7 @@ export const STALLED_APPROVAL_SESSION_KEY = 'stalled_approval_shown'
  * - ようこそモーダルが開いている間は待ち、閉じられてから出す（重ねない）
  */
 export function StalledApprovalDialog() {
-  const { stalledApprovals } = useNavData()
+  const { stalledApprovals, rosterMismatchCount } = useNavData()
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const decidedRef = useRef(false)
@@ -27,7 +27,7 @@ export function StalledApprovalDialog() {
   const releaseRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
-    if (decidedRef.current || (stalledApprovals.count === 0 && stalledApprovals.unassignedTeams === 0)) return
+    if (decidedRef.current || (stalledApprovals.count === 0 && stalledApprovals.unassignedTeams === 0 && rosterMismatchCount === 0)) return
     try {
       if (sessionStorage.getItem(STALLED_APPROVAL_SESSION_KEY)) { decidedRef.current = true; return }
     } catch { /* sessionStorage 不可でも表示はする */ }
@@ -41,7 +41,7 @@ export function StalledApprovalDialog() {
       setOpen(true)
     })
     return () => { cancelled = true }
-  }, [stalledApprovals.count, stalledApprovals.unassignedTeams])
+  }, [stalledApprovals.count, stalledApprovals.unassignedTeams, rosterMismatchCount])
 
   const closeDialog = () => {
     setOpen(false)
@@ -60,7 +60,7 @@ export function StalledApprovalDialog() {
         <DialogHeader>
           <DialogTitle className="text-base flex items-center gap-2">
             <span className="px-1.5 py-0.5 rounded bg-red-500 text-white text-[10px] font-bold">要対応</span>
-            {stalledApprovals.count > 0 ? '承認をお待ちの申請があります' : '承認者が未設定の店舗・チームがあります'}
+            {stalledApprovals.count > 0 ? '承認をお待ちの申請があります' : stalledApprovals.unassignedTeams > 0 ? '承認者が未設定の店舗・チームがあります' : '名簿と所属が違う方がいます'}
           </DialogTitle>
         </DialogHeader>
         {stalledApprovals.count > 0 && (
@@ -85,6 +85,20 @@ export function StalledApprovalDialog() {
               <p className="text-[11px] text-gray-500 mt-0.5">承認者が未設定、または承認者ご本人の申請のため止まっています。所属一覧で担当リーダーの設定、または承認センターでの承認をお願いします（運用管理者の方へ）。</p>
               <Button variant="outline" onClick={() => { closeDialog(); router.push('/admin/teams?attention=1') }} className="mt-2 h-8 text-xs border-rose-300 text-rose-700 hover:bg-rose-100">
                 該当の店舗・チームを見る
+              </Button>
+            </div>
+          </div>
+        )}
+        {rosterMismatchCount > 0 && (
+          <div className="flex items-start gap-3 rounded-lg px-3 py-3 border border-orange-200 bg-orange-50">
+            <div className="w-9 h-9 rounded-full bg-orange-100 text-orange-700 flex items-center justify-center flex-shrink-0 text-lg">📋</div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm text-gray-800">
+                <span className="font-semibold">名簿の店舗部署と、Mission Board の所属が違う方</span> が <span className="font-semibold text-orange-700">{rosterMismatchCount}名</span> います
+              </p>
+              <p className="text-[11px] text-gray-500 mt-0.5">所属一覧で正しい店舗・部署に直してください（運用管理者の方へ）。</p>
+              <Button variant="outline" onClick={() => { closeDialog(); router.push('/admin/roster-check') }} className="mt-2 h-8 text-xs border-orange-300 text-orange-700 hover:bg-orange-100">
+                名簿と所属の違いを見る
               </Button>
             </div>
           </div>

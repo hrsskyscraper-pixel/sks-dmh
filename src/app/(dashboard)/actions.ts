@@ -1,6 +1,7 @@
 'use server'
 
 import { countStalledForApprover } from '@/lib/stalled-approvals'
+import { countRosterMismatches } from '@/lib/roster-affiliation'
 
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
@@ -193,7 +194,13 @@ export async function getNavCounts(): Promise<NavCounts> {
     return countOverdueSkills(skills, certifiedIds, pendingIds, rejectedIds, skillPhaseMap, phases ?? [], milestones, cumHours)
   }
 
-  const [notif, rejectedSkillCount, pendingApprovalCount, pendingCards, overdueSkillCount, lineNotificationsEnabled] = await Promise.all([
+  // 運用管理者・開発者: 名簿の店舗部署と所属が違う人数（失敗しても他の件数は出す）
+  const computeRosterMismatch = async (): Promise<number> => {
+    if (!canAdminister(effectiveEmp)) return 0
+    try { return await countRosterMismatches(db, await getTestEmployeeIds()) } catch { return 0 }
+  }
+
+  const [notif, rejectedSkillCount, pendingApprovalCount, pendingCards, overdueSkillCount, lineNotificationsEnabled, rosterMismatchCount] = await Promise.all([
     computeNotif(),
     computeRejected(),
     computePendingApproval(),
@@ -201,6 +208,7 @@ export async function getNavCounts(): Promise<NavCounts> {
     computeOverdue(),
     // LINE通知を休止しているときは「LINE連携で通知を受け取る」の案内を出さない（2026-09-20 須貝さん指示）
     isLineNotificationsEnabled(),
+    computeRosterMismatch(),
   ])
 
   // ホームアイコンのバッジ＝ホームに出ている対応カードの枚数（赤）
@@ -216,6 +224,7 @@ export async function getNavCounts(): Promise<NavCounts> {
     notifCount: notif.notifCount,
     unreadTeamReqCount: notif.unreadTeamReqCount,
     stalledApprovals: notif.stalledApprovals,
+    rosterMismatchCount,
     lineNotificationsEnabled,
     pendingApprovalCount,
     rejectedSkillCount,

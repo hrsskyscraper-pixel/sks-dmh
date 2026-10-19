@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from 'react'
 import Papa from 'papaparse'
+import Link from 'next/link'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Upload, CheckCircle2, AlertTriangle, HelpCircle } from 'lucide-react'
@@ -17,6 +18,7 @@ interface Employee {
   employment_type: string
   status: string
   employee_number: string | null
+  roster_dept: string | null
 }
 
 type Row = {
@@ -28,6 +30,8 @@ type Row = {
   hireDate: string | null
   leftAt: string | null
   employmentType: '社員' | 'メイト' | null
+  /** 名簿の店舗部署（所属は変えず、違いの確認だけに使う） */
+  dept: string | null
   match: Employee | null
   candidates: Employee[]
   reason: string
@@ -43,6 +47,7 @@ const HEADER_ALIASES: Record<string, string[]> = {
   email: ['メール', 'メールアドレス', 'email', 'mail'],
   hire: ['入社日', '入社年月日', '入社', 'hire_date', '入社年月'],
   left: ['退職日', '退社日', '退職年月日', 'left_at'],
+  dept: ['店舗部署', '店舗／部署', '店舗/部署', '店舗・部署', '所属', '所属店舗', '店舗', '部署', '店舗名', '部署名'],
   type: ['社員／PA', '社員/PA', '区分', '雇用区分', '雇用形態', '社員区分', 'employment_type'],
 }
 
@@ -106,14 +111,14 @@ export function RosterImport({ employees }: { employees: Employee[] }) {
       complete: result => {
         const fields = result.meta.fields ?? []
         const find = (key: keyof typeof HEADER_ALIASES) => fields.find(f => HEADER_ALIASES[key].some(a => norm(f) === norm(a))) ?? null
-        const fName = find('name'), fEmail = find('email'), fHire = find('hire'), fLeft = find('left'), fType = find('type'), fNumber = find('number'), fKana = find('kana')
+        const fName = find('name'), fEmail = find('email'), fHire = find('hire'), fLeft = find('left'), fType = find('type'), fNumber = find('number'), fKana = find('kana'), fDept = find('dept')
         if (!fName && !fEmail && !fNumber) {
           toast.error('氏名・メール・社員番号のいずれの列も見つかりません。見出しを「社員番号」「氏名」「フリガナ」「入社日」「退職日」「社員／PA」「メール」にしてください')
           setRows([])
           return
         }
-        if (!fHire && !fLeft && !fType) {
-          toast.error('入社日・退職日・社員／PA のいずれの列も見つかりません')
+        if (!fHire && !fLeft && !fType && !fDept) {
+          toast.error('入社日・退職日・社員／PA・店舗部署 のいずれの列も見つかりません')
           setRows([])
           return
         }
@@ -125,6 +130,7 @@ export function RosterImport({ employees }: { employees: Employee[] }) {
           const hireDate = fHire ? parseDate(r[fHire]) : null
           const leftAt = fLeft ? parseDate(r[fLeft]) : null
           const employmentType = fType ? parseType(r[fType]) : null
+          const dept = (fDept ? r[fDept] : '')?.trim() || null
           let match: Employee | null = null
           let candidates: Employee[] = []
           let reason = ''
@@ -139,8 +145,8 @@ export function RosterImport({ employees }: { employees: Employee[] }) {
             else reason = 'Mission Board に同じ氏名の人がいません'
           } else if (number) reason = 'この社員番号は Mission Board に未登録です（先に在職者名簿を取り込むと登録されます）'
           else reason = '氏名・社員番号が空です'
-          if (match && !hireDate && !leftAt && !employmentType && !number && !kana) reason = '取り込める値がありません（日付の形式を確認）'
-          return { line: i + 2, name, email, number, kana, hireDate, leftAt, employmentType, match: reason ? null : match, candidates, reason, by }
+          if (match && !hireDate && !leftAt && !employmentType && !number && !kana && !dept) reason = '取り込める値がありません（日付の形式を確認）'
+          return { line: i + 2, name, email, number, kana, hireDate, leftAt, employmentType, dept, match: reason ? null : match, candidates, reason, by }
         })
         setRows(parsed)
       },
@@ -156,6 +162,7 @@ export function RosterImport({ employees }: { employees: Employee[] }) {
     if (r.employmentType && r.employmentType !== e.employment_type) diff.push(`区分 ${e.employment_type} → ${r.employmentType}`)
     if (r.number && r.number !== (e.employee_number ?? null)) diff.push(`社員番号 ${e.employee_number ?? '未登録'} → ${r.number}`)
     if (r.kana && !e.name_kana) diff.push(`フリガナ → ${r.kana}`)
+    if (r.dept && r.dept !== (e.roster_dept ?? null)) diff.push(`名簿の店舗部署 ${e.roster_dept ?? '未登録'} → ${r.dept}`)
     return { row: r, employee: e, diff }
   }), [rows])
   const toApply = changes.filter(c => c.diff.length > 0)
@@ -170,6 +177,7 @@ export function RosterImport({ employees }: { employees: Employee[] }) {
       employmentType: c.row.employmentType ?? undefined,
       employeeNumber: c.row.number ?? undefined,
       nameKana: c.row.kana ?? undefined,
+      rosterDept: c.row.dept ?? undefined,
     }))
     startTransition(async () => {
       const res = await applyRosterUpdates(updates)
@@ -183,11 +191,11 @@ export function RosterImport({ employees }: { employees: Employee[] }) {
   return (
     <div className="p-4 max-w-2xl mx-auto space-y-4">
       <div className="rounded-xl border border-gray-200 bg-white p-4 space-y-2">
-        <p className="text-sm text-gray-700">人事の名簿（CSV）から <span className="font-semibold">社員番号・入社日・退職日・社員／PA の区分</span>（フリガナは未登録のときだけ）を一括で取り込みます。氏名やロールは変えません。</p>
+        <p className="text-sm text-gray-700">人事の名簿（CSV）から <span className="font-semibold">社員番号・入社日・退職日・社員／PA の区分・店舗部署</span>（フリガナは未登録のときだけ）を一括で取り込みます。氏名・ロール・所属は変えません。</p>
         <p className="text-xs text-gray-500 leading-relaxed flex items-start gap-1.5">
           <HelpCircle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
           <span>
-            <span className="font-semibold">在職者名簿</span>: 見出し「社員番号」「氏名」「フリガナ」「入社日」「社員／PA」（あればメール）。氏名（空白・全角半角を無視）で突き合わせ、社員番号を登録します。<br />
+            <span className="font-semibold">在職者名簿</span>: 見出し「社員番号」「氏名」「フリガナ」「入社日」「店舗部署」「社員／PA」（あればメール）。氏名（空白・全角半角を無視）で突き合わせ、社員番号を登録します。店舗部署は所属を書き換えず、<Link href="/admin/roster-check" className="text-orange-600 underline">名簿と所属の違い</Link>の確認に使います。<br />
             <span className="font-semibold">退職者データ</span>（氏名なし）: 見出し「社員番号」「退職日」。先に在職者名簿を取り込んでおくと、社員番号で突き合わせて退職日を登録できます。<br />
             日付は 2026/4/1・2026-04-01・20260401 のどれでも可。<span className="font-semibold">同名が2人以上いる行・見つからない行は反映しません</span>（メール列か社員番号で区別）。反映前に差分を一覧で確認できます。取り込んだ内容は監査ログに残ります。
           </span>
@@ -201,7 +209,7 @@ export function RosterImport({ employees }: { employees: Employee[] }) {
 
       {done !== null && (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800 flex items-center gap-2">
-          <CheckCircle2 className="w-5 h-5" />{done}件を反映しました。店舗別スキル状況の定着率や入社月の絞り込みに反映されます。
+          <CheckCircle2 className="w-5 h-5" />{done}件を反映しました。店舗別スキル状況の定着率や入社月の絞り込みに反映されます。店舗部署を取り込んだときは、<Link href="/admin/roster-check" className="underline font-semibold">名簿と所属の違い</Link>もご確認ください。
         </div>
       )}
 

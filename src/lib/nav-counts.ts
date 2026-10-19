@@ -19,6 +19,8 @@ export type NavCounts = {
   lineNotificationsEnabled: boolean
   /** 承認者向け: 滞留している承認（申請の翌日中に承認されていないもの）。ベルの要対応と、ログイン時のモーダルに使う */
   stalledApprovals: { count: number; maxDays: number; unassignedTeams: number }
+  /** 運用管理者・開発者向け: 名簿の店舗部署と所属が違う人数（ログイン時の「要対応」に出す） */
+  rosterMismatchCount: number
 }
 
 export const EMPTY_NAV_COUNTS: NavCounts = {
@@ -29,5 +31,6 @@ export const EMPTY_NAV_COUNTS: NavCounts = {
   overdueSkillCount: 0,
   dashboardBadge: null,
   stalledApprovals: { count: 0, maxDays: 0, unassignedTeams: 0 },
+  rosterMismatchCount: 0,
   lineNotificationsEnabled: true,
 }

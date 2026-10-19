@@ -8,7 +8,7 @@ import { EmailNotificationToggle } from '@/components/admin/email-notification-t
 import { LineNotificationToggle } from '@/components/admin/line-notification-toggle'
 import { OpsTeamRecipients, type OpsCandidate } from '@/components/admin/ops-team-recipients'
 import Link from 'next/link'
-import { FolderKanban, Upload, Award, ChevronRight, BookOpen, Tag, Briefcase, Bell, BarChart3 } from 'lucide-react'
+import { FolderKanban, Upload, Award, ChevronRight, BookOpen, Tag, Briefcase, Bell, BarChart3, UserCheck } from 'lucide-react'
 import { canAdminister } from '@/lib/permissions'
 import { getEmailNotificationsSetting, getLineNotificationsSetting, getOpsTeamRecipientSetting } from '@/lib/settings'
 
@@ -158,7 +158,21 @@ export default async function SettingsPage() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-gray-800">名簿の一括取込</p>
-              <p className="text-xs text-gray-500">入社日・退職日・社員／PA を CSV から一括で登録（定着率の計算に使います）</p>
+              <p className="text-xs text-gray-500">入社日・退職日・社員／PA・店舗部署 を CSV から一括で登録（定着率の計算に使います）</p>
+            </div>
+            <ChevronRight className="w-4 h-4 text-gray-300" />
+          </Link>
+
+          <Link
+            href="/admin/roster-check"
+            className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white p-4 hover:bg-gray-50 transition-colors"
+          >
+            <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0">
+              <UserCheck className="w-5 h-5 text-amber-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-gray-800">名簿と所属の違い</p>
+              <p className="text-xs text-gray-500">名簿の店舗部署と、Mission Board の所属が違う人の一覧</p>
             </div>
             <ChevronRight className="w-4 h-4 text-gray-300" />
           </Link>
