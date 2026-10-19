@@ -338,6 +338,9 @@ export function ProjectManager({
     getSkillDeletionImpact(skill.id).then(res => {
       if (res.error || !res.impact) { toast.error(res.error ?? '削除の影響を確認できませんでした'); setDeleteTarget(null); return }
       setDeleteTarget(prev => prev && prev.skill.id === skill.id ? { ...prev, impact: res.impact! } : prev)
+    }).catch(() => {
+      // 通信の失敗や、開発版の書き込み確認で止めたとき。「確認しています…」のまま残さない
+      setDeleteTarget(null)
     })
   }
 
@@ -1422,7 +1425,7 @@ export function ProjectManager({
             open
             onOpenChange={open => { if (!open && !isPending) setDeleteTarget(null) }}
             title={`「${skill.name}」を削除しますか`}
-            confirmLabel={records > 0 ? `認定の記録 ${records}件ごと削除する` : 'スキルを削除する'}
+            confirmLabel={impact && records === 0 ? 'スキルを削除する' : 'スキルを削除する（これまで認定された方の記録も消滅します。）'}
             onConfirm={confirmDeleteSkill}
             pending={isPending}
             confirmDisabled={!impact}
