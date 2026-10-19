@@ -10,8 +10,8 @@
 set -o pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENVF="$ROOT/.env.staging.local"
-MASK="$HOME/ClaudeCode/management/00_context/account_registry/switcher/bin/mask-secrets"
-VC="$HOME/ClaudeCode/management/00_context/account_registry/switcher/bin/vc"
+MASK="$HOME/cc/management/00_context/account_registry/switcher/bin/mask-secrets"
+VC="$HOME/cc/management/00_context/account_registry/switcher/bin/vc"
 TMP="${TMPDIR:-/tmp}/vc-staging"
 export VC_ACCOUNT=SKS
 export MASK_ENV_FILES="$ENVF"   # mask-secrets がこのファイルの値も伏せる

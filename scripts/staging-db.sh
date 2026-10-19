@@ -13,7 +13,7 @@
 #   scripts/staging-db.sh db push
 set -o pipefail
 ENVFILE="${ACCOUNT_TOKENS_ENV:-$HOME/.config/account-tokens.env}"
-MASK="$HOME/ClaudeCode/management/00_context/account_registry/switcher/bin/mask-secrets"
+MASK="$HOME/cc/management/00_context/account_registry/switcher/bin/mask-secrets"
 REF="giwqelfbvsgucpnzzdao"
 HOST="aws-0-ap-northeast-1.pooler.supabase.com"   # session mode（マイグレーション用）
 PORT=5432

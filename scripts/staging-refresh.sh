@@ -31,7 +31,7 @@
 set -o pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ENVFILE="${ACCOUNT_TOKENS_ENV:-$HOME/.config/account-tokens.env}"
-MASK="$HOME/ClaudeCode/management/00_context/account_registry/switcher/bin/mask-secrets"
+MASK="$HOME/cc/management/00_context/account_registry/switcher/bin/mask-secrets"
 [ -x "$MASK" ] || MASK=cat
 REF="giwqelfbvsgucpnzzdao"
 HOST="aws-0-ap-northeast-1.pooler.supabase.com"
