@@ -8,7 +8,7 @@ import { TopBar } from '@/components/layout/nav'
 import { Card, CardContent } from '@/components/ui/card'
 import { CertRingAvatar } from '@/components/ui/cert-ring-avatar'
 import { MemberNameLink } from '@/components/layout/member-name-link'
-import { ChevronLeft } from 'lucide-react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { QaStatusBadge } from '@/components/qa/status-badge'
 import { AnswerForm } from '@/components/qa/answer-form'
 import { canModerateQa, canResolveQuestion, type QaAnswerRow, type QaQuestionRow } from '@/lib/qa'
@@ -60,6 +60,27 @@ export default async function QaDetailPage({ params }: { params: Promise<{ id: s
   const empMap = Object.fromEntries((emps ?? []).map(e => [e.id, e]))
   const asker = empMap[q.asker_id]
 
+  const questionCard = (
+    <Card>
+      <CardContent className="py-4 px-4 space-y-3">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <QaStatusBadge status={q.status} />
+          {q.status === 'resolved' && q.resolved_at && (
+            <span className="text-[11px] text-gray-400">{fmtDateTime(q.resolved_at)}{q.resolved_by && empMap[q.resolved_by] ? `（${empMap[q.resolved_by].name}）` : ''}</span>
+          )}
+        </div>
+        <h1 className="text-base font-bold text-gray-800 leading-snug">{q.title}</h1>
+        <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{q.body}</p>
+        <div className="flex items-center gap-2 pt-1">
+          <CertRingAvatar employeeId={q.asker_id} src={asker?.avatar_url} name={asker?.name} size={28} fallbackClassName="bg-sky-100 text-sky-700" />
+          <MemberNameLink employeeId={q.asker_id} className="text-xs text-gray-600">{asker?.name ?? '不明'}</MemberNameLink>
+          <span className="text-[11px] text-gray-400">{fmtDateTime(q.created_at)}</span>
+          {canModerate && !q.hidden_at && <span className="ml-auto"><QaModerateButton questionId={q.id} hidden={false} label="質問" /></span>}
+        </div>
+      </CardContent>
+    </Card>
+  )
+
   return (
     <>
       <TopBar title="Q&A" />
@@ -73,25 +94,16 @@ export default async function QaDetailPage({ params }: { params: Promise<{ id: s
           </div>
         )}
 
-        {/* 質問 */}
-        <Card className={q.hidden_at ? 'opacity-60' : undefined}>
-          <CardContent className="py-4 px-4 space-y-3">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <QaStatusBadge status={q.status} />
-              {q.status === 'resolved' && q.resolved_at && (
-                <span className="text-[11px] text-gray-400">{fmtDateTime(q.resolved_at)}{q.resolved_by && empMap[q.resolved_by] ? `（${empMap[q.resolved_by].name}）` : ''}</span>
-              )}
-            </div>
-            <h1 className="text-base font-bold text-gray-800 leading-snug">{q.title}</h1>
-            <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{q.body}</p>
-            <div className="flex items-center gap-2 pt-1">
-              <CertRingAvatar employeeId={q.asker_id} src={asker?.avatar_url} name={asker?.name} size={28} fallbackClassName="bg-sky-100 text-sky-700" />
-              <MemberNameLink employeeId={q.asker_id} className="text-xs text-gray-600">{asker?.name ?? '不明'}</MemberNameLink>
-              <span className="text-[11px] text-gray-400">{fmtDateTime(q.created_at)}</span>
-              {canModerate && !q.hidden_at && <span className="ml-auto"><QaModerateButton questionId={q.id} hidden={false} label="質問" /></span>}
-            </div>
-          </CardContent>
-        </Card>
+        {/* 質問（非表示中は、開かない限り中身を出さない） */}
+        {q.hidden_at ? (
+          <details className="group rounded-lg border border-gray-200 bg-gray-50">
+            <summary className="cursor-pointer select-none px-3 py-2 text-xs text-gray-600 flex items-center gap-1.5">
+              <ChevronRight className="w-3.5 h-3.5 transition-transform group-open:rotate-90" />
+              非表示にした質問を開く
+            </summary>
+            <div className="px-2 pb-2 opacity-70">{questionCard}</div>
+          </details>
+        ) : questionCard}
 
         {/* 回答 */}
         <section className="space-y-2">
@@ -101,8 +113,8 @@ export default async function QaDetailPage({ params }: { params: Promise<{ id: s
           ) : (
             answers.map(a => {
               const emp = empMap[a.author_id]
-              return (
-                <Card key={a.id} className={a.hidden_at ? 'opacity-60 bg-gray-50' : undefined}>
+              const card = (
+                <Card key={a.id} className={a.hidden_at ? 'bg-gray-50' : undefined}>
                   <CardContent className="py-3 px-4">
                     <div className="flex items-start gap-3">
                       <CertRingAvatar employeeId={a.author_id} src={emp?.avatar_url} name={emp?.name} size={32} className="flex-shrink-0 mt-0.5" fallbackClassName="bg-emerald-100 text-emerald-700" />
@@ -119,6 +131,16 @@ export default async function QaDetailPage({ params }: { params: Promise<{ id: s
                   </CardContent>
                 </Card>
               )
+              // 非表示にした回答は、開かない限り中身を出さない
+              return a.hidden_at ? (
+                <details key={a.id} className="group rounded-lg border border-gray-200 bg-gray-50">
+                  <summary className="cursor-pointer select-none px-3 py-2 text-xs text-gray-600 flex items-center gap-1.5">
+                    <ChevronRight className="w-3.5 h-3.5 transition-transform group-open:rotate-90" />
+                    非表示にした回答を開く
+                  </summary>
+                  <div className="px-2 pb-2 opacity-70">{card}</div>
+                </details>
+              ) : card
             })
           )}
         </section>

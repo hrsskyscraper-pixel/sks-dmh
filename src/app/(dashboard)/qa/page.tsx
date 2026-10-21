@@ -48,8 +48,11 @@ export default async function QaPage() {
     : { data: [] as { id: string; name: string; avatar_url: string | null }[] }
   const empMap = Object.fromEntries((emps ?? []).map(e => [e.id, e]))
 
-  const waiting = questions.filter(q => q.status === 'open' && q.answer_count === 0)
-  const others = questions.filter(q => !(q.status === 'open' && q.answer_count === 0))
+  // 非表示にした質問は一覧の下にまとめて折りたたみ、開かない限り中身を出さない
+  const visible = questions.filter(q => !q.hidden_at)
+  const hiddenQs = questions.filter(q => q.hidden_at)
+  const waiting = visible.filter(q => q.status === 'open' && q.answer_count === 0)
+  const others = visible.filter(q => !(q.status === 'open' && q.answer_count === 0))
 
   const Row = ({ q }: { q: QaQuestionRow }) => {
     const emp = empMap[q.asker_id]
@@ -101,6 +104,19 @@ export default async function QaPage() {
           <h2 className="text-sm font-semibold text-gray-700 px-1">回答あり・解決済み</h2>
           {others.length === 0 ? <EmptyState text="まだ質問はありません。右上の「質問する」から投稿できます" /> : others.map(q => <Row key={q.id} q={q} />)}
         </section>
+
+        {hiddenQs.length > 0 && (
+          <details className="group rounded-lg border border-gray-200 bg-gray-50">
+            <summary className="cursor-pointer select-none px-3 py-2 text-xs text-gray-600 flex items-center gap-1.5">
+              <ChevronRight className="w-3.5 h-3.5 transition-transform group-open:rotate-90" />
+              非表示にした質問（{hiddenQs.length}件）
+              <span className="text-gray-400">・非表示にできる方にだけ見えています。押すと開きます</span>
+            </summary>
+            <div className="space-y-2 px-2 pb-2 opacity-70">
+              {hiddenQs.map(q => <Row key={q.id} q={q} />)}
+            </div>
+          </details>
+        )}
 
         <p className="text-xs text-gray-400 px-1">
           アプリへの要望や不具合は <Link href="/improvements" className="text-orange-600 hover:underline">改善提案</Link> へ。
