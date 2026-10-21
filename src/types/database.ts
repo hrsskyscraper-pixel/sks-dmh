@@ -1305,6 +1305,8 @@ export type Database = {
           answer_count: number
           resolved_at: string | null
           resolved_by: string | null
+          hidden_at: string | null
+          hidden_by: string | null
           created_at: string
           updated_at: string
         }
@@ -1317,6 +1319,8 @@ export type Database = {
           answer_count?: number
           resolved_at?: string | null
           resolved_by?: string | null
+          hidden_at?: string | null
+          hidden_by?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -1329,6 +1333,8 @@ export type Database = {
           answer_count?: number
           resolved_at?: string | null
           resolved_by?: string | null
+          hidden_at?: string | null
+          hidden_by?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -1346,6 +1352,8 @@ export type Database = {
           question_id: string
           author_id: string
           body: string
+          hidden_at: string | null
+          hidden_by: string | null
           created_at: string
         }
         Insert: {
@@ -1353,6 +1361,8 @@ export type Database = {
           question_id: string
           author_id: string
           body: string
+          hidden_at?: string | null
+          hidden_by?: string | null
           created_at?: string
         }
         Update: {
@@ -1360,6 +1370,29 @@ export type Database = {
           question_id?: string
           author_id?: string
           body?: string
+          hidden_at?: string | null
+          hidden_by?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      team_upper_approvers: {
+        Row: {
+          team_id: string
+          employee_id: string
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          team_id: string
+          employee_id: string
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          team_id?: string
+          employee_id?: string
+          created_by?: string | null
           created_at?: string
         }
         Relationships: []

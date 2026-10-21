@@ -9,6 +9,7 @@ import { UnsetLeadersCard } from '@/components/approvals/unset-leaders-card'
 import type { Role } from '@/types/database'
 import { canAdminister, canApprove } from '@/lib/permissions'
 import { maskEmails } from '@/lib/email-visibility'
+import { leaderIdsUnderUpperApprover } from '@/lib/upper-approvers'
 import { getTestEmployeeIds } from '@/lib/test-data'
 import { signSkillPhotoPaths } from '@/lib/skill-photos'
 import { getAffiliationsAndCurricula } from '@/lib/affiliations'
@@ -50,6 +51,7 @@ export default async function ApprovalsPage({ searchParams }: { searchParams?: P
   // 管理するチームのメンバーID
   let managedMemberIds: string[] = []
   let managedTeamIds: string[] = []
+  let upperTeamIds: string[] = []
   if (!isSystemAdmin) {
     const { data: managed } = await db.from('team_managers').select('team_id').eq('employee_id', employee.id)
     managedTeamIds = (managed ?? []).map(m => m.team_id)
@@ -57,6 +59,13 @@ export default async function ApprovalsPage({ searchParams }: { searchParams?: P
       const { data: members } = await db.from('team_members').select('employee_id').in('team_id', managedTeamIds)
       managedMemberIds = [...new Set((members ?? []).map(m => m.employee_id))]
     }
+    // 上の承認者に指定された店舗では、担当リーダー（店長）ご本人の申請も承認できる（B-④-3）
+    const [upperLeaderIds, { data: ups }] = await Promise.all([
+      leaderIdsUnderUpperApprover(db, employee.id),
+      db.from('team_upper_approvers').select('team_id').eq('employee_id', employee.id),
+    ])
+    upperTeamIds = (ups ?? []).map(u => u.team_id)
+    managedMemberIds = [...new Set([...managedMemberIds, ...upperLeaderIds])]
   }
 
   // 1. スキル認定待ち
@@ -74,7 +83,7 @@ export default async function ApprovalsPage({ searchParams }: { searchParams?: P
   // ?team= は、その店舗・部署のメンバーの申請だけ（管理者 か そのチームの担当リーダー）
   let filterApprover: { id: string; name: string; count: number } | null = null
   let approverMemberIds: Set<string> | null = null
-  if (sp.team && /^[0-9a-f-]{36}$/.test(sp.team) && (isSystemAdmin || managedTeamIds.includes(sp.team))) {
+  if (sp.team && /^[0-9a-f-]{36}$/.test(sp.team) && (isSystemAdmin || managedTeamIds.includes(sp.team) || upperTeamIds.includes(sp.team))) {
     const [{ data: team }, { data: members }] = await Promise.all([
       db.from('teams').select('id, name').eq('id', sp.team).maybeSingle(),
       db.from('team_members').select('employee_id').eq('team_id', sp.team),
@@ -90,8 +99,12 @@ export default async function ApprovalsPage({ searchParams }: { searchParams?: P
     ])
     if (ap) {
       const tids = (managed ?? []).map(m => m.team_id)
-      const { data: members } = tids.length > 0 ? await db.from('team_members').select('employee_id').in('team_id', tids) : { data: [] as { employee_id: string }[] }
-      approverMemberIds = new Set((members ?? []).map(m => m.employee_id).filter(id => id !== ap.id))
+      const [{ data: members }, upperLeaders] = await Promise.all([
+        tids.length > 0 ? db.from('team_members').select('employee_id').in('team_id', tids) : Promise.resolve({ data: [] as { employee_id: string }[] }),
+        // 上の承認者として受け持つ店長の申請も含める（滞留の知らせの件数と合わせる）
+        leaderIdsUnderUpperApprover(db, ap.id),
+      ])
+      approverMemberIds = new Set([...(members ?? []).map(m => m.employee_id), ...upperLeaders].filter(id => id !== ap.id))
       filterApprover = { id: ap.id, name: ap.name, count: 0 }
     }
   }

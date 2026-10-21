@@ -15,8 +15,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!body?.trim()) return NextResponse.json({ error: '回答を入力してください' }, { status: 400 })
 
   const db = createAdminClient()
-  const { data: q } = await db.from('qa_questions').select('id, title, asker_id, answer_count').eq('id', id).maybeSingle()
-  if (!q) return NextResponse.json({ error: '質問が見つかりません' }, { status: 404 })
+  const { data: q } = await db.from('qa_questions').select('id, title, asker_id, answer_count, hidden_at').eq('id', id).maybeSingle()
+  // 非表示の質問には回答できない（見えている人がいないため）
+  if (!q || q.hidden_at) return NextResponse.json({ error: '質問が見つかりません' }, { status: 404 })
 
   const text = String(body).trim().slice(0, QA_BODY_MAX)
   const { data: created, error } = await db
@@ -26,7 +27,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     .single()
   if (error || !created) return NextResponse.json({ error: error?.message ?? '投稿に失敗しました' }, { status: 500 })
 
-  await db.from('qa_questions').update({ answer_count: (q.answer_count ?? 0) + 1, updated_at: new Date().toISOString() }).eq('id', q.id)
+  // 回答数は見えている回答を数え直す（同時の投稿・非表示でずれないように）
+  const { count } = await db.from('qa_answers').select('id', { count: 'exact', head: true }).eq('question_id', q.id).is('hidden_at', null)
+  await db.from('qa_questions').update({ answer_count: count ?? 0, updated_at: new Date().toISOString() }).eq('id', q.id)
 
   await notifyAnswerPosted(q, created, me.name).catch(e => console.error('Q&A 回答通知エラー:', e))
 

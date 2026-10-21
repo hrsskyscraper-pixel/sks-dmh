@@ -10,9 +10,10 @@ import { CertRingAvatar } from '@/components/ui/cert-ring-avatar'
 import { ChevronRight, Inbox, MessageSquare } from 'lucide-react'
 import { NewQuestionDialog } from '@/components/qa/new-question-dialog'
 import { QaStatusBadge } from '@/components/qa/status-badge'
-import type { QaQuestionRow } from '@/lib/qa'
+import { canModerateQa, type QaQuestionRow } from '@/lib/qa'
+import { getQaModeratorIds } from '@/lib/settings'
 
-const SELECT = 'id, asker_id, title, body, status, answer_count, resolved_at, resolved_by, created_at, updated_at'
+const SELECT = 'id, asker_id, title, body, status, answer_count, resolved_at, resolved_by, hidden_at, created_at, updated_at'
 const fmtDate = (d: string) => new Date(d).toLocaleDateString('ja-JP', { year: 'numeric', month: 'numeric', day: 'numeric' })
 
 function EmptyState({ text }: { text: string }) {
@@ -33,8 +34,13 @@ export default async function QaPage() {
   if (!me) redirect('/login')
 
   const db = createAdminClient()
-  const { data } = await db.from('qa_questions').select(SELECT).order('created_at', { ascending: false }).limit(300)
-  const questions = (data ?? []) as QaQuestionRow[]
+  const [{ data }, moderatorIds] = await Promise.all([
+    db.from('qa_questions').select(SELECT).order('created_at', { ascending: false }).limit(300),
+    getQaModeratorIds(),
+  ])
+  // 運営が非表示にした質問は、非表示にできる人にだけ「非表示中」として見せる
+  const canModerate = canModerateQa(me, moderatorIds)
+  const questions = ((data ?? []) as QaQuestionRow[]).filter(q => canModerate || !q.hidden_at)
 
   const askerIds = [...new Set(questions.map(q => q.asker_id))]
   const { data: emps } = askerIds.length > 0
@@ -58,6 +64,7 @@ export default async function QaPage() {
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <QaStatusBadge status={q.status} />
                   {mine && <span className="text-[10px] text-sky-700 bg-sky-100 rounded px-1.5 py-0.5">自分の質問</span>}
+                  {q.hidden_at && <span className="text-[10px] text-gray-600 bg-gray-200 rounded px-1.5 py-0.5">非表示中</span>}
                 </div>
                 <p className="text-sm font-medium text-gray-800 mt-0.5 truncate">{q.title}</p>
                 <p className="text-[11px] text-gray-400 mt-0.5 flex items-center gap-2">

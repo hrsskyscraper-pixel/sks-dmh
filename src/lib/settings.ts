@@ -19,6 +19,8 @@ import type { Json } from '@/types/database'
 export const EMAIL_NOTIFICATIONS_ENABLED = 'email_notifications_enabled'
 export const LINE_NOTIFICATIONS_ENABLED = 'line_notifications_enabled'
 export const OPS_TEAM_RECIPIENT_IDS = 'ops_team_recipient_ids'
+/** Q&A の投稿を非表示にできる社員ID配列（2026-10-21 原島さん確定 A-8） */
+export const QA_MODERATOR_IDS = 'qa_moderator_ids'
 
 export type SettingMeta = { updatedBy: string | null; updatedAt: string | null }
 
@@ -93,6 +95,19 @@ export async function getOpsTeamRecipientIds(): Promise<string[]> {
 export const setOpsTeamRecipientIds = (ids: string[], actorId: string) => setSetting(OPS_TEAM_RECIPIENT_IDS, ids, actorId)
 export async function getOpsTeamRecipientSetting(): Promise<{ ids: string[] } & SettingMeta> {
   const row = await getSettingRow(OPS_TEAM_RECIPIENT_IDS)
+  const v = row?.value
+  return { ids: Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [], updatedBy: row?.updatedBy ?? null, updatedAt: row?.updatedAt ?? null }
+}
+
+// ---------- Q&A の投稿を非表示にできる人 ----------
+export async function getQaModeratorIds(): Promise<string[]> {
+  const row = await getSettingRow(QA_MODERATOR_IDS)
+  const v = row?.value
+  return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []
+}
+export const setQaModeratorIds = (ids: string[], actorId: string) => setSetting(QA_MODERATOR_IDS, ids, actorId)
+export async function getQaModeratorSetting(): Promise<{ ids: string[] } & SettingMeta> {
+  const row = await getSettingRow(QA_MODERATOR_IDS)
   const v = row?.value
   return { ids: Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [], updatedBy: row?.updatedBy ?? null, updatedAt: row?.updatedAt ?? null }
 }

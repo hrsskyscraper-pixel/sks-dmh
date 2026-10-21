@@ -1,9 +1,10 @@
 /**
  * マイルストーン（級・全体ゴール）の到達状況を計算する。
  *
- * 数え方（2026-09-19 MTG 決定）:
- * - 級（milestone_kind = 'grade'）: 「調理3級まであと○項目」= 同じ区分（category）で、カリキュラム上その行より
- *   手前に並ぶスキルのうち、まだ認定されていない数。並びは「フェーズの順 → スキルの order_index」。
+ * 数え方（2026-10-21 原島さん確定。フェーズ＝級の区分け）:
+ * - 級（milestone_kind = 'grade'）: 「接客３級まであと○項目」= その級の行と同じフェーズにある、ほかのスキルのうち
+ *   まだ認定されていない数（並びは問わない）。フェーズ未設定の級の行だけは、従来どおり
+ *   「同じ区分（category）で手前に並ぶスキル」を数える（2026-09-19 MTG の数え方）。
  * - 全体ゴール（milestone_kind = 'goal'）: カリキュラムの全スキル（自分自身を除く）のうち未認定の数。
  * - 級の行そのものは前提に含めない。前提が 0 になったら、その行を申請 → 認定で到達（認定操作を挟む）。
  */
@@ -69,9 +70,13 @@ export function computeMilestones(
   for (const m of inCurriculum) {
     if (m.milestone_kind !== 'grade' && m.milestone_kind !== 'goal') continue
     const key = sortKey(m)
-    const prereq = m.milestone_kind === 'grade'
-      ? inCurriculum.filter(s => s.id !== m.id && s.category === m.category && sortKey(s) < key)
-      : inCurriculum.filter(s => s.id !== m.id)
+    const phaseId = skillPhaseMap[m.id] ?? null
+    const prereq = m.milestone_kind === 'goal'
+      ? inCurriculum.filter(s => s.id !== m.id)
+      : phaseId
+        // 同じフェーズにほかの級・ゴールがあっても前提に入れない（互いに待ち合って、どちらも申請できなくなるため）
+        ? inCurriculum.filter(s => s.id !== m.id && skillPhaseMap[s.id] === phaseId && !s.milestone_kind)
+        : inCurriculum.filter(s => s.id !== m.id && s.category === m.category && sortKey(s) < key)
     const remainingSkills = prereq.filter(s => !certified.has(s.id)).map(s => ({ id: s.id, name: s.name }))
     const status: MilestoneStatus = certified.has(m.id)
       ? 'certified'

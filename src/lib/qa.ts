@@ -23,6 +23,8 @@ export interface QaQuestionRow {
   answer_count: number
   resolved_at: string | null
   resolved_by: string | null
+  hidden_at?: string | null
+  hidden_by?: string | null
   created_at: string
   updated_at: string
 }
@@ -32,6 +34,8 @@ export interface QaAnswerRow {
   question_id: string
   author_id: string
   body: string
+  hidden_at?: string | null
+  hidden_by?: string | null
   created_at: string
 }
 
@@ -40,6 +44,16 @@ type EmpLike = { id: string; role?: Role | null; system_permission?: SystemPermi
 /** 解決済みの切り替えができる人: 質問した本人・運用管理者・開発者 */
 export function canResolveQuestion(me: EmpLike, q: { asker_id: string }): boolean {
   return me.id === q.asker_id || isOpsAdmin(me) || isDeveloper(me)
+}
+
+/**
+ * 不適切な投稿を非表示にできる人（2026-10-21 原島さん確定 A-8）: 設定画面の「Q&A の投稿を非表示にできる人」。
+ * 誰も設定されていないときは、開発者だけ（運用管理者全員には広げない）。
+ * 一覧に入っていても、運用管理者・開発者から外れた人はできない（権限を下げたときに残らないように）。
+ */
+export function canModerateQa(me: EmpLike, moderatorIds: string[]): boolean {
+  if (!isOpsAdmin(me) && !isDeveloper(me)) return false
+  return moderatorIds.length > 0 ? moderatorIds.includes(me.id) : isDeveloper(me)
 }
 
 export const QA_TITLE_MAX = 120

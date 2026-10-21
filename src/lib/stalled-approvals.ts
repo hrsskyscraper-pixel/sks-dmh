@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
+import { leaderIdsUnderUpperApprover, upperApproversByTeam } from '@/lib/upper-approvers'
 
 /**
  * 承認の滞留（2026-09-20 決定）
@@ -110,12 +111,16 @@ export async function getStalledApprovals(db: SupabaseClient, now: Date, exclude
     if (excludedIds.has(r.employee_id)) continue
     ;(approversByTeam[r.team_id] ??= []).push(r.employee_id)
   }
+  // 担当リーダー（店長）ご本人の申請は、その店舗の「上の承認者」も承認できる（B-④-3）
+  const upperByTeam = await upperApproversByTeam(db, teamIds)
+  const leaderOf = new Set((mgrRows ?? []).map(r => `${r.team_id}:${r.employee_id}`))
 
   const items: StalledItem[] = stalledRows.map(a => {
     const t = teamByEmp[a.employee_id] ?? null
     const sk = Array.isArray(a.skills) ? a.skills[0] : a.skills
     // 自分の申請は自分で承認できない → 承認者から本人を除く
-    const approverIds = (t ? (approversByTeam[t.id] ?? []) : []).filter(id => id !== a.employee_id)
+    const uppers = t && leaderOf.has(`${t.id}:${a.employee_id}`) ? (upperByTeam[t.id] ?? []).filter(id => !excludedIds.has(id)) : []
+    const approverIds = [...new Set([...(t ? (approversByTeam[t.id] ?? []) : []), ...uppers])].filter(id => id !== a.employee_id)
     return {
       achievementId: a.id,
       employeeId: a.employee_id,
@@ -151,7 +156,14 @@ export async function getStalledApprovals(db: SupabaseClient, now: Date, exclude
   const byTeamMap: Record<string, TeamStalledSummary> = {}
   for (const it of items) {
     if (!it.teamId || it.approverIds.length === 0) continue
-    const t = (byTeamMap[it.teamId] ??= { teamId: it.teamId, teamName: it.teamName ?? '', count: 0, maxDays: 0, approverIds: it.approverIds, approverNames: it.approverIds.map(id => approverInfo[id]?.name ?? '').filter(Boolean) })
+    const t = (byTeamMap[it.teamId] ??= { teamId: it.teamId, teamName: it.teamName ?? '', count: 0, maxDays: 0, approverIds: [], approverNames: [] })
+    // 店舗の承認者は、申請ごとの承認者を合わせたもの（店長の申請だけ上の承認者が加わるため、並び順で変わらないように）
+    for (const id of it.approverIds) {
+      if (t.approverIds.includes(id)) continue
+      t.approverIds.push(id)
+      const nm = approverInfo[id]?.name
+      if (nm) t.approverNames.push(nm)
+    }
     t.count++
     t.maxDays = Math.max(t.maxDays, it.days)
   }
@@ -195,9 +207,12 @@ export async function countStalledForApprover(
   if (!isAdmin) {
     const { data: managed } = await db.from('team_managers').select('team_id').eq('employee_id', approverId)
     const teamIds = (managed ?? []).map(m => m.team_id)
-    if (teamIds.length === 0) return { count: 0, maxDays: 0, unassignedTeams: 0 }
-    const { data: members } = await db.from('team_members').select('employee_id').in('team_id', teamIds)
-    const memberIds = [...new Set((members ?? []).map(m => m.employee_id))].filter(id => id !== approverId && !excludedIds.has(id))
+    const { data: members } = teamIds.length > 0
+      ? await db.from('team_members').select('employee_id').in('team_id', teamIds)
+      : { data: [] as { employee_id: string }[] }
+    // 上の承認者に指定された店舗の、担当リーダー（店長）ご本人の申請も数える（B-④-3）
+    const upperLeaderIds = await leaderIdsUnderUpperApprover(db, approverId)
+    const memberIds = [...new Set([...(members ?? []).map(m => m.employee_id), ...upperLeaderIds])].filter(id => id !== approverId && !excludedIds.has(id))
     if (memberIds.length === 0) return { count: 0, maxDays: 0, unassignedTeams: 0 }
     q = q.in('employee_id', memberIds)
   }

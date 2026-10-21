@@ -10,7 +10,7 @@ import { OpsTeamRecipients, type OpsCandidate } from '@/components/admin/ops-tea
 import Link from 'next/link'
 import { FolderKanban, Upload, Award, ChevronRight, BookOpen, Tag, Briefcase, Bell, BarChart3, UserCheck } from 'lucide-react'
 import { canAdminister } from '@/lib/permissions'
-import { getEmailNotificationsSetting, getLineNotificationsSetting, getOpsTeamRecipientSetting } from '@/lib/settings'
+import { getEmailNotificationsSetting, getLineNotificationsSetting, getOpsTeamRecipientSetting, getQaModeratorSetting } from '@/lib/settings'
 
 export default async function SettingsPage() {
   const currentEmployee = await getCurrentEmployee()
@@ -19,7 +19,7 @@ export default async function SettingsPage() {
   }
 
   const db = createAdminClient()
-  const [{ data: certifications }, emailSetting, lineSetting, opsSetting, { data: opsCandidatesRows }] = await Promise.all([
+  const [{ data: certifications }, emailSetting, lineSetting, opsSetting, { data: opsCandidatesRows }, qaModSetting] = await Promise.all([
     db
       .from('certifications')
       .select('id, name, description, icon, color, order_index, is_active, created_at')
@@ -30,6 +30,7 @@ export default async function SettingsPage() {
     // 運営チームの候補: 運用管理者・開発者（権限で引く。旧 role で引くと取りこぼす）
     db.from('employees').select('id, name, email, line_user_id, role, employment_type, system_permission').eq('status', 'approved')
       .in('system_permission', ['ops_admin', 'developer']).order('name'),
+    getQaModeratorSetting(),
   ])
   const opsCandidates: OpsCandidate[] = (opsCandidatesRows ?? []).map(e => ({
     id: e.id,
@@ -61,6 +62,14 @@ export default async function SettingsPage() {
           selectedIds={opsSetting.ids}
           updatedBy={opsSetting.updatedBy}
           updatedAt={opsSetting.updatedAt}
+        />
+        {/* Q&A の投稿を非表示にできる人（2026-10-21 A-8） */}
+        <OpsTeamRecipients
+          kind="qa"
+          candidates={opsCandidates}
+          selectedIds={qaModSetting.ids}
+          updatedBy={qaModSetting.updatedBy}
+          updatedAt={qaModSetting.updatedAt}
         />
 
         {/* 管理メニュー */}
@@ -159,6 +168,20 @@ export default async function SettingsPage() {
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-gray-800">名簿の一括取込</p>
               <p className="text-xs text-gray-500">入社日・退職日・社員／PA・店舗部署 を CSV から一括で登録（定着率の計算に使います）</p>
+            </div>
+            <ChevronRight className="w-4 h-4 text-gray-300" />
+          </Link>
+
+          <Link
+            href="/admin/upper-approvers"
+            className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white p-4 hover:bg-gray-50 transition-colors"
+          >
+            <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center flex-shrink-0">
+              <UserCheck className="w-5 h-5 text-orange-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-gray-800">店長の申請を承認する人</p>
+              <p className="text-xs text-gray-500">店舗ごとに、店長（担当リーダー）ご本人の申請を承認する MG・課長などを決める</p>
             </div>
             <ChevronRight className="w-4 h-4 text-gray-300" />
           </Link>
