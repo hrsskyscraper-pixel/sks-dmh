@@ -38,6 +38,7 @@ const COLORS = ['#f97316', '#fbbf24', '#34d399', '#60a5fa', '#f472b6', '#a78bfa'
 /**
  * レベルアップ演出（2026-09-19 MTG 決定 ②「提案通りで一回作ってみる」）
  * 承認がおりたあと、本人が次にホームを開いたときに一度だけ出す。紙吹雪＋認定スキル名。
+ * 2026-10-22 A-5 で級の取得時だけに絞った（items は呼び出し側で級に限っている）。
  * 級到達・フェーズ完了はバッジで強調する。閉じると celebrated_at を記録し、以後は出ない。
  */
 export function LevelUpCelebration({ items, completedPhases, employeeName, employeeId, employeeAvatar, preview = false }: Props) {

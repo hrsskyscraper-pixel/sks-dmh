@@ -215,8 +215,9 @@ export default async function DashboardPage({
   const milestones = buildMilestoneMap(projectPhases)
 
   // レベルアップ演出（2026-09-19 決定 ②）: 認定済みでまだ見せていないもの。本人のホームでだけ出す（view-as では消費しない）
+  // 2026-10-22 A-5: 演出は級の取得時だけ（ふだんのスキル認定では出さない）
   type AchRow = { id: string; skill_id: string; status: string; celebrated_at?: string | null; praise_comment: string | null; certified_by: string | null; skills: { name: string; milestone_kind?: 'grade' | 'goal' | null; milestone_cert?: string | null } | null; certified_employee: { name: string; avatar_url: string | null } | null }
-  const uncelebrated = viewingAs ? [] : ((achievements ?? []) as unknown as AchRow[]).filter(a => a.status === 'certified' && !a.celebrated_at)
+  const uncelebrated = viewingAs ? [] : ((achievements ?? []) as unknown as AchRow[]).filter(a => a.status === 'certified' && !a.celebrated_at && a.skills?.milestone_kind === 'grade')
   const celebrationItems = uncelebrated.map(a => ({
     achievementId: a.id,
     skillName: a.skills?.name ?? 'スキル',
@@ -301,8 +302,6 @@ export default async function DashboardPage({
               preview: true,
               items: [
                 { achievementId: 'preview-1', skillName: '調理3級', milestoneKind: 'grade', milestoneCert: '調理３級', praise: 'ライス盛り、定量ぴったりで安定してきたね！毎回きちんと確認する姿勢が素晴らしい。次はスピードも意識して、ひとり調理に挑戦しよう。期待しています！', certifierName: '店長 太郎', certifierId: null, certifierAvatar: null },
-                { achievementId: 'preview-2', skillName: 'ひとり調理', milestoneKind: null, milestoneCert: null, praise: null, certifierName: '店長 太郎', certifierId: null, certifierAvatar: null },
-                { achievementId: 'preview-3', skillName: '厨房立ち上げ', milestoneKind: null, milestoneCert: null, praise: null, certifierName: '店長 太郎', certifierId: null, certifierAvatar: null },
               ],
               completedPhases: ['フェーズ２'],
             } : undefined
