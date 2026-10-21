@@ -5,6 +5,7 @@ import { sendMail } from '@/lib/notifications/email'
 import { sendLineMessage } from '@/lib/notifications/line'
 import { canApprove } from '@/lib/permissions'
 import { registerGradeCertification } from '@/lib/grade-registration'
+import { certifyScopeError } from '@/lib/approval-scope'
 
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -28,6 +29,8 @@ export async function POST(request: Request) {
   if (
     !Array.isArray(achievementIds) ||
     achievementIds.length === 0 ||
+    achievementIds.length > 500 ||
+    !achievementIds.every((x: unknown) => typeof x === 'string') ||
     !action ||
     !['certified', 'rejected'].includes(action)
   ) {
@@ -47,10 +50,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: '対象が見つかりません' }, { status: 404 })
   }
 
-  // 自己承認の禁止: 自分のスキル申請が混ざっていたら弾く（同一チームの他リーダー or 上長が承認する）
-  if (achievements.some(a => a.employee_id === certifier.id)) {
-    return NextResponse.json({ error: '自分のスキル申請は承認できません' }, { status: 403 })
-  }
+  // 自己承認の禁止と、担当の範囲（担当チームのメンバー・上の承認者として受け持つ店長）だけを処理できるかを確かめる
+  // 1件でも範囲外が混ざっていたら、まとめて止める（一部だけ処理されると、画面と食い違うため）
+  const scopeErr = await certifyScopeError(db, certifier, achievements)
+  if (scopeErr) return NextResponse.json({ error: scopeErr }, { status: 403 })
 
   const ids = achievements.map(a => a.id)
   const trimmedComment = comment?.trim() || null

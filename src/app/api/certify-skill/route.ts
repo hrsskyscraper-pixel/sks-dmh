@@ -5,6 +5,7 @@ import { sendMail } from '@/lib/notifications/email'
 import { sendLineMessage } from '@/lib/notifications/line'
 import { canApprove } from '@/lib/permissions'
 import { registerGradeCertification } from '@/lib/grade-registration'
+import { certifyScopeError } from '@/lib/approval-scope'
 
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -41,10 +42,9 @@ export async function POST(request: Request) {
     .single()
   if (!achievement) return NextResponse.json({ error: '対象が見つかりません' }, { status: 404 })
 
-  // 自己承認の禁止: 自分のスキル申請は自分で承認できない（同一チームの他リーダー or 上長が承認する）
-  if (achievement.employee_id === certifier.id) {
-    return NextResponse.json({ error: '自分のスキル申請は承認できません' }, { status: 403 })
-  }
+  // 自己承認の禁止と、担当の範囲（担当チームのメンバー・上の承認者として受け持つ店長）だけを処理できるかを確かめる
+  const scopeErr = await certifyScopeError(db, certifier, [achievement])
+  if (scopeErr) return NextResponse.json({ error: scopeErr }, { status: 403 })
 
   // 更新
   const { error: updateErr } = await db.from('achievements').update({
