@@ -75,7 +75,8 @@ export async function POST(request: Request) {
   }
   type AchStatus = (typeof fetched)[number]['status']
   const byStatus: Partial<Record<AchStatus, string[]>> = {}
-  for (const a of fetched) (byStatus[a.status] ??= []).push(a.id)
+  // すでに同じ状態のもの（古い画面から押し直したなど）は飛ばす。履歴・お知らせ・通知が二重にならないように
+  for (const a of fetched) if (a.status !== action) (byStatus[a.status] ??= []).push(a.id)
   const updatedIds = new Set<string>()
   for (const [status, group] of Object.entries(byStatus) as [AchStatus, string[]][]) {
     const { data: rows, error: updateErr } = await db.from('achievements').update(patch).in('id', group).eq('status', status).select('id')
@@ -187,5 +188,6 @@ export async function POST(request: Request) {
     }
   })
 
-  return NextResponse.json({ ok: true })
+  // 書けた件数を返す（ほかの方が先に処理した分は含まない）
+  return NextResponse.json({ ok: true, count: ids.length, skipped: fetched.length - ids.length })
 }

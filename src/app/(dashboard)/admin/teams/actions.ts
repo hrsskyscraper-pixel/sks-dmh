@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { canAdminister, isTrainingLeader } from '@/lib/permissions'
+import { notLeftFilter } from '@/lib/left'
 
 /**
  * チームのメンバー編集権限チェック（チーム単位）。
@@ -25,7 +26,7 @@ async function assertCanEditTeamMembers(teamId: string) {
   const { data: actor } = await db
     .from('employees')
     .select('id, name, role, system_permission')
-    .eq('auth_user_id', user.id)
+    .eq('auth_user_id', user.id).or(notLeftFilter())
     .single()
   if (!actor) return { error: '権限がありません' as const }
 

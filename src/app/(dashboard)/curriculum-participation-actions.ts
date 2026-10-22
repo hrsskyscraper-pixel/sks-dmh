@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { canAdminister } from '@/lib/permissions'
+import { notLeftFilter } from '@/lib/left'
 
 /**
  * 担当リーダーの「このカリキュラムで育成対象として参加する／しない」を切り替える。
@@ -24,7 +25,7 @@ export async function setCurriculumParticipation(
   const { data: me } = await db
     .from('employees')
     .select('id, role, system_permission')
-    .eq('auth_user_id', user.id)
+    .eq('auth_user_id', user.id).or(notLeftFilter())
     .eq('status', 'approved')
     .single()
   if (!me) return { error: 'ユーザー情報が取得できません' }

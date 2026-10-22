@@ -6,6 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { sendInvitationNotification } from '@/lib/notifications'
 import { canApprove, canAdminister } from '@/lib/permissions'
 import { createWelcomeAnnouncement } from '@/lib/announcements'
+import { notLeftFilter } from '@/lib/left'
 
 /**
  * 招待リンク発行（フェーズ2: 未アプリ参加者 or 誰でも受諾可能）
@@ -25,7 +26,7 @@ export async function createInvitationLink(params: {
   const { data: inviter } = await db
     .from('employees')
     .select('id, role, system_permission')
-    .eq('auth_user_id', user.id)
+    .eq('auth_user_id', user.id).or(notLeftFilter())
     .eq('status', 'approved')
     .single()
   if (!inviter || !canApprove(inviter)) {
@@ -69,7 +70,7 @@ export async function createInvitation(params: {
   const { data: inviter } = await db
     .from('employees')
     .select('id, name, role, system_permission')
-    .eq('auth_user_id', user.id)
+    .eq('auth_user_id', user.id).or(notLeftFilter())
     .eq('status', 'approved')
     .single()
   if (!inviter || !canApprove(inviter)) {
@@ -183,7 +184,7 @@ export async function acceptInvitation(
   const { data: me } = await db
     .from('employees')
     .select('id, name')
-    .eq('auth_user_id', user.id)
+    .eq('auth_user_id', user.id).or(notLeftFilter())
     .eq('status', 'approved')
     .single()
   if (!me) return { error: 'ユーザー情報が取得できません' }
@@ -298,7 +299,7 @@ export async function createSelfSelectInviteLink(params: {
   const { data: inviter } = await db
     .from('employees')
     .select('id, role, system_permission')
-    .eq('auth_user_id', user.id)
+    .eq('auth_user_id', user.id).or(notLeftFilter())
     .eq('status', 'approved')
     .single()
   if (!inviter || !canAdminister(inviter)) {
@@ -339,7 +340,7 @@ export async function listTeamShareLinks(teamId: string): Promise<{
   const { data: actor } = await db
     .from('employees')
     .select('id, role, system_permission')
-    .eq('auth_user_id', user.id)
+    .eq('auth_user_id', user.id).or(notLeftFilter())
     .eq('status', 'approved')
     .single()
   if (!actor || !canApprove(actor)) return { error: '権限がありません' }
@@ -387,7 +388,7 @@ export async function revokeInviteLink(invitationId: string): Promise<{ error?: 
   const { data: actor } = await db
     .from('employees')
     .select('id, role, system_permission')
-    .eq('auth_user_id', user.id)
+    .eq('auth_user_id', user.id).or(notLeftFilter())
     .eq('status', 'approved')
     .single()
   if (!actor) return { error: '権限がありません' }
@@ -438,7 +439,7 @@ export async function acceptSelfSelectInvitation(
   const { data: me } = await db
     .from('employees')
     .select('id, name')
-    .eq('auth_user_id', user.id)
+    .eq('auth_user_id', user.id).or(notLeftFilter())
     .eq('status', 'approved')
     .single()
   if (!me) return { error: 'ユーザー情報が取得できません' }

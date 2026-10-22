@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { canAdminister } from '@/lib/permissions'
 import { revalidatePath } from 'next/cache'
+import { notLeftFilter } from '@/lib/left'
 
 /**
  * 習得カリキュラム（skill_projects）の名称・説明を更新する。
@@ -25,7 +26,7 @@ export async function updateProject(
   const { data: me } = await db
     .from('employees')
     .select('id, role, system_permission')
-    .eq('auth_user_id', user.id)
+    .eq('auth_user_id', user.id).or(notLeftFilter())
     .eq('status', 'approved')
     .single()
   if (!me || !canAdminister(me)) return { error: '権限がありません' }

@@ -51,6 +51,10 @@ export async function POST(request: Request) {
   // 自己承認の禁止と、担当の範囲（担当チームのメンバー・上の承認者として受け持つ店長）だけを処理できるかを確かめる
   const scopeErr = await certifyScopeError(db, certifier, [achievement])
   if (scopeErr) return NextResponse.json({ error: scopeErr }, { status: 403 })
+  // すでに同じ状態（古い画面から押し直したなど）なら、何もしない。履歴・お知らせ・通知が二重にならないように
+  if (achievement.status === action) {
+    return NextResponse.json({ error: 'ほかの方がすでに処理しました。画面を更新してください' }, { status: 409 })
+  }
 
   // 更新。読んだときの状態のままのときだけ書く（2人が同時に押しても、処理・通知は1回だけ）
   const { data: updated, error: updateErr } = await db.from('achievements').update({

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { CheckCircle2, Clock, XCircle } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -66,6 +66,7 @@ export function TeamDashboard({ currentEmployee, employees, skills, achievements
   const initialTab = searchParams.get('tab') === 'pending' ? 'pending' : 'overview'
   const [achievements, setAchievements] = useState(initialAchievements)
   const [isPending, startTransition] = useTransition()
+  const router = useRouter()
   const [selectedAchievement, setSelectedAchievement] = useState<AchievementWithRelations | null>(null)
   const [certifyComment, setCertifyComment] = useState('')
   const [certifyPraise, setCertifyPraise] = useState('')
@@ -112,6 +113,8 @@ export function TeamDashboard({ currentEmployee, employees, skills, achievements
         const j = await res.json().catch(() => ({}))
         toast.error('認定に失敗しました（元に戻しました）', { description: j?.error })
         setAchievements(prev => prev.map(a => a.id === achievement.id ? achievement : a))
+        // ほかの方がすでに処理していた（409）ときは、最新の状態を読み直す
+        if (res.status === 409) router.refresh()
         return
       }
     })
@@ -142,6 +145,8 @@ export function TeamDashboard({ currentEmployee, employees, skills, achievements
         const j = await res.json().catch(() => ({}))
         toast.error('差し戻しに失敗しました（元に戻しました）', { description: j?.error })
         setAchievements(prev => prev.map(a => a.id === achievement.id ? achievement : a))
+        // ほかの方がすでに処理していた（409）ときは、最新の状態を読み直す
+        if (res.status === 409) router.refresh()
         return
       }
     })

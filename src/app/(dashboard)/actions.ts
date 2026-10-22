@@ -21,6 +21,7 @@ import { isLineNotificationsEnabled } from '@/lib/settings'
 import { buildMilestoneMap } from '@/lib/milestone'
 import { countOverdueSkills } from '@/lib/skill-progress'
 import type { Role, SystemPermission } from '@/types/database'
+import { notLeftFilter } from '@/lib/left'
 
 /**
  * ボトムナビ／通知ベルのバッジ系カウントをまとめて取得する。
@@ -273,7 +274,7 @@ export async function setFontScale(scale: number): Promise<{ error?: string }> {
   if (!user) return { error: '認証エラー' }
 
   const adminDb = createAdminClient()
-  const { error } = await adminDb.from('employees').update({ font_scale: scale }).eq('auth_user_id', user.id)
+  const { error } = await adminDb.from('employees').update({ font_scale: scale }).eq('auth_user_id', user.id).or(notLeftFilter())
   if (error) return { error: error.message }
 
   const cookieStore = await cookies()
@@ -298,7 +299,7 @@ export async function setEmployeeTest(employeeId: string, isTest: boolean): Prom
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '認証エラー' }
-  const { data: emp } = await supabase.from('employees').select('role, system_permission').eq('auth_user_id', user.id).single()
+  const { data: emp } = await supabase.from('employees').select('role, system_permission').eq('auth_user_id', user.id).or(notLeftFilter()).single()
   if (!emp || !canAdminister(emp)) return { error: '権限がありません' }
 
   const adminDb = createAdminClient()
@@ -314,7 +315,7 @@ export async function setTeamTest(teamId: string, isTest: boolean): Promise<{ er
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '認証エラー' }
-  const { data: emp } = await supabase.from('employees').select('role, system_permission').eq('auth_user_id', user.id).single()
+  const { data: emp } = await supabase.from('employees').select('role, system_permission').eq('auth_user_id', user.id).or(notLeftFilter()).single()
   if (!emp || !canAdminister(emp)) return { error: '権限がありません' }
 
   const adminDb = createAdminClient()
@@ -331,7 +332,7 @@ export async function updateEmployeeName(employeeId: string, newName: string): P
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '認証エラー' }
 
-  const { data: emp } = await supabase.from('employees').select('role, system_permission').eq('auth_user_id', user.id).single()
+  const { data: emp } = await supabase.from('employees').select('role, system_permission').eq('auth_user_id', user.id).or(notLeftFilter()).single()
   if (!emp || !canAdminister(emp)) return { error: '権限がありません' }
 
   const adminDb = createAdminClient()
@@ -350,7 +351,7 @@ export async function updateSkillCategory(skillId: string, newCategory: string):
   const { data: emp } = await supabase
     .from('employees')
     .select('role, system_permission')
-    .eq('auth_user_id', user.id)
+    .eq('auth_user_id', user.id).or(notLeftFilter())
     .single()
 
   if (!emp || !canAdminister(emp)) {
@@ -381,7 +382,7 @@ export async function markNotificationsRead(): Promise<{ error?: string }> {
   const { error } = await adminDb
     .from('employees')
     .update({ notifications_read_at: new Date().toISOString() })
-    .eq('auth_user_id', user.id)
+    .eq('auth_user_id', user.id).or(notLeftFilter())
 
   if (error) return { error: error.message }
   return {}
@@ -400,7 +401,7 @@ export async function addCareerRecord(data: {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '認証エラー' }
 
-  const { data: emp } = await supabase.from('employees').select('id, role, system_permission').eq('auth_user_id', user.id).single()
+  const { data: emp } = await supabase.from('employees').select('id, role, system_permission').eq('auth_user_id', user.id).or(notLeftFilter()).single()
   if (!emp) return { error: '権限がありません' }
   // 自分自身の「目標」記録は本人（メンバーを含む）も作成できる。
   // それ以外（他人の記録・目標以外の種別）はリーダー以上（canApprove）が必要。
@@ -429,7 +430,7 @@ export async function updateCareerRecord(recordId: string, employeeId: string, d
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '認証エラー' }
 
-  const { data: emp } = await supabase.from('employees').select('id, role, system_permission').eq('auth_user_id', user.id).single()
+  const { data: emp } = await supabase.from('employees').select('id, role, system_permission').eq('auth_user_id', user.id).or(notLeftFilter()).single()
   if (!emp) return { error: '権限がありません' }
 
   const adminDb = createAdminClient()
@@ -450,7 +451,7 @@ export async function deleteCareerRecord(recordId: string, employeeId: string): 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '認証エラー' }
 
-  const { data: emp } = await supabase.from('employees').select('id, role, system_permission').eq('auth_user_id', user.id).single()
+  const { data: emp } = await supabase.from('employees').select('id, role, system_permission').eq('auth_user_id', user.id).or(notLeftFilter()).single()
   if (!emp) return { error: '権限がありません' }
 
   const adminDb = createAdminClient()
@@ -485,7 +486,7 @@ export async function updateEmployeeProfile(employeeId: string, fields: {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '認証エラー' }
 
-  const { data: emp } = await supabase.from('employees').select('id, role, system_permission').eq('auth_user_id', user.id).single()
+  const { data: emp } = await supabase.from('employees').select('id, role, system_permission').eq('auth_user_id', user.id).or(notLeftFilter()).single()
   if (!emp) return { error: '権限がありません' }
   const isSelf = emp.id === employeeId
   if (!isSelf && !canApprove(emp)) return { error: '権限がありません' }
@@ -542,7 +543,7 @@ export async function updateSkillStandardHours(skillId: string, hours: number | 
   const { data: emp } = await supabase
     .from('employees')
     .select('role, system_permission')
-    .eq('auth_user_id', user.id)
+    .eq('auth_user_id', user.id).or(notLeftFilter())
     .single()
 
   if (!emp || !canAdminister(emp)) {
@@ -575,7 +576,7 @@ export async function updateSkillName(skillId: string, newName: string): Promise
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '認証エラー' }
 
-  const { data: emp } = await supabase.from('employees').select('role, system_permission').eq('auth_user_id', user.id).single()
+  const { data: emp } = await supabase.from('employees').select('role, system_permission').eq('auth_user_id', user.id).or(notLeftFilter()).single()
   if (!emp || !canAdminister(emp)) return { error: '権限がありません' }
 
   const adminDb = createAdminClient()
@@ -589,7 +590,7 @@ export async function createSkill(data: { name: string; category: string }): Pro
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '認証エラー' }
 
-  const { data: emp } = await supabase.from('employees').select('role, system_permission').eq('auth_user_id', user.id).single()
+  const { data: emp } = await supabase.from('employees').select('role, system_permission').eq('auth_user_id', user.id).or(notLeftFilter()).single()
   if (!emp || !canAdminister(emp)) return { error: '権限がありません' }
 
   const adminDb = createAdminClient()
@@ -654,7 +655,7 @@ export async function getSkillDeletionImpact(skillId: string): Promise<{ impact?
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '認証エラー' }
 
-  const { data: emp } = await supabase.from('employees').select('role, system_permission').eq('auth_user_id', user.id).single()
+  const { data: emp } = await supabase.from('employees').select('role, system_permission').eq('auth_user_id', user.id).or(notLeftFilter()).single()
   if (!emp || !canAdminister(emp)) return { error: '権限がありません' }
 
   return { impact: await loadSkillDeletionImpact(skillId) }
@@ -670,7 +671,7 @@ export async function deleteSkill(skillId: string, expectedRecords: number): Pro
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '認証エラー' }
 
-  const { data: emp } = await supabase.from('employees').select('id, role, system_permission').eq('auth_user_id', user.id).single()
+  const { data: emp } = await supabase.from('employees').select('id, role, system_permission').eq('auth_user_id', user.id).or(notLeftFilter()).single()
   if (!emp || !canAdminister(emp)) return { error: '権限がありません' }
 
   const impact = await loadSkillDeletionImpact(skillId)
@@ -697,7 +698,7 @@ export async function toggleSkillCheckpoint(skillId: string, isCheckpoint: boole
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '認証エラー' }
 
-  const { data: emp } = await supabase.from('employees').select('role, system_permission').eq('auth_user_id', user.id).single()
+  const { data: emp } = await supabase.from('employees').select('role, system_permission').eq('auth_user_id', user.id).or(notLeftFilter()).single()
   if (!emp || !canAdminister(emp)) return { error: '権限がありません' }
 
   const adminDb = createAdminClient()
@@ -719,10 +720,11 @@ export async function updateSkillMilestone(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '認証エラー' }
 
-  const { data: emp } = await supabase.from('employees').select('role, system_permission').eq('auth_user_id', user.id).single()
+  const { data: emp } = await supabase.from('employees').select('role, system_permission').eq('auth_user_id', user.id).or(notLeftFilter()).single()
   if (!emp || !canAdminister(emp)) return { error: '権限がありません' }
 
   const adminDb = createAdminClient()
+  const { data: prev } = await adminDb.from('skills').select('milestone_kind').eq('id', skillId).maybeSingle()
   const { error } = await adminDb
     .from('skills')
     .update({ milestone_kind: kind, milestone_cert: kind === 'grade' ? (cert?.trim() || null) : null })
@@ -732,7 +734,8 @@ export async function updateSkillMilestone(
     return { error: '設定できませんでした。時間をおいてもう一度お試しください' }
   }
   // あとから級にしたとき、設定より前の認定でお祝いの演出が出ないよう「見せた扱い」にする（演出は級の取得時だけ）
-  if (kind === 'grade') {
+  // （社内資格名を直しただけのときは触らない。直近の認定のお祝いを消さないように）
+  if (kind === 'grade' && prev?.milestone_kind !== 'grade') {
     await adminDb.from('achievements')
       .update({ celebrated_at: new Date().toISOString() })
       .eq('skill_id', skillId)

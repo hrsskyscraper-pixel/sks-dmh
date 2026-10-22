@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendMail } from '@/lib/notifications/email'
 import { sendLineMessages } from '@/lib/notifications/line'
+import { notLeftFilter } from '@/lib/left'
 
 /**
  * 習得カリキュラムのセットアップ依頼を、社内の運用管理者（system_permission='ops_admin'）に通知する。
@@ -18,7 +19,7 @@ export async function requestCurriculumSetup(
   if (!user) return { error: '未認証' }
 
   const db = createAdminClient()
-  const { data: me } = await db.from('employees').select('id, name').eq('auth_user_id', user.id).eq('status', 'approved').single()
+  const { data: me } = await db.from('employees').select('id, name').eq('auth_user_id', user.id).or(notLeftFilter()).eq('status', 'approved').single()
   if (!me) return { error: 'ユーザー情報が取得できません' }
 
   const { data: ops } = await db
