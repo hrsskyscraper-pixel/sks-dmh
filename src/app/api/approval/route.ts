@@ -5,6 +5,7 @@ import { sendApprovalNotification } from '@/lib/notifications'
 import { writeAuditLog } from '@/lib/audit'
 import { canAdminister, canApprove, permissionFromLegacyRole } from '@/lib/permissions'
 import { createWelcomeAnnouncement } from '@/lib/announcements'
+import { notLeftFilter } from '@/lib/left'
 
 // mate ロールは DB 上は employee + employment_type='メイト' として保存
 function resolveRole(role: string): { dbRole: string; employmentType: '社員' | 'メイト' } {
@@ -24,6 +25,7 @@ export async function POST(request: Request) {
     .from('employees')
     .select('id, role, system_permission')
     .eq('auth_user_id', user.id)
+    .or(notLeftFilter())
     .eq('status', 'approved')
     .single()
   if (!approver || !canApprove(approver)) {

@@ -22,10 +22,10 @@ export async function setRosterDeptAlias(rosterName: string, teamId: string | nu
     const { data: team } = await db.from('teams').select('id, type').eq('id', teamId).maybeSingle()
     if (!team || !['store', 'department'].includes(team.type)) return { error: '店舗または部署を選んでください' }
     const { error } = await db.from('roster_dept_aliases').upsert({ roster_name: key, team_id: teamId, created_by: me.id })
-    if (error) return { error: error.message }
+    if (error) { console.error('名簿の対応づけに失敗:', error.message); return { error: '保存できませんでした。時間をおいてもう一度お試しください' } }
   } else {
     const { error } = await db.from('roster_dept_aliases').delete().eq('roster_name', key)
-    if (error) return { error: error.message }
+    if (error) { console.error('名簿の対応づけに失敗:', error.message); return { error: '保存できませんでした。時間をおいてもう一度お試しください' } }
   }
   await writeAuditLog({ action: 'roster_dept_alias', actorId: me.id, details: { roster_name: rosterName, team_id: teamId } }).catch(() => {})
   revalidatePath('/admin/roster-check')

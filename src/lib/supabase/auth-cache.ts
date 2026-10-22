@@ -4,6 +4,7 @@ import { createClient } from './server'
 import { createAdminClient } from './admin'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
 import { canAdminister } from '@/lib/permissions'
+import { hasLeft } from '@/lib/left'
 
 /** 認証ユーザーの最小表現（getClaims のクレームから組み立てる） */
 export type AuthUser = {
@@ -38,13 +39,8 @@ export const getAuthUser = cache(async (): Promise<AuthUser | null> => {
 /** employees から取る列。本人と view-as 対象で必ず同じ形にする */
 const EMPLOYEE_COLUMNS = 'id, name, last_name, first_name, name_kana, email, role, business_role_ids, system_permission, employment_type, hire_date, left_at, birth_date, avatar_url, instagram_url, line_url, status, requested_team_id, requested_project_team_id, line_user_id, line_friend, approved_by, approved_at, invited_by, invitation_id, notifications_read_at, font_scale, intro_dismissed_at, is_test, auth_user_id, created_at, updated_at'
 
-/**
- * ログインしている本人。**view-as 中でも入れ替わらない。**
- *
- * 書き込み・権限チェック・監査ログは必ずこちらを使う。
- * 「誰の画面を描くか」は getCurrentEmployee（view-as が効く）。
- */
-export const getRealEmployee = cache(async () => {
+/** ログインしている本人の行（退職日を迎えた人も含む）。退職の案内を出す入口（layout）だけで使う */
+export const getRealEmployeeRow = cache(async () => {
   const supabase = await createClient()
   const user = await getAuthUser()
   if (!user) return null
@@ -56,6 +52,17 @@ export const getRealEmployee = cache(async () => {
     .single()
 
   return data
+})
+
+/**
+ * ログインしている本人。**view-as 中でも入れ替わらない。**退職日を迎えた人は null（どの画面・操作も通さない）。
+ *
+ * 書き込み・権限チェック・監査ログは必ずこちらを使う。
+ * 「誰の画面を描くか」は getCurrentEmployee（view-as が効く）。
+ */
+export const getRealEmployee = cache(async () => {
+  const row = await getRealEmployeeRow()
+  return row && !hasLeft(row.left_at) ? row : null
 })
 
 export type ViewAsContext = {

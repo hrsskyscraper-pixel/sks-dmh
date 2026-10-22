@@ -6,6 +6,7 @@ import { sendLineMessage } from '@/lib/notifications/line'
 import { canApprove } from '@/lib/permissions'
 import { registerGradeCertification } from '@/lib/grade-registration'
 import { certifyScopeError } from '@/lib/approval-scope'
+import { notLeftFilter } from '@/lib/left'
 
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -19,6 +20,7 @@ export async function POST(request: Request) {
     .from('employees')
     .select('id, name, role, system_permission')
     .eq('auth_user_id', user.id)
+    .or(notLeftFilter())
     .single()
   if (!certifier || !canApprove(certifier)) {
     return NextResponse.json({ error: '権限がありません' }, { status: 403 })
@@ -28,6 +30,10 @@ export async function POST(request: Request) {
   const praiseText: string | null = action === 'certified' && typeof praise === 'string' && praise.trim() ? praise.trim() : null
   if (!achievementId || !action || !['certified', 'rejected'].includes(action)) {
     return NextResponse.json({ error: '不正なリクエスト' }, { status: 400 })
+  }
+  // 一言・コメントの長さに上限（公開のお知らせ・LINE の文字数を超えないように）
+  if ((typeof comment === 'string' && comment.length > 1000) || (typeof praise === 'string' && praise.length > 1000)) {
+    return NextResponse.json({ error: 'コメント・一言は1000文字以内にしてください' }, { status: 400 })
   }
   // 差し戻し（rejected）は理由コメントを必須にする（本人に理由を伝えるため）
   if (action === 'rejected' && !comment?.trim()) {
@@ -46,17 +52,23 @@ export async function POST(request: Request) {
   const scopeErr = await certifyScopeError(db, certifier, [achievement])
   if (scopeErr) return NextResponse.json({ error: scopeErr }, { status: 403 })
 
-  // 更新
-  const { error: updateErr } = await db.from('achievements').update({
+  // 更新。読んだときの状態のままのときだけ書く（2人が同時に押しても、処理・通知は1回だけ）
+  const { data: updated, error: updateErr } = await db.from('achievements').update({
     status: action,
     certified_by: certifier.id,
     certified_at: new Date().toISOString(),
     certify_comment: comment?.trim() || null,
     praise_comment: praiseText,
     is_read: false,
-  }).eq('id', achievementId)
+  }).eq('id', achievementId).eq('status', achievement.status).select('id')
 
-  if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
+  if (updateErr) {
+    console.error('スキル認定の更新に失敗:', updateErr.message)
+    return NextResponse.json({ error: '更新できませんでした。時間をおいてもう一度お試しください' }, { status: 500 })
+  }
+  if (!updated || updated.length === 0) {
+    return NextResponse.json({ error: 'ほかの方がすでに処理しました。画面を更新してください' }, { status: 409 })
+  }
 
   // 履歴記録
   await db.from('achievement_history').insert({

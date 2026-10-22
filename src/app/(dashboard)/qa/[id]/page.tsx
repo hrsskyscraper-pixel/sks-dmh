@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
+import { getCurrentEmployee, getRealEmployee } from '@/lib/supabase/auth-cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { TopBar } from '@/components/layout/nav'
 import { Card, CardContent } from '@/components/ui/card'
@@ -37,7 +37,9 @@ export default async function QaDetailPage({ params }: { params: Promise<{ id: s
     db.from('qa_answers').select('*').eq('question_id', id).order('created_at', { ascending: true }),
     getQaModeratorIds(),
   ])
-  const canModerate = canModerateQa(me, moderatorIds)
+  // 非表示にできるかは本人で判定する（view-as で非表示にできる人になりすまして中身を読めないように）
+  const real = await getRealEmployee()
+  const canModerate = !!real && canModerateQa(real, moderatorIds)
   // 非表示の質問・回答は、非表示にできる人にだけ見せる（ほかの人には「見つかりませんでした」）
   const q = qData && (canModerate || !(qData as QaQuestionRow).hidden_at) ? (qData as QaQuestionRow) : null
   const answers = ((aData ?? []) as QaAnswerRow[]).filter(a => canModerate || !a.hidden_at)
@@ -145,7 +147,8 @@ export default async function QaDetailPage({ params }: { params: Promise<{ id: s
           )}
         </section>
 
-        <AnswerForm questionId={q.id} status={q.status} canResolve={canResolveQuestion(me, q)} />
+        {/* 非表示中の質問には回答できない（API も 404 を返す） */}
+        {!q.hidden_at && <AnswerForm questionId={q.id} status={q.status} canResolve={canResolveQuestion(me, q)} />}
       </div>
     </>
   )

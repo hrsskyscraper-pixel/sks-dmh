@@ -277,10 +277,12 @@ export async function ensureDailyReportAnnouncement(
   }
 
   const expires = new Date(now.getTime() + 2 * 24 * 3600 * 1000) // 本日のお知らせには約2日間表示
-  try {
-    await db.from('announcements').insert({ kind: 'daily', period, title, body, expires_at: expires.toISOString(), payload })
-    return { posted: true, period }
-  } catch {
+  // supabase-js は例外を投げず error を返す。一意制約で弾かれた（＝すでに投稿済み）ときは posted: false にして、
+  // 同時に呼ばれてもリマインドが二重に送られないようにする
+  const { error } = await db.from('announcements').insert({ kind: 'daily', period, title, body, expires_at: expires.toISOString(), payload })
+  if (error) {
+    if (error.code !== '23505') console.error('デイリーレポートの投稿に失敗:', error.message)
     return { posted: false, period }
   }
+  return { posted: true, period }
 }

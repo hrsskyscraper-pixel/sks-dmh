@@ -62,7 +62,8 @@ export async function getRosterCheck(db: SupabaseClient, excludedIds: Set<string
     ;(mbTeamsOf.get(m.employee_id) ?? mbTeamsOf.set(m.employee_id, []).get(m.employee_id)!).push(t)
   }
 
-  const today = now.toISOString().slice(0, 10)
+  // 退職日の区切りは JST（UTC だと 0〜9 時に1日ずれる）
+  const today = new Date(now.getTime() + 9 * 3600 * 1000).toISOString().slice(0, 10)
   const items: RosterMismatch[] = []
   const unknown = new Map<string, number>()
   let checked = 0

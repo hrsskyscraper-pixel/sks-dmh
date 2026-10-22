@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { normalizeCertName } from '@/lib/milestones'
+import { todayJst } from '@/lib/left'
 
 /**
  * 級の行（milestone_cert を持つスキル）が認定されたときの自動処理。
@@ -37,7 +38,7 @@ export async function registerGradeCertification(
     employee_id: employeeId,
     record_type: '資格',
     department,
-    occurred_at: now.toISOString().split('T')[0],
+    occurred_at: todayJst(),
     created_by: actorId,
   })
   await db.from('announcements').insert({

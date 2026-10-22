@@ -72,7 +72,8 @@ export function computeMilestones(
     const key = sortKey(m)
     const phaseId = skillPhaseMap[m.id] ?? null
     const prereq = m.milestone_kind === 'goal'
-      ? inCurriculum.filter(s => s.id !== m.id)
+      // ほかのゴールは前提に入れない（ゴールが2つあると互いに待ち合うため）
+      ? inCurriculum.filter(s => s.id !== m.id && s.milestone_kind !== 'goal')
       : phaseId
         // 同じフェーズにほかの級・ゴールがあっても前提に入れない（互いに待ち合って、どちらも申請できなくなるため）
         ? inCurriculum.filter(s => s.id !== m.id && skillPhaseMap[s.id] === phaseId && !s.milestone_kind)

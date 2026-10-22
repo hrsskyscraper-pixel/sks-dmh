@@ -14,8 +14,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (status !== 'open' && status !== 'resolved') return NextResponse.json({ error: '不正な状態です' }, { status: 400 })
 
   const db = createAdminClient()
-  const { data: q } = await db.from('qa_questions').select('id, asker_id').eq('id', id).maybeSingle()
-  if (!q) return NextResponse.json({ error: '質問が見つかりません' }, { status: 404 })
+  const { data: q } = await db.from('qa_questions').select('id, asker_id, hidden_at').eq('id', id).maybeSingle()
+  // 非表示の質問は、解決済みの切り替えもできない
+  if (!q || q.hidden_at) return NextResponse.json({ error: '質問が見つかりません' }, { status: 404 })
   if (!canResolveQuestion(me, q)) return NextResponse.json({ error: '解決済みにできるのは、質問した本人と運営チームです' }, { status: 403 })
 
   const now = new Date().toISOString()
@@ -25,6 +26,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       ? { status, resolved_at: now, resolved_by: me.id, updated_at: now }
       : { status, resolved_at: null, resolved_by: null, updated_at: now })
     .eq('id', q.id)
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('Q&A 状態の更新に失敗:', error.message)
+    return NextResponse.json({ error: '更新できませんでした。時間をおいてもう一度お試しください' }, { status: 500 })
+  }
   return NextResponse.json({ ok: true })
 }

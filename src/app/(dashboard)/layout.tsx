@@ -1,7 +1,8 @@
 export const dynamic = 'force-dynamic'
 
 import { redirect } from 'next/navigation'
-import { getAuthUser, getViewAsContext } from '@/lib/supabase/auth-cache'
+import { getAuthUser, getRealEmployeeRow, getViewAsContext } from '@/lib/supabase/auth-cache'
+import { hasLeft } from '@/lib/left'
 import { BottomNav } from '@/components/layout/nav'
 import { Toaster } from '@/components/ui/sonner'
 import { ViewAsBanner } from '@/components/layout/view-as-banner'
@@ -38,15 +39,13 @@ export default async function DashboardLayout({
   // 初回登録は招待リンク経由のみ。レコードが無い＝未招待のログイン → アプリには入れない。
   // （招待リンクを開くと invite/[id] 側で承認待ちレコードが作成される）
   if (!employeeRaw) {
+    // 退職日を過ぎたアカウントは使えない（2026-09-20 決定。退職時にアカウント停止と一緒に記録する運用）。
+    // getRealEmployee は退職者を null にするので、行そのものを見て案内を出し分ける
+    const row = await getRealEmployeeRow()
+    if (row?.left_at && hasLeft(row.left_at)) return <LeftScreen leftAt={row.left_at} />
     return <InviteRequiredScreen email={user.email ?? ''} />
   }
   let employee = employeeRaw
-
-  // 退職日を過ぎたアカウントは使えない（2026-09-20 決定。退職時にアカウント停止と一緒に記録する運用）
-  const todayJst = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10)
-  if (employee.left_at && employee.left_at <= todayJst) {
-    return <LeftScreen leftAt={employee.left_at} />
-  }
 
   // 既存ユーザーでavatar_url未設定の場合、Googleの写真を自動設定
   if (!employee.avatar_url && user.user_metadata.avatar_url) {

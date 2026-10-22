@@ -727,7 +727,18 @@ export async function updateSkillMilestone(
     .from('skills')
     .update({ milestone_kind: kind, milestone_cert: kind === 'grade' ? (cert?.trim() || null) : null })
     .eq('id', skillId)
-  if (error) return { error: error.message }
+  if (error) {
+    console.error('級／ゴールの設定に失敗:', error.message)
+    return { error: '設定できませんでした。時間をおいてもう一度お試しください' }
+  }
+  // あとから級にしたとき、設定より前の認定でお祝いの演出が出ないよう「見せた扱い」にする（演出は級の取得時だけ）
+  if (kind === 'grade') {
+    await adminDb.from('achievements')
+      .update({ celebrated_at: new Date().toISOString() })
+      .eq('skill_id', skillId)
+      .eq('status', 'certified')
+      .is('celebrated_at', null)
+  }
   return {}
 }
 

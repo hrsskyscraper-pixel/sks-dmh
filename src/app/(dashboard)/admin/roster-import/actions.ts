@@ -32,8 +32,18 @@ export async function applyRosterUpdates(updates: RosterUpdate[]): Promise<{ app
 
   const db = createAdminClient()
   const ids = updates.map(u => u.employeeId)
-  const { data: before } = await db.from('employees').select('id, name, hire_date, left_at, employment_type, employee_number, name_kana, roster_dept').in('id', ids)
-  const beforeById = Object.fromEntries((before ?? []).map(e => [e.id, e]))
+  // 取得は100件ずつ（.in の ID 列が URL に入るため、1000件まとめると長さの上限に当たる）
+  type Before = { id: string; name: string; hire_date: string | null; left_at: string | null; employment_type: string; employee_number: string | null; name_kana: string | null; roster_dept: string | null }
+  const before: Before[] = []
+  for (let i = 0; i < ids.length; i += 100) {
+    const { data, error } = await db.from('employees').select('id, name, hire_date, left_at, employment_type, employee_number, name_kana, roster_dept').in('id', ids.slice(i, i + 100))
+    if (error) {
+      console.error('名簿取込の照合に失敗:', error.message)
+      return { applied: 0, error: '社員の情報を読めませんでした。時間をおいてもう一度お試しください' }
+    }
+    before.push(...((data ?? []) as Before[]))
+  }
+  const beforeById = Object.fromEntries(before.map(e => [e.id, e]))
 
   let applied = 0
   for (const u of updates) {
@@ -48,7 +58,11 @@ export async function applyRosterUpdates(updates: RosterUpdate[]): Promise<{ app
     if (u.rosterDept && u.rosterDept !== (b.roster_dept ?? null)) { patch.roster_dept = u.rosterDept; patch.roster_dept_at = new Date().toISOString() }
     if (Object.keys(patch).length === 0) continue
     const { error } = await db.from('employees').update(patch).eq('id', u.employeeId)
-    if (error) return { applied, error: `${b.name}: ${error.message}` }
+    if (error) {
+      console.error('名簿取込の更新に失敗:', error.message)
+      const dup = error.code === '23505'
+      return { applied, error: `${b.name} さんの行で止まりました（${applied}件は反映済み）。${dup ? '社員番号がほかの方と重なっています。' : '時間をおいてもう一度お試しください。'}` }
+    }
     applied++
     await writeAuditLog({
       action: 'roster_import',

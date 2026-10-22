@@ -17,25 +17,7 @@ ALTER TABLE public.skills
 COMMENT ON COLUMN public.skills.milestone_kind IS '級（grade: 同区分の手前を数える）／全体ゴール（goal）／NULL=通常';
 COMMENT ON COLUMN public.skills.milestone_cert IS '認定時に自動登録する社内資格名（certifications.name）。NULL は到達表示のみ';
 
--- ---------- ライジング_CoCo壱_v1.0 の初期設定（できました表 新卒 が元） ----------
--- カリキュラムに紐づくスキルだけを名前で更新する（他カリキュラムの同名スキルは触らない）。冪等。
-WITH target AS (
-  SELECT ps.skill_id
-  FROM public.project_skills ps
-  JOIN public.skill_projects p ON p.id = ps.project_id
-  WHERE p.name = 'ライジング_CoCo壱_v1.0'
-)
-UPDATE public.skills s
-SET milestone_kind = v.kind,
-    milestone_cert = v.cert
-FROM (VALUES
-  ('研修卒業テスト', 'grade', NULL),
-  ('接客３級取得',   'grade', '接客３級'),
-  ('接客２級',       'grade', '接客２級'),
-  ('調理3級',        'grade', '調理３級'),
-  ('プレ審査',       'grade', NULL),
-  ('調理2級',        'grade', '調理２級'),
-  ('新卒運営',       'goal',  NULL)
-) AS v(name, kind, cert)
-WHERE s.name = v.name
-  AND s.id IN (SELECT skill_id FROM target);
+-- ---------- 初期設定は入れない（2026-10-22） ----------
+-- 当初はライジング_CoCo壱_v1.0 に 9/20 版の級設定を UPDATE で入れていたが、原島さんが本番で
+-- フェーズ＝級に作り直したため外した。級／ゴールは原島さんが本番の習得カリキュラム管理で設定する。
+-- （ステージングには 9/20 版の設定が入ったまま。本番へ流すのは列の追加だけ）

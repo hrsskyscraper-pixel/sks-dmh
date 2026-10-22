@@ -127,9 +127,11 @@ export default async function EmployeeDetailPage({ params, searchParams }: { par
 
   // メールアドレスと生年月日は本人とシステム管理者にのみ表示（個人情報保護）。
   // 他のメンバーが見るときは空にする（全社閲覧に広げても、機微な項目の見え方は変えない）。
+  // LINE の内部ID は画面では「連携済みか」しか使わないので、値そのものはブラウザへ渡さない
+  const lineLinked = employee.line_user_id ? 'linked' : null
   const employeeForCard = canViewEmail(currentEmployee, employee.id)
-    ? employee
-    : { ...employee, email: '', birth_date: null }
+    ? { ...employee, line_user_id: lineLinked }
+    : { ...employee, email: '', birth_date: null, line_user_id: lineLinked }
 
   return (
     <>

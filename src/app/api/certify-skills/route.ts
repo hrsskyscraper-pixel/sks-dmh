@@ -6,6 +6,7 @@ import { sendLineMessage } from '@/lib/notifications/line'
 import { canApprove } from '@/lib/permissions'
 import { registerGradeCertification } from '@/lib/grade-registration'
 import { certifyScopeError } from '@/lib/approval-scope'
+import { notLeftFilter } from '@/lib/left'
 
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -19,6 +20,7 @@ export async function POST(request: Request) {
     .from('employees')
     .select('id, name, role, system_permission')
     .eq('auth_user_id', user.id)
+    .or(notLeftFilter())
     .single()
   if (!certifier || !canApprove(certifier)) {
     return NextResponse.json({ error: '権限がありません' }, { status: 403 })
@@ -36,39 +38,59 @@ export async function POST(request: Request) {
   ) {
     return NextResponse.json({ error: '不正なリクエスト' }, { status: 400 })
   }
+  // 一言・コメントの長さに上限（公開のお知らせ・LINE の文字数を超えないように）
+  if ((typeof comment === 'string' && comment.length > 1000) || (typeof praise === 'string' && praise.length > 1000)) {
+    return NextResponse.json({ error: 'コメント・一言は1000文字以内にしてください' }, { status: 400 })
+  }
   // 差し戻し（rejected）は理由コメントを必須にする（本人に理由を伝えるため）
   if (action === 'rejected' && !comment?.trim()) {
     return NextResponse.json({ error: '差し戻しの場合はコメント（理由）が必須です' }, { status: 400 })
   }
 
   // 対象の achievement を取得（スキル名 + 申請者を結合）
-  const { data: achievements } = await db
+  const { data: fetched } = await db
     .from('achievements')
     .select('id, employee_id, skill_id, status, skills(name, milestone_kind, milestone_cert), employees!achievements_employee_id_fkey(name, email, line_user_id)')
     .in('id', achievementIds)
-  if (!achievements || achievements.length === 0) {
+  if (!fetched || fetched.length === 0) {
     return NextResponse.json({ error: '対象が見つかりません' }, { status: 404 })
   }
 
   // 自己承認の禁止と、担当の範囲（担当チームのメンバー・上の承認者として受け持つ店長）だけを処理できるかを確かめる
   // 1件でも範囲外が混ざっていたら、まとめて止める（一部だけ処理されると、画面と食い違うため）
-  const scopeErr = await certifyScopeError(db, certifier, achievements)
+  const scopeErr = await certifyScopeError(db, certifier, fetched)
   if (scopeErr) return NextResponse.json({ error: scopeErr }, { status: 403 })
 
-  const ids = achievements.map(a => a.id)
   const trimmedComment = comment?.trim() || null
 
-  // 一括更新
-  const { error: updateErr } = await db.from('achievements').update({
+  // 一括更新。読んだときの状態のままの行だけを書く（2人が同時に押しても、処理・通知は1回だけ）。
+  // 管理者は申請中以外も扱えるので、読んだ状態ごとに分けて更新する
+  const patch = {
     status: action,
     certified_by: certifier.id,
     certified_at: new Date().toISOString(),
     certify_comment: trimmedComment,
     praise_comment: praiseText,
     is_read: false,
-  }).in('id', ids)
-
-  if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
+  }
+  type AchStatus = (typeof fetched)[number]['status']
+  const byStatus: Partial<Record<AchStatus, string[]>> = {}
+  for (const a of fetched) (byStatus[a.status] ??= []).push(a.id)
+  const updatedIds = new Set<string>()
+  for (const [status, group] of Object.entries(byStatus) as [AchStatus, string[]][]) {
+    const { data: rows, error: updateErr } = await db.from('achievements').update(patch).in('id', group).eq('status', status).select('id')
+    if (updateErr) {
+      console.error('スキル認定の一括更新に失敗:', updateErr.message)
+      return NextResponse.json({ error: '更新できませんでした。時間をおいてもう一度お試しください' }, { status: 500 })
+    }
+    for (const r of rows ?? []) updatedIds.add(r.id)
+  }
+  // 後の処理（履歴・一言・社内資格・通知）は、実際に書けた行だけ
+  const achievements = fetched.filter(a => updatedIds.has(a.id))
+  if (achievements.length === 0) {
+    return NextResponse.json({ error: 'ほかの方がすでに処理しました。画面を更新してください' }, { status: 409 })
+  }
+  const ids = achievements.map(a => a.id)
 
   // 履歴記録（各件）
   const historyAction: 'certify' | 'reject' = action === 'certified' ? 'certify' : 'reject'

@@ -191,10 +191,12 @@ export async function acceptInvitation(
   // 招待取得
   const { data: inv } = await db
     .from('team_invitations')
-    .select('id, team_id, project_team_id, target_employee_id, expires_at, used_at, used_by, as_manager')
+    .select('id, team_id, project_team_id, target_employee_id, expires_at, used_at, used_by, as_manager, revoked_at')
     .eq('id', invitationId)
     .single()
   if (!inv) return { error: '招待が見つかりません' }
+  // 取り消した招待リンクでは参加できない（画面だけでなく、ここでも止める）
+  if (inv.revoked_at) return { error: 'この招待は取り消されています' }
   // 単発で失効するのは特定メンバー宛の個別招待のみ。
   // チーム共有リンク（宛先未指定）は複数人が使える再利用リンクなので used_at では弾かない。
   // 参加が済んだ個別招待だけを「使用済み」にする（used_by で判定。used_at だけの行は旧実装の「開いた記録」）

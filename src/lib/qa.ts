@@ -58,3 +58,6 @@ export function canModerateQa(me: EmpLike, moderatorIds: string[]): boolean {
 
 export const QA_TITLE_MAX = 120
 export const QA_BODY_MAX = 4000
+/** 1人あたりの投稿の上限（直近1時間）。運営チームへの通知（休止中も届く）を外から食わせないため */
+export const QA_QUESTIONS_PER_HOUR = 5
+export const QA_ANSWERS_PER_HOUR = 20

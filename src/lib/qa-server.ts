@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import type { Role, SystemPermission } from '@/types/database'
+import { notLeftFilter } from '@/lib/left'
 
 export type ApiMe = { id: string; name: string; role: Role; system_permission: SystemPermission | null }
 
@@ -18,6 +19,7 @@ export async function requireApprovedEmployee(): Promise<{ me: ApiMe } | { error
     .from('employees')
     .select('id, name, role, system_permission')
     .eq('auth_user_id', user.id)
+    .or(notLeftFilter())
     .eq('status', 'approved')
     .maybeSingle()
   if (!me) return { error: NextResponse.json({ error: '権限がありません' }, { status: 403 }) }

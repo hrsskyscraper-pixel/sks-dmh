@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
+import { getRealEmployee } from '@/lib/supabase/auth-cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 /**
@@ -18,7 +18,8 @@ export async function recheckLineFriendship(): Promise<
   | { ok: true; friend: boolean }
   | { ok: false; error: string }
 > {
-  const employee = await getCurrentEmployee()
+  // 書き込みなので view-as では入れ替えない（相手の line_friend を書き換えない）
+  const employee = await getRealEmployee()
   if (!employee) return { ok: false, error: 'ログインが必要です' }
   if (!employee.line_user_id) {
     return { ok: false, error: 'LINE連携が完了していません。先に「LINE連携で通知を受け取る」から連携してください。' }

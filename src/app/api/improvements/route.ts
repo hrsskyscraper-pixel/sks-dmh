@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { notifyImprovementSubmitted } from '@/lib/notifications/improvement'
 import { CATEGORY_OPTIONS } from '@/lib/improvements'
+import { notLeftFilter } from '@/lib/left'
 
 // 改善提案の新規申請。ログイン済み（承認済み）ユーザーなら誰でも可能。
 export async function POST(request: Request) {
@@ -15,6 +16,7 @@ export async function POST(request: Request) {
     .from('employees')
     .select('id')
     .eq('auth_user_id', user.id)
+    .or(notLeftFilter())
     .eq('status', 'approved')
     .maybeSingle()
   if (!me) return NextResponse.json({ error: '権限がありません' }, { status: 403 })

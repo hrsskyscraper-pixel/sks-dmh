@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
+import { getCurrentEmployee, getRealEmployee } from '@/lib/supabase/auth-cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { TopBar } from '@/components/layout/nav'
 import { Card, CardContent } from '@/components/ui/card'
@@ -39,7 +39,9 @@ export default async function QaPage() {
     getQaModeratorIds(),
   ])
   // 運営が非表示にした質問は、非表示にできる人にだけ「非表示中」として見せる
-  const canModerate = canModerateQa(me, moderatorIds)
+  // 非表示にできるかは本人で判定する（view-as で非表示にできる人になりすまして中身を読めないように）
+  const real = await getRealEmployee()
+  const canModerate = !!real && canModerateQa(real, moderatorIds)
   const questions = ((data ?? []) as QaQuestionRow[]).filter(q => canModerate || !q.hidden_at)
 
   const askerIds = [...new Set(questions.map(q => q.asker_id))]

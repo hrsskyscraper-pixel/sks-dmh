@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { getExecRoleId, isDevEmp, isExecEmp, isOpsEmp } from '@/lib/improvements'
+import { notLeftFilter } from '@/lib/left'
 import {
   notifyImprovementOpsApproved,
   notifyImprovementOpsRejected,
@@ -26,6 +27,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     .from('employees')
     .select('id, role, system_permission, business_role_ids')
     .eq('auth_user_id', user.id)
+    .or(notLeftFilter())
     .eq('status', 'approved')
     .maybeSingle()
   if (!me) return NextResponse.json({ error: '権限がありません' }, { status: 403 })
