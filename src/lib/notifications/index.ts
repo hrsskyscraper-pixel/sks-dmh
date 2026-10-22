@@ -163,7 +163,7 @@ export async function sendInvitationNotification({
   teamName,
   projectTeamName,
   customMessage,
-}: InvitationParams) {
+}: InvitationParams): Promise<{ mail: SendResult; line: { ok: boolean; skipped?: boolean; error?: string } | null }> {
   const systemUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://sks-dmh.vercel.app'
   const inviteUrl = `${systemUrl}/invite/${invitationId}`
 
@@ -190,6 +190,7 @@ export async function sendInvitationNotification({
   })
   await logMail('invitation', target.email, inviteSubject, rMail)
 
+  let rLineResult: { ok: boolean; skipped?: boolean; error?: string } | null = null
   if (target.line_user_id) {
     const lineLines = [
       `【チーム参加依頼】`,
@@ -204,7 +205,9 @@ export async function sendInvitationNotification({
     lineLines.push('', `▼参加する\n${inviteUrl}`)
     const rLine = await sendLineMessage(target.line_user_id, lineLines.join('\n'))
     await logLine('invitation', 'チーム参加依頼', [{ lineUserId: target.line_user_id, result: rLine }])
+    rLineResult = rLine
   }
+  return { mail: rMail, line: rLineResult }
 }
 
 /**

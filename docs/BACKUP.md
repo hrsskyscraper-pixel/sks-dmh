@@ -117,6 +117,21 @@ Actions タブで実行履歴を確認できます。
 
 ---
 
+## 🧪 復元テスト（ステージングへの復元）
+
+2026-09-20 から、**ステージング DB は本番の最新バックアップをマスクして復元したもの**にしています。
+これは日々の「復元テスト」でもあります（GitHub Actions の `Backup Restore Test` は使い捨て Postgres への
+復元と行数検証まで。ステージングへの復元は、その上で実際にアプリが動くところまで確かめられます）。
+
+```bash
+scripts/staging-refresh.sh                         # 最新のダンプで作り直す
+scripts/staging-refresh.sh db-20260919-202746.dump.enc   # 特定のダンプ
+```
+
+途中で **パスフレーズ**（`BACKUP_PASSPHRASE` と同じ値）と、復元の最終確認 `yes` を聞かれます。
+スクリプトの流れ・マスクの内容は `scripts/staging-refresh.sh` 冒頭のコメントと
+`scripts/staging-refresh-post.sql` を参照。復元されないもの（auth・storage）への対処も同スクリプトで行います。
+
 ## 🚨 復元手順
 
 ### シナリオ1: 誤削除（特定のテーブルだけ戻したい）

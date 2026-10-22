@@ -19,6 +19,14 @@ export type Database = {
           name_kana: string | null
           email: string
           hire_date: string | null
+          /** 退職日（migration 20260920000300）。NULL＝在籍中 */
+          left_at?: string | null
+          /** 社員番号（migration 20260920000600） */
+          employee_number?: string | null
+          roster_dept?: string | null
+          roster_dept_at?: string | null
+          /** 最終利用日時（migration 20260920000300） */
+          last_login_at?: string | null
           birth_date: string | null
           role: 'employee' | 'store_manager' | 'manager' | 'admin' | 'ops_manager' | 'executive' | 'testuser'
           business_role_ids: string[]
@@ -52,6 +60,11 @@ export type Database = {
           name_kana?: string | null
           email: string
           hire_date?: string | null
+          left_at?: string | null
+          last_login_at?: string | null
+          employee_number?: string | null
+          roster_dept?: string | null
+          roster_dept_at?: string | null
           birth_date?: string | null
           role?: 'employee' | 'store_manager' | 'manager' | 'admin' | 'ops_manager' | 'executive' | 'testuser'
           business_role_ids?: string[]
@@ -85,6 +98,11 @@ export type Database = {
           name_kana?: string | null
           email?: string
           hire_date?: string | null
+          left_at?: string | null
+          last_login_at?: string | null
+          employee_number?: string | null
+          roster_dept?: string | null
+          roster_dept_at?: string | null
           birth_date?: string | null
           role?: 'employee' | 'store_manager' | 'manager' | 'admin' | 'ops_manager' | 'executive' | 'testuser'
           business_role_ids?: string[]
@@ -713,6 +731,10 @@ export type Database = {
           standard_hours: number | null
           is_checkpoint: boolean
           created_at: string
+          /** 'grade'=級（同区分の手前を数える）/ 'goal'=全体ゴール / null=通常 */
+          milestone_kind: 'grade' | 'goal' | null
+          /** 認定時に自動登録する社内資格名（null は到達表示のみ） */
+          milestone_cert: string | null
         }
         Insert: {
           id?: string
@@ -724,6 +746,8 @@ export type Database = {
           standard_hours?: number | null
           is_checkpoint?: boolean
           created_at?: string
+          milestone_kind?: 'grade' | 'goal' | null
+          milestone_cert?: string | null
         }
         Update: {
           id?: string
@@ -735,6 +759,8 @@ export type Database = {
           standard_hours?: number | null
           is_checkpoint?: boolean
           created_at?: string
+          milestone_kind?: 'grade' | 'goal' | null
+          milestone_cert?: string | null
         }
         Relationships: []
       }
@@ -751,9 +777,12 @@ export type Database = {
           notes: string | null
           apply_comment: string | null
           certify_comment: string | null
+          praise_comment: string | null
           is_read: boolean
           photo_paths: string[]
           created_at: string
+          /** 認定の演出を本人に見せた日時（migration 20260920000300）。明示 select で省くことがあるため任意 */
+          celebrated_at?: string | null
         }
         Insert: {
           id?: string
@@ -767,6 +796,8 @@ export type Database = {
           notes?: string | null
           apply_comment?: string | null
           certify_comment?: string | null
+          praise_comment?: string | null
+          celebrated_at?: string | null
           is_read?: boolean
           photo_paths?: string[]
           created_at?: string
@@ -783,6 +814,8 @@ export type Database = {
           notes?: string | null
           apply_comment?: string | null
           certify_comment?: string | null
+          praise_comment?: string | null
+          celebrated_at?: string | null
           is_read?: boolean
           photo_paths?: string[]
           created_at?: string
@@ -929,7 +962,7 @@ export type Database = {
       announcements: {
         Row: {
           id: string
-          kind: 'grade' | 'ranking' | 'welcome'
+          kind: 'grade' | 'ranking' | 'welcome' | 'daily' | 'praise'
           subject_employee_id: string | null
           grade_label: string | null
           title: string | null
@@ -938,10 +971,11 @@ export type Database = {
           created_by: string | null
           created_at: string
           expires_at: string
+          payload?: Json | null
         }
         Insert: {
           id?: string
-          kind: 'grade' | 'ranking'
+          kind: 'grade' | 'ranking' | 'welcome' | 'daily' | 'praise'
           subject_employee_id?: string | null
           grade_label?: string | null
           title?: string | null
@@ -950,10 +984,11 @@ export type Database = {
           created_by?: string | null
           created_at?: string
           expires_at?: string
+          payload?: Json | null
         }
         Update: {
           id?: string
-          kind?: 'grade' | 'ranking' | 'welcome'
+          kind?: 'grade' | 'ranking' | 'welcome' | 'daily' | 'praise'
           subject_employee_id?: string | null
           grade_label?: string | null
           title?: string | null
@@ -962,6 +997,7 @@ export type Database = {
           created_by?: string | null
           created_at?: string
           expires_at?: string
+          payload?: Json | null
         }
         Relationships: []
       }
@@ -1255,6 +1291,129 @@ export type Database = {
           actor_id?: string | null
           type?: string
           comment?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      qa_questions: {
+        Row: {
+          id: string
+          asker_id: string
+          title: string
+          body: string
+          status: 'open' | 'resolved'
+          answer_count: number
+          resolved_at: string | null
+          resolved_by: string | null
+          hidden_at: string | null
+          hidden_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          asker_id: string
+          title: string
+          body: string
+          status?: 'open' | 'resolved'
+          answer_count?: number
+          resolved_at?: string | null
+          resolved_by?: string | null
+          hidden_at?: string | null
+          hidden_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          asker_id?: string
+          title?: string
+          body?: string
+          status?: 'open' | 'resolved'
+          answer_count?: number
+          resolved_at?: string | null
+          resolved_by?: string | null
+          hidden_at?: string | null
+          hidden_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      login_days: {
+        Row: { employee_id: string; day: string; first_at: string; last_at: string }
+        Insert: { employee_id: string; day: string; first_at?: string; last_at?: string }
+        Update: { employee_id?: string; day?: string; first_at?: string; last_at?: string }
+        Relationships: []
+      }
+      qa_answers: {
+        Row: {
+          id: string
+          question_id: string
+          author_id: string
+          body: string
+          hidden_at: string | null
+          hidden_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          question_id: string
+          author_id: string
+          body: string
+          hidden_at?: string | null
+          hidden_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          question_id?: string
+          author_id?: string
+          body?: string
+          hidden_at?: string | null
+          hidden_by?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      team_upper_approvers: {
+        Row: {
+          team_id: string
+          employee_id: string
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          team_id: string
+          employee_id: string
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          team_id?: string
+          employee_id?: string
+          created_by?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      roster_dept_aliases: {
+        Row: {
+          roster_name: string
+          team_id: string
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          roster_name: string
+          team_id: string
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          roster_name?: string
+          team_id?: string
+          created_by?: string | null
           created_at?: string
         }
         Relationships: []

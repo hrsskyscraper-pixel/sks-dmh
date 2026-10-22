@@ -392,10 +392,9 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
         const renderCard = (employee: Employee) => {
         const displayRole = getDisplayRole(employee)
         const canEditThis = canEdit || (isTeamManager && managedSet.has(employee.id))
-        // 詳細（メンバーキャリア）ページの閲覧可否。/admin/employees/[id] のアクセス制御
-        // （システム管理者は全員・リーダーは管理チームのメンバー・本人は自分のみ）と一致させ、
-        // 閲覧できない相手は名前をリンクにしない（クリックしてもエラー/ホーム送りになるため）。
-        const canViewDetail = canEditThis || employee.id === currentEmployeeId
+        // 詳細（メンバーキャリア）ページは 2026-09-20 から全社員が閲覧できる
+        // （/admin/employees/[id] のアクセス制御と一致。編集可否は別、機微な項目は本人＋管理者のみ）。
+        const canViewDetail = true
         return (
           <Card key={employee.id} className={CARD_BG_COLORS[displayRole]}>
             <CardContent className="py-3 px-4">
@@ -541,6 +540,7 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
                 </div>
 
                 <div className="flex items-center gap-1">
+                    {canEdit && (
                     <Button
                       variant="ghost"
                       size="sm"
@@ -553,6 +553,7 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
                     >
                       <Eye className="w-4 h-4" />
                     </Button>
+                    )}
                     {canEditThis && (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>

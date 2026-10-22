@@ -128,3 +128,84 @@
 @keyframes dash-march {
   to { stroke-dashoffset: -14; }  /* dash(4)+gap(3)=7 × 2 でシームレスループ */
 }
+
+/*
+ * 開発版（ステージング）の色合い。本番と取り違えないよう、画面全体を緑の世界観にする
+ * （root layout が <html data-env="staging"> を付ける。本番には付かない）。
+ * ページの地色（bg-gray-50 等）と shadcn のテーマ色をまとめて差し替える。
+ */
+html[data-env="staging"] {
+  --staging-accent: oklch(0.55 0.15 155);
+  --staging-band-h: calc(env(safe-area-inset-top, 0px) + 30px);
+  --background: oklch(0.95 0.045 155);
+  --primary: oklch(0.45 0.12 155);
+  --primary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.93 0.05 155);
+  --secondary: oklch(0.93 0.05 155);
+  --accent: oklch(0.92 0.06 155);
+  --ring: oklch(0.6 0.13 155);
+  --color-gray-50: oklch(0.95 0.045 155);
+  --color-gray-100: oklch(0.92 0.055 155);
+  --color-slate-50: oklch(0.95 0.045 155);
+  --color-slate-100: oklch(0.92 0.055 155);
+  /* ブランド色のオレンジを、開発版では緑（emerald 相当）に。注意色の amber・red は変えない */
+  --color-orange-50: oklch(0.979 0.021 166.113);
+  --color-orange-100: oklch(0.95 0.052 163.051);
+  --color-orange-200: oklch(0.905 0.093 164.15);
+  --color-orange-300: oklch(0.845 0.143 164.978);
+  --color-orange-400: oklch(0.765 0.177 163.223);
+  --color-orange-500: oklch(0.696 0.17 162.48);
+  --color-orange-600: oklch(0.596 0.145 163.225);
+  --color-orange-700: oklch(0.508 0.118 165.612);
+  --color-orange-800: oklch(0.432 0.095 166.913);
+  --color-orange-900: oklch(0.378 0.077 168.94);
+  --color-orange-950: oklch(0.262 0.051 172.552);
+}
+
+/*
+ * ブランドのグラデーション（オレンジ → 赤）を、開発版では緑の濃淡にする。
+ * 赤は注意の色としても使うので変えず、オレンジから始まるグラデーションの終点だけ差し替える
+ * （上で orange-* は緑に置き換え済み。800 は濃い緑、100 は淡い緑）。
+ */
+html[data-env="staging"] [class*="from-orange-"].to-red-500 {
+  --tw-gradient-to: var(--color-orange-800);
+}
+html[data-env="staging"] [class*="from-orange-"].to-red-50 {
+  --tw-gradient-to: var(--color-orange-100);
+}
+html[data-env="staging"] [class*="to-orange-"].from-amber-400 {
+  --tw-gradient-from: var(--color-orange-300);
+}
+
+/* 固定した帯のぶん中身を下げ、上端に貼り付く見出しも帯の下に出す */
+html[data-env="staging"] body {
+  padding-top: var(--staging-band-h);
+}
+html[data-env="staging"] .sticky.top-0 {
+  top: var(--staging-band-h);
+}
+
+.staging-stripes {
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--staging-accent) 0 12px,
+    oklch(0.42 0.12 155) 12px 24px
+  );
+  background-size: 34px 34px;
+  animation: staging-stripes-move 1.2s linear infinite;
+}
+.staging-blink {
+  animation: staging-blink 1.4s ease-in-out infinite;
+}
+@keyframes staging-stripes-move {
+  to { background-position: 34px 0; }
+}
+@keyframes staging-blink {
+  0%, 55% { opacity: 1; }
+  75% { opacity: 0.25; }
+  100% { opacity: 1; }
+}
+/* 動きを減らす設定の端末では止める（帯と色はそのまま） */
+@media (prefers-reduced-motion: reduce) {
+  .staging-stripes, .staging-blink { animation: none; }
+}

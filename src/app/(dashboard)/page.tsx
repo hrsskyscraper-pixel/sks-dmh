@@ -5,7 +5,7 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
+import { getViewAsContext } from '@/lib/supabase/auth-cache'
 import { TopBar } from '@/components/layout/nav'
 import { DashboardContent } from '@/components/dashboard/dashboard-content'
 import { TestUserGuide } from '@/components/testuser/test-user-guide'
@@ -14,7 +14,6 @@ import { CheckpointRecords } from '@/components/dashboard/checkpoint-records'
 import { AnnouncementsServer } from '@/components/announcements/announcements-server'
 import { SetupIncompleteNotice } from '@/components/dashboard/setup-incomplete-notice'
 import { SkillRankingServer } from '@/components/dashboard/skill-ranking-server'
-import { VIEW_AS_COOKIE } from '@/lib/view-as'
 import { SELECTED_PROJECT_COOKIE } from '@/lib/selected-project'
 import { buildMilestoneMap } from '@/lib/milestone'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
@@ -48,19 +47,15 @@ function TeamRankingSkeleton() {
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ project_id?: string; line_linked?: string; line_error?: string }>
+  searchParams?: Promise<{ project_id?: string; line_linked?: string; line_error?: string; preview?: string }>
 }) {
-  const currentEmployee = await getCurrentEmployee()
-  if (!currentEmployee) redirect('/login')
+  // view-as は auth-cache が解決する（effective が「見ている相手」）
+  const { real: currentEmployee, effective: employee, viewingAs } = await getViewAsContext()
+  if (!currentEmployee || !employee) redirect('/login')
 
-  const supabase = await createClient()
-
-  const cookieStore = await cookies()
-  const canViewAs = true // 全ロールでView-as可能（閲覧のみ）
-  const viewAsId = canViewAs ? (cookieStore.get(VIEW_AS_COOKIE)?.value ?? null) : null
 
   // testuser で view-as 未設定 → ガイド画面を表示
-  if (currentEmployee.role === 'testuser' && !viewAsId) {
+  if (currentEmployee.role === 'testuser' && !viewingAs) {
     const adminDb = createAdminClient()
     const { data: testEmployees } = await adminDb
       .from('employees')
@@ -78,14 +73,7 @@ export default async function DashboardPage({
   // testuser はRLSを回避するため admin client でデータ取得
   const db = createAdminClient()
 
-  // targetEmployee と searchParams を並列取得
-  const [targetEmployeeResult, params] = await Promise.all([
-    viewAsId
-      ? db.from('employees').select('id, name, last_name, first_name, name_kana, email, role, business_role_ids, system_permission, employment_type, hire_date, birth_date, avatar_url, instagram_url, line_url, line_user_id, line_friend, status, requested_team_id, requested_project_team_id, approved_by, approved_at, invited_by, invitation_id, notifications_read_at, font_scale, intro_dismissed_at, is_test, auth_user_id, created_at, updated_at').eq('id', viewAsId).single()
-      : Promise.resolve({ data: null }),
-    searchParams ?? Promise.resolve(undefined),
-  ])
-  const employee = (targetEmployeeResult as { data: typeof currentEmployee | null }).data ?? currentEmployee
+  const params = await (searchParams ?? Promise.resolve(undefined))
 
   // 参加習得カリキュラム一覧（team_members と team_managers は並列取得）
   const [{ data: myTeamRows }, { data: myManagerRows }] = await Promise.all([
@@ -175,8 +163,8 @@ export default async function DashboardPage({
     selectedProject
       ? db.from('project_skills').select('skill_id, project_phase_id').eq('project_id', selectedProject.id)
       : Promise.resolve({ data: [] }),
-    db.from('skills').select('id, name, phase, category, order_index, target_date_hint, standard_hours, is_checkpoint, created_at').order('order_index'),
-    db.from('achievements').select('id, skill_id, employee_id, status, achieved_at, certified_by, certified_at, cumulative_hours_at_achievement, notes, apply_comment, certify_comment, is_read, photo_paths, created_at, skills(id, name, phase, category, order_index, target_date_hint, standard_hours, is_checkpoint, created_at), certified_employee:employees!achievements_certified_by_fkey(name, avatar_url)').eq('employee_id', employee.id),
+    db.from('skills').select('id, name, phase, category, order_index, target_date_hint, standard_hours, is_checkpoint, created_at, milestone_kind, milestone_cert').order('order_index'),
+    db.from('achievements').select('id, skill_id, employee_id, status, achieved_at, certified_by, certified_at, cumulative_hours_at_achievement, notes, apply_comment, certify_comment, praise_comment, is_read, photo_paths, created_at, celebrated_at, skills(id, name, phase, category, order_index, target_date_hint, standard_hours, is_checkpoint, created_at, milestone_kind, milestone_cert), certified_employee:employees!achievements_certified_by_fkey(name, avatar_url)').eq('employee_id', employee.id),
     db.rpc('get_employee_cumulative_hours', {
       p_employee_id: employee.id,
       p_as_of_date: new Date().toISOString().split('T')[0],
@@ -225,6 +213,32 @@ export default async function DashboardPage({
 
   const projectPhases = projectPhaseRows ?? []
   const milestones = buildMilestoneMap(projectPhases)
+
+  // レベルアップ演出（2026-09-19 決定 ②）: 認定済みでまだ見せていないもの。本人のホームでだけ出す（view-as では消費しない）
+  // 2026-10-22 A-5: 演出は級の取得時だけ（ふだんのスキル認定では出さない）
+  type AchRow = { id: string; skill_id: string; status: string; celebrated_at?: string | null; praise_comment: string | null; certified_by: string | null; skills: { name: string; milestone_kind?: 'grade' | 'goal' | null; milestone_cert?: string | null } | null; certified_employee: { name: string; avatar_url: string | null } | null }
+  const uncelebrated = viewingAs ? [] : ((achievements ?? []) as unknown as AchRow[]).filter(a => a.status === 'certified' && !a.celebrated_at && a.skills?.milestone_kind === 'grade')
+  const celebrationItems = uncelebrated.map(a => ({
+    achievementId: a.id,
+    skillName: a.skills?.name ?? 'スキル',
+    milestoneKind: (a.skills?.milestone_kind ?? null) as 'grade' | 'goal' | null,
+    milestoneCert: a.skills?.milestone_cert ?? null,
+    praise: a.praise_comment ?? null,
+    certifierName: a.certified_employee?.name ?? null,
+    certifierId: a.certified_by ?? null,
+    certifierAvatar: a.certified_employee?.avatar_url ?? null,
+  }))
+  // この認定でフェーズの全スキルがそろったフェーズ（選択中カリキュラム内）
+  const completedPhases: string[] = []
+  if (uncelebrated.length > 0) {
+    const certifiedSkillIds = new Set((achievements ?? []).filter(a => a.status === 'certified').map(a => a.skill_id))
+    const touchedPhaseIds = new Set(uncelebrated.map(a => skillPhaseMap[a.skill_id]).filter((x): x is string => !!x))
+    for (const ph of projectPhases) {
+      if (!touchedPhaseIds.has(ph.id)) continue
+      const phaseSkillIds = Object.entries(skillPhaseMap).filter(([, pid]) => pid === ph.id).map(([sid]) => sid)
+      if (phaseSkillIds.length > 0 && phaseSkillIds.every(sid => certifiedSkillIds.has(sid))) completedPhases.push(ph.name)
+    }
+  }
 
   const lastPhase = projectPhases[projectPhases.length - 1]
   const standardEndHours = lastPhase?.end_hours ?? 0
@@ -280,7 +294,18 @@ export default async function DashboardPage({
           // フォールバック: 旧 goals テーブル
           return (goalRows ?? [])[0] ?? null
         })()}
-        isOwnDashboard={!viewAsId}
+        isOwnDashboard={!viewingAs}
+        celebration={
+          celebrationItems.length > 0 ? { items: celebrationItems, completedPhases }
+            // 管理者の確認用: /?preview=celebration で見本を出す（記録しない）
+            : (params?.preview === 'celebration' && canAdminister(currentEmployee)) ? {
+              preview: true,
+              items: [
+                { achievementId: 'preview-1', skillName: '調理3級', milestoneKind: 'grade', milestoneCert: '調理３級', praise: 'ライス盛り、定量ぴったりで安定してきたね！毎回きちんと確認する姿勢が素晴らしい。次はスピードも意識して、ひとり調理に挑戦しよう。期待しています！', certifierName: '店長 太郎', certifierId: null, certifierAvatar: null },
+              ],
+              completedPhases: ['フェーズ２'],
+            } : undefined
+        }
         careerSummary={(() => {
           const empMap = Object.fromEntries((allEmployeesForCareer ?? []).map(e => [e.id, e.name]))
           const summary: Record<string, string[]> = {}

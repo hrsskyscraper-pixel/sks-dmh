@@ -11,6 +11,10 @@ import { Heart, MessageCircle, Send, ChevronDown, ChevronUp, Loader2 } from 'luc
 import { createClient } from '@/lib/supabase/client'
 import { AffiliationBadge } from '@/components/ui/affiliation'
 import { AnnouncementCard } from '@/components/announcements/announcement-card'
+import { WelcomeGroupCard } from '@/components/announcements/welcome-group-card'
+import { groupWelcomeItems } from '@/lib/announcement-groups'
+import Link from 'next/link'
+import { Filter, X } from 'lucide-react'
 import { MemberNameLink } from '@/components/layout/member-name-link'
 import type { AnnouncementItem, AnnouncementReaction, AnnouncementComment } from '@/lib/announcements'
 
@@ -70,6 +74,8 @@ interface Props {
   reactorAvatars?: Record<string, string | null>
   /** 初期表示の認定がこの件数なら「もっと読む」を有効化 */
   hasMore?: boolean
+  /** 絞り込み中の説明（デイリーレポートの名前リンクから来たとき）。解除で /timeline へ */
+  filterLabel?: string | null
 }
 
 
@@ -99,6 +105,7 @@ export function TimelineFeed({
   achievements: initialAchievements, comments: initialComments, reactions: initialReactions, employeeMap, currentEmployeeId,
   compact = false, affByEmployee = {}, curriculaBySkill = {},
   announcements = [], annReactions = [], annComments = [], reactorNames = {}, reactorAvatars = {}, hasMore: initialHasMore = false,
+  filterLabel = null,
 }: Props) {
   const [achievements, setAchievements] = useState(initialAchievements)
   const [comments, setComments] = useState(initialComments)
@@ -432,16 +439,37 @@ export function TimelineFeed({
   }
 
   // お知らせ（級合格・ランキング・歓迎）と認定グループを日付降順で統合（フル表示のみお知らせを混ぜる）
-  type Entry = { kind: 'group'; date: string; group: TimelineGroup } | { kind: 'ann'; date: string; ann: AnnouncementItem }
+  type Entry =
+    | { kind: 'group'; date: string; group: TimelineGroup }
+    | { kind: 'ann'; date: string; ann: AnnouncementItem }
+    | { kind: 'welcomeGroup'; date: string; key: string; items: AnnouncementItem[] }
+  // 同じ日に複数名が仲間入りしたお知らせは1枚にまとめる
+  const annEntries: Entry[] = compact ? [] : groupWelcomeItems(announcements).map(e =>
+    e.kind === 'single'
+      ? { kind: 'ann' as const, date: e.date, ann: e.item }
+      : { kind: 'welcomeGroup' as const, date: e.date, key: e.key, items: e.items })
   const feedEntries: Entry[] = [
     ...displayGroups.map(g => ({ kind: 'group' as const, date: g.latestAt, group: g })),
-    ...(compact ? [] : announcements.map(a => ({ kind: 'ann' as const, date: a.createdAt, ann: a }))),
+    ...annEntries,
   ].sort((x, y) => new Date(y.date).getTime() - new Date(x.date).getTime())
+
+  const filterBanner = filterLabel ? (
+    <div className="flex items-center gap-2 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2">
+      <Filter className="w-4 h-4 text-orange-500 flex-shrink-0" />
+      <p className="flex-1 text-xs text-gray-700 min-w-0">絞り込み中: <span className="font-semibold">{filterLabel}</span></p>
+      <Link href="/timeline" className="inline-flex items-center gap-1 text-xs font-medium text-orange-700 hover:underline whitespace-nowrap">
+        <X className="w-3.5 h-3.5" />解除して全部見る
+      </Link>
+    </div>
+  ) : null
 
   if (feedEntries.length === 0) {
     return (
-      <div className="p-4 text-center text-sm text-muted-foreground">
-        まだ投稿はありません
+      <div className="p-4 space-y-3">
+        {filterBanner}
+        <div className="text-center text-sm text-muted-foreground py-6">
+          {filterLabel ? '該当する投稿はありません' : 'まだ投稿はありません'}
+        </div>
       </div>
     )
   }
@@ -452,7 +480,21 @@ export function TimelineFeed({
 
   return (
     <div className={cn('space-y-3', compact ? 'px-0' : 'p-4')}>
-      {feedEntries.map(entry => entry.kind === 'ann' ? (
+      {filterBanner}
+      {feedEntries.map(entry => entry.kind === 'welcomeGroup' ? (
+        <Card key={entry.key} className="overflow-hidden">
+          <div className="pt-3 pb-3 px-3">
+            <WelcomeGroupCard
+              items={entry.items}
+              reactions={annReactions}
+              comments={annComments}
+              reactorNames={reactorNames}
+              reactorAvatars={reactorAvatars}
+              currentEmployeeId={currentEmployeeId}
+            />
+          </div>
+        </Card>
+      ) : entry.kind === 'ann' ? (
         <Card key={`ann-${entry.ann.id}`} className="overflow-hidden">
           <div className="pt-3 pb-3 px-3">
             <AnnouncementCard

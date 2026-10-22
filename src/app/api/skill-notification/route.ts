@@ -2,14 +2,22 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendMail } from '@/lib/notifications/email'
 import { sendLineMessages } from '@/lib/notifications/line'
-import { canApprove } from '@/lib/permissions'
+import { canAdminister, canApprove } from '@/lib/permissions'
+import { getRealEmployee } from '@/lib/supabase/auth-cache'
 
 export async function POST(request: Request) {
-  const { employeeId, skillName, skillNames, isReapply, comment } = await request.json()
+  // 申請したご本人（と運用管理者）だけが呼べる。ほかの人の名前で承認者へ文面を送れないように
+  const me = await getRealEmployee()
+  if (!me || me.status !== 'approved') return NextResponse.json({ ok: false }, { status: 401 })
+  const { employeeId, skillName, skillNames, isReapply, comment } = await request.json().catch(() => ({}))
+  if (typeof employeeId !== 'string' || (employeeId !== me.id && !canAdminister(me))) {
+    return NextResponse.json({ ok: false }, { status: 403 })
+  }
+  if (typeof comment === 'string' && comment.length > 1000) return NextResponse.json({ ok: false }, { status: 400 })
   // 単一の skillName（従来）または skillNames[]（まとめて申請）のどちらかを受け付ける
   const names: string[] = Array.isArray(skillNames)
-    ? skillNames.filter((n: unknown): n is string => typeof n === 'string')
-    : skillName
+    ? skillNames.filter((n: unknown): n is string => typeof n === 'string').slice(0, 200)
+    : typeof skillName === 'string'
       ? [skillName]
       : []
   if (!employeeId || names.length === 0) return NextResponse.json({ ok: false })

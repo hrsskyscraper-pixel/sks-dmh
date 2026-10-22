@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { JOIN_ROLE_OPTIONS_LEADER, JOIN_ROLE_OPTIONS_ADMIN } from '@/lib/display-role'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { toast } from 'sonner'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -10,7 +11,6 @@ import { CertRingAvatar } from '@/components/ui/cert-ring-avatar'
 import { MemberNameLink } from '@/components/layout/member-name-link'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
@@ -19,6 +19,7 @@ import { StoreSelect } from '@/components/ui/store-select'
 import { CheckCircle, XCircle, UserPlus, GitPullRequest, Award, Inbox } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { SkillPhotoGallery } from '@/components/skills/skill-photo-gallery'
+import { CertifyCommentFields } from '@/components/approvals/certify-comment-fields'
 import { type Affiliation } from '@/lib/affiliations'
 import { AffiliationBadge } from '@/components/ui/affiliation'
 
@@ -34,6 +35,8 @@ const REQUEST_TYPE_LABELS: Record<string, string> = {
 
 interface Props {
   pendingAchievements: any[]
+  /** 承認者で絞り込み中（デイリーレポートの名前リンクから）。解除で /approvals へ */
+  filterApprover?: { id: string; name: string; count: number; kind?: 'team' | 'approver' } | null
   applicantAff?: Record<string, Affiliation[]>
   applicantCurricula?: Record<string, string[]>
   pendingTeamRequests: any[]
@@ -54,11 +57,11 @@ interface Props {
 export function ApprovalCenter({
   pendingAchievements, applicantAff = {}, applicantCurricula = {}, pendingTeamRequests, pendingJoins,
   teamMap, projectTeams, currentEmployeeId, isSystemAdmin, approverRole, storeDeptTeams,
-  recentAchievements, recentTeamRequests, recentJoins, reviewerMap, auditLogs,
+  recentAchievements, recentTeamRequests, recentJoins, reviewerMap, auditLogs, filterApprover = null,
 }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
-  const [tab, setTab] = useState<Tab>('all')
+  const [tab, setTab] = useState<Tab>(filterApprover ? 'skill' : 'all')
   const [doneFilter, setDoneFilter] = useState<'all' | 'skill' | 'team' | 'join' | 'audit'>('all')
   const [donePersonFilter, setDonePersonFilter] = useState<'all' | 'actor' | 'target' | 'member'>('all')
   const [memberFilterId, setMemberFilterId] = useState<string | null>(null)
@@ -86,6 +89,7 @@ export function ApprovalCenter({
 
   // スキル認定
   const [certifyComment, setCertifyComment] = useState('')
+  const [certifyPraise, setCertifyPraise] = useState('')
   const [certifyTarget, setCertifyTarget] = useState<any>(null)
   const [certifyAction, setCertifyAction] = useState<'certified' | 'rejected'>('certified')
 
@@ -95,6 +99,7 @@ export function ApprovalCenter({
   const [bulkAction, setBulkAction] = useState<'certified' | 'rejected'>('certified')
   const [bulkDialogOpen, setBulkDialogOpen] = useState(false)
   const [bulkComment, setBulkComment] = useState('')
+  const [bulkPraise, setBulkPraise] = useState('')
   const [bulkSubmitting, setBulkSubmitting] = useState(false)
 
   // 写真確認ゲート: 写真付き申請は、全枚数を拡大表示するまで認定できない（コメントは全文表示でOK）
@@ -128,14 +133,14 @@ export function ApprovalCenter({
     setProcessedAchIds(prev => new Set([...prev, ...ids]))
     setSelectedAchIds(new Set())
     setBulkDialogOpen(false)
-    setBulkComment('')
+    setBulkComment(''); setBulkPraise('')
     toast.success(action === 'certified' ? `${ids.length}件を認定しました` : `${ids.length}件を差し戻しました`)
 
     try {
       const res = await fetch('/api/certify-skills', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ achievementIds: ids, action, comment }),
+        body: JSON.stringify({ achievementIds: ids, action, comment, praise: action === 'certified' ? (bulkPraise.trim() || null) : null }),
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
@@ -172,7 +177,7 @@ export function ApprovalCenter({
 
     // ダイアログを即座に閉じてトーストを出す（待たせない＝もっさり解消）
     setCertifyTarget(null)
-    setCertifyComment('')
+    setCertifyComment(''); setCertifyPraise('')
     toast.success(action === 'certified' ? '認定しました' : '差し戻しました')
 
     // サーバー反映はバックグラウンド（通知は after() でレスポンス後送信なので高速）。
@@ -182,7 +187,7 @@ export function ApprovalCenter({
         const res = await fetch('/api/certify-skill', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ achievementId: target.id, action, comment }),
+          body: JSON.stringify({ achievementId: target.id, action, comment, praise: action === 'certified' ? (certifyPraise.trim() || null) : null }),
         })
         if (!res.ok) {
           const data = await res.json().catch(() => ({}))
@@ -322,6 +327,18 @@ export function ApprovalCenter({
 
   return (
     <div className="px-4 py-4 space-y-3">
+      {filterApprover && (
+        <div className="flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2">
+          <span className="px-1.5 py-0.5 rounded bg-red-500 text-white text-[10px] font-bold flex-shrink-0">要対応</span>
+          <p className="flex-1 min-w-0 text-xs text-gray-800">
+            {filterApprover.kind === 'team'
+              ? <><span className="font-semibold">{filterApprover.name}</span> のメンバーの承認待ち </>
+              : <><span className="font-semibold">{filterApprover.name}</span> さんが担当するメンバーの承認待ち </>}
+            <span className="font-semibold text-amber-700">{filterApprover.count}件</span>
+          </p>
+          <Link href="/approvals" className="text-xs font-medium text-orange-700 hover:underline whitespace-nowrap">解除して全部見る</Link>
+        </div>
+      )}
       {/* タブ */}
       <div className="flex gap-1.5 overflow-x-auto pb-1">
         {tabs.map(t => (
@@ -616,12 +633,12 @@ export function ApprovalCenter({
                       </div>
                       <div className="flex gap-1 flex-shrink-0">
                         <Button size="sm" className="h-7 px-2 bg-green-500 hover:bg-green-600 text-[11px]"
-                          onClick={(e) => { e.stopPropagation(); setCertifyTarget(a); setCertifyAction('certified'); setCertifyComment('') }}
+                          onClick={(e) => { e.stopPropagation(); setCertifyTarget(a); setCertifyAction('certified'); setCertifyComment(''); setCertifyPraise('') }}
                           disabled={isPending || !photoConfirmed(a)}>
                           <CheckCircle className="w-3 h-3 mr-0.5" />認定
                         </Button>
                         <Button size="sm" variant="outline" className="h-7 px-2 text-[11px] text-red-500 border-red-200 hover:bg-red-50"
-                          onClick={(e) => { e.stopPropagation(); setCertifyTarget(a); setCertifyAction('rejected'); setCertifyComment('') }}
+                          onClick={(e) => { e.stopPropagation(); setCertifyTarget(a); setCertifyAction('rejected'); setCertifyComment(''); setCertifyPraise('') }}
                           disabled={isPending}>
                           <XCircle className="w-3 h-3 mr-0.5" />戻す
                         </Button>
@@ -711,7 +728,7 @@ export function ApprovalCenter({
               <Button
                 size="sm"
                 className="bg-green-500 hover:bg-green-600 text-white"
-                onClick={() => { setBulkAction('certified'); setBulkComment(''); setBulkDialogOpen(true) }}
+                onClick={() => { setBulkAction('certified'); setBulkComment(''); setBulkPraise(''); setBulkDialogOpen(true) }}
               >
                 <CheckCircle className="w-3.5 h-3.5 mr-1" />まとめて認定
               </Button>
@@ -719,7 +736,7 @@ export function ApprovalCenter({
                 size="sm"
                 variant="outline"
                 className="text-red-500 border-red-200 hover:bg-red-50"
-                onClick={() => { setBulkAction('rejected'); setBulkComment(''); setBulkDialogOpen(true) }}
+                onClick={() => { setBulkAction('rejected'); setBulkComment(''); setBulkPraise(''); setBulkDialogOpen(true) }}
               >
                 <XCircle className="w-3.5 h-3.5 mr-1" />まとめて差し戻し
               </Button>
@@ -729,22 +746,22 @@ export function ApprovalCenter({
       )}
 
       {/* まとめて認定 / 差し戻しダイアログ */}
-      <Dialog open={bulkDialogOpen} onOpenChange={open => { if (!bulkSubmitting) { setBulkDialogOpen(open); if (!open) setBulkComment('') } }}>
+      <Dialog open={bulkDialogOpen} onOpenChange={open => { if (!bulkSubmitting) { setBulkDialogOpen(open); if (!open) setBulkComment(''); setBulkPraise('') } }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-base">
               {bulkAction === 'certified' ? `${selectedAchIds.size}件をまとめて認定` : `${selectedAchIds.size}件をまとめて差し戻し`}
             </DialogTitle>
           </DialogHeader>
-          <Textarea
-            value={bulkComment}
-            onChange={e => setBulkComment(e.target.value)}
-            placeholder={bulkAction === 'rejected' ? '差し戻しの理由を入力（必須・全件に適用）' : 'コメント（任意・全件に適用）'}
-            rows={2}
+          <CertifyCommentFields
+            mode={bulkAction}
+            bulk
+            comment={bulkComment}
+            onCommentChange={setBulkComment}
+            praise={bulkPraise}
+            onPraiseChange={setBulkPraise}
+            disabled={bulkSubmitting}
           />
-          {bulkAction === 'rejected' && (
-            <p className="text-[11px] text-red-500 -mt-1">差し戻しには理由の入力が必須です。本人に通知されます。</p>
-          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setBulkDialogOpen(false)} disabled={bulkSubmitting}>キャンセル</Button>
             <Button
@@ -775,15 +792,14 @@ export function ApprovalCenter({
           {certifyTarget?.photo_urls?.length > 0 && (
             <SkillPhotoGallery urls={certifyTarget.photo_urls} paths={certifyTarget.photo_paths} achievementId={certifyTarget.id} canDelete={isSystemAdmin} />
           )}
-          <Textarea
-            value={certifyComment}
-            onChange={e => setCertifyComment(e.target.value)}
-            placeholder={certifyAction === 'rejected' ? '差し戻しの理由を入力（必須）' : 'コメント（任意）'}
-            rows={2}
+          <CertifyCommentFields
+            mode={certifyAction}
+            comment={certifyComment}
+            onCommentChange={setCertifyComment}
+            praise={certifyPraise}
+            onPraiseChange={setCertifyPraise}
+            disabled={isPending}
           />
-          {certifyAction === 'rejected' && (
-            <p className="text-[11px] text-red-500 -mt-1">差し戻しには理由の入力が必須です。本人に通知されます。</p>
-          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setCertifyTarget(null)}>キャンセル</Button>
             <Button
@@ -904,12 +920,12 @@ export function ApprovalCenter({
                 return (
                   <div className="flex justify-center gap-2 pt-3 border-t mt-3">
                     <Button size="sm" className="bg-green-500 hover:bg-green-600 text-white"
-                      onClick={() => { setChatAchId(null); setCertifyTarget(ach); setCertifyAction('certified'); setCertifyComment('') }}
+                      onClick={() => { setChatAchId(null); setCertifyTarget(ach); setCertifyAction('certified'); setCertifyComment(''); setCertifyPraise('') }}
                       disabled={isPending}>
                       <CheckCircle className="w-3.5 h-3.5 mr-1" />認定
                     </Button>
                     <Button size="sm" variant="outline" className="text-red-500 border-red-200 hover:bg-red-50"
-                      onClick={() => { setChatAchId(null); setCertifyTarget(ach); setCertifyAction('rejected'); setCertifyComment('') }}
+                      onClick={() => { setChatAchId(null); setCertifyTarget(ach); setCertifyAction('rejected'); setCertifyComment(''); setCertifyPraise('') }}
                       disabled={isPending}>
                       <XCircle className="w-3.5 h-3.5 mr-1" />戻す
                     </Button>

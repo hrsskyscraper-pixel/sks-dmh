@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { canApprove, canAdminister } from '@/lib/permissions'
 import { writeAuditLog } from '@/lib/audit'
+import { notLeftFilter } from '@/lib/left'
 
 export interface JoinCompletionProfile {
   lastName: string
@@ -29,7 +30,7 @@ export async function completeTeamJoin(
   const { data: me } = await db
     .from('employees')
     .select('id, status, requested_team_id, requested_project_team_id')
-    .eq('auth_user_id', user.id)
+    .eq('auth_user_id', user.id).or(notLeftFilter())
     .single()
   if (!me) return { error: 'ユーザー情報が取得できません' }
   if (me.status !== 'approved') return { error: 'アカウントが承認されていません' }
@@ -71,7 +72,7 @@ export async function adminCompleteJoin(
   const { data: actor } = await db
     .from('employees')
     .select('id, role, system_permission')
-    .eq('auth_user_id', user.id)
+    .eq('auth_user_id', user.id).or(notLeftFilter())
     .eq('status', 'approved')
     .single()
   if (!actor || !canApprove(actor)) return { error: '権限がありません' }

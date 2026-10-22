@@ -41,6 +41,8 @@ interface Props {
   teamProjectNames?: Record<string, string[]>
   brands?: { id: string; name: string; color: string | null }[]
   activeProjects?: { id: string; name: string; phaseCount?: number }[]
+  /** ?attention=1 のとき: 承認できる人がいない申請のある店舗・チーム（これだけを一覧に出す） */
+  attention?: { teamId: string; teamName: string; count: number; maxDays: number; selfOnly: boolean }[]
 }
 
 type RequestType = TeamChangeRequest['request_type']
@@ -91,6 +93,7 @@ export function TeamManager({
   teamProjectNames: initialTeamProjectNames = {},
   brands = [],
   activeProjects = [],
+  attention,
 }: Props) {
   const [teamProjectNames, setTeamProjectNames] = useState(initialTeamProjectNames)
   const [assignProjectDialog, setAssignProjectDialog] = useState<{ teamId: string; teamName: string } | null>(null)
@@ -197,7 +200,20 @@ export function TeamManager({
   const [reviewComment, setReviewComment] = useState('')
 
   // ===== Expanded teams =====
-  const [expandedTeams, setExpandedTeams] = useState<Set<string>>(new Set())
+  // デイリーレポート等の店舗名リンク（?team=）: 該当チームを開き、都道府県の折りたたみも開いてスクロールする
+  const focusTeamId = searchParams.get('team')
+  const attentionIds = attention ? new Set(attention.map(a => a.teamId)) : null
+  const [expandedTeams, setExpandedTeams] = useState<Set<string>>(() => new Set(focusTeamId ? [focusTeamId] : (attention ?? []).map(a => a.teamId)))
+  useEffect(() => {
+    if (!focusTeamId) return
+    const t = setTimeout(() => {
+      const el = document.getElementById(`team-${focusTeamId}`)
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      el?.classList.add('ring-2', 'ring-orange-400')
+      setTimeout(() => el?.classList.remove('ring-2', 'ring-orange-400'), 3000)
+    }, 400)
+    return () => clearTimeout(t)
+  }, [focusTeamId])
 
   // ===== ドラッグ＆ドロップ =====
   const [dragEmp, setDragEmp] = useState<{ id: string; teamId: string; from: 'member' | 'manager' } | null>(null)
@@ -209,8 +225,17 @@ export function TeamManager({
   const [primaryConflict, setPrimaryConflict] = useState<{ empId: string; teamId: string; existingPrimaryId: string } | null>(null)
 
   // ===== 都道府県折りたたみ =====
-  const [expandedPrefs, setExpandedPrefs] = useState<Set<string>>(new Set())
-  const [showAllTeams, setShowAllTeams] = useState(false)
+  const [expandedPrefs, setExpandedPrefs] = useState<Set<string>>(() => {
+    // 店舗は都道府県で折りたたまれている（都道府県なしは「その他」）。該当の折りたたみを開いておく
+    const targets = focusTeamId ? [focusTeamId] : (attention ?? []).map(a => a.teamId)
+    const prefs = targets
+      .map(id => initialTeams.find(t => t.id === id))
+      .filter((t): t is Team => !!t && t.type === 'store')
+      .map(t => t.prefecture || 'その他')
+    return new Set(prefs)
+  })
+  // ?team= で来たときは、担当チーム以外も含む全店舗の一覧を開いた状態にする（そうしないと該当店舗が描画されない）
+  const [showAllTeams, setShowAllTeams] = useState(!!focusTeamId || !!attention)
   const [showTestStores, setShowTestStores] = useState(false)
   const togglePref = (pref: string) => setExpandedPrefs(prev => {
     const next = new Set(prev)
@@ -918,7 +943,9 @@ export function TeamManager({
   const getTeamSecondaryManagerIds = (teamId: string) =>
     teamManagers.filter(m => m.team_id === teamId && m.role === 'secondary').map(m => m.employee_id)
 
-  const hasMyTeams = teams.some(t => getTeamManagerIds(t.id).includes(effectiveEmployee.id) || getTeamMemberIds(t.id).includes(effectiveEmployee.id))
+  // 要対応モード（?attention=1）では、承認できる人がいない申請のある店舗・チームだけを一覧に出す
+  const visibleTeams = attentionIds ? teams.filter(t => attentionIds.has(t.id)) : teams
+  const hasMyTeams = visibleTeams.some(t => getTeamManagerIds(t.id).includes(effectiveEmployee.id) || getTeamMemberIds(t.id).includes(effectiveEmployee.id))
   const shouldShowAll = showAllTeams || !hasMyTeams
 
   const toggleExpand = (teamId: string) => {
@@ -969,13 +996,49 @@ export function TeamManager({
         </Card>
       )}
 
+      {attention && (
+        <div className="rounded-xl border border-rose-300 bg-rose-50 px-3 py-3">
+          <div className="flex items-start gap-2">
+            <span className="text-lg leading-none">🏬</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-gray-800">承認できる人がいない申請のある店舗・チーム（{attention.length}件）</p>
+              <p className="text-[11px] text-gray-600 mt-0.5">下に該当の所属だけを表示しています。</p>
+              {attention.filter(a => !a.selfOnly).length > 0 && (
+                <div className="mt-1.5">
+                  <p className="text-[11px] font-semibold text-rose-700">承認者が未設定の店舗・チーム — 担当リーダーの設定をお願いします</p>
+                  <ul className="space-y-0.5">
+                    {attention.filter(a => !a.selfOnly).map(a => (
+                      <li key={a.teamId} className="text-[11px] text-gray-700">・<span className="font-semibold">{a.teamName}</span> {a.count}件 最長{a.maxDays}日</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {attention.filter(a => a.selfOnly).length > 0 && (
+                <div className="mt-1.5">
+                  <p className="text-[11px] font-semibold text-amber-700">承認者ご本人の申請 — 別の承認者か運用管理者の承認が必要です</p>
+                  <ul className="space-y-0.5">
+                    {attention.filter(a => a.selfOnly).map(a => (
+                      <li key={a.teamId} className="text-[11px] text-gray-700">
+                        ・<span className="font-semibold">{a.teamName}</span> {a.count}件 最長{a.maxDays}日
+                        <a href={`/approvals?team=${a.teamId}`} className="ml-1 text-orange-700 underline">承認センターへ</a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <a href="/admin/teams" className="inline-block mt-2 text-xs font-medium text-orange-700 underline">すべての所属を表示</a>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 自分の所属（チーム・部署・店舗すべて） */}
       {(() => {
         const isMine = (t: Team) => getTeamManagerIds(t.id).includes(effectiveEmployee.id) || getTeamMemberIds(t.id).includes(effectiveEmployee.id)
         const typeOrder: Record<string, number> = { project: 0, department: 1, store: 2 }
         // 習得カリキュラムと紐づいているチームを上に、紐づいていないものを下にする
         const hasProject = (t: Team) => (teamProjectNames[t.id]?.length ?? 0) > 0
-        const myTeamsList = teams.filter(isMine).sort((a, b) => {
+        const myTeamsList = visibleTeams.filter(isMine).sort((a, b) => {
           const aHasProject = hasProject(a)
           const bHasProject = hasProject(b)
           if (aHasProject !== bHasProject) return aHasProject ? -1 : 1
@@ -1100,7 +1163,7 @@ export function TeamManager({
       })()}
 
       {/* チーム (project) */}
-      {shouldShowAll && [...teams].filter(t => t.type === 'project').sort((a, b) => {
+      {shouldShowAll && [...visibleTeams].filter(t => t.type === 'project').sort((a, b) => {
         const aIsMine = getTeamManagerIds(a.id).includes(effectiveEmployee.id) || getTeamMemberIds(a.id).includes(effectiveEmployee.id)
         const bIsMine = getTeamManagerIds(b.id).includes(effectiveEmployee.id) || getTeamMemberIds(b.id).includes(effectiveEmployee.id)
         return aIsMine === bIsMine ? 0 : aIsMine ? -1 : 1
@@ -1112,7 +1175,7 @@ export function TeamManager({
         const isMemberOfMe = !isManagedByMe && memberIds.includes(effectiveEmployee.id)
 
         return (
-          <Card key={team.id} className={isManagedByMe ? 'border-orange-300 bg-orange-50' : isMemberOfMe ? 'border-green-200 bg-green-50' : ''}>
+          <Card key={team.id} id={`team-${team.id}`} className={isManagedByMe ? 'border-orange-300 bg-orange-50' : isMemberOfMe ? 'border-green-200 bg-green-50' : ''}>
             <CardHeader className="pb-2 pt-3 px-4">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -1411,14 +1474,14 @@ export function TeamManager({
       })}
 
       {/* 部署 (department) */}
-      {shouldShowAll && [...teams].filter(t => t.type === 'department').sort((a, b) => a.name.localeCompare(b.name, 'ja')).map(team => {
+      {shouldShowAll && [...visibleTeams].filter(t => t.type === 'department').sort((a, b) => a.name.localeCompare(b.name, 'ja')).map(team => {
         const memberIds = getTeamMemberIds(team.id)
         const managerIds = getTeamManagerIds(team.id)
         const isExpanded = expandedTeams.has(team.id)
         const isManagedByMe = managerIds.includes(effectiveEmployee.id)
         const isMemberOfMe = !isManagedByMe && memberIds.includes(effectiveEmployee.id)
         return (
-          <Card key={team.id} className={`${isManagedByMe ? 'border-orange-300 bg-orange-50' : isMemberOfMe ? 'border-green-200 bg-green-50' : ''}`}>
+          <Card key={team.id} id={`team-${team.id}`} className={`${isManagedByMe ? 'border-orange-300 bg-orange-50' : isMemberOfMe ? 'border-green-200 bg-green-50' : ''}`}>
             <CardHeader className="pb-2 pt-3 px-4">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -1539,7 +1602,7 @@ export function TeamManager({
 
       {/* 店舗 (store) — 都道府県別折りたたみ（テスト店舗は除外して別グループに） */}
       {shouldShowAll && (() => {
-        const storeTeams = teams.filter(t => t.type === 'store' && !t.is_test)
+        const storeTeams = visibleTeams.filter(t => t.type === 'store' && !t.is_test)
         const PREF_ORDER = ['秋田県','栃木県','群馬県','埼玉県','千葉県','東京都','神奈川県','新潟県','静岡県','茨城県']
         const grouped: Record<string, Team[]> = {}
         const noPref: Team[] = []
@@ -1579,7 +1642,7 @@ export function TeamManager({
                 const isManagedByMe = managerIds.includes(effectiveEmployee.id)
                 const isMemberOfMe = !isManagedByMe && memberIds.includes(effectiveEmployee.id)
                 return (
-                  <Card key={storeTeam.id} className={`mb-1.5 ${isManagedByMe ? 'border-orange-300 bg-orange-50' : isMemberOfMe ? 'border-green-200 bg-green-50' : ''}`}>
+                  <Card key={storeTeam.id} id={`team-${storeTeam.id}`} className={`mb-1.5 ${isManagedByMe ? 'border-orange-300 bg-orange-50' : isMemberOfMe ? 'border-green-200 bg-green-50' : ''}`}>
                     <CardHeader className="pb-2 pt-3 px-4">
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -1758,7 +1821,7 @@ export function TeamManager({
               テスト店舗（{testStores.length}）
             </button>
             {showTestStores && testStores.map(storeTeam => (
-              <Card key={storeTeam.id} className="mb-1.5 border-gray-200 bg-gray-50">
+              <Card key={storeTeam.id} id={`team-${storeTeam.id}`} className="mb-1.5 border-gray-200 bg-gray-50">
                 <CardHeader className="pb-2 pt-3 px-4">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 flex-1 min-w-0">

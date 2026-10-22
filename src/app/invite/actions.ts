@@ -6,6 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { sendInvitationNotification } from '@/lib/notifications'
 import { canApprove, canAdminister } from '@/lib/permissions'
 import { createWelcomeAnnouncement } from '@/lib/announcements'
+import { notLeftFilter } from '@/lib/left'
 
 /**
  * 招待リンク発行（フェーズ2: 未アプリ参加者 or 誰でも受諾可能）
@@ -25,7 +26,7 @@ export async function createInvitationLink(params: {
   const { data: inviter } = await db
     .from('employees')
     .select('id, role, system_permission')
-    .eq('auth_user_id', user.id)
+    .eq('auth_user_id', user.id).or(notLeftFilter())
     .eq('status', 'approved')
     .single()
   if (!inviter || !canApprove(inviter)) {
@@ -58,7 +59,7 @@ export async function createInvitation(params: {
   targetEmployeeId: string
   customMessage?: string
   asManager?: boolean
-}): Promise<{ error?: string; invitationId?: string }> {
+}): Promise<{ error?: string; invitationId?: string; delivery?: InvitationDelivery }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '認証エラー' }
@@ -69,7 +70,7 @@ export async function createInvitation(params: {
   const { data: inviter } = await db
     .from('employees')
     .select('id, name, role, system_permission')
-    .eq('auth_user_id', user.id)
+    .eq('auth_user_id', user.id).or(notLeftFilter())
     .eq('status', 'approved')
     .single()
   if (!inviter || !canApprove(inviter)) {
@@ -121,17 +122,41 @@ export async function createInvitation(params: {
     .single()
   if (insertError || !inv) return { error: insertError?.message ?? '招待作成に失敗しました' }
 
-  // 通知送信（非同期・失敗しても招待は残す）
-  sendInvitationNotification({
-    invitationId: inv.id,
-    inviter: { name: inviter.name },
-    target: { name: target.name, email: target.email, line_user_id: target.line_user_id },
-    teamName: team.name,
-    customMessage: params.customMessage,
-  }).catch(err => console.error('招待通知送信失敗:', err))
+  // 通知送信（失敗しても招待は残す）。結果を返して、画面で「送れていない」ことを正直に見せる
+  // （メール休止中や未設定のときに「送信しました」と出るのは不親切。2026-09-20 須貝さん指摘）
+  let delivery: InvitationDelivery = { mail: 'failed', line: target.line_user_id ? 'failed' : 'none', canResumeMail: canAdminister(inviter) }
+  try {
+    const r = await sendInvitationNotification({
+      invitationId: inv.id,
+      inviter: { name: inviter.name },
+      target: { name: target.name, email: target.email, line_user_id: target.line_user_id },
+      teamName: team.name,
+      customMessage: params.customMessage,
+    })
+    const mail: InvitationDelivery['mail'] = r.mail.ok ? 'sent'
+      : !r.mail.skipped ? 'failed'
+        : /休止/.test(r.mail.error ?? '') ? 'paused'
+          : /未設定/.test(r.mail.error ?? '') ? 'unconfigured'
+            : 'none'
+    const line: InvitationDelivery['line'] = !r.line ? 'none' : r.line.ok ? 'sent' : r.line.skipped ? 'paused' : 'failed'
+    delivery = { mail, line, mailError: r.mail.ok ? undefined : r.mail.error, canResumeMail: canAdminister(inviter) }
+  } catch (err) {
+    console.error('招待通知送信失敗:', err)
+  }
 
   revalidatePath('/admin/teams')
-  return { invitationId: inv.id }
+  return { invitationId: inv.id, delivery }
+}
+
+/** 招待通知の配送結果（画面の案内に使う） */
+export interface InvitationDelivery {
+  /** sent=送った / paused=一括休止中 / unconfigured=送信設定なし（開発環境など） / none=宛先なし / failed=送信失敗 */
+  mail: 'sent' | 'paused' | 'unconfigured' | 'none' | 'failed'
+  /** none=LINE未連携 */
+  line: 'sent' | 'paused' | 'none' | 'failed'
+  mailError?: string
+  /** 招待した本人が 設定 → メール通知 を操作できるか（システム管理者）。案内文の出し分けに使う */
+  canResumeMail?: boolean
 }
 
 export interface AcceptInvitationProfile {
@@ -159,7 +184,7 @@ export async function acceptInvitation(
   const { data: me } = await db
     .from('employees')
     .select('id, name')
-    .eq('auth_user_id', user.id)
+    .eq('auth_user_id', user.id).or(notLeftFilter())
     .eq('status', 'approved')
     .single()
   if (!me) return { error: 'ユーザー情報が取得できません' }
@@ -167,13 +192,16 @@ export async function acceptInvitation(
   // 招待取得
   const { data: inv } = await db
     .from('team_invitations')
-    .select('id, team_id, project_team_id, target_employee_id, expires_at, used_at, as_manager')
+    .select('id, team_id, project_team_id, target_employee_id, expires_at, used_at, used_by, as_manager, revoked_at')
     .eq('id', invitationId)
     .single()
   if (!inv) return { error: '招待が見つかりません' }
+  // 取り消した招待リンクでは参加できない（画面だけでなく、ここでも止める）
+  if (inv.revoked_at) return { error: 'この招待は取り消されています' }
   // 単発で失効するのは特定メンバー宛の個別招待のみ。
   // チーム共有リンク（宛先未指定）は複数人が使える再利用リンクなので used_at では弾かない。
-  if (inv.target_employee_id && inv.used_at) return { error: 'この招待は既に使用済みです' }
+  // 参加が済んだ個別招待だけを「使用済み」にする（used_by で判定。used_at だけの行は旧実装の「開いた記録」）
+  if (inv.target_employee_id && inv.used_by) return { error: 'この招待は既に使用済みです' }
   if (new Date(inv.expires_at) < new Date()) return { error: 'この招待は期限切れです' }
   if (inv.target_employee_id && inv.target_employee_id !== me.id) {
     return { error: 'この招待はあなた宛ではありません' }
@@ -271,7 +299,7 @@ export async function createSelfSelectInviteLink(params: {
   const { data: inviter } = await db
     .from('employees')
     .select('id, role, system_permission')
-    .eq('auth_user_id', user.id)
+    .eq('auth_user_id', user.id).or(notLeftFilter())
     .eq('status', 'approved')
     .single()
   if (!inviter || !canAdminister(inviter)) {
@@ -312,7 +340,7 @@ export async function listTeamShareLinks(teamId: string): Promise<{
   const { data: actor } = await db
     .from('employees')
     .select('id, role, system_permission')
-    .eq('auth_user_id', user.id)
+    .eq('auth_user_id', user.id).or(notLeftFilter())
     .eq('status', 'approved')
     .single()
   if (!actor || !canApprove(actor)) return { error: '権限がありません' }
@@ -360,7 +388,7 @@ export async function revokeInviteLink(invitationId: string): Promise<{ error?: 
   const { data: actor } = await db
     .from('employees')
     .select('id, role, system_permission')
-    .eq('auth_user_id', user.id)
+    .eq('auth_user_id', user.id).or(notLeftFilter())
     .eq('status', 'approved')
     .single()
   if (!actor) return { error: '権限がありません' }
@@ -411,7 +439,7 @@ export async function acceptSelfSelectInvitation(
   const { data: me } = await db
     .from('employees')
     .select('id, name')
-    .eq('auth_user_id', user.id)
+    .eq('auth_user_id', user.id).or(notLeftFilter())
     .eq('status', 'approved')
     .single()
   if (!me) return { error: 'ユーザー情報が取得できません' }

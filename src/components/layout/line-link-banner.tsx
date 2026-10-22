@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useTransition } from 'react'
+import { useNavData } from '@/components/layout/nav-data-context'
 import { Button } from '@/components/ui/button'
 import { MessageCircle, X } from 'lucide-react'
 import { toast } from 'sonner'
@@ -35,8 +36,11 @@ export function LineLinkBanner({ needsFriend = false }: { needsFriend?: boolean 
   // 連携済みだが友だち未確認のとき、マウント時にセッション1回だけ自動再判定する。
   // 友だち追加済みなら自動で line_friend=true になり、このバナーは消える。
   useLineFriendAutoRecheck(needsFriend)
+  const { lineNotificationsEnabled } = useNavData()
 
   if (dismissed) return null
+  // LINE通知が一括休止中は、連携しても届かないので案内自体を出さない
+  if (!lineNotificationsEnabled) return null
 
   const handleConnect = () => {
     const url = buildLineLoginAuthorizeUrl(window.location.origin)

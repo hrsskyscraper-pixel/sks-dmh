@@ -2,11 +2,10 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
+import { getViewAsContext } from '@/lib/supabase/auth-cache'
 import { TopBar } from '@/components/layout/nav'
 import { SkillList } from '@/components/skills/skill-list'
 import { CurriculumSwitcher } from '@/components/skills/curriculum-switcher'
-import { VIEW_AS_COOKIE } from '@/lib/view-as'
 import { SELECTED_PROJECT_COOKIE } from '@/lib/selected-project'
 import { buildMilestoneMap } from '@/lib/milestone'
 import { signSkillPhotoPaths } from '@/lib/skill-photos'
@@ -18,25 +17,14 @@ export default async function SkillsPage({
 }: {
   searchParams?: Promise<{ project_id?: string }>
 }) {
-  const currentEmployee = await getCurrentEmployee()
-  if (!currentEmployee) redirect('/login')
-
-  const supabase = await createClient()
-
-  const cookieStore = await cookies()
-  const canViewAs = true // 全ロールでView-as可能（閲覧のみ）
-  const viewAsId = canViewAs ? (cookieStore.get(VIEW_AS_COOKIE)?.value ?? null) : null
+  // view-as は auth-cache が解決する（effective が「見ている相手」）
+  const { real: currentEmployee, effective: employee, viewingAs } = await getViewAsContext()
+  if (!currentEmployee || !employee) redirect('/login')
 
   const db = createAdminClient()
 
-  // targetEmployee と searchParams を並列取得
-  const [targetEmployeeResult, params] = await Promise.all([
-    viewAsId
-      ? db.from('employees').select('id, name, role, employment_type, hire_date, birth_date, avatar_url, auth_user_id').eq('id', viewAsId).single()
-      : Promise.resolve({ data: null }),
-    searchParams ?? Promise.resolve(undefined),
-  ])
-  const employee = (targetEmployeeResult as { data: typeof currentEmployee | null }).data ?? currentEmployee
+  const cookieStore = await cookies()
+  const params = await (searchParams ?? Promise.resolve(undefined))
 
   // 参加習得カリキュラム一覧（team_members と team_managers は並列取得）
   const [{ data: sMyTeams }, { data: sMyMgr }] = await Promise.all([
@@ -73,7 +61,7 @@ export default async function SkillsPage({
     selectedProject
       ? db.from('project_skills').select('skill_id, project_phase_id').eq('project_id', selectedProject.id)
       : Promise.resolve({ data: null as { skill_id: string; project_phase_id: string | null }[] | null }),
-    db.from('skills').select('id, name, phase, category, order_index, target_date_hint, standard_hours, is_checkpoint, created_at').order('order_index'),
+    db.from('skills').select('id, name, phase, category, order_index, target_date_hint, standard_hours, is_checkpoint, created_at, milestone_kind, milestone_cert').order('order_index'),
     db.from('achievements')
       .select('*, certified_employee:employees!achievements_certified_by_fkey(name, avatar_url), skills(*)')
       .eq('employee_id', employee.id),
@@ -184,7 +172,7 @@ export default async function SkillsPage({
         photoUrlsByAchievement={photoUrlsByAchievement}
         photoPathsByAchievement={photoPathsByAchievement}
         canDeletePhotos={canAdminister(currentEmployee)}
-        viewAs={!!viewAsId}
+        viewAs={!!viewingAs}
       />
     </>
   )

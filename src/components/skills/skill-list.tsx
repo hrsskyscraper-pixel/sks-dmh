@@ -3,12 +3,11 @@
 import { useMemo, useState, useTransition } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
-import { CheckCircle2, Clock, Circle, ChevronDown, ChevronRight, ChevronUp, Trophy, XCircle, BookOpen, AlertTriangle } from 'lucide-react'
+import { CheckCircle2, Clock, Circle, Trophy, XCircle, BookOpen, AlertTriangle } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -24,6 +23,7 @@ import { calcSkillTargetHours } from '@/lib/skill-progress'
 import { SkillStatsContent } from '@/components/skills/skill-stats-content'
 import { sortCategories } from '@/lib/category-order'
 import { cn } from '@/lib/utils'
+import { milestoneOf, prerequisiteNote } from '@/lib/milestones'
 import { SkillPhotoInput } from '@/components/skills/skill-photo-input'
 import { SkillPhotoGallery } from '@/components/skills/skill-photo-gallery'
 import { uploadSkillPhotos } from '@/lib/skill-photos'
@@ -75,61 +75,10 @@ const CATEGORY_COLOR_PALETTE = [
   'bg-indigo-100 text-indigo-700',
 ]
 
-const CATEGORY_PROGRESS_PALETTE = [
-  '[&>div]:bg-blue-500',
-  '[&>div]:bg-green-500',
-  '[&>div]:bg-purple-500',
-  '[&>div]:bg-amber-500',
-  '[&>div]:bg-red-500',
-  '[&>div]:bg-teal-500',
-  '[&>div]:bg-pink-500',
-  '[&>div]:bg-indigo-500',
-]
-
 function getCategoryColor(category: string, allCategories: string[]): string {
   const idx = allCategories.indexOf(category)
   if (idx >= 0) return CATEGORY_COLOR_PALETTE[idx % CATEGORY_COLOR_PALETTE.length]
   return 'bg-gray-100 text-gray-700'
-}
-
-const CATEGORY_BORDER_PALETTE = [
-  'border-l-blue-500',
-  'border-l-green-500',
-  'border-l-purple-500',
-  'border-l-amber-500',
-  'border-l-red-500',
-  'border-l-teal-500',
-  'border-l-pink-500',
-  'border-l-indigo-500',
-]
-
-const CATEGORY_BG_PALETTE = [
-  'bg-blue-50/50',
-  'bg-green-50/50',
-  'bg-purple-50/50',
-  'bg-amber-50/50',
-  'bg-red-50/50',
-  'bg-teal-50/50',
-  'bg-pink-50/50',
-  'bg-indigo-50/50',
-]
-
-function getCategoryBorderColor(category: string, allCategories: string[]): string {
-  const idx = allCategories.indexOf(category)
-  if (idx >= 0) return CATEGORY_BORDER_PALETTE[idx % CATEGORY_BORDER_PALETTE.length]
-  return 'border-l-gray-300'
-}
-
-function getCategoryBgColor(category: string, allCategories: string[]): string {
-  const idx = allCategories.indexOf(category)
-  if (idx >= 0) return CATEGORY_BG_PALETTE[idx % CATEGORY_BG_PALETTE.length]
-  return 'bg-gray-50/50'
-}
-
-function getCategoryProgressColor(category: string, allCategories: string[]): string {
-  const idx = allCategories.indexOf(category)
-  if (idx >= 0) return CATEGORY_PROGRESS_PALETTE[idx % CATEGORY_PROGRESS_PALETTE.length]
-  return '[&>div]:bg-gray-500'
 }
 
 export function SkillList({ employeeId, skills, achievements: initialAchievements, readOnly = false, phases, skillPhaseMap, cumulativeHours, milestones, skillManuals = {}, photoUrlsByAchievement = {}, photoPathsByAchievement = {}, canDeletePhotos = false, viewAs = false }: Props) {
@@ -139,20 +88,18 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
     const fromQuery = phases.find(p => p.name === searchParams.get('phase'))?.id
     if (fromQuery) return fromQuery
     const certifiedSet = new Set(initialAchievements.filter(a => a.status === 'certified').map(a => a.skill_id))
-    const firstIncomplete = phases.find(p => {
-      const ps = skills.filter(s => skillPhaseMap[s.id] === p.id)
-      return ps.length > 0 && ps.some(s => !certifiedSet.has(s.id))
-    })
-    return firstIncomplete?.id ?? phases[0]?.id ?? ''
+    // フェーズ未設定のスキルも「フェーズ未設定」の1ページとして扱う（フェーズが無いカリキュラムでも何か開く）
+    const order = [...phases.map(p => p.id), ...(skills.some(s => !skillPhaseMap[s.id]) ? ['__none__'] : [])]
+    const skillsIn = (id: string) => skills.filter(s => (id === '__none__' ? !skillPhaseMap[s.id] : skillPhaseMap[s.id] === id))
+    const firstIncomplete = order.find(id => { const ps = skillsIn(id); return ps.length > 0 && ps.some(s => !certifiedSet.has(s.id)) })
+    return firstIncomplete ?? order.find(id => skillsIn(id).length > 0) ?? order[0] ?? ''
   })()
   const [achievements, setAchievements] = useState(initialAchievements)
+  // 表示するフェーズ（級ごとのページ）。既定は1つだけ。ほかのフェーズはチェックで足して見る（2026-10-21 原島さん確定）
+  const [shownPhaseIds, setShownPhaseIds] = useState<Set<string>>(() => new Set(initialPhaseId ? [initialPhaseId] : []))
   const categories = sortCategories([...new Set(skills.map(s => s.category))])
   // 現在の習得カリキュラムに属するスキルだけで件数・一覧を集計する
   const projectSkillIds = useMemo(() => new Set(skills.map(s => s.id)), [skills])
-  const allKeys = phases.flatMap(p => categories.map(c => `${p.id}-${c}`))
-  // 既定は全カテゴリ折りたたみ（トグルで開く）。allKeys は全カテゴリ展開用に保持。
-  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set())
-  const [expandedStatusGroups, setExpandedStatusGroups] = useState<Set<string>>(new Set())
   const [expandedManuals, setExpandedManuals] = useState<Set<string>>(new Set())
   const [isPending, startTransition] = useTransition()
   const initialTab = (() => {
@@ -195,7 +142,8 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
   const getAchievement = (skillId: string) => achievements.find(a => a.skill_id === skillId)
 
   // 未申請（status なし）のスキルのみ、まとめて申請の選択対象
-  const isSelectable = (skillId: string) => getStatus(skillId) === null
+  // 級・ゴールの行は前提の確認があるので、まとめて申請には入れない（1件ずつ申請する）
+  const isSelectable = (skillId: string) => getStatus(skillId) === null && !skills.find(s => s.id === skillId)?.milestone_kind
 
   const toggleSelected = (skillId: string) => {
     setSelectedIds(prev => {
@@ -267,7 +215,18 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
     }
   }
 
+  /** 申請ダイアログで開いているスキルが級・ゴールなら、その前提の到達状況（前提未認定の注意表示に使う） */
+  const applyMilestone = applyDialogSkill ? milestoneOf(applyDialogSkill.id, skills, skillPhaseMap, phases, achievements) : null
+
   const handleSubmitApply = (skill: Skill, comment: string, photos: File[]) => {
+    // 級・ゴールで前提が残っていれば、申請コメントの先頭に注記を付けて承認者に見えるようにする
+    // 級・ゴールは前提がすべて認定されるまで申請できない（2026-09-20 決定）
+    if ((milestoneOf(skill.id, skills, skillPhaseMap, phases, achievements)?.remaining ?? 0) > 0) {
+      toast.error('前提のスキルがまだ認定されていません', { description: '前提がすべて認定されると申請できるようになります' })
+      return
+    }
+    const finalComment = [prerequisiteNote(milestoneOf(skill.id, skills, skillPhaseMap, phases, achievements)), comment.trim()].filter(Boolean).join('\n') || null
+
     if (viewAs) { toast.error('プレビュー中は申請できません', { description: 'ご自身のアカウントでお試しください' }); return }
     const existing = getAchievement(skill.id)
 
@@ -286,7 +245,7 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
           .update({
             status: 'pending',
             achieved_at: new Date().toISOString(),
-            apply_comment: comment.trim() || null,
+            apply_comment: finalComment,
             certify_comment: null,
             ...photoUpdate,
           })
@@ -296,11 +255,11 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
 
         if (error) { toast.error('再申請に失敗しました', { description: error.message }); return }
         setAchievements(prev => prev.map(a => a.id === existing.id ? { ...a, ...(data as AchievementWithCertifier) } : a))
-        await supabase.from('achievement_history').insert({ achievement_id: existing.id, action: 'reapply', actor_id: employeeId, comment: comment.trim() || null })
+        await supabase.from('achievement_history').insert({ achievement_id: existing.id, action: 'reapply', actor_id: employeeId, comment: finalComment })
         setReapplyDialogSkill(null)
         setReapplyComment('')
         setReapplyPhotos([])
-        fetch('/api/skill-notification', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ employeeId, skillName: skill.name, isReapply: true, comment: comment.trim() || null }) }).catch(() => {})
+        fetch('/api/skill-notification', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ employeeId, skillName: skill.name, isReapply: true, comment: finalComment }) }).catch(() => {})
         toast.success(`「${skill.name}」を再申請しました！`, { description: '認定者の確認をお待ちください' })
         setTimeout(() => window.location.reload(), 500)
       } else {
@@ -312,14 +271,14 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
         }
         const { data, error } = await supabase
           .from('achievements')
-          .insert({ employee_id: employeeId, skill_id: skill.id, status: 'pending', apply_comment: comment.trim() || null, photo_paths: photoPaths })
+          .insert({ employee_id: employeeId, skill_id: skill.id, status: 'pending', apply_comment: finalComment, photo_paths: photoPaths })
           .select()
           .single()
 
         if (error) { toast.error('申請に失敗しました', { description: error.message }); return }
         setAchievements(prev => [...prev, data])
-        await supabase.from('achievement_history').insert({ achievement_id: data.id, action: 'apply', actor_id: employeeId, comment: comment.trim() || null })
-        fetch('/api/skill-notification', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ employeeId, skillName: skill.name, isReapply: false, comment: comment.trim() || null }) }).catch(() => {})
+        await supabase.from('achievement_history').insert({ achievement_id: data.id, action: 'apply', actor_id: employeeId, comment: finalComment })
+        fetch('/api/skill-notification', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ employeeId, skillName: skill.name, isReapply: false, comment: finalComment }) }).catch(() => {})
         setApplyDialogSkill(null)
         setApplyComment('')
         setApplyPhotos([])
@@ -328,31 +287,19 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
     })
   }
 
-  const toggleCategory = (key: string) => {
-    setExpandedCategories(prev => {
-      const next = new Set(prev)
-      next.has(key) ? next.delete(key) : next.add(key)
-      return next
-    })
-  }
-
-  const toggleStatusGroup = (key: string) => {
-    setExpandedStatusGroups(prev => {
-      const next = new Set(prev)
-      next.has(key) ? next.delete(key) : next.add(key)
-      return next
-    })
-  }
-
-  const renderSkillRow = (skill: Skill) => {
+  // compact: 級ごとのページ用の詰めた行。認定済みは薄いグレーにして、残りが目に入るようにする
+  const renderSkillRow = (skill: Skill, compact = false) => {
     const status = getStatus(skill.id)
     const achievement = getAchievement(skill.id)
+    const doneGray = compact && status === 'certified'
     return (
       <div
         key={skill.id}
         className={cn(
-          'flex items-start gap-3 py-2.5 px-2 rounded-lg transition-colors',
-          status === 'certified' && 'bg-green-50',
+          'flex items-start gap-3 px-2 rounded-lg transition-colors',
+          compact ? 'py-1.5' : 'py-2.5',
+          doneGray && 'opacity-60',
+          status === 'certified' && !compact && 'bg-green-50',
           status === 'pending' && 'bg-amber-50',
           status === 'rejected' && 'bg-red-50',
           !status && 'hover:bg-gray-50'
@@ -368,7 +315,7 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
         )}
         <div className="flex-shrink-0 mt-0.5">
           {status === 'certified' ? (
-            <CheckCircle2 className="w-5 h-5 text-green-500" />
+            <CheckCircle2 className={cn('w-5 h-5', doneGray ? 'text-gray-400' : 'text-green-500')} />
           ) : status === 'pending' ? (
             <Clock className="w-5 h-5 text-amber-500" />
           ) : status === 'rejected' ? (
@@ -381,12 +328,13 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
         <div className="flex-1 min-w-0">
           <p className={cn(
             'text-sm leading-tight',
-            status === 'certified' && 'text-green-700 font-medium',
+            status === 'certified' && (doneGray ? 'text-gray-500' : 'text-green-700 font-medium'),
             status === 'pending' && 'text-amber-700',
             status === 'rejected' && 'text-red-600',
             !status && 'text-gray-700'
           )}>
             {skill.name}
+            {compact && <span className="ml-1.5 align-middle text-[10px] text-gray-400 whitespace-nowrap">{skill.category}</span>}
           </p>
           {!status && skill.target_date_hint && (
             <p className="text-[10px] text-muted-foreground mt-0.5">目安: {skill.target_date_hint}</p>
@@ -440,7 +388,10 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
           )}
         </div>
 
-        {status === 'certified' && achievement && (
+        {doneGray && achievement && (
+          <p className="text-[10px] text-gray-400 flex-shrink-0 mt-0.5">{fmtDate(achievement.certified_at)} 認定</p>
+        )}
+        {status === 'certified' && achievement && !doneGray && (
           <div className="text-right flex-shrink-0">
             <p className="text-xs text-green-600 font-medium">{fmtDate(achievement.certified_at)}</p>
             {achievement.certified_employee?.name && (
@@ -481,8 +432,6 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
       </div>
     )
   }
-
-  const gridCols = phases.length <= 3 ? `grid-cols-${phases.length}` : 'grid-cols-3'
 
   const historyItems = [...achievements].sort(
     (a, b) => new Date(b.achieved_at ?? '').getTime() - new Date(a.achieved_at ?? '').getTime()
@@ -744,170 +693,86 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
           習得できたスキルの <span className="font-semibold text-orange-600">申請する</span> ボタンを押して申請してください
         </p>
       )}
-      <Tabs defaultValue={initialPhaseId}>
-        <TabsList className={cn('grid w-full h-9', gridCols)}>
-          {phases.map(phase => {
-            const phaseSkills = skills.filter(s => skillPhaseMap[s.id] === phase.id)
-            const certified = phaseSkills.filter(s => getStatus(s.id) === 'certified').length
-            return (
-              <TabsTrigger key={phase.id} value={phase.id} className="text-xs">
-                {phase.name}
-                <span className="ml-1 text-[10px] text-muted-foreground">
-                  {certified}/{phaseSkills.length}
-                </span>
-              </TabsTrigger>
-            )
-          })}
-        </TabsList>
-
-        {phases.map(phase => {
-          const phaseSkills = skills.filter(s => skillPhaseMap[s.id] === phase.id)
-          const certified = phaseSkills.filter(s => getStatus(s.id) === 'certified').length
-          const pct = phaseSkills.length > 0 ? Math.round((certified / phaseSkills.length) * 100) : 0
-          const m = milestones?.[phase.name]
-          const standardPct = m && cumulativeHours !== undefined ? calcPhasePct(cumulativeHours, m) : null
-          const diff = standardPct !== null ? pct - standardPct : null
-
-          return (
-            <TabsContent key={phase.id} value={phase.id} className="space-y-3 mt-3">
-              {/* フェーズ進捗バー */}
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-gray-400 w-7 text-right flex-shrink-0">実績</span>
-                  <Progress value={pct} className="flex-1 h-2 [&>div]:bg-orange-500" />
-                  <span className="text-sm font-bold text-orange-500 w-10 text-right">{pct}%</span>
-                </div>
-                {standardPct !== null && standardPct > 0 && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-gray-400 w-7 text-right flex-shrink-0">標準</span>
-                    <Progress value={standardPct} className="flex-1 h-2 bg-gray-100 [&>div]:bg-gray-400" />
-                    <div className="w-10 text-right flex-shrink-0">
-                      <span className="text-[11px] text-gray-400">{standardPct}%</span>
-                    </div>
-                  </div>
-                )}
-                {diff !== null && standardPct !== null && standardPct > 0 && (
-                  <p className={cn(
-                    'text-[11px] font-bold text-right',
-                    diff >= 5 ? 'text-green-600' : diff <= -5 ? 'text-red-500' : 'text-gray-400'
-                  )}>
-                    {diff > 0 ? `▲ 標準より +${diff}pt` : diff < 0 ? `▼ 標準より ${diff}pt` : '± 標準通り'}
-                  </p>
-                )}
-              </div>
-
-              {/* カテゴリ別スキルリスト */}
-              {categories.map(category => {
-                const catSkills = phaseSkills.filter(s => s.category === category)
-                if (catSkills.length === 0) return null
-
-                const key = `${phase.id}-${category}`
-                const isExpanded = expandedCategories.has(key)
-                const catCertified = catSkills.filter(s => getStatus(s.id) === 'certified').length
-
-                const uncompSkills = catSkills.filter(s => !getStatus(s.id)).sort((a, b) => a.order_index - b.order_index)
-                const pendingSkills = catSkills.filter(s => getStatus(s.id) === 'pending').sort((a, b) => a.order_index - b.order_index)
-                const rejectedSkills = catSkills.filter(s => getStatus(s.id) === 'rejected').sort((a, b) => a.order_index - b.order_index)
-                const certifiedSkills = catSkills.filter(s => getStatus(s.id) === 'certified').sort((a, b) => a.order_index - b.order_index)
-
-                const pendingKey = `${phase.id}-${category}-pending`
-                const rejectedKey = `${phase.id}-${category}-rejected`
-                const certifiedKey = `${phase.id}-${category}-certified`
-                const isPendingExpanded = expandedStatusGroups.has(pendingKey)
-                const isRejectedExpanded = expandedStatusGroups.has(rejectedKey)
-                const isCertifiedExpanded = expandedStatusGroups.has(certifiedKey)
-
+      {/* 級ごとのページ（2026-10-21 原島さん確定）: フェーズ＝級の区分け。1つのフェーズを1ページで見せ、
+          ほかのフェーズはチェックで足す。フェーズの中は習得順の1列で、認定済みは薄いグレー */}
+      {(() => {
+        const phaseList = [
+          ...phases.map(p => ({ id: p.id, name: p.name })),
+          ...(skills.some(s => !skillPhaseMap[s.id]) ? [{ id: '__none__', name: 'フェーズ未設定' }] : []),
+        ]
+        const skillsOf = (phaseId: string) => skills
+          .filter(s => (phaseId === '__none__' ? !skillPhaseMap[s.id] : skillPhaseMap[s.id] === phaseId))
+          .sort((x, y) => x.order_index - y.order_index)
+        const togglePhase = (id: string) => setShownPhaseIds(prev => {
+          const next = new Set(prev)
+          if (next.has(id)) { if (next.size > 1) next.delete(id) } else next.add(id)
+          return next
+        })
+        return (
+          <>
+            <div className="flex flex-wrap gap-1.5" role="group" aria-label="表示するフェーズ">
+              {phaseList.map(ph => {
+                const ps = skillsOf(ph.id)
+                const left = ps.filter(s => getStatus(s.id) !== 'certified').length
+                const on = shownPhaseIds.has(ph.id)
                 return (
-                  <Card key={category} className={cn('overflow-hidden border-l-4', getCategoryBorderColor(category, categories))}>
-                    <button
-                      className={cn('w-full flex items-center justify-between p-3 transition-colors', getCategoryBgColor(category, categories), 'hover:opacity-80')}
-                      onClick={() => toggleCategory(key)}
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1.5">
-                          <Badge className={cn('text-xs border-0', getCategoryColor(category, categories))}>{category}</Badge>
-                          <span className="text-xs text-gray-500">{catCertified}/{catSkills.length}</span>
-                          {catCertified === catSkills.length ? (
-                            <Badge className="bg-yellow-100 text-yellow-700 border-0 text-xs flex items-center gap-0.5">
-                              <Trophy className="w-3 h-3" />完了！
-                            </Badge>
-                          ) : (
-                            <span className="text-xs font-bold text-orange-500">あと{catSkills.length - catCertified}件</span>
-                          )}
-                        </div>
-                        <Progress
-                          value={catSkills.length > 0 ? Math.round(catCertified / catSkills.length * 100) : 0}
-                          className={cn('h-1.5', getCategoryProgressColor(category, categories))}
-                        />
-                      </div>
-                      <div className="ml-2 flex-shrink-0">
-                        {isExpanded ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
-                      </div>
-                    </button>
-
-                    {isExpanded && (
-                      <CardContent className="pt-0 pb-2 px-3">
-                        <div className="space-y-1">{uncompSkills.map(skill => renderSkillRow(skill))}</div>
-
-                        {pendingSkills.length > 0 && (
-                          <div className={cn(uncompSkills.length > 0 && 'border-t border-amber-100 mt-2 pt-1')}>
-                            <button
-                              className="w-full flex items-center justify-between py-1.5 px-2 text-left hover:bg-amber-50 rounded-lg transition-colors"
-                              onClick={e => { e.stopPropagation(); toggleStatusGroup(pendingKey) }}
-                            >
-                              <div className="flex items-center gap-1.5">
-                                <Clock className="w-3.5 h-3.5 text-amber-500" />
-                                <span className="text-xs text-amber-700 font-medium">申請中</span>
-                                <span className="text-xs text-amber-500">{pendingSkills.length}件</span>
-                              </div>
-                              {isPendingExpanded ? <ChevronUp className="w-3.5 h-3.5 text-gray-400" /> : <ChevronDown className="w-3.5 h-3.5 text-gray-400" />}
-                            </button>
-                            {isPendingExpanded && <div className="space-y-1 mt-1">{pendingSkills.map(skill => renderSkillRow(skill))}</div>}
-                          </div>
-                        )}
-
-                        {rejectedSkills.length > 0 && (
-                          <div className={cn((uncompSkills.length > 0 || pendingSkills.length > 0) && 'border-t border-red-100 mt-2 pt-1')}>
-                            <button
-                              className="w-full flex items-center justify-between py-1.5 px-2 text-left hover:bg-red-50 rounded-lg transition-colors"
-                              onClick={e => { e.stopPropagation(); toggleStatusGroup(rejectedKey) }}
-                            >
-                              <div className="flex items-center gap-1.5">
-                                <XCircle className="w-3.5 h-3.5 text-red-400" />
-                                <span className="text-xs text-red-600 font-medium">差し戻し</span>
-                                <span className="text-xs text-red-400">{rejectedSkills.length}件</span>
-                              </div>
-                              {isRejectedExpanded ? <ChevronUp className="w-3.5 h-3.5 text-gray-400" /> : <ChevronDown className="w-3.5 h-3.5 text-gray-400" />}
-                            </button>
-                            {isRejectedExpanded && <div className="space-y-1 mt-1">{rejectedSkills.map(skill => renderSkillRow(skill))}</div>}
-                          </div>
-                        )}
-
-                        {certifiedSkills.length > 0 && (
-                          <div className={cn((uncompSkills.length > 0 || pendingSkills.length > 0 || rejectedSkills.length > 0) && 'border-t border-green-100 mt-2 pt-1')}>
-                            <button
-                              className="w-full flex items-center justify-between py-1.5 px-2 text-left hover:bg-green-50 rounded-lg transition-colors"
-                              onClick={e => { e.stopPropagation(); toggleStatusGroup(certifiedKey) }}
-                            >
-                              <div className="flex items-center gap-1.5">
-                                <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
-                                <span className="text-xs text-green-700 font-medium">認定済</span>
-                                <span className="text-xs text-green-500">{certifiedSkills.length}件</span>
-                              </div>
-                              {isCertifiedExpanded ? <ChevronUp className="w-3.5 h-3.5 text-gray-400" /> : <ChevronDown className="w-3.5 h-3.5 text-gray-400" />}
-                            </button>
-                            {isCertifiedExpanded && <div className="space-y-1 mt-1">{certifiedSkills.map(skill => renderSkillRow(skill))}</div>}
-                          </div>
-                        )}
-                      </CardContent>
+                  <button
+                    key={ph.id}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => togglePhase(ph.id)}
+                    className={cn(
+                      'inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs transition-colors',
+                      on ? 'bg-orange-500 border-orange-500 text-white' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
                     )}
-                  </Card>
+                  >
+                    {on ? <CheckCircle2 className="w-3 h-3" /> : <Circle className="w-3 h-3 text-gray-300" />}
+                    {ph.name}
+                    <span className={cn('text-[10px]', on ? 'text-orange-100' : left === 0 ? 'text-green-600' : 'text-gray-400')}>
+                      {ps.length > 0 && left === 0 ? '完了' : `あと${left}`}
+                    </span>
+                  </button>
                 )
               })}
-            </TabsContent>
-          )
-        })}
-      </Tabs>
+            </div>
+            <p className="text-[10px] text-gray-400 -mt-2">見たいフェーズを押すと、下に足して表示します（もう一度押すと外れます）</p>
+
+            {phaseList.filter(ph => shownPhaseIds.has(ph.id)).map(ph => {
+              const ps = skillsOf(ph.id)
+              const done = ps.filter(s => getStatus(s.id) === 'certified').length
+              const left = ps.length - done
+              const pct = ps.length > 0 ? Math.round((done / ps.length) * 100) : 0
+              const m = milestones?.[ph.name]
+              const standardPct = m && cumulativeHours !== undefined ? calcPhasePct(cumulativeHours, m) : null
+              return (
+                <Card key={ph.id} className="overflow-hidden">
+                  <CardHeader className="pb-2 pt-3 px-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <CardTitle className="text-sm font-bold text-gray-800">{ph.name}</CardTitle>
+                      {ps.length > 0 && left === 0 ? (
+                        <Badge className="bg-yellow-100 text-yellow-700 border-0 text-xs flex items-center gap-0.5"><Trophy className="w-3 h-3" />完了！</Badge>
+                      ) : (
+                        <span className="text-xs font-bold text-orange-500">あと{left}項目<span className="ml-1 font-normal text-gray-400">（{done}/{ps.length}）</span></span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 mt-1.5">
+                      <Progress value={pct} className="flex-1 h-1.5 [&>div]:bg-orange-500" />
+                      {standardPct !== null && standardPct > 0 && (
+                        <span className="text-[10px] text-gray-400 flex-shrink-0">標準 {standardPct}%</span>
+                      )}
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-0 pb-2 px-1.5">
+                    {ps.length === 0
+                      ? <p className="text-xs text-gray-400 px-2 py-3">このフェーズにスキルはまだありません</p>
+                      : <div className="divide-y divide-gray-50">{ps.map(skill => renderSkillRow(skill, true))}</div>}
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </>
+        )
+      })()}
       </>}
 
       {/* まとめて申請の固定ボトムバー（ボトムナビの上） */}
@@ -974,6 +839,13 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
                   <Badge className={cn('text-[10px] border-0', getCategoryColor(applyDialogSkill.category, categories))}>{applyDialogSkill.category}</Badge>
                 </div>
               </div>
+              {applyMilestone && applyMilestone.remaining > 0 && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                  <p className="font-semibold flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />この{applyMilestone.kind === 'goal' ? 'ゴール' : '級'}には、まだ認定されていない前提が {applyMilestone.remaining} 件あります</p>
+                  <p className="mt-1 text-amber-700">先にこれらの習得を進めましょう: {applyMilestone.remainingSkills.slice(0, 5).map(s => s.name).join('、')}{applyMilestone.remainingSkills.length > 5 ? ` ほか${applyMilestone.remainingSkills.length - 5}件` : ''}</p>
+                  <p className="mt-1 text-[10px] text-amber-600">前提がすべて認定されると、この申請ができるようになります</p>
+                </div>
+              )}
               <div>
                 <p className="text-xs font-medium text-gray-600 mb-1">コメント（任意）</p>
                 <Textarea
@@ -990,9 +862,9 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
             <Button
               className="w-full bg-orange-500 hover:bg-orange-600 text-white"
               onClick={() => applyDialogSkill && handleSubmitApply(applyDialogSkill, applyComment, applyPhotos)}
-              disabled={isPending}
+              disabled={isPending || (applyMilestone?.remaining ?? 0) > 0}
             >
-              {isPending ? '申請中...' : 'できました！申請する'}
+              {isPending ? '申請中...' : applyMilestone && applyMilestone.remaining > 0 ? '前提が揃うと申請できます' : 'できました！申請する'}
             </Button>
           </DialogFooter>
         </DialogContent>

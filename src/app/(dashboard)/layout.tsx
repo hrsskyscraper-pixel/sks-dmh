@@ -1,22 +1,23 @@
 export const dynamic = 'force-dynamic'
 
-import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
-import { getAuthUser, getCurrentEmployee } from '@/lib/supabase/auth-cache'
+import { getAuthUser, getRealEmployeeRow, getViewAsContext } from '@/lib/supabase/auth-cache'
+import { hasLeft } from '@/lib/left'
 import { BottomNav } from '@/components/layout/nav'
 import { Toaster } from '@/components/ui/sonner'
 import { ViewAsBanner } from '@/components/layout/view-as-banner'
-import { VIEW_AS_COOKIE } from '@/lib/view-as'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { NavDataProvider } from '@/components/layout/nav-data-context'
 import { CertRingProvider } from '@/components/layout/cert-ring-context'
 import { getCertRanksByEmployee } from '@/lib/cert-ranks'
 import { OnboardingDialog } from '@/components/onboarding/onboarding-dialog'
 import { IntroGuideDialog } from '@/components/onboarding/intro-guide-dialog'
+import { StalledApprovalDialog } from '@/components/approvals/stalled-approval-dialog'
 import { PendingScreen } from '@/components/onboarding/pending-screen'
 import { InviteRequiredScreen } from '@/components/onboarding/invite-required-screen'
+import { LeftScreen } from '@/components/onboarding/left-screen'
 import { JoinCompletionBanner } from '@/components/onboarding/join-completion-banner'
-import { canAdminister, isTrainingLeader } from '@/lib/permissions'
+import { canAdminister } from '@/lib/permissions'
 import { MemberLinkProvider } from '@/components/layout/member-link-context'
 import { LineLinkFloatingButton } from '@/components/layout/line-link-floating-button'
 import { FontScaleSync } from '@/components/layout/font-scale-sync'
@@ -31,11 +32,17 @@ export default async function DashboardLayout({
   const user = await getAuthUser()
   if (!user) redirect('/login')
 
-  const employeeRaw = await getCurrentEmployee()
+  // レイアウトは本人のアカウント状態（退職日・文字サイズ・LINE連携・案内）を扱うので real を使う。
+  // view-as で切り替えるのは下部ナビの権限判定とバナーだけ。
+  const { real: employeeRaw, effective, viewingAs } = await getViewAsContext()
 
   // 初回登録は招待リンク経由のみ。レコードが無い＝未招待のログイン → アプリには入れない。
   // （招待リンクを開くと invite/[id] 側で承認待ちレコードが作成される）
   if (!employeeRaw) {
+    // 退職日を過ぎたアカウントは使えない（2026-09-20 決定。退職時にアカウント停止と一緒に記録する運用）。
+    // getRealEmployee は退職者を null にするので、行そのものを見て案内を出し分ける
+    const row = await getRealEmployeeRow()
+    if (row?.left_at && hasLeft(row.left_at)) return <LeftScreen leftAt={row.left_at} />
     return <InviteRequiredScreen email={user.email ?? ''} />
   }
   let employee = employeeRaw
@@ -81,22 +88,12 @@ export default async function DashboardLayout({
 
   const role: Role = employee.role as Role
 
-  // viewAs Cookie の処理（manager/admin のみ有効）
-  const cookieStore = await cookies()
-  const canViewAs = true // 全ロールでView-as可能（閲覧のみ）
-  const viewAsId = canViewAs ? (cookieStore.get(VIEW_AS_COOKIE)?.value ?? null) : null
-
-  // viewAs社員取得
   const db = createAdminClient()
-  const { data: viewAsEmployee } = viewAsId
-    ? await db.from('employees').select('name, role, system_permission, notifications_read_at').eq('id', viewAsId).single()
-    : { data: null }
 
-  // BottomNav は viewAs 社員のロール・権限で表示を切り替える
-  const effectiveRole: Role = (viewAsEmployee?.role as Role | undefined) ?? role
-  const effectivePermission = viewAsEmployee
-    ? (viewAsEmployee.system_permission as SystemPermission | null)
-    : (employee.system_permission as SystemPermission | null)
+  // BottomNav は「見ている相手」の権限で表示を切り替える
+  const viewAsEmployee = viewingAs
+  const effectiveRole: Role = (effective?.role as Role | undefined) ?? role
+  const effectivePermission = (effective?.system_permission as SystemPermission | null) ?? null
 
   // 文字サイズは「自分の」表示設定なので、view-as 対象ではなくログイン本人の値を使う
   const fontScale = normalizeFontScale(employee.font_scale)
@@ -135,7 +132,8 @@ export default async function DashboardLayout({
           />
         )}
         <main className="pb-20 max-w-2xl mx-auto">
-          <MemberLinkProvider canView={canAdminister(employee) || isTrainingLeader(employee)}>
+          {/* Myキャリアは全社員が互いに閲覧できる（2026-09-20）。名前リンクは全員に出す */}
+          <MemberLinkProvider canView={true}>
             {children}
           </MemberLinkProvider>
         </main>
@@ -143,6 +141,7 @@ export default async function DashboardLayout({
         {employee.role !== 'testuser' && !viewAsEmployee && (
           <IntroGuideDialog employeeId={employee.id} dismissed={!!employee.intro_dismissed_at} />
         )}
+        <StalledApprovalDialog />
         <BottomNav role={effectiveRole} systemPermission={effectivePermission} avatarUrl={employee.avatar_url} employeeId={employee.id} employeeName={employee.name} fontScale={fontScale} />
         <Toaster position="top-center" richColors />
       </div>

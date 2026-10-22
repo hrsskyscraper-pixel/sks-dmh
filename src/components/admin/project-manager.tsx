@@ -28,7 +28,7 @@ import Link from 'next/link'
 import { SkillCsvImportDialog } from './skill-csv-import-dialog'
 import type { CsvSkillRow } from '@/app/(dashboard)/admin/projects/csv-actions'
 import { createClient } from '@/lib/supabase/client'
-import { updateSkillCategory, updateSkillStandardHours, updateSkillName, toggleSkillCheckpoint, createSkill, deleteSkill, getSkillDeletionImpact, type SkillDeletionImpact, reorderSkills, updateSkillTargetDate } from '@/app/(dashboard)/actions'
+import { updateSkillCategory, updateSkillStandardHours, updateSkillName, toggleSkillCheckpoint, createSkill, deleteSkill, getSkillDeletionImpact, type SkillDeletionImpact, reorderSkills, updateSkillTargetDate, updateSkillMilestone } from '@/app/(dashboard)/actions'
 import { updateProject } from '@/app/(dashboard)/admin/projects/actions'
 import { sortCategories } from '@/lib/category-order'
 import { cn } from '@/lib/utils'
@@ -46,6 +46,8 @@ interface Props {
   employeeNameMap: Record<string, string>
   /** URL の ?project_id= から復元した初期選択（無ければ先頭） */
   initialSelectedProjectId?: string | null
+  /** 社内資格マスタ（有効なもの）の名前。級の行に紐づける資格の選択肢 */
+  certifications?: string[]
 }
 
 const PROJECT_QUERY_KEY = 'project_id'
@@ -73,6 +75,7 @@ export function ProjectManager({
   currentEmployeeId,
   employeeNameMap,
   initialSelectedProjectId = null,
+  certifications = [],
 }: Props) {
   const supabase = createClient()
   const [isPending, startTransition] = useTransition()
@@ -460,6 +463,14 @@ export function ProjectManager({
     })
   }
 
+  function handleChangeMilestone(skillId: string, kind: 'grade' | 'goal' | null, cert: string | null) {
+    setSkillsState(prev => prev.map(s => s.id === skillId ? { ...s, milestone_kind: kind, milestone_cert: kind === 'grade' ? cert : null } : s))
+    startTransition(async () => {
+      const result = await updateSkillMilestone(skillId, kind, cert)
+      if (result.error) toast.error(result.error)
+    })
+  }
+
   function handleChangeTargetDate(skillId: string, value: string) {
     const date = value || null
     setSkillsState(prev => prev.map(s => s.id === skillId ? { ...s, target_date_hint: date } : s))
@@ -564,6 +575,43 @@ export function ProjectManager({
         >
           CP
         </button>
+        {/* 級・全体ゴール（「あと○項目」の基準）。級のときは自動登録する社内資格を選べる */}
+        <div title="級／全体ゴール（あと○項目の基準）" className="flex items-center gap-0.5 flex-shrink-0">
+          <Select
+            value={skill.milestone_kind ?? 'none'}
+            onValueChange={v => handleChangeMilestone(skill.id, v === 'none' ? null : (v as 'grade' | 'goal'), skill.milestone_cert ?? null)}
+            disabled={isPending}
+          >
+            <SelectTrigger className={cn('h-6 text-[10px] w-14 px-1.5', skill.milestone_kind === 'grade' && 'border-amber-400 text-amber-700', skill.milestone_kind === 'goal' && 'border-orange-500 text-orange-700')}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">－</SelectItem>
+              <SelectItem value="grade">級</SelectItem>
+              <SelectItem value="goal">ゴール</SelectItem>
+            </SelectContent>
+          </Select>
+          {skill.milestone_kind === 'grade' && (
+            <Select
+              value={skill.milestone_cert ?? 'none'}
+              onValueChange={v => handleChangeMilestone(skill.id, 'grade', v === 'none' ? null : v)}
+              disabled={isPending}
+            >
+              <SelectTrigger className="h-6 text-[10px] w-20 px-1.5" title="到達時に自動登録する社内資格">
+                <SelectValue placeholder="資格なし" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">資格なし</SelectItem>
+                {certifications.map(c => (
+                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                ))}
+                {skill.milestone_cert && !certifications.includes(skill.milestone_cert) && (
+                  <SelectItem value={skill.milestone_cert}>{skill.milestone_cert}</SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
         <input
           defaultValue={skill.name}
           title={skill.name}
@@ -634,7 +682,11 @@ export function ProjectManager({
             disabled={isPending}
           />
           <span className={cn('text-[10px] h-6 w-20 flex items-center justify-center border rounded-md cursor-pointer', skill.target_date_hint ? 'text-gray-700 bg-white border-gray-200' : 'text-gray-400 bg-gray-50 border-gray-200')}>
-            {skill.target_date_hint ? `${parseInt(skill.target_date_hint.slice(5, 7))}/${parseInt(skill.target_date_hint.slice(8, 10))}` : '予定日'}
+            {skill.target_date_hint
+              ? (/^\d{4}-\d{2}-\d{2}$/.test(skill.target_date_hint)
+                  ? `${parseInt(skill.target_date_hint.slice(5, 7))}/${parseInt(skill.target_date_hint.slice(8, 10))}`
+                  : skill.target_date_hint)   /* 「8月中旬」のような文字の目安はそのまま出す */
+              : '予定日'}
           </span>
         </div>
         <Button
@@ -812,12 +864,9 @@ export function ProjectManager({
               )}
               {selectedPhases.map(phase => {
                 const phaseSkills = skillsState.filter(s => skillPhaseMap[s.id] === phase.id)
-                const sorted = phaseSkills.sort((a, b) => {
-                  const catA = categories.indexOf(a.category)
-                  const catB = categories.indexOf(b.category)
-                  if (catA !== catB) return catA - catB
-                  return a.order_index - b.order_index
-                })
+                // 並びは「標準的な習得順」（order_index）。区分ごとにはまとめない
+                // （できました表の列順＝この順で習得を進める想定。区分は行の色で見分ける）
+                const sorted = phaseSkills.sort((a, b) => a.order_index - b.order_index)
                 if (sorted.length === 0) return null
                 return (
                   <div
@@ -1332,6 +1381,8 @@ export function ProjectManager({
                       target_date_hint: null,
                       standard_hours: null,
                       is_checkpoint: false,
+                      milestone_kind: null,
+                      milestone_cert: null,
                       created_at: new Date().toISOString(),
                     }])
                   }

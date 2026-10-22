@@ -34,6 +34,8 @@ interface Props {
   selfSelect?: boolean
   /** 自己選択型で選択可能な所属一覧 */
   teams?: TeamOption[]
+  /** LINE通知の一括スイッチ。休止中は参加後の LINE連携のおすすめを出さない */
+  lineEnabled?: boolean
 }
 
 // 日本語（漢字・ひらがな・カタカナ・半角/全角スペース・々・ー）のみ許可
@@ -55,7 +57,7 @@ function isJapaneseName(s: string): boolean {
   return JP_NAME_REGEX.test(t)
 }
 
-export function AcceptInvitationButton({ invitationId, asManager = false, initialLastName, initialFirstName, previewMode = false, selfSelect = false, teams = [] }: Props) {
+export function AcceptInvitationButton({ invitationId, asManager = false, initialLastName, initialFirstName, previewMode = false, selfSelect = false, teams = [], lineEnabled = true }: Props) {
   const [isPending, startTransition] = useTransition()
   const [joined, setJoined] = useState<string | null>(null)
   const router = useRouter()
@@ -164,7 +166,18 @@ export function AcceptInvitationButton({ invitationId, asManager = false, initia
           <span className="text-sm">「{joined}」に{asManager ? 'リーダーとして' : ''}参加しました！</span>
         </div>
 
-        {/* LINE連携の案内（参加直後・最終ステップ） */}
+        {/* LINE連携の案内（参加直後・最終ステップ）。LINE通知が休止中のときは出さず、ダッシュボードへ */}
+        {!lineEnabled ? (
+          <Button
+            onClick={() => {
+              if (previewMode) { alert('プレビューモードです。実際の招待からだと、ここでダッシュボードに遷移します。'); return }
+              router.push('/')
+            }}
+            className="w-full h-11 bg-orange-500 hover:bg-orange-600 font-medium"
+          >
+            ダッシュボードへ
+          </Button>
+        ) : (
         <div className="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 rounded-xl p-4 space-y-3">
           <div className="flex items-start gap-2">
             <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
@@ -198,6 +211,7 @@ export function AcceptInvitationButton({ invitationId, asManager = false, initia
             あとで設定する（ダッシュボードへ）
           </button>
         </div>
+        )}
       </div>
     )
   }

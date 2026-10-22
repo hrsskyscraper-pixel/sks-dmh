@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
+import { getRealEmployee } from '@/lib/supabase/auth-cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { canApprove, canAdminister } from '@/lib/permissions'
 
@@ -11,7 +11,7 @@ import { canApprove, canAdminister } from '@/lib/permissions'
  * - 本人のキャリア記録（資格）にも自動追加
  */
 export async function postGradeAnnouncement(subjectEmployeeId: string, gradeLabel: string): Promise<{ error?: string }> {
-  const me = await getCurrentEmployee()
+  const me = await getRealEmployee()
   if (!me) return { error: '認証が必要です' }
   if (!canApprove(me)) return { error: 'お知らせの投稿はリーダー以上のみ可能です' }
   const grade = gradeLabel.trim()

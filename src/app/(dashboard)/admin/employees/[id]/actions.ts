@@ -7,6 +7,7 @@ import { sendMail } from '@/lib/notifications/email'
 import { sendLineMessage } from '@/lib/notifications/line'
 import { writeAuditLog } from '@/lib/audit'
 import { canApprove, canAdminister } from '@/lib/permissions'
+import { notLeftFilter } from '@/lib/left'
 
 /** 付与権限チェック（canApprove かつ、リーダーの場合は管理チームメンバー限定） */
 async function assertCanActOn(employeeId: string) {
@@ -17,7 +18,7 @@ async function assertCanActOn(employeeId: string) {
   const { data: actor } = await db
     .from('employees')
     .select('id, name, role, system_permission')
-    .eq('auth_user_id', user.id)
+    .eq('auth_user_id', user.id).or(notLeftFilter())
     .single()
   if (!actor || !canApprove(actor)) return { error: '権限がありません' as const }
   if (!canAdminister(actor)) {

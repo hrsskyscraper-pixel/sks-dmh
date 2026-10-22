@@ -71,15 +71,23 @@ fi
 # 4. 復元
 echo ""
 echo "♻️  復元中..."
+# pg_restore は「無視したエラー」があると非ゼロで終わる（例: 依存関係で DROP できない既存関数）。
+# set -e で止めると復号済みダンプが残るので、終了コードを受け取って続行し、最後に知らせる。
+RESTORE_RC=0
 pg_restore \
   --verbose \
   --no-owner --no-privileges \
   --clean --if-exists \
   --dbname="$TARGET_DB" \
-  "$DECRYPTED"
+  "$DECRYPTED" || RESTORE_RC=$?
 
 # 5. クリーンアップ
 rm -f "$DECRYPTED"
+if [ "$RESTORE_RC" -ne 0 ]; then
+  echo ""
+  echo "⚠️  pg_restore が終了コード $RESTORE_RC で終わりました。上のログの ERROR を確認してください"
+  echo "   （既存オブジェクトの DROP 失敗など、無視してよいものが多い。テーブルの復元自体が失敗していないか要確認）"
+fi
 
 echo ""
 echo "✅ 復元完了"

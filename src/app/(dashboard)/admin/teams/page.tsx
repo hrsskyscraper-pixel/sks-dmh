@@ -1,38 +1,25 @@
-import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
+import { getViewAsContext } from '@/lib/supabase/auth-cache'
 import { TopBar } from '@/components/layout/nav'
 import { TeamManager } from '@/components/admin/team-manager'
-import { VIEW_AS_COOKIE } from '@/lib/view-as'
 import { maskEmails } from '@/lib/email-visibility'
+import { canAdminister } from '@/lib/permissions'
 import type { Employee, Role } from '@/types/database'
+import { getStalledApprovals } from '@/lib/stalled-approvals'
+import { getRankingExcludedIds } from '@/lib/test-data'
 
-export default async function AdminTeamsPage() {
-  const currentEmployee = await getCurrentEmployee()
-  if (!currentEmployee) redirect('/login')
+export default async function AdminTeamsPage({ searchParams }: { searchParams?: Promise<{ tab?: string; team?: string; attention?: string }> }) {
+  // view-as は auth-cache が解決する（effective が「見ている相手」＝権限もその人のもの）
+  const { real: currentEmployee, effective } = await getViewAsContext()
+  if (!currentEmployee || !effective) redirect('/login')
+  const sp = (await searchParams) ?? {}
 
-  const supabase = await createClient()
   const db = createAdminClient()
 
-  // view-as 中は表示ロールに合わせて権限を落とす
-  const cookieStore = await cookies()
-  const viewAsId = cookieStore.get(VIEW_AS_COOKIE)?.value ?? null
-  let effectiveRole: Role = currentEmployee.role
-  let effectiveEmployee: Employee = currentEmployee
-
-  if (viewAsId) {
-    const { data: viewAsEmp } = await db
-      .from('employees')
-      .select('id, auth_user_id, name, last_name, first_name, name_kana, email, role, business_role_ids, system_permission, employment_type, hire_date, birth_date, avatar_url, instagram_url, line_url, status, requested_team_id, requested_project_team_id, line_user_id, line_friend, approved_by, approved_at, invited_by, invitation_id, notifications_read_at, font_scale, intro_dismissed_at, is_test, created_at, updated_at')
-      .eq('id', viewAsId)
-      .single()
-    if (viewAsEmp) {
-      effectiveRole = viewAsEmp.role as Role
-      effectiveEmployee = viewAsEmp as Employee
-    }
-  }
+  const effectiveEmployee: Employee = effective as Employee
+  const effectiveRole: Role = effectiveEmployee.role as Role
 
   const [
     { data: teams },
@@ -85,10 +72,26 @@ export default async function AdminTeamsPage() {
     }
   }
 
+  // 「承認できる人がいない申請のある店舗・チーム」だけを出すモード（ログイン時の要対応モーダル → このページ）
+  // 承認者が未設定のチームと、承認者ご本人の申請しか無いチームの両方を拾う（承認の滞留の集計と同じ規則）
+  let attention: { teamId: string; teamName: string; count: number; maxDays: number; selfOnly: boolean }[] | undefined
+  if (sp.attention === '1' && canAdminister(currentEmployee)) {
+    try {
+      const excluded = await getRankingExcludedIds()
+      const stalled = await getStalledApprovals(db, new Date(), excluded)
+      attention = stalled.unassigned
+        .filter(u => u.teamId)
+        .map(u => ({ teamId: u.teamId as string, teamName: u.teamName, count: u.count, maxDays: u.maxDays, selfOnly: u.selfOnly }))
+    } catch (e) {
+      console.error('[所属一覧] 要対応チームの集計に失敗:', e)
+    }
+  }
+
   return (
     <>
       <TopBar title="所属一覧" />
       <TeamManager
+        attention={attention}
         currentEmployee={currentEmployee}
         effectiveEmployee={effectiveEmployee}
         effectiveRole={effectiveRole}

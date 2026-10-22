@@ -9,11 +9,14 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { CertRingAvatar } from '@/components/ui/cert-ring-avatar'
 import { cn } from '@/lib/utils'
-import { AlertTriangle, ChevronRight, Camera, Loader2, ClipboardList, Users, Instagram, Target, CalendarDays, Pencil, BookOpen, Building2, Undo2, Lightbulb } from 'lucide-react'
+import { AlertTriangle, ChevronRight, Camera, Loader2, ClipboardList, Users, Instagram, Target, CalendarDays, Pencil, BookOpen, Building2, Undo2, Lightbulb, MessageCircleQuestion } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { setSelectedProject } from '@/app/(dashboard)/actions'
 import { SkillStatsContent } from '@/components/skills/skill-stats-content'
+import { MilestoneCard } from '@/components/dashboard/milestone-card'
+import { LevelUpCelebration, type CelebrationItem } from '@/components/dashboard/level-up-celebration'
+import { computeMilestones, milestoneOf, prerequisiteNote } from '@/lib/milestones'
 import { SkillPhotoInput } from '@/components/skills/skill-photo-input'
 import { uploadSkillPhotos } from '@/lib/skill-photos'
 import { Textarea } from '@/components/ui/textarea'
@@ -44,6 +47,8 @@ interface Props {
   pendingTeamRequestsCount?: number
   currentGoal: (Pick<Goal, 'id' | 'content' | 'set_at' | 'deadline'> & { reason?: string }) | null
   isOwnDashboard: boolean
+  /** レベルアップ演出（認定済みでまだ見せていない分。本人のホームのみ） */
+  celebration?: { items: CelebrationItem[]; completedPhases: string[]; preview?: boolean }
   careerSummary?: Record<string, string[]>
   storeName?: string | null
   position?: string | null
@@ -117,7 +122,7 @@ const HEADER_ROLE_BADGE: Partial<Record<DisplayRole, string>> = {
 export function DashboardContent({
   employee, skills, achievements: initialAchievements, cumulativeHours, milestones,
   projectPhases, skillPhaseMap, currentProject, employeeProjects,
-  globalPendingAchievementsCount = 0, teamPendingAchievementsCount = 0, pendingTeamRequestsCount = 0,
+  globalPendingAchievementsCount = 0, teamPendingAchievementsCount = 0, pendingTeamRequestsCount = 0, celebration,
   currentGoal: initialGoal, isOwnDashboard, careerSummary = {}, storeName = null, position = null, internalCerts = [], employeeId, hasGoalRecords = false,
   skillManuals = {},
   rankingSlot, checkpointSlot, announcementsSlot, skillRankingSlot, setupNoticeSlot
@@ -194,7 +199,18 @@ export function DashboardContent({
   const pendingIds = new Set(achievementList.filter(a => a.status === 'pending').map(a => a.skill_id))
   const rejectedIds = new Set(achievementList.filter(a => a.status === 'rejected').map(a => a.skill_id))
 
+  /** 申請ダイアログで開いているスキルが級・ゴールなら、その前提の到達状況（前提未認定の注意表示に使う） */
+  const applyMilestone = applyDialogSkill ? milestoneOf(applyDialogSkill.id, skills, skillPhaseMap, projectPhases, achievementList) : null
+
   const handleRequest = (skill: Skill, comment?: string, photos: File[] = []) => {
+    // 級・ゴールで前提が残っていれば、申請コメントの先頭に注記を付けて承認者に見えるようにする
+    // 級・ゴールは前提がすべて認定されるまで申請できない（2026-09-20 決定）
+    if ((milestoneOf(skill.id, skills, skillPhaseMap, projectPhases, achievementList)?.remaining ?? 0) > 0) {
+      toast.error('前提のスキルがまだ認定されていません', { description: '前提がすべて認定されると申請できるようになります' })
+      return
+    }
+    const finalComment = [prerequisiteNote(milestoneOf(skill.id, skills, skillPhaseMap, projectPhases, achievementList)), comment?.trim()].filter(Boolean).join('\n') || null
+
     if (!isOwnDashboard) {
       toast.error('プレビュー中は申請できません', { description: 'プレビュー（view-as）を解除し、ご自身のアカウントでお試しください' })
       return
@@ -213,24 +229,24 @@ export function DashboardContent({
         // 差し戻し → 再申請
         const { data, error } = await supabase
           .from('achievements')
-          .update({ status: 'pending', achieved_at: new Date().toISOString(), apply_comment: comment?.trim() || null, certify_comment: null, ...photoField })
+          .update({ status: 'pending', achieved_at: new Date().toISOString(), apply_comment: finalComment, certify_comment: null, ...photoField })
           .eq('id', existing.id)
           .select()
           .single()
         if (error) { toast.error('申請に失敗しました', { description: error.message }); return }
         setAchievementList(prev => prev.map(a => a.id === existing.id ? data : a))
-        await supabase.from('achievement_history').insert({ achievement_id: existing.id, action: 'reapply' as const, actor_id: employee.id, comment: comment?.trim() || null })
+        await supabase.from('achievement_history').insert({ achievement_id: existing.id, action: 'reapply' as const, actor_id: employee.id, comment: finalComment })
       } else {
         const { data, error } = await supabase
           .from('achievements')
-          .insert({ employee_id: employee.id, skill_id: skill.id, status: 'pending', apply_comment: comment?.trim() || null, photo_paths: photoPaths })
+          .insert({ employee_id: employee.id, skill_id: skill.id, status: 'pending', apply_comment: finalComment, photo_paths: photoPaths })
           .select()
           .single()
         if (error) { toast.error('申請に失敗しました', { description: error.message }); return }
         setAchievementList(prev => [...prev, data])
-        await supabase.from('achievement_history').insert({ achievement_id: data.id, action: 'apply' as const, actor_id: employee.id, comment: comment?.trim() || null })
+        await supabase.from('achievement_history').insert({ achievement_id: data.id, action: 'apply' as const, actor_id: employee.id, comment: finalComment })
       }
-      fetch('/api/skill-notification', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ employeeId: employee.id, skillName: skill.name, isReapply: !!existing, comment: comment?.trim() || null }) }).catch(() => {})
+      fetch('/api/skill-notification', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ employeeId: employee.id, skillName: skill.name, isReapply: !!existing, comment: finalComment }) }).catch(() => {})
       setApplyDialogSkill(null)
       setApplyComment('')
       setApplyPhotos([])
@@ -487,6 +503,14 @@ export function DashboardContent({
       </Card>
 
       {setupNoticeSlot}
+      {celebration && isOwnDashboard && (
+        <LevelUpCelebration items={celebration.items} completedPhases={celebration.completedPhases} employeeName={employee.name} employeeId={employee.id} employeeAvatar={avatarUrl ?? employee.avatar_url} preview={celebration.preview} />
+      )}
+
+      {/* 次の級まで（級・全体ゴールが設定されているカリキュラムのみ表示） */}
+      {currentProject && (
+        <MilestoneCard milestones={computeMilestones(skills, skillPhaseMap, projectPhases, achievementList)} />
+      )}
 
       {/* ⚠️ 対応が必要（全社未承認・自チーム未承認・チーム変更承認依頼・期限遅れ・差し戻しをここに集約） */}
       {(() => {
@@ -598,6 +622,20 @@ export function DashboardContent({
       {skillRankingSlot}
       {checkpointSlot}
 
+      {/* Q&A（2026-09-19 決定: 改善提案の上に置く。誰でも質問・回答できる） */}
+      <Link href="/qa" className="block">
+        <div className="rounded-xl border border-gray-200 bg-white px-4 py-3 hover:bg-gray-50 transition-colors flex items-center gap-3">
+          <div className="w-9 h-9 rounded-full bg-sky-100 flex items-center justify-center flex-shrink-0">
+            <MessageCircleQuestion className="w-4 h-4 text-sky-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-gray-800">Q&amp;A</p>
+            <p className="text-xs text-gray-500">分からないことを聞けます。誰でも回答できます</p>
+          </div>
+          <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0" />
+        </div>
+      </Link>
+
       {/* 改善提案・ご要望 */}
       <Link href="/improvements" className="block">
         <div className="rounded-xl border border-gray-200 bg-white px-4 py-3 hover:bg-gray-50 transition-colors flex items-center gap-3">
@@ -624,6 +662,13 @@ export function DashboardContent({
                   <Badge className={cn('text-[10px] border-0', getCategoryColor(applyDialogSkill.category, categories))}>{applyDialogSkill.category}</Badge>
                 </div>
               </div>
+              {applyMilestone && applyMilestone.remaining > 0 && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                  <p className="font-semibold flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />この{applyMilestone.kind === 'goal' ? 'ゴール' : '級'}には、まだ認定されていない前提が {applyMilestone.remaining} 件あります</p>
+                  <p className="mt-1 text-amber-700">先にこれらの習得を進めましょう: {applyMilestone.remainingSkills.slice(0, 5).map(s => s.name).join('、')}{applyMilestone.remainingSkills.length > 5 ? ` ほか${applyMilestone.remainingSkills.length - 5}件` : ''}</p>
+                  <p className="mt-1 text-[10px] text-amber-600">前提がすべて認定されると、この申請ができるようになります</p>
+                </div>
+              )}
               <div>
                 <p className="text-xs font-medium text-gray-600 mb-1">コメント（任意）</p>
                 <Textarea placeholder="習得したポイントや、気付いたこと、学んだことなど" value={applyComment} onChange={e => setApplyComment(e.target.value)} className="text-sm min-h-[80px] resize-none" />
@@ -632,8 +677,8 @@ export function DashboardContent({
             </div>
           )}
           <DialogFooter>
-            <Button className="w-full bg-orange-500 hover:bg-orange-600 text-white" onClick={() => applyDialogSkill && handleRequest(applyDialogSkill, applyComment, applyPhotos)} disabled={isPending}>
-              {isPending ? '申請中...' : 'できました！申請する'}
+            <Button className="w-full bg-orange-500 hover:bg-orange-600 text-white" onClick={() => applyDialogSkill && handleRequest(applyDialogSkill, applyComment, applyPhotos)} disabled={isPending || (applyMilestone?.remaining ?? 0) > 0}>
+              {isPending ? '申請中...' : applyMilestone && applyMilestone.remaining > 0 ? '前提が揃うと申請できます' : 'できました！申請する'}
             </Button>
           </DialogFooter>
         </DialogContent>

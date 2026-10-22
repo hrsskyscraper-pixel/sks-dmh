@@ -1,0 +1,132 @@
+/**
+ * マイルストーン（級・全体ゴール）の到達状況を計算する。
+ *
+ * 数え方（2026-10-21 原島さん確定。フェーズ＝級の区分け）:
+ * - 級（milestone_kind = 'grade'）: 「接客３級まであと○項目」= その級の行と同じフェーズにある、ほかのスキルのうち
+ *   まだ認定されていない数（並びは問わない）。フェーズ未設定の級の行だけは、従来どおり
+ *   「同じ区分（category）で手前に並ぶスキル」を数える（2026-09-19 MTG の数え方）。
+ * - 全体ゴール（milestone_kind = 'goal'）: カリキュラムの全スキル（自分自身を除く）のうち未認定の数。
+ * - 級の行そのものは前提に含めない。前提が 0 になったら、その行を申請 → 認定で到達（認定操作を挟む）。
+ */
+export type MilestoneKind = 'grade' | 'goal'
+
+/** certified: 到達済み / pending: 級の行を申請中 / ready: 前提が揃い、級の行を申請できる / in_progress: 前提が残っている */
+export type MilestoneStatus = 'certified' | 'pending' | 'ready' | 'in_progress'
+
+export interface MilestoneSkillLike {
+  id: string
+  name: string
+  category: string
+  order_index: number
+  milestone_kind?: MilestoneKind | null
+  milestone_cert?: string | null
+}
+
+export interface MilestoneProgress {
+  skillId: string
+  name: string
+  kind: MilestoneKind
+  /** 到達時に自動登録する社内資格名（null は到達表示のみ） */
+  cert: string | null
+  category: string
+  /** 前提スキルの総数 */
+  total: number
+  /** 前提のうち認定済みの数 */
+  done: number
+  /** あと○項目 */
+  remaining: number
+  status: MilestoneStatus
+  /** 未認定の前提（並び順）。画面で「次はこれ」を出すために先頭数件を使う */
+  remainingSkills: { id: string; name: string }[]
+}
+
+/**
+ * @param skills        全スキル（カリキュラム外を含んでよい。skillPhaseMap にあるものだけを対象にする）
+ * @param skillPhaseMap カリキュラムに含まれるスキル → フェーズID（未設定は null）。キーの有無で「カリキュラム内」を判定
+ * @param phases        カリキュラムのフェーズ（order_index で並び）
+ * @param achievements  本人の申請（skill_id, status）
+ */
+export function computeMilestones(
+  skills: MilestoneSkillLike[],
+  skillPhaseMap: Record<string, string | null>,
+  phases: { id: string; order_index: number }[],
+  achievements: { skill_id: string; status: string }[],
+): MilestoneProgress[] {
+  const phaseOrder: Record<string, number> = Object.fromEntries(phases.map(p => [p.id, p.order_index]))
+  const UNASSIGNED = 1_000_000
+  const sortKey = (s: MilestoneSkillLike) => {
+    const ph = skillPhaseMap[s.id]
+    const po = ph ? (phaseOrder[ph] ?? UNASSIGNED) : UNASSIGNED
+    return po * 100_000 + s.order_index
+  }
+  const inCurriculum = skills
+    .filter(s => Object.prototype.hasOwnProperty.call(skillPhaseMap, s.id))
+    .sort((a, b) => sortKey(a) - sortKey(b))
+
+  const certified = new Set(achievements.filter(a => a.status === 'certified').map(a => a.skill_id))
+  const pending = new Set(achievements.filter(a => a.status === 'pending').map(a => a.skill_id))
+
+  const result: MilestoneProgress[] = []
+  for (const m of inCurriculum) {
+    if (m.milestone_kind !== 'grade' && m.milestone_kind !== 'goal') continue
+    const key = sortKey(m)
+    const phaseId = skillPhaseMap[m.id] ?? null
+    const prereq = m.milestone_kind === 'goal'
+      // ほかのゴールは前提に入れない（ゴールが2つあると互いに待ち合うため）
+      ? inCurriculum.filter(s => s.id !== m.id && s.milestone_kind !== 'goal')
+      : phaseId
+        // 同じフェーズにほかの級・ゴールがあっても前提に入れない（互いに待ち合って、どちらも申請できなくなるため）
+        ? inCurriculum.filter(s => s.id !== m.id && skillPhaseMap[s.id] === phaseId && !s.milestone_kind)
+        : inCurriculum.filter(s => s.id !== m.id && s.category === m.category && sortKey(s) < key)
+    const remainingSkills = prereq.filter(s => !certified.has(s.id)).map(s => ({ id: s.id, name: s.name }))
+    const status: MilestoneStatus = certified.has(m.id)
+      ? 'certified'
+      : pending.has(m.id)
+        ? 'pending'
+        : remainingSkills.length === 0
+          ? 'ready'
+          : 'in_progress'
+    result.push({
+      skillId: m.id,
+      name: m.name,
+      kind: m.milestone_kind,
+      cert: m.milestone_cert ?? null,
+      category: m.category,
+      total: prereq.length,
+      done: prereq.length - remainingSkills.length,
+      remaining: remainingSkills.length,
+      status,
+      remainingSkills,
+    })
+  }
+  return result
+}
+
+/** 全角・半角の数字を揃えて比較するための正規化（「調理3級」と「調理３級」を同一視） */
+export function normalizeCertName(name: string): string {
+  return name.normalize('NFKC').replace(/\s+/g, '')
+}
+
+/** 指定スキルがマイルストーンなら、その到達状況を返す（通常スキルは null） */
+export function milestoneOf(
+  skillId: string,
+  skills: MilestoneSkillLike[],
+  skillPhaseMap: Record<string, string | null>,
+  phases: { id: string; order_index: number }[],
+  achievements: { skill_id: string; status: string }[],
+): MilestoneProgress | null {
+  const target = skills.find(s => s.id === skillId)
+  if (!target || (target.milestone_kind !== 'grade' && target.milestone_kind !== 'goal')) return null
+  return computeMilestones(skills, skillPhaseMap, phases, achievements).find(m => m.skillId === skillId) ?? null
+}
+
+/**
+ * 前提が残ったまま級・ゴールを申請したときに、申請コメントの先頭へ付ける注記。
+ * 承認者が承認センターや対話履歴で「前提未認定」を見られるようにする。
+ */
+export function prerequisiteNote(m: MilestoneProgress | null): string | null {
+  if (!m || m.remaining === 0) return null
+  const names = m.remainingSkills.slice(0, 5).map(s => s.name).join('、')
+  const more = m.remainingSkills.length > 5 ? ` ほか${m.remainingSkills.length - 5}件` : ''
+  return `【前提未認定 ${m.remaining}件】${names}${more}`
+}

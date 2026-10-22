@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { MemberNameLink } from '@/components/layout/member-name-link'
-import type { AnnouncementItem, AnnouncementReaction, AnnouncementComment } from '@/lib/announcements'
+import type { AnnouncementItem, AnnouncementReaction, AnnouncementComment, DailyReportPayload } from '@/lib/announcements'
 
 const HEART = '❤️'
 
@@ -51,6 +51,7 @@ export function AnnouncementCard({ item, reactions: initReactions, comments: ini
   const isRanking = item.kind === 'ranking'
   const isWelcome = item.kind === 'welcome'
   const isDaily = item.kind === 'daily'
+  const isPraise = item.kind === 'praise'
 
   const toggleLike = () => {
     startTransition(async () => {
@@ -82,17 +83,20 @@ export function AnnouncementCard({ item, reactions: initReactions, comments: ini
   }
 
   return (
-    <div className={cn('rounded-lg px-3 py-2.5 border', isDaily ? 'bg-orange-50 border-orange-200' : isRanking ? 'bg-amber-50 border-amber-200' : isWelcome ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50/60 border-rose-100')}>
+    <div className={cn('rounded-lg px-3 py-2.5 border', isDaily ? 'bg-orange-50 border-orange-200' : isRanking ? 'bg-amber-50 border-amber-200' : isWelcome ? 'bg-emerald-50 border-emerald-200' : isPraise ? 'bg-sky-50 border-sky-200' : 'bg-rose-50/60 border-rose-100')}>
       <div className="flex items-start gap-2">
         {isDaily ? <Sunrise className="w-4 h-4 text-orange-500 flex-shrink-0 mt-0.5" />
           : isRanking ? <Trophy className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
           : isWelcome ? <PartyPopper className="w-4 h-4 text-emerald-500 flex-shrink-0 mt-0.5" />
+          : isPraise ? <MessageCircle className="w-4 h-4 text-sky-500 flex-shrink-0 mt-0.5" />
           : <Award className="w-4 h-4 text-rose-500 flex-shrink-0 mt-0.5" />}
         <div className="flex-1 min-w-0">
           {isDaily ? (
             <>
               {item.title && <p className="text-sm font-semibold text-orange-800">{item.title}</p>}
-              {item.body && <p className="text-xs text-gray-700 whitespace-pre-line mt-0.5 leading-relaxed">{item.body}</p>}
+              {item.payload ? <DailyReportBody payload={item.payload} body={item.body} /> : (
+                item.body && <p className="text-xs text-gray-700 whitespace-pre-line mt-0.5 leading-relaxed">{item.body}</p>
+              )}
             </>
           ) : isRanking ? (
             <>
@@ -104,6 +108,19 @@ export function AnnouncementCard({ item, reactions: initReactions, comments: ini
                 </Link>
               )}
             </>
+          ) : isPraise ? (
+            <div className="flex items-start gap-2">
+              <CertRingAvatar employeeId={item.subjectId} src={item.subjectAvatar} name={item.subjectName ?? '?'} size={28} className="flex-shrink-0 mt-0.5" fallbackClassName="bg-sky-100 text-sky-700" />
+              <div className="min-w-0">
+                <p className="text-xs text-gray-600">
+                  <span className="font-semibold text-gray-800">{item.createdByName ?? 'リーダー'}</span> さんから
+                  {item.subjectStore && <span className="text-gray-500"> {item.subjectStore}の</span>}{' '}
+                  <MemberNameLink employeeId={item.subjectId} className="font-semibold text-gray-800">{item.subjectName}</MemberNameLink> さんへ
+                  {item.title && <span className="text-gray-400">（{item.title}）</span>}
+                </p>
+                {item.body && <p className="text-sm text-sky-900 font-medium whitespace-pre-line mt-0.5">「{item.body}」</p>}
+              </div>
+            </div>
           ) : isWelcome ? (
             <div className="flex items-center gap-2">
               <CertRingAvatar employeeId={item.subjectId} src={item.subjectAvatar} name={item.subjectName ?? '?'} size={28} className="flex-shrink-0" fallbackClassName="bg-emerald-100 text-emerald-700" />
@@ -176,6 +193,151 @@ export function AnnouncementCard({ item, reactions: initReactions, comments: ini
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+
+/**
+ * デイリーレポートの本文（構造化データがあるとき）。
+ * 名前はタイムラインの絞り込みリンク（その日・その人の分だけ表示。解除すれば全部見える）。
+ * 本文末尾の「承認をお待ちの申請」などの追記は、テキスト本文から該当部分を拾って下に出す。
+ */
+function DailyReportBody({ payload, body }: { payload: DailyReportPayload; body: string | null }) {
+  const p = payload
+  const [stalledOpen, setStalledOpen] = useState(false)
+  const slash = `${Number(p.date.slice(5, 7))}/${Number(p.date.slice(8, 10))}`
+  const tl = (params: Record<string, string>) => `/timeline?${new URLSearchParams({ date: p.date, ...params }).toString()}`
+  const totalCerts = p.achievers.reduce((s, a) => s + a.count, 0)
+  const nameLink = (href: string, name: string) => (
+    <Link href={href} className="font-semibold text-orange-800 underline decoration-orange-300 underline-offset-2 hover:text-orange-600">{name}</Link>
+  )
+  // 構造化データに滞留が無い古いレポートは、テキスト本文の「⏳」以降をそのまま出す
+  const extraIdx = body && !p.stalled ? body.indexOf('⏳') : -1
+  const extra = extraIdx >= 0 ? body!.slice(extraIdx) : null
+  const achieverPeople = p.achievers.length + p.achieversMore
+  /** 承認待ちの店舗一覧は5件まで。6件目以降はタップで開く */
+  const STALLED_SHOWN = 5
+
+  return (
+    <div className="text-xs text-gray-700 mt-0.5 leading-relaxed space-y-2">
+      <p>{slash}は全社で {achieverPeople}人 {totalCerts}件 のスキルが認定されました！</p>
+      {p.achievers.length > 0 && (
+        <div>
+          <p>🏅 スキルを習得した方✨  おめでとうございます！</p>
+          <ul className="pl-1">
+            {p.achievers.map(a => (
+              <li key={a.id}>・{nameLink(tl({ achiever: a.id }), `${a.name}さん`)}{a.store && <span className="text-gray-500">　{a.store}</span>}
+                <span className="text-gray-500">{a.count > 1 ? `（${a.count}件：${a.skill} ほか）` : `（${a.skill}）`}</span></li>
+            ))}
+            {p.achieversMore > 0 && <li>・…ほか{p.achieversMore}名が習得！</li>}
+          </ul>
+        </div>
+      )}
+      {p.certifiers.length > 0 && (
+        <div>
+          <p>🤝 認定いただいた方✨ ありがとうございました</p>
+          <ul className="pl-1">
+            {p.certifiers.slice(0, 8).map(c => (
+              <li key={c.id}>・{nameLink(tl({ certifier: c.id }), `${c.name}さん`)}{c.count > 1 && <span className="text-gray-500">（{c.count}件）</span>}</li>
+            ))}
+            {p.certifiers.length > 8 && <li>・…ほか{p.certifiers.length - 8}名</li>}
+          </ul>
+        </div>
+      )}
+      {p.praisers.length > 0 && (
+        <div>
+          <p>💬 メッセージを贈った方✨ ありがとうございました</p>
+          <ul className="pl-1">
+            {p.praisers.slice(0, 8).map(c => (
+              <li key={c.id}>・{nameLink(tl({ praiser: c.id }), `${c.name}さん`)}{c.count > 1 && <span className="text-gray-500">（{c.count}件）</span>}</li>
+            ))}
+            {p.praisers.length > 8 && <li>・…ほか{p.praisers.length - 8}名</li>}
+          </ul>
+        </div>
+      )}
+      {p.applicants.people > 0 && <p>✨ 新しい挑戦 … {p.applicants.people}名が新しいスキル{p.applicants.count}件を申請しました</p>}
+      {p.newMembers.length > 0 && (
+        <p>🎉 新しい仲間 … {p.newMembers.map((m, i) => (
+          <span key={m.id}>{i > 0 && '、'}<MemberNameLink employeeId={m.id} className="font-semibold">{m.name}</MemberNameLink>さん</span>
+        ))}が仲間入り！<br />　Mission Board へようこそ！</p>
+      )}
+      {p.streak >= 3 && <p>🔥 {p.streak}日連続で習得が生まれています！</p>}
+      <p>今日も、あなたの「できた！」をお待ちしています ☆<br />素敵な１日になりますように (^^)</p>
+      {extra && <p className="whitespace-pre-line border-t border-orange-200 pt-1.5">{extra}</p>}
+      {p.stalled && p.stalled.total > 0 && (
+        <div className="border-t border-orange-200 pt-1.5 space-y-2">
+          <div>
+            <p>⏳ <span className="font-semibold">承認者の方へ</span> 承認待ち申請が {p.stalled.total}件 あります<span className="text-gray-500">（申請の翌日中に承認されていないもの）</span></p>
+            {p.stalled.byTeam ? (
+              <ul className="pl-1">
+                {(stalledOpen ? p.stalled.byTeam : p.stalled.byTeam.slice(0, STALLED_SHOWN)).map(t => (
+                  <li key={t.teamId}>・{nameLink(`/approvals?team=${t.teamId}`, t.teamName)} {t.count}件<span className="text-gray-500"> 最長{t.maxDays}日（承認者 {t.approverNames.map(n => `${n}さん`).join('、')}）</span></li>
+                ))}
+                {p.stalled.byTeam.length > STALLED_SHOWN && (
+                  <li>
+                    <button onClick={() => setStalledOpen(v => !v)} className="text-orange-700 underline decoration-orange-300 underline-offset-2 hover:text-orange-600">
+                      {stalledOpen ? '・閉じる' : `・…ほか${p.stalled.byTeam.length - STALLED_SHOWN}店舗・チーム（タップで表示）`}
+                    </button>
+                  </li>
+                )}
+              </ul>
+            ) : p.stalled.byApprover ? (
+              <ul className="pl-1">
+                {(stalledOpen ? p.stalled.byApprover : p.stalled.byApprover.slice(0, STALLED_SHOWN)).map(a => (
+                  <li key={a.id}>・{nameLink(`/approvals?approver=${a.id}`, `${a.name}さん`)}: {a.count}件<span className="text-gray-500">（最長 {a.maxDays}日）</span></li>
+                ))}
+                {p.stalled.byApprover.length > STALLED_SHOWN && (
+                  <li>
+                    <button onClick={() => setStalledOpen(v => !v)} className="text-orange-700 underline decoration-orange-300 underline-offset-2 hover:text-orange-600">
+                      {stalledOpen ? '・閉じる' : `・…ほか${p.stalled.byApprover.length - STALLED_SHOWN}名（タップで全員を表示）`}
+                    </button>
+                  </li>
+                )}
+              </ul>
+            ) : null}
+            <p>　承認センターからの認定を、どうぞよろしくお願いします！</p>
+          </div>
+          {p.stalled.unassigned.length > 0 && (() => {
+            // 理由ごとにまとめて、説明は見出しに1行だけ（各行に同じ説明を繰り返さない）
+            const u = p.stalled!.unassigned
+            const noApprover = u.filter(x => x.teamId && !x.selfOnly)
+            const selfOnly = u.filter(x => x.teamId && x.selfOnly)
+            const noTeam = u.filter(x => !x.teamId)
+            const row = (x: typeof u[number], href: string | null) => (
+              <li key={`${x.teamId ?? 'none'}:${x.selfOnly ? 'self' : 'none'}`}>
+                ・{href ? nameLink(href, x.teamName) : <span className="font-semibold">{x.teamName}</span>}
+                {' '}{x.count}件<span className="text-gray-500">{x.maxDays ? ` 最長${x.maxDays}日` : ''}</span>
+              </li>
+            )
+            return (
+              <div className="space-y-2">
+                <p>🏬 <span className="font-semibold">運用管理者の方へ</span> 承認できる人がいない申請があります。対応をお願いします。</p>
+                {noApprover.length > 0 && (
+                  <div>
+                    <p className="text-gray-600">【承認者が未設定の店舗・チーム】店舗名をタップすると所属一覧が開きます。担当リーダーの設定をお願いします</p>
+                    <ul className="pl-1">{noApprover.map(x => row(x, `/admin/teams?team=${x.teamId}`))}</ul>
+                  </div>
+                )}
+                {selfOnly.length > 0 && (
+                  <div>
+                    <p className="text-gray-600">【承認者ご本人の申請】自分の申請は自分で承認できません。別の承認者か運用管理者の承認をお願いします（店舗名をタップで承認センターへ）</p>
+                    <ul className="pl-1">{selfOnly.map(x => row(x, `/approvals?team=${x.teamId}`))}</ul>
+                  </div>
+                )}
+                {noTeam.length > 0 && (
+                  <div>
+                    <p className="text-gray-600">【店舗・部署に所属していない人の申請】所属の設定をお願いします</p>
+                    <ul className="pl-1">{noTeam.map(x => row(x, '/admin/store-stats?open=none&filter=pending'))}</ul>
+                  </div>
+                )}
+                <p><Link href="/admin/teams?attention=1" className="text-orange-700 underline decoration-orange-300 underline-offset-2 hover:text-orange-600">該当の店舗・チームをまとめて見る →</Link></p>
+              </div>
+            )
+          })()}
+        </div>
+      )}
+      <p className="text-[10px] text-gray-400">名前をタップするとタイムラインが、店舗名をタップすると承認センターが、その分だけに絞り込まれます</p>
     </div>
   )
 }

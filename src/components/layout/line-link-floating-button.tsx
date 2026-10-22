@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useTransition } from 'react'
+import { useNavData } from '@/components/layout/nav-data-context'
 import { usePathname } from 'next/navigation'
 import { MessageCircle, X } from 'lucide-react'
 import { toast } from 'sonner'
@@ -47,9 +48,12 @@ export function LineLinkFloatingButton({
   // 友だち追加済みなら自動で line_friend=true になり、このボタンは消える。
   // （hooks は早期 return より前に呼ぶ必要があるため、ここで条件を算出して渡す）
   useLineFriendAutoRecheck(isLinked && !friendLinked)
+  const { lineNotificationsEnabled } = useNavData()
 
   // ホームではバナーで案内するので、フローティングは出さない（同じCTAの二重表示を回避）
   if (pathname === '/') return null
+  // LINE通知が一括休止中は、連携しても届かないので案内自体を出さない
+  if (!lineNotificationsEnabled) return null
   if (isLinked && friendLinked) return null
   if (hidden) return null
 

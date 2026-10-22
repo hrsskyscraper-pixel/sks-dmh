@@ -25,6 +25,8 @@ interface Props {
   myAchievementResults: { id: string; achievement_id: string; action: 'apply' | 'reject' | 'reapply' | 'certify'; actor_id: string; comment: string | null; created_at: string }[]
   myTeamRequestResults: { id: string; request_type: string; team_id: string | null; reviewed_by: string | null; reviewed_at: string | null; review_comment: string | null; status: 'pending' | 'approved' | 'rejected'; payload: unknown }[]
   notificationsReadAt: string | null
+  /** 承認者向け: 滞留している承認の件数（0 なら非表示） */
+  stalledApprovals?: { count: number; maxDays: number }
 }
 
 function timeAgo(dateStr: string): string {
@@ -61,7 +63,7 @@ function getClickedIds(): Set<string> {
   catch { return new Set() }
 }
 
-export function NotificationList({ reactions, comments, achievementMap, employeeMap, myAchievementResults, myTeamRequestResults, notificationsReadAt }: Props) {
+export function NotificationList({ reactions, comments, achievementMap, employeeMap, myAchievementResults, myTeamRequestResults, notificationsReadAt, stalledApprovals }: Props) {
   const readAt = notificationsReadAt ? new Date(notificationsReadAt).getTime() : 0
 
   // --- 1. いいね・コメント: まず「人×スキル」でまとめ、その後「人×日」でまとめる ---
@@ -183,10 +185,29 @@ export function NotificationList({ reactions, comments, achievementMap, employee
     })
   }, [])
 
+  const stalledBanner = stalledApprovals && stalledApprovals.count > 0 ? (
+    <Link href="/approvals?tab=skills" className="block">
+      <div className="flex items-start gap-2.5 rounded-lg px-3 py-3 border border-amber-300 bg-amber-50 mb-2">
+        <div className="w-9 h-9 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center flex-shrink-0 text-lg">⏳</div>
+        <div className="flex-1 min-w-0">
+          <span className="inline-block mb-1 px-1.5 py-0.5 rounded bg-red-500 text-white text-[10px] font-bold">要対応</span>
+          <p className="text-sm text-gray-800">
+            承認をお待ちの申請が <span className="font-semibold text-amber-700">{stalledApprovals.count}件</span> あります
+            <span className="text-xs text-gray-500">（最長 {stalledApprovals.maxDays}日）</span>
+          </p>
+          <p className="text-[11px] text-gray-500 mt-0.5">申請の翌日中に承認されていないものです。承認センターで認定または差し戻しをお願いします。</p>
+        </div>
+      </div>
+    </Link>
+  ) : null
+
   if (items.length === 0) {
     return (
-      <div className="p-8 text-center text-sm text-muted-foreground">
-        お知らせはありません
+      <div className="p-4">
+        {stalledBanner}
+        <div className="p-8 text-center text-sm text-muted-foreground">
+          お知らせはありません
+        </div>
       </div>
     )
   }
@@ -201,6 +222,7 @@ export function NotificationList({ reactions, comments, achievementMap, employee
 
   return (
     <div className="p-4 space-y-0.5">
+      {stalledBanner}
       {items.map(item => {
         const isRejected =
           item.kind === 'cert_reject' ||

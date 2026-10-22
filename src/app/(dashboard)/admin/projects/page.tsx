@@ -21,14 +21,16 @@ export default async function ProjectsPage({ searchParams }: { searchParams?: Pr
     { data: allSkills },
     { data: teams },
     { data: creatorEmployees },
+    { data: certRows },
   ] = await Promise.all([
     db.from('skill_projects').select('id, name, description, is_active, created_at, created_by').order('created_at'),
     db.from('project_phases').select('id, project_id, name, order_index, end_hours, created_at').order('project_id').order('order_index'),
     db.from('project_skills').select('project_id, skill_id, project_phase_id'),
     db.from('project_teams').select('project_id, team_id'),
-    db.from('skills').select('id, name, phase, category, order_index, target_date_hint, standard_hours, is_checkpoint, created_at').order('order_index'),
+    db.from('skills').select('id, name, phase, category, order_index, target_date_hint, standard_hours, is_checkpoint, created_at, milestone_kind, milestone_cert').order('order_index'),
     db.from('teams').select('id, name, type, prefecture').order('name'),
     db.from('employees').select('id, name'),
+    db.from('certifications').select('name').eq('is_active', true).order('order_index'),
   ])
 
   // URL の ?project_id= で選択中の習得カリキュラムを復元する
@@ -52,6 +54,7 @@ export default async function ProjectsPage({ searchParams }: { searchParams?: Pr
         teams={teams ?? []}
         currentEmployeeId={currentEmployee.id}
         employeeNameMap={Object.fromEntries((creatorEmployees ?? []).map(e => [e.id, e.name]))}
+        certifications={(certRows ?? []).map(c => c.name)}
       />
     </>
   )

@@ -1,14 +1,15 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { CheckCircle2, TrendingUp, Heart, BookOpen } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { acquireModal } from '@/lib/modal-queue'
 
-const SESSION_KEY = 'intro_guide_shown'
+export const INTRO_GUIDE_SESSION_KEY = 'intro_guide_shown'
 
 /**
  * ログイン時のツール説明モーダル。
@@ -19,17 +20,28 @@ export function IntroGuideDialog({ employeeId, dismissed }: { employeeId: string
   const [open, setOpen] = useState(false)
   const [dontShow, setDontShow] = useState(false)
 
+  const releaseRef = useRef<(() => void) | null>(null)
+
   useEffect(() => {
     if (dismissed) return
     try {
-      if (sessionStorage.getItem(SESSION_KEY)) return
-      sessionStorage.setItem(SESSION_KEY, '1')
+      if (sessionStorage.getItem(INTRO_GUIDE_SESSION_KEY)) return
+      sessionStorage.setItem(INTRO_GUIDE_SESSION_KEY, '1')
     } catch { /* sessionStorage 不可でも表示はする */ }
-    setOpen(true)
+    let cancelled = false
+    // ログイン直後のモーダルは順番に出す（ようこそ → レベルアップ → 承認の要対応）
+    acquireModal().then(release => {
+      if (cancelled) { release(); return }
+      releaseRef.current = release
+      setOpen(true)
+    })
+    return () => { cancelled = true }
   }, [dismissed])
 
   const handleClose = async () => {
     setOpen(false)
+    releaseRef.current?.()
+    releaseRef.current = null
     if (dontShow) {
       try {
         await createClient().from('employees').update({ intro_dismissed_at: new Date().toISOString() }).eq('id', employeeId)

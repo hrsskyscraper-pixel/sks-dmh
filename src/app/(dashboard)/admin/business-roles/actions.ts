@@ -6,6 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { writeAuditLog } from '@/lib/audit'
 import { canAdminister } from '@/lib/permissions'
 import type { SystemPermission, Role } from '@/types/database'
+import { notLeftFilter } from '@/lib/left'
 
 async function assertAdmin() {
   const supabase = await createClient()
@@ -14,7 +15,7 @@ async function assertAdmin() {
   const { data: emp } = await supabase
     .from('employees')
     .select('id, role, system_permission')
-    .eq('auth_user_id', user.id)
+    .eq('auth_user_id', user.id).or(notLeftFilter())
     .single()
   if (!canAdminister(emp)) return { error: '権限がありません' as const }
   return { ok: true as const, actorId: emp!.id }

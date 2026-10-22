@@ -1,5 +1,8 @@
 'use server'
 
+import { countStalledForApprover } from '@/lib/stalled-approvals'
+import { countRosterMismatches } from '@/lib/roster-affiliation'
+
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
@@ -11,12 +14,14 @@ import { SELECTED_PROJECT_COOKIE } from '@/lib/selected-project'
 import { FONT_SCALE_COOKIE, isValidFontScale } from '@/lib/font-scale'
 import { writeAuditLog } from '@/lib/audit'
 import { canAdminister, canApprove } from '@/lib/permissions'
-import { getAuthUser, getCurrentEmployee } from '@/lib/supabase/auth-cache'
+import { getAuthUser, getRealEmployee, getViewAsContext } from '@/lib/supabase/auth-cache'
 import { EMPTY_NAV_COUNTS, type NavCounts } from '@/lib/nav-counts'
 import { getTestEmployeeIds } from '@/lib/test-data'
+import { isLineNotificationsEnabled } from '@/lib/settings'
 import { buildMilestoneMap } from '@/lib/milestone'
 import { countOverdueSkills } from '@/lib/skill-progress'
 import type { Role, SystemPermission } from '@/types/database'
+import { notLeftFilter } from '@/lib/left'
 
 /**
  * ボトムナビ／通知ベルのバッジ系カウントをまとめて取得する。
@@ -28,22 +33,21 @@ import type { Role, SystemPermission } from '@/types/database'
 export async function getNavCounts(): Promise<NavCounts> {
   const user = await getAuthUser()
   if (!user) return EMPTY_NAV_COUNTS
-  const employee = await getCurrentEmployee()
-  if (!employee) return EMPTY_NAV_COUNTS
+  // view-as は auth-cache が1か所で解決する。バッジは「見ている相手」の数、
+  // ログイン記録は「本人」に付ける（view-as 中に相手の記録を作らない）。
+  const { real, effective: employee } = await getViewAsContext()
+  if (!real || !employee) return EMPTY_NAV_COUNTS
 
   const cookieStore = await cookies()
-  const viewAsId = cookieStore.get(VIEW_AS_COOKIE)?.value ?? null
+  // ログイン（利用）記録: 1人1日1行（JST）。描画後に呼ばれるここで、1日1回だけ書く（cookie で抑止）
+  await recordLoginDay(real.id, cookieStore).catch(e => console.error('[login_days]', e))
   const db = createAdminClient()
 
-  const { data: viewAsEmployee } = viewAsId
-    ? await db.from('employees').select('role, system_permission, notifications_read_at').eq('id', viewAsId).single()
-    : { data: null }
-
-  const targetId = viewAsId ?? employee.id
-  const notifReadAt = (viewAsId ? viewAsEmployee?.notifications_read_at : employee.notifications_read_at) ?? '1970-01-01T00:00:00Z'
+  const targetId = employee.id
+  const notifReadAt = employee.notifications_read_at ?? '1970-01-01T00:00:00Z'
   const effectiveEmp = {
-    role: (viewAsEmployee?.role as Role | undefined) ?? (employee.role as Role),
-    system_permission: (viewAsEmployee?.system_permission as SystemPermission | null | undefined) ?? employee.system_permission,
+    role: employee.role as Role,
+    system_permission: employee.system_permission as SystemPermission | null,
   }
 
   // 承認待ち achievements 全件（employee_id）は、管理者の場合ブロック3とブロック4の
@@ -59,7 +63,7 @@ export async function getNavCounts(): Promise<NavCounts> {
   }
 
   // --- ブロック1: 通知ベル＋チーム変更申請結果の未読 ---
-  const computeNotif = async (): Promise<{ notifCount: number; unreadTeamReqCount: number }> => {
+  const computeNotif = async (): Promise<{ notifCount: number; unreadTeamReqCount: number; stalledApprovals: { count: number; maxDays: number; unassignedTeams: number } }> => {
     const { data: targetAchievements } = await db.from('achievements').select('id').eq('employee_id', targetId)
     const targetAchIds = (targetAchievements ?? []).map(a => a.id)
     const [{ data: unreadReactions }, { data: unreadComments }, { data: unreadCertResults }, { count: unreadTeamReqCount }] = await Promise.all([
@@ -81,7 +85,16 @@ export async function getNavCounts(): Promise<NavCounts> {
     const certResultKeys = new Set<string>()
     for (const h of unreadCertResults ?? []) certResultKeys.add(h.achievement_id)
     const utr = unreadTeamReqCount ?? 0
-    return { notifCount: notifKeys.size + certResultKeys.size + utr, unreadTeamReqCount: utr }
+    // 承認者: 滞留している承認があれば、ベルに1件として数える（既読で消えない＝解消するまで残る）
+    let stalledApprovals = { count: 0, maxDays: 0, unassignedTeams: 0 }
+    if (canApprove(effectiveEmp)) {
+      try {
+        const testIds = await getTestEmployeeIds()
+        stalledApprovals = await countStalledForApprover(db, targetId, canAdminister(effectiveEmp), new Date(), testIds)
+      } catch { stalledApprovals = { count: 0, maxDays: 0, unassignedTeams: 0 } }
+    }
+    const stalledFlag = stalledApprovals.count > 0 || stalledApprovals.unassignedTeams > 0 ? 1 : 0
+    return { notifCount: notifKeys.size + certResultKeys.size + utr + stalledFlag, unreadTeamReqCount: utr, stalledApprovals }
   }
 
   // --- ブロック2: 差し戻しスキル件数 ---
@@ -182,12 +195,21 @@ export async function getNavCounts(): Promise<NavCounts> {
     return countOverdueSkills(skills, certifiedIds, pendingIds, rejectedIds, skillPhaseMap, phases ?? [], milestones, cumHours)
   }
 
-  const [notif, rejectedSkillCount, pendingApprovalCount, pendingCards, overdueSkillCount] = await Promise.all([
+  // 運用管理者・開発者: 名簿の店舗部署と所属が違う人数（失敗しても他の件数は出す）
+  const computeRosterMismatch = async (): Promise<number> => {
+    if (!canAdminister(effectiveEmp)) return 0
+    try { return await countRosterMismatches(db, await getTestEmployeeIds()) } catch { return 0 }
+  }
+
+  const [notif, rejectedSkillCount, pendingApprovalCount, pendingCards, overdueSkillCount, lineNotificationsEnabled, rosterMismatchCount] = await Promise.all([
     computeNotif(),
     computeRejected(),
     computePendingApproval(),
     computePendingAchievementCards(),
     computeOverdue(),
+    // LINE通知を休止しているときは「LINE連携で通知を受け取る」の案内を出さない（2026-09-20 須貝さん指示）
+    isLineNotificationsEnabled(),
+    computeRosterMismatch(),
   ])
 
   // ホームアイコンのバッジ＝ホームに出ている対応カードの枚数（赤）
@@ -202,6 +224,9 @@ export async function getNavCounts(): Promise<NavCounts> {
   return {
     notifCount: notif.notifCount,
     unreadTeamReqCount: notif.unreadTeamReqCount,
+    stalledApprovals: notif.stalledApprovals,
+    rosterMismatchCount,
+    lineNotificationsEnabled,
     pendingApprovalCount,
     rejectedSkillCount,
     overdueSkillCount,
@@ -213,6 +238,12 @@ export async function setViewAs(employeeId: string) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return
+
+  // view-as は運用管理者・開発者だけ。UI では目アイコンを隠しているが、
+  // サーバーアクションは直接呼べるので必ず検査する（cookie を立てるだけで
+  // 他人の画面を開ける状態にしない）
+  const me = await getRealEmployee()
+  if (!me || !canAdminister(me)) return
 
   const cookieStore = await cookies()
   cookieStore.set(VIEW_AS_COOKIE, employeeId, { path: '/' })
@@ -243,7 +274,7 @@ export async function setFontScale(scale: number): Promise<{ error?: string }> {
   if (!user) return { error: '認証エラー' }
 
   const adminDb = createAdminClient()
-  const { error } = await adminDb.from('employees').update({ font_scale: scale }).eq('auth_user_id', user.id)
+  const { error } = await adminDb.from('employees').update({ font_scale: scale }).eq('auth_user_id', user.id).or(notLeftFilter())
   if (error) return { error: error.message }
 
   const cookieStore = await cookies()
@@ -268,7 +299,7 @@ export async function setEmployeeTest(employeeId: string, isTest: boolean): Prom
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '認証エラー' }
-  const { data: emp } = await supabase.from('employees').select('role, system_permission').eq('auth_user_id', user.id).single()
+  const { data: emp } = await supabase.from('employees').select('role, system_permission').eq('auth_user_id', user.id).or(notLeftFilter()).single()
   if (!emp || !canAdminister(emp)) return { error: '権限がありません' }
 
   const adminDb = createAdminClient()
@@ -284,7 +315,7 @@ export async function setTeamTest(teamId: string, isTest: boolean): Promise<{ er
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '認証エラー' }
-  const { data: emp } = await supabase.from('employees').select('role, system_permission').eq('auth_user_id', user.id).single()
+  const { data: emp } = await supabase.from('employees').select('role, system_permission').eq('auth_user_id', user.id).or(notLeftFilter()).single()
   if (!emp || !canAdminister(emp)) return { error: '権限がありません' }
 
   const adminDb = createAdminClient()
@@ -301,7 +332,7 @@ export async function updateEmployeeName(employeeId: string, newName: string): P
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '認証エラー' }
 
-  const { data: emp } = await supabase.from('employees').select('role, system_permission').eq('auth_user_id', user.id).single()
+  const { data: emp } = await supabase.from('employees').select('role, system_permission').eq('auth_user_id', user.id).or(notLeftFilter()).single()
   if (!emp || !canAdminister(emp)) return { error: '権限がありません' }
 
   const adminDb = createAdminClient()
@@ -320,7 +351,7 @@ export async function updateSkillCategory(skillId: string, newCategory: string):
   const { data: emp } = await supabase
     .from('employees')
     .select('role, system_permission')
-    .eq('auth_user_id', user.id)
+    .eq('auth_user_id', user.id).or(notLeftFilter())
     .single()
 
   if (!emp || !canAdminister(emp)) {
@@ -342,14 +373,16 @@ export async function markNotificationsRead(): Promise<{ error?: string }> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '認証エラー' }
 
-  // view-as中は対象社員のnotifications_read_atを更新
-  const cookieStore = await cookies()
-  const viewAsId = cookieStore.get(VIEW_AS_COOKIE)?.value ?? null
+  // view-as 中は何も書かない。以前は「見ている相手」の notifications_read_at を
+  // 更新していたため、管理者が覗いただけでその人の通知が既読になっていた。
+  const { viewingAs } = await getViewAsContext()
+  if (viewingAs) return {}
 
   const adminDb = createAdminClient()
-  const { error } = viewAsId
-    ? await adminDb.from('employees').update({ notifications_read_at: new Date().toISOString() }).eq('id', viewAsId)
-    : await adminDb.from('employees').update({ notifications_read_at: new Date().toISOString() }).eq('auth_user_id', user.id)
+  const { error } = await adminDb
+    .from('employees')
+    .update({ notifications_read_at: new Date().toISOString() })
+    .eq('auth_user_id', user.id).or(notLeftFilter())
 
   if (error) return { error: error.message }
   return {}
@@ -368,7 +401,7 @@ export async function addCareerRecord(data: {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '認証エラー' }
 
-  const { data: emp } = await supabase.from('employees').select('id, role, system_permission').eq('auth_user_id', user.id).single()
+  const { data: emp } = await supabase.from('employees').select('id, role, system_permission').eq('auth_user_id', user.id).or(notLeftFilter()).single()
   if (!emp) return { error: '権限がありません' }
   // 自分自身の「目標」記録は本人（メンバーを含む）も作成できる。
   // それ以外（他人の記録・目標以外の種別）はリーダー以上（canApprove）が必要。
@@ -397,7 +430,7 @@ export async function updateCareerRecord(recordId: string, employeeId: string, d
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '認証エラー' }
 
-  const { data: emp } = await supabase.from('employees').select('id, role, system_permission').eq('auth_user_id', user.id).single()
+  const { data: emp } = await supabase.from('employees').select('id, role, system_permission').eq('auth_user_id', user.id).or(notLeftFilter()).single()
   if (!emp) return { error: '権限がありません' }
 
   const adminDb = createAdminClient()
@@ -418,7 +451,7 @@ export async function deleteCareerRecord(recordId: string, employeeId: string): 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '認証エラー' }
 
-  const { data: emp } = await supabase.from('employees').select('id, role, system_permission').eq('auth_user_id', user.id).single()
+  const { data: emp } = await supabase.from('employees').select('id, role, system_permission').eq('auth_user_id', user.id).or(notLeftFilter()).single()
   if (!emp) return { error: '権限がありません' }
 
   const adminDb = createAdminClient()
@@ -446,21 +479,24 @@ export async function updateEmployeeProfile(employeeId: string, fields: {
   birth_date: string | null
   instagram_url: string | null
   line_url: string | null
+  /** 退職日（システム管理者のみ更新できる。undefined＝変更しない） */
+  left_at?: string | null
 }): Promise<{ error?: string }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '認証エラー' }
 
-  const { data: emp } = await supabase.from('employees').select('id, role, system_permission').eq('auth_user_id', user.id).single()
+  const { data: emp } = await supabase.from('employees').select('id, role, system_permission').eq('auth_user_id', user.id).or(notLeftFilter()).single()
   if (!emp) return { error: '権限がありません' }
   const isSelf = emp.id === employeeId
   if (!isSelf && !canApprove(emp)) return { error: '権限がありません' }
+  if (fields.left_at !== undefined && !canAdminister(emp)) return { error: '退職日を変更できるのはシステム管理者だけです' }
 
   if (!fields.last_name.trim()) return { error: '姓を入力してください' }
 
   const adminDb = createAdminClient()
   // 氏名変更の監査用に変更前の表示名を取得
-  const { data: before } = await adminDb.from('employees').select('name').eq('id', employeeId).single()
+  const { data: before } = await adminDb.from('employees').select('name, left_at').eq('id', employeeId).single()
   const newName = `${fields.last_name.trim()} ${fields.first_name.trim()}`.trim()
 
   // name は last_name/first_name から trigger(trg_sync_employee_name)で自動同期される
@@ -471,8 +507,19 @@ export async function updateEmployeeProfile(employeeId: string, fields: {
     birth_date: fields.birth_date,
     instagram_url: fields.instagram_url,
     line_url: fields.line_url,
+    ...(fields.left_at !== undefined ? { left_at: fields.left_at } : {}),
   }).eq('id', employeeId)
   if (error) return { error: error.message }
+
+  // 退職日の変更は監査ログに残す（入退社フローの記録。2026-09-19 決定 ⑦）
+  if (fields.left_at !== undefined && (before?.left_at ?? null) !== fields.left_at) {
+    await writeAuditLog({
+      action: 'update_left_at',
+      actorId: emp.id,
+      targetId: employeeId,
+      details: { from: before?.left_at ?? null, to: fields.left_at },
+    }).catch(() => {})
+  }
 
   // 氏名変更は重要な変更として監査ログに残す
   if (before && before.name !== newName) {
@@ -496,7 +543,7 @@ export async function updateSkillStandardHours(skillId: string, hours: number | 
   const { data: emp } = await supabase
     .from('employees')
     .select('role, system_permission')
-    .eq('auth_user_id', user.id)
+    .eq('auth_user_id', user.id).or(notLeftFilter())
     .single()
 
   if (!emp || !canAdminister(emp)) {
@@ -529,7 +576,7 @@ export async function updateSkillName(skillId: string, newName: string): Promise
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '認証エラー' }
 
-  const { data: emp } = await supabase.from('employees').select('role, system_permission').eq('auth_user_id', user.id).single()
+  const { data: emp } = await supabase.from('employees').select('role, system_permission').eq('auth_user_id', user.id).or(notLeftFilter()).single()
   if (!emp || !canAdminister(emp)) return { error: '権限がありません' }
 
   const adminDb = createAdminClient()
@@ -543,7 +590,7 @@ export async function createSkill(data: { name: string; category: string }): Pro
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '認証エラー' }
 
-  const { data: emp } = await supabase.from('employees').select('role, system_permission').eq('auth_user_id', user.id).single()
+  const { data: emp } = await supabase.from('employees').select('role, system_permission').eq('auth_user_id', user.id).or(notLeftFilter()).single()
   if (!emp || !canAdminister(emp)) return { error: '権限がありません' }
 
   const adminDb = createAdminClient()
@@ -608,7 +655,7 @@ export async function getSkillDeletionImpact(skillId: string): Promise<{ impact?
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '認証エラー' }
 
-  const { data: emp } = await supabase.from('employees').select('role, system_permission').eq('auth_user_id', user.id).single()
+  const { data: emp } = await supabase.from('employees').select('role, system_permission').eq('auth_user_id', user.id).or(notLeftFilter()).single()
   if (!emp || !canAdminister(emp)) return { error: '権限がありません' }
 
   return { impact: await loadSkillDeletionImpact(skillId) }
@@ -624,7 +671,7 @@ export async function deleteSkill(skillId: string, expectedRecords: number): Pro
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '認証エラー' }
 
-  const { data: emp } = await supabase.from('employees').select('id, role, system_permission').eq('auth_user_id', user.id).single()
+  const { data: emp } = await supabase.from('employees').select('id, role, system_permission').eq('auth_user_id', user.id).or(notLeftFilter()).single()
   if (!emp || !canAdminister(emp)) return { error: '権限がありません' }
 
   const impact = await loadSkillDeletionImpact(skillId)
@@ -651,7 +698,7 @@ export async function toggleSkillCheckpoint(skillId: string, isCheckpoint: boole
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: '認証エラー' }
 
-  const { data: emp } = await supabase.from('employees').select('role, system_permission').eq('auth_user_id', user.id).single()
+  const { data: emp } = await supabase.from('employees').select('role, system_permission').eq('auth_user_id', user.id).or(notLeftFilter()).single()
   if (!emp || !canAdminister(emp)) return { error: '権限がありません' }
 
   const adminDb = createAdminClient()
@@ -660,6 +707,90 @@ export async function toggleSkillCheckpoint(skillId: string, isCheckpoint: boole
   return {}
 }
 
+/**
+ * スキルのマイルストーン設定（級／全体ゴール／自動登録する社内資格）。システム管理者のみ。
+ * kind=null で通常スキルに戻す（cert も外す）。cert は kind='grade' のときだけ意味を持つ。
+ */
+export async function updateSkillMilestone(
+  skillId: string,
+  kind: 'grade' | 'goal' | null,
+  cert: string | null,
+): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: '認証エラー' }
+
+  const { data: emp } = await supabase.from('employees').select('role, system_permission').eq('auth_user_id', user.id).or(notLeftFilter()).single()
+  if (!emp || !canAdminister(emp)) return { error: '権限がありません' }
+
+  const adminDb = createAdminClient()
+  const { data: prev } = await adminDb.from('skills').select('milestone_kind').eq('id', skillId).maybeSingle()
+  const { error } = await adminDb
+    .from('skills')
+    .update({ milestone_kind: kind, milestone_cert: kind === 'grade' ? (cert?.trim() || null) : null })
+    .eq('id', skillId)
+  if (error) {
+    console.error('級／ゴールの設定に失敗:', error.message)
+    return { error: '設定できませんでした。時間をおいてもう一度お試しください' }
+  }
+  // あとから級にしたとき、設定より前の認定でお祝いの演出が出ないよう「見せた扱い」にする（演出は級の取得時だけ）
+  // （社内資格名を直しただけのときは触らない。直近の認定のお祝いを消さないように）
+  if (kind === 'grade' && prev?.milestone_kind !== 'grade') {
+    await adminDb.from('achievements')
+      .update({ celebrated_at: new Date().toISOString() })
+      .eq('skill_id', skillId)
+      .eq('status', 'certified')
+      .is('celebrated_at', null)
+  }
+  return {}
+}
+
 // 旧「◯◯に変更」用の changeEmployeeRole はここにあったが、2026-09-29 に削除した。
 // 旧 role 列だけを書き換えるため「運用管理者に変更」を押しても権限が変わらず、誤解を招いていた。
 // 雇用形態・業務役職・システム権限の変更は、メンバーキャリアの「プロフィールを編集」に一本化している。
+
+
+const LOGIN_DAY_COOKIE = 'mb_login_day'
+
+/** JST の日付（YYYY-MM-DD） */
+function jstToday(): string {
+  return new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10)
+}
+
+/**
+ * ログイン（利用）記録（2026-09-19 決定 ⑦「ログイン状況 記録する」）。
+ * login_days に 1人1日1行を upsert し、employees.last_login_at を更新する。
+ * 同じ日に何度も書かないよう、当日の日付を cookie に持つ。view-as 中でもログイン本人の記録にする。
+ */
+async function recordLoginDay(employeeId: string, cookieStore: Awaited<ReturnType<typeof cookies>>) {
+  const today = jstToday()
+  if (cookieStore.get(LOGIN_DAY_COOKIE)?.value === today) return
+  const db = createAdminClient()
+  const now = new Date().toISOString()
+  const { data: existing } = await db.from('login_days').select('day').eq('employee_id', employeeId).eq('day', today).maybeSingle()
+  if (existing) {
+    await db.from('login_days').update({ last_at: now }).eq('employee_id', employeeId).eq('day', today)
+  } else {
+    await db.from('login_days').insert({ employee_id: employeeId, day: today, first_at: now, last_at: now })
+  }
+  await db.from('employees').update({ last_login_at: now }).eq('id', employeeId)
+  try {
+    cookieStore.set(LOGIN_DAY_COOKIE, today, { path: '/', httpOnly: true, sameSite: 'lax', maxAge: 60 * 60 * 24 })
+  } catch { /* 描画中で cookie を書けない場合は次回また判定する（DB 側で二重にはならない） */ }
+}
+
+/**
+ * レベルアップ演出を見せたことを記録する（本人の認定済み申請のみ）。
+ */
+export async function markAchievementsCelebrated(achievementIds: string[]): Promise<void> {
+  // 書き込みなので view-as では入れ替えない（他人の申請を既読にしない）
+  const employee = await getRealEmployee()
+  if (!employee || achievementIds.length === 0) return
+  const db = createAdminClient()
+  await db.from('achievements')
+    .update({ celebrated_at: new Date().toISOString() })
+    .in('id', achievementIds.slice(0, 200))
+    .eq('employee_id', employee.id)
+    .eq('status', 'certified')
+    .is('celebrated_at', null)
+}
