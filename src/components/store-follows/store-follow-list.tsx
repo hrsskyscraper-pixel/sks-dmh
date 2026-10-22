@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import { toast } from 'sonner'
 import { Card, CardContent } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -17,12 +17,15 @@ export function StoreFollowList({ groups }: { groups: StoreFollowGroup[] }) {
     () => Object.fromEntries(groups.flatMap(g => g.stores.map(s => [s.id, s.on]))),
   )
   const [, startTransition] = useTransition()
+  // 続けて押したとき、古い保存の結果で表示を戻さないよう、店舗ごとに最後の操作だけを見る
+  const seq = useRef<Record<string, number>>({})
 
   const toggle = (id: string, next: boolean) => {
+    const mine = (seq.current[id] = (seq.current[id] ?? 0) + 1)
     setOn(prev => ({ ...prev, [id]: next }))
     startTransition(async () => {
       const res = await setStoreFollow(id, next)
-      if (res.error) {
+      if (res.error && seq.current[id] === mine) {
         setOn(prev => ({ ...prev, [id]: !next }))
         toast.error(res.error)
       }

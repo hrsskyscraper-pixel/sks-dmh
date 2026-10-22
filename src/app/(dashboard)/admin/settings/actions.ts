@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getRealEmployee } from '@/lib/supabase/auth-cache'
 import { canAdminister } from '@/lib/permissions'
-import { setEmailNotificationsEnabled, setGradeWageUps, setLineNotificationsEnabled, setOpsTeamRecipientIds, setQaModeratorIds } from '@/lib/settings'
+import { getGradeWageUps, setEmailNotificationsEnabled, setGradeWageUps, setLineNotificationsEnabled, setOpsTeamRecipientIds, setQaModeratorIds } from '@/lib/settings'
 import { writeAuditLog } from '@/lib/audit'
 
 /**
@@ -84,7 +84,9 @@ export async function saveGradeWageUps(input: Record<string, number>): Promise<{
   if (!input || typeof input !== 'object' || Array.isArray(input)) return { error: '入力が正しくありません' }
   const { data: certs } = await createAdminClient().from('certifications').select('name')
   const names = new Set((certs ?? []).map(c => c.name))
-  const clean: Record<string, number> = {}
+  // 画面に出していない級（無効にした資格など）の金額は消さずに残す
+  const current = await getGradeWageUps()
+  const clean: Record<string, number> = Object.fromEntries(Object.entries(current).filter(([k]) => !(k in input)))
   for (const [k, v] of Object.entries(input)) {
     if (!names.has(k)) continue
     if (typeof v !== 'number' || !Number.isFinite(v) || v < 0 || v > 10000) return { error: `${k} の金額は 0〜10,000 円で入力してください` }

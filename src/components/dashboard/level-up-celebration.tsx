@@ -79,7 +79,9 @@ export function LevelUpCelebration({ items, completedPhases, employeeName, emplo
   }
 
   const grades = items.filter(i => i.milestoneKind === 'grade')
+  // 同じ社内資格が2件あっても1回だけ数える
   const wageUps = grades.filter(i => (i.wageUp ?? 0) > 0)
+    .filter((i, idx, arr) => arr.findIndex(x => (x.milestoneCert ?? x.skillName) === (i.milestoneCert ?? i.skillName)) === idx)
   const wageTotal = wageUps.reduce((sum, i) => sum + (i.wageUp ?? 0), 0)
   const goals = items.filter(i => i.milestoneKind === 'goal')
   const normals = items.filter(i => !i.milestoneKind)

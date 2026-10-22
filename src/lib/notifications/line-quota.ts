@@ -2,6 +2,10 @@
  * LINE の無料枠（コミュニケーションプランは月200通）を超えないための歯止め（2026-10-22 社長承認）。
  * LINE の API で「今月の上限」と「今月使った数」を取り、残りが予備を切ったら送らない。
  * 数えるのは「届いた人数」（1つのお知らせを5人に送れば5通）。
+ *
+ * 注意: 残りの記憶はサーバーのインスタンスごと（60秒）で、同時に送ると予備の範囲で少しはみ出しうる。
+ * 無料のプランなら超えた分は LINE 側で断られる（429）だけで請求は起きないが、有料プランに上げると
+ * 超えた分が従量で課金される。プランを変えるときは、この歯止めを見直すこと。
  */
 
 const LINE_API_BASE = 'https://api.line.me/v2/bot'
@@ -9,12 +13,14 @@ const LINE_API_BASE = 'https://api.line.me/v2/bot'
 export const LINE_QUOTA_RESERVE = 10
 /** 取得した値を使い回す時間（同じ関数の中で何度も問い合わせない） */
 const CACHE_MS = 60 * 1000
+/** 取得できなかったときに「送らない」を続ける時間（一時的なエラーで長く止めないよう短くする） */
+const FAIL_CACHE_MS = 10 * 1000
 
-let cache: { at: number; remaining: number | null } | null = null
+let cache: { at: number; remaining: number | null; failed?: boolean } | null = null
 
 /** 今月あと何通送れるか（予備を引いた数）。上限なしのプランなら null。取得できなければ 0（送らない側に倒す） */
 export async function getLineQuotaRemaining(): Promise<number | null> {
-  if (cache && Date.now() - cache.at < CACHE_MS) return cache.remaining
+  if (cache && Date.now() - cache.at < (cache.failed ? FAIL_CACHE_MS : CACHE_MS)) return cache.remaining
   const token = process.env.LINE_MESSAGING_ACCESS_TOKEN
   if (!token) return 0
   try {
@@ -25,7 +31,7 @@ export async function getLineQuotaRemaining(): Promise<number | null> {
     ])
     if (!qRes.ok || !cRes.ok) {
       console.error('[LINE] 無料枠の取得に失敗（送らない側に倒す）:', qRes.status, cRes.status)
-      cache = { at: Date.now(), remaining: 0 }
+      cache = { at: Date.now(), remaining: 0, failed: true }
       return 0
     }
     const quota = (await qRes.json()) as { type?: string; value?: number }
@@ -37,7 +43,7 @@ export async function getLineQuotaRemaining(): Promise<number | null> {
     return remaining
   } catch (e) {
     console.error('[LINE] 無料枠の取得に失敗（送らない側に倒す）:', e)
-    cache = { at: Date.now(), remaining: 0 }
+    cache = { at: Date.now(), remaining: 0, failed: true }
     return 0
   }
 }

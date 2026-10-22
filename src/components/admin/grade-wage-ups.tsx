@@ -29,7 +29,8 @@ export function GradeWageUps({ certNames, map, updatedBy, updatedAt }: Props) {
     const out: Record<string, number> = {}
     for (const n of certNames) {
       const raw = (values[n] ?? '').trim()
-      if (!raw) continue
+      // 空欄は 0（金額を出さない）として送る。送らないと、前の金額が残ってしまう
+      if (!raw) { out[n] = 0; continue }
       const v = Number(raw)
       if (!Number.isFinite(v) || v < 0) { toast.error(`${n} の金額を数字で入力してください`); return }
       out[n] = v
@@ -41,10 +42,9 @@ export function GradeWageUps({ certNames, map, updatedBy, updatedAt }: Props) {
     })
   }
 
-  const fmt = (iso: string) => {
-    const d = new Date(iso)
-    return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()} ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`
-  }
+  // サーバー（UTC）と画面で同じ文字列になるよう、日本時間で整形する
+  const fmt = (iso: string) =>
+    `${new Date(iso).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })} JST`
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-4 space-y-3">

@@ -47,6 +47,8 @@ export async function notifyRecipients(
     line?: boolean
     /** LINE だけ一括休止に関係なく送る（無料枠の歯止めは効く）。既定は important と同じ */
     lineBypass?: boolean
+    /** 今月の LINE の残りがこれを下回るなら LINE は送らない（級の取得のお知らせの分を取り置く） */
+    lineMinRemaining?: number
   } = {},
 ) {
   const important = opts.important ?? false
@@ -69,7 +71,7 @@ export async function notifyRecipients(
     })
   }
   if (lineIds.length > 0) {
-    const results = await sendLineMessages(lineIds, lineMsg, { bypassPause: lineBypass })
+    const results = await sendLineMessages(lineIds, lineMsg, { bypassPause: lineBypass, minRemaining: opts.lineMinRemaining ?? 0 })
     await Promise.all(
       results.map(r =>
         logNotification({

@@ -221,7 +221,9 @@ export default async function DashboardPage({
   type AchRow = { id: string; skill_id: string; status: string; celebrated_at?: string | null; praise_comment: string | null; certified_by: string | null; skills: { name: string; milestone_kind?: 'grade' | 'goal' | null; milestone_cert?: string | null } | null; certified_employee: { name: string; avatar_url: string | null } | null }
   const uncelebrated = viewingAs ? [] : ((achievements ?? []) as unknown as AchRow[]).filter(a => a.status === 'certified' && !a.celebrated_at && a.skills?.milestone_kind === 'grade')
   // 時給アップの演出（2026-10-22 原島さん確定）: 上がる金額はメイトさんご本人にだけ出す。社員の方は金額なしでお祝いだけ
-  const wageMap = uncelebrated.length > 0 && employee.employment_type === 'メイト' ? await getGradeWageUps() : {}
+  // 見本（管理者の確認用 /?preview=celebration）でも、設定画面の金額を使う
+  const wantsPreview = params?.preview === 'celebration' && canAdminister(currentEmployee)
+  const wageMap = (uncelebrated.length > 0 && employee.employment_type === 'メイト') || wantsPreview ? await getGradeWageUps() : {}
   const wageOf = (cert: string | null | undefined): number | null => {
     if (!cert) return null
     const key = Object.keys(wageMap).find(k => normalizeCertName(k) === normalizeCertName(cert))
@@ -308,10 +310,10 @@ export default async function DashboardPage({
         celebration={
           celebrationItems.length > 0 ? { items: celebrationItems, completedPhases }
             // 管理者の確認用: /?preview=celebration で見本を出す（記録しない）
-            : (params?.preview === 'celebration' && canAdminister(currentEmployee)) ? {
+            : wantsPreview ? {
               preview: true,
               items: [
-                { achievementId: 'preview-1', skillName: '調理3級', milestoneKind: 'grade', milestoneCert: '調理３級', wageUp: 20, praise: 'ライス盛り、定量ぴったりで安定してきたね！毎回きちんと確認する姿勢が素晴らしい。次はスピードも意識して、ひとり調理に挑戦しよう。期待しています！', certifierName: '店長 太郎', certifierId: null, certifierAvatar: null },
+                { achievementId: 'preview-1', skillName: '調理3級', milestoneKind: 'grade', milestoneCert: '調理３級', wageUp: wageOf('調理３級'), praise: 'ライス盛り、定量ぴったりで安定してきたね！毎回きちんと確認する姿勢が素晴らしい。次はスピードも意識して、ひとり調理に挑戦しよう。期待しています！', certifierName: '店長 太郎', certifierId: null, certifierAvatar: null },
               ],
               completedPhases: ['フェーズ２'],
             } : undefined

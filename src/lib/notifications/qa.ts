@@ -1,5 +1,9 @@
 import { notifyRecipients } from './improvement'
 import { getEmployeeRecipient, getOpsTeamRecipients } from '@/lib/improvements'
+import { createAdminClient } from '@/lib/supabase/admin'
+
+/** Q&A の回答の LINE は、今月の残りがこれを下回ったら送らない（級の取得のお知らせの分を取り置く） */
+const QA_LINE_MIN_REMAINING = 40
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://sks-dmh.vercel.app'
 
@@ -42,12 +46,17 @@ export async function notifyAnswerPosted(
     )
   }
   if (asker && asker.id !== a.author_id) {
+    // LINE は、同じ質問に24時間のうち最初についた回答（質問した本人以外の）だけ。連投で無料枠を使い切られないように
+    const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString()
+    const { count } = await createAdminClient().from('qa_answers').select('id', { count: 'exact', head: true })
+      .eq('question_id', q.id).neq('author_id', q.asker_id).gte('created_at', since)
+    const firstToday = (count ?? 0) <= 1
     await notifyRecipients(
       [asker],
       `【Q&A】あなたの質問に回答がつきました: ${q.title}`,
       [`${authorName} さんが、あなたの質問に回答しました。`, '', `質問: ${q.title}`, `回答: ${a.body}`, '', `確認する: ${url}`].join('\n'),
       `【Q&A】あなたの質問に回答がつきました。\n\n${url}`,
-      { lineBypass: true, category: 'qa' },
+      { lineBypass: true, line: firstToday, lineMinRemaining: QA_LINE_MIN_REMAINING, category: 'qa' },
     )
   }
 }

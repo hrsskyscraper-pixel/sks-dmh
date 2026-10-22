@@ -16,10 +16,10 @@ export async function setStoreFollow(teamId: string, wanted: boolean): Promise<{
 
   const db = createAdminClient()
   const [{ data: team }, { data: mine }] = await Promise.all([
-    db.from('teams').select('id, type').eq('id', teamId).maybeSingle(),
+    db.from('teams').select('id, type, is_test').eq('id', teamId).maybeSingle(),
     db.from('team_members').select('team_id').eq('employee_id', me.id).eq('team_id', teamId).maybeSingle(),
   ])
-  if (!team || team.type !== 'store') return { error: '店舗を選んでください' }
+  if (!team || team.type !== 'store' || team.is_test) return { error: '店舗を選んでください' }
 
   const isMember = !!mine
   // 所属店舗で「知らせる」・ほかの店舗で「知らせない」は既定の状態なので、行を消す
