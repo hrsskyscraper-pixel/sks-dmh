@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
-import { LayoutDashboard, CheckSquare, BadgeCheck, LogOut, Building2, MessageSquare, Settings, User, FileText, HelpCircle, Shield, ScrollText, History, Type, Search, Lightbulb, MessageCircleQuestion } from 'lucide-react'
+import { LayoutDashboard, CheckSquare, BadgeCheck, LogOut, Building2, MessageSquare, Settings, User, FileText, HelpCircle, Shield, ScrollText, History, Type, Search, Lightbulb, MessageCircleQuestion, Bell } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { CertRingAvatar } from '@/components/ui/cert-ring-avatar'
 import { createClient } from '@/lib/supabase/client'
@@ -134,6 +134,14 @@ export function AccountSettingsMenu({ employeeId, employeeName, role, systemPerm
                 Myキャリア
               </Link>
             )}
+            <Link
+              href="/store-follows"
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-2 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <Bell className="w-4 h-4 text-gray-400" />
+              級の取得のお知らせ
+            </Link>
             <Link
               href="/help"
               onClick={() => setOpen(false)}

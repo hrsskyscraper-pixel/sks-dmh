@@ -14,6 +14,8 @@ export interface CelebrationItem {
   /** 'grade'＝級 / 'goal'＝全体ゴール / null＝通常のスキル */
   milestoneKind: 'grade' | 'goal' | null
   milestoneCert: string | null
+  /** 時給の上がる金額（円）。メイトさんご本人のときだけ入る（社員の方・金額の設定がない級は null） */
+  wageUp?: number | null
   /** 店長からの一言（公開） */
   praise: string | null
   certifierName: string | null
@@ -77,6 +79,8 @@ export function LevelUpCelebration({ items, completedPhases, employeeName, emplo
   }
 
   const grades = items.filter(i => i.milestoneKind === 'grade')
+  const wageUps = grades.filter(i => (i.wageUp ?? 0) > 0)
+  const wageTotal = wageUps.reduce((sum, i) => sum + (i.wageUp ?? 0), 0)
   const goals = items.filter(i => i.milestoneKind === 'goal')
   const normals = items.filter(i => !i.milestoneKind)
   // まとめて認定したときは同じ一言が件数ぶん並ぶので、同じ文面（同じ書き手）は1つにまとめる
@@ -133,6 +137,21 @@ export function LevelUpCelebration({ items, completedPhases, employeeName, emplo
             <CertRingAvatar employeeId={employeeId} src={employeeAvatar ?? undefined} name={employeeName} size={72} fallbackClassName="bg-orange-100 text-orange-700 text-xl" />
             <p className="text-sm text-gray-600">{employeeName} さん、おめでとうございます！</p>
           </div>
+
+          {/* 時給アップ（りのちゃん）。金額はご本人にだけ（このお祝い画面はご本人のホームにしか出ない） */}
+          {wageTotal > 0 && (
+            <div className="flex items-center justify-center gap-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/rino-celebrate.png" alt="りのちゃん" width={96} height={95} className="w-24 h-auto flex-shrink-0 drop-shadow" />
+              <div className="relative rounded-2xl bg-rose-50 border-2 border-rose-200 px-3 py-2 text-left">
+                <span aria-hidden className="absolute -left-2 top-1/2 -translate-y-1/2 w-3 h-3 rotate-45 bg-rose-50 border-l-2 border-b-2 border-rose-200" />
+                <p className="text-lg font-extrabold text-rose-600 leading-tight">時給 {wageTotal.toLocaleString('ja-JP')}円<br />アップだよ♡</p>
+                {wageUps.length > 1 && (
+                  <p className="text-[11px] text-rose-500 mt-0.5">{wageUps.map(i => `${i.milestoneCert ?? i.skillName} ${i.wageUp}円`).join('・')}</p>
+                )}
+              </div>
+            </div>
+          )}
 
           {(grades.length > 0 || goals.length > 0) && (
             <div className="flex flex-wrap justify-center gap-2">

@@ -1,4 +1,5 @@
 import { isLineNotificationsEnabled } from '@/lib/settings'
+import { consumeLineQuota, getLineQuotaRemaining } from './line-quota'
 
 const LINE_API_BASE = 'https://api.line.me/v2/bot'
 
@@ -39,6 +40,12 @@ export async function sendLineMessage(lineUserId: string, message: string, opts:
     console.warn('[LINE] LINE_MESSAGING_ACCESS_TOKEN 未設定のため送信スキップ:', { lineUserId })
     return { ok: false, skipped: true, error: 'LINE 未設定' }
   }
+  // 無料枠（月200通）の手前で止める。一括休止を飛ばす送信（bypassPause）にも効く
+  const remaining = await getLineQuotaRemaining()
+  if (remaining !== null && remaining < 1) {
+    console.warn('[LINE] 今月の無料枠の上限に近いため送信スキップ:', { lineUserId })
+    return { ok: false, skipped: true, error: '今月の LINE 無料枠の上限に近いため送らず' }
+  }
 
   let lastError = ''
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
@@ -63,6 +70,7 @@ export async function sendLineMessage(lineUserId: string, message: string, opts:
     }
 
     if (res.ok) {
+      consumeLineQuota(1)
       console.log('[LINE] 送信成功:', { lineUserId })
       return { ok: true }
     }
@@ -88,6 +96,15 @@ export async function sendLineMessages(
   message: string,
   opts: LineSendOptions = {}
 ): Promise<{ lineUserId: string; result: LineResult }[]> {
+  // 1つのお知らせは全員に届けるか、誰にも送らないか（一部の人にだけ届くと不公平なため）。
+  // 休止中・未設定のときは個別の判定に任せる（記録の文言をそちらに揃える）
+  if (lineUserIds.length > 1 && (opts.bypassPause || (await isLineNotificationsEnabled())) && process.env.LINE_MESSAGING_ACCESS_TOKEN) {
+    const remaining = await getLineQuotaRemaining()
+    if (remaining !== null && remaining < lineUserIds.length) {
+      console.warn(`[LINE] 今月の無料枠が足りないため ${lineUserIds.length} 件を送らず（残り ${remaining}）`)
+      return lineUserIds.map(lineUserId => ({ lineUserId, result: { ok: false, skipped: true, error: '今月の LINE 無料枠の上限に近いため送らず' } }))
+    }
+  }
   const results = await Promise.all(
     lineUserIds.map(async id => ({ lineUserId: id, result: await sendLineMessage(id, message, opts) }))
   )

@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getRealEmployee } from '@/lib/supabase/auth-cache'
 import { canAdminister } from '@/lib/permissions'
-import { setEmailNotificationsEnabled, setLineNotificationsEnabled, setOpsTeamRecipientIds, setQaModeratorIds } from '@/lib/settings'
+import { setEmailNotificationsEnabled, setGradeWageUps, setLineNotificationsEnabled, setOpsTeamRecipientIds, setQaModeratorIds } from '@/lib/settings'
 import { writeAuditLog } from '@/lib/audit'
 
 /**
@@ -76,3 +76,24 @@ export async function setQaModerators(ids: string[]): Promise<{ error?: string }
   revalidatePath('/admin/settings')
   return {}
 }
+
+/** 級ごとの上がる金額（時給アップの演出。2026-10-22 原島さん確定）。システム管理者のみ。キーは社内資格のマスタにある名前だけ */
+export async function saveGradeWageUps(input: Record<string, number>): Promise<{ error?: string }> {
+  const me = await getRealEmployee()
+  if (!me || !canAdminister(me)) return { error: '権限がありません' }
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return { error: '入力が正しくありません' }
+  const { data: certs } = await createAdminClient().from('certifications').select('name')
+  const names = new Set((certs ?? []).map(c => c.name))
+  const clean: Record<string, number> = {}
+  for (const [k, v] of Object.entries(input)) {
+    if (!names.has(k)) continue
+    if (typeof v !== 'number' || !Number.isFinite(v) || v < 0 || v > 10000) return { error: `${k} の金額は 0〜10,000 円で入力してください` }
+    if (Math.round(v) > 0) clean[k] = Math.round(v)
+  }
+  const { error } = await setGradeWageUps(clean, me.id)
+  if (error) return { error: '設定の保存に失敗しました' }
+  await writeAuditLog({ action: 'grade_wage_ups_updated', actorId: me.id, details: { map: clean } }).catch(console.error)
+  revalidatePath('/admin/settings')
+  return {}
+}
+

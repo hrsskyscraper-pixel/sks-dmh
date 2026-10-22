@@ -66,7 +66,9 @@ export function LineNotificationToggle({ enabled: initialEnabled, updatedBy, upd
           メール通知とアプリ内のお知らせは、この設定の影響を受けません。
         </p>
         <p className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 leading-relaxed">
-          ※ 改善提案と Q&amp;A の「運営チームへの通知」は、この休止の対象外です（下の「運営チームの通知先」で宛先を管理）。
+          ※ <span className="font-semibold">級の取得のお知らせ</span>（所属店舗と、その店舗を選んだ方へ）と、Q&amp;A の「自分の質問に回答がついた」は、
+          この休止の対象外です（2026-10-22 決定）。どちらも、今月の無料枠の残りが10通を切ると自動で止まります。
+          改善提案と Q&amp;A の「運営チームへの通知」は、メールだけで届けます。
         </p>
         {updatedAt && (
           <p className="text-[10px] text-gray-400">最終変更: {fmt(updatedAt)}{updatedBy ? `（${updatedBy}）` : ''}</p>

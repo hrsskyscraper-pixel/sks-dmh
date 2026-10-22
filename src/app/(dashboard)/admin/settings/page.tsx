@@ -7,10 +7,11 @@ import { CertificationManager } from '@/components/admin/certification-manager'
 import { EmailNotificationToggle } from '@/components/admin/email-notification-toggle'
 import { LineNotificationToggle } from '@/components/admin/line-notification-toggle'
 import { OpsTeamRecipients, type OpsCandidate } from '@/components/admin/ops-team-recipients'
+import { GradeWageUps } from '@/components/admin/grade-wage-ups'
 import Link from 'next/link'
 import { FolderKanban, Upload, Award, ChevronRight, BookOpen, Tag, Briefcase, Bell, BarChart3, UserCheck } from 'lucide-react'
 import { canAdminister } from '@/lib/permissions'
-import { getEmailNotificationsSetting, getLineNotificationsSetting, getOpsTeamRecipientSetting, getQaModeratorSetting } from '@/lib/settings'
+import { getEmailNotificationsSetting, getGradeWageUpSetting, getLineNotificationsSetting, getOpsTeamRecipientSetting, getQaModeratorSetting } from '@/lib/settings'
 
 export default async function SettingsPage() {
   const currentEmployee = await getCurrentEmployee()
@@ -19,7 +20,7 @@ export default async function SettingsPage() {
   }
 
   const db = createAdminClient()
-  const [{ data: certifications }, emailSetting, lineSetting, opsSetting, { data: opsCandidatesRows }, qaModSetting] = await Promise.all([
+  const [{ data: certifications }, emailSetting, lineSetting, opsSetting, { data: opsCandidatesRows }, qaModSetting, wageSetting] = await Promise.all([
     db
       .from('certifications')
       .select('id, name, description, icon, color, order_index, is_active, created_at')
@@ -31,6 +32,7 @@ export default async function SettingsPage() {
     db.from('employees').select('id, name, email, line_user_id, role, employment_type, system_permission').eq('status', 'approved')
       .in('system_permission', ['ops_admin', 'developer']).order('name'),
     getQaModeratorSetting(),
+    getGradeWageUpSetting(),
   ])
   const opsCandidates: OpsCandidate[] = (opsCandidatesRows ?? []).map(e => ({
     id: e.id,
@@ -70,6 +72,14 @@ export default async function SettingsPage() {
           selectedIds={qaModSetting.ids}
           updatedBy={qaModSetting.updatedBy}
           updatedAt={qaModSetting.updatedAt}
+        />
+
+        {/* 級を取得したときの時給アップ（2026-10-22 A-5）。級の資格だけを並べる */}
+        <GradeWageUps
+          certNames={(certifications ?? []).filter(c => c.is_active && /[1-3１-３]級/.test(c.name)).map(c => c.name)}
+          map={wageSetting.map}
+          updatedBy={wageSetting.updatedBy}
+          updatedAt={wageSetting.updatedAt}
         />
 
         {/* 管理メニュー */}

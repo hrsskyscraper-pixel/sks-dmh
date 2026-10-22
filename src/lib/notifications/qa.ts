@@ -9,6 +9,8 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://sks-dmh.vercel.app'
  * - 回答は、質問した本人にも届ける（本人が自分で回答したときは送らない）
  * - 書いた本人には送らない
  * - LINE には利用者が書いた件名・本文を載せない（公式アカウントから誘導文を届けられないように）。メールは社内宛てなので載せる
+ * - 2026-10-22 社長承認: 運営チームへはメールだけ（LINE の無料枠を使わない）。質問した本人への「回答がついた」は、
+ *   一括休止に関係なく LINE で届ける（無料枠の手前では自動で止まる）
  */
 export async function notifyQuestionPosted(q: { id: string; title: string; body: string; asker_id: string }, askerName: string) {
   const team = (await getOpsTeamRecipients()).filter(r => r.id !== q.asker_id)
@@ -18,7 +20,7 @@ export async function notifyQuestionPosted(q: { id: string; title: string; body:
     `【Q&A】新しい質問: ${q.title}`,
     [`${askerName} さんから質問が届きました。`, '', `件名: ${q.title}`, `内容: ${q.body}`, '', `回答する: ${url}`].join('\n'),
     `【Q&A・新しい質問】\n${askerName} さんから質問が届きました。\n\n回答する: ${url}`,
-    { important: true, category: 'qa' },
+    { important: true, line: false, category: 'qa' },
   )
 }
 
@@ -36,7 +38,7 @@ export async function notifyAnswerPosted(
       `【Q&A】回答がつきました: ${q.title}`,
       [`${authorName} さんが回答しました。`, '', `質問: ${q.title}`, `回答: ${a.body}`, '', url].join('\n'),
       `【Q&A・回答】${authorName} さんが回答しました。\n\n${url}`,
-      { important: true, category: 'qa' },
+      { important: true, line: false, category: 'qa' },
     )
   }
   if (asker && asker.id !== a.author_id) {
@@ -45,7 +47,7 @@ export async function notifyAnswerPosted(
       `【Q&A】あなたの質問に回答がつきました: ${q.title}`,
       [`${authorName} さんが、あなたの質問に回答しました。`, '', `質問: ${q.title}`, `回答: ${a.body}`, '', `確認する: ${url}`].join('\n'),
       `【Q&A】あなたの質問に回答がつきました。\n\n${url}`,
-      { category: 'qa' },
+      { lineBypass: true, category: 'qa' },
     )
   }
 }

@@ -1397,6 +1397,27 @@ export type Database = {
         }
         Relationships: []
       }
+      store_follows: {
+        Row: {
+          employee_id: string
+          team_id: string
+          mode: 'follow' | 'mute'
+          created_at: string
+        }
+        Insert: {
+          employee_id: string
+          team_id: string
+          mode: 'follow' | 'mute'
+          created_at?: string
+        }
+        Update: {
+          employee_id?: string
+          team_id?: string
+          mode?: 'follow' | 'mute'
+          created_at?: string
+        }
+        Relationships: []
+      }
       roster_dept_aliases: {
         Row: {
           roster_name: string

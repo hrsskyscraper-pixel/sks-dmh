@@ -21,6 +21,8 @@ export const LINE_NOTIFICATIONS_ENABLED = 'line_notifications_enabled'
 export const OPS_TEAM_RECIPIENT_IDS = 'ops_team_recipient_ids'
 /** Q&A の投稿を非表示にできる社員ID配列（2026-10-21 原島さん確定 A-8） */
 export const QA_MODERATOR_IDS = 'qa_moderator_ids'
+/** 級ごとの上がる金額（円）。キーは社内資格名（2026-10-22 原島さん確定 A-5。メイトさんご本人の演出にだけ出す） */
+export const GRADE_WAGE_UPS = 'grade_wage_ups'
 
 export type SettingMeta = { updatedBy: string | null; updatedAt: string | null }
 
@@ -110,4 +112,22 @@ export async function getQaModeratorSetting(): Promise<{ ids: string[] } & Setti
   const row = await getSettingRow(QA_MODERATOR_IDS)
   const v = row?.value
   return { ids: Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [], updatedBy: row?.updatedBy ?? null, updatedAt: row?.updatedAt ?? null }
+}
+
+// ---------- 級ごとの上がる金額（時給アップの演出） ----------
+/** 社内資格名 → 上がる金額（円）。名前は全角・半角を揃えて突き合わせる（normalizeCertName） */
+export async function getGradeWageUps(): Promise<Record<string, number>> {
+  const row = await getSettingRow(GRADE_WAGE_UPS)
+  const v = row?.value
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return {}
+  const out: Record<string, number> = {}
+  for (const [k, n] of Object.entries(v as Record<string, unknown>)) {
+    if (typeof n === 'number' && Number.isFinite(n) && n > 0) out[k] = Math.round(n)
+  }
+  return out
+}
+export const setGradeWageUps = (map: Record<string, number>, actorId: string) => setSetting(GRADE_WAGE_UPS, map, actorId)
+export async function getGradeWageUpSetting(): Promise<{ map: Record<string, number> } & SettingMeta> {
+  const row = await getSettingRow(GRADE_WAGE_UPS)
+  return { map: await getGradeWageUps(), updatedBy: row?.updatedBy ?? null, updatedAt: row?.updatedAt ?? null }
 }

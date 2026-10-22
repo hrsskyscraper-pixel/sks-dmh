@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { normalizeCertName } from '@/lib/milestones'
 import { todayJst } from '@/lib/left'
+import { notifyGradeAchieved } from '@/lib/notifications/grade'
 
 /**
  * 級の行（milestone_cert を持つスキル）が認定されたときの自動処理。
@@ -48,5 +49,7 @@ export async function registerGradeCertification(
     created_by: actorId,
     expires_at: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(),
   })
+  // 所属店舗のみんなと、その店舗を選んだ人に LINE で知らせる（初めて取得したときだけ。失敗しても認定は成立）
+  await notifyGradeAchieved(db, { employeeId, label }).catch(err => console.error('級の取得の LINE 通知に失敗:', err))
   return { registered: true, label }
 }

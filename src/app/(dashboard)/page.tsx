@@ -21,6 +21,8 @@ import { LineLinkBanner } from '@/components/layout/line-link-banner'
 import { LineLinkToast } from '@/components/layout/line-link-toast'
 import { canAdminister, canApprove } from '@/lib/permissions'
 import { getTestEmployeeIds } from '@/lib/test-data'
+import { getGradeWageUps } from '@/lib/settings'
+import { normalizeCertName } from '@/lib/milestones'
 
 function TeamRankingSkeleton() {
   return (
@@ -218,11 +220,19 @@ export default async function DashboardPage({
   // 2026-10-22 A-5: 演出は級の取得時だけ（ふだんのスキル認定では出さない）
   type AchRow = { id: string; skill_id: string; status: string; celebrated_at?: string | null; praise_comment: string | null; certified_by: string | null; skills: { name: string; milestone_kind?: 'grade' | 'goal' | null; milestone_cert?: string | null } | null; certified_employee: { name: string; avatar_url: string | null } | null }
   const uncelebrated = viewingAs ? [] : ((achievements ?? []) as unknown as AchRow[]).filter(a => a.status === 'certified' && !a.celebrated_at && a.skills?.milestone_kind === 'grade')
+  // 時給アップの演出（2026-10-22 原島さん確定）: 上がる金額はメイトさんご本人にだけ出す。社員の方は金額なしでお祝いだけ
+  const wageMap = uncelebrated.length > 0 && employee.employment_type === 'メイト' ? await getGradeWageUps() : {}
+  const wageOf = (cert: string | null | undefined): number | null => {
+    if (!cert) return null
+    const key = Object.keys(wageMap).find(k => normalizeCertName(k) === normalizeCertName(cert))
+    return key ? wageMap[key] : null
+  }
   const celebrationItems = uncelebrated.map(a => ({
     achievementId: a.id,
     skillName: a.skills?.name ?? 'スキル',
     milestoneKind: (a.skills?.milestone_kind ?? null) as 'grade' | 'goal' | null,
     milestoneCert: a.skills?.milestone_cert ?? null,
+    wageUp: wageOf(a.skills?.milestone_cert),
     praise: a.praise_comment ?? null,
     certifierName: a.certified_employee?.name ?? null,
     certifierId: a.certified_by ?? null,
@@ -301,7 +311,7 @@ export default async function DashboardPage({
             : (params?.preview === 'celebration' && canAdminister(currentEmployee)) ? {
               preview: true,
               items: [
-                { achievementId: 'preview-1', skillName: '調理3級', milestoneKind: 'grade', milestoneCert: '調理３級', praise: 'ライス盛り、定量ぴったりで安定してきたね！毎回きちんと確認する姿勢が素晴らしい。次はスピードも意識して、ひとり調理に挑戦しよう。期待しています！', certifierName: '店長 太郎', certifierId: null, certifierAvatar: null },
+                { achievementId: 'preview-1', skillName: '調理3級', milestoneKind: 'grade', milestoneCert: '調理３級', wageUp: 20, praise: 'ライス盛り、定量ぴったりで安定してきたね！毎回きちんと確認する姿勢が素晴らしい。次はスピードも意識して、ひとり調理に挑戦しよう。期待しています！', certifierName: '店長 太郎', certifierId: null, certifierAvatar: null },
               ],
               completedPhases: ['フェーズ２'],
             } : undefined
