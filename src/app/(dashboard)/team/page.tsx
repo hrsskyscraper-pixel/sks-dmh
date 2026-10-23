@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { unapprovableSeniorIds } from '@/lib/senior-review'
 import { getViewAsContext } from '@/lib/supabase/auth-cache'
 import { TopBar } from '@/components/layout/nav'
 import { TeamDashboard } from '@/components/dashboard/team-dashboard'
@@ -158,8 +159,11 @@ export default async function TeamPage() {
 
   // 担当チームのメンバーの pending のみに絞る（他チームの申請はリーダーに見せない）＋テスト社員除外。
   // 自己承認の禁止: 自分自身の pending は承認キューに出さない（認定済み等の表示には影響しない）。
+  // 管理者（MG・AC・課長など）の申請は、承認する人に選ばれていなければ承認キューに出さない（承認センターと同じ。B-④-3）
+  const unapprovable = await unapprovableSeniorIds(createAdminClient(), effectiveEmployeeId,
+    (achievements ?? []).filter(a => a.status === 'pending').map(a => a.employee_id))
   const filteredAchievements = (achievements ?? []).filter(
-    a => (a.status !== 'pending' || (priorityMemberIds.has(a.employee_id) && a.employee_id !== effectiveEmployeeId)) && !testEmpIds.has(a.employee_id)
+    a => (a.status !== 'pending' || (priorityMemberIds.has(a.employee_id) && a.employee_id !== effectiveEmployeeId && !unapprovable.has(a.employee_id))) && !testEmpIds.has(a.employee_id)
   )
 
   // 申請写真に署名付きURLを付与（非公開バケットのため service-role で署名）

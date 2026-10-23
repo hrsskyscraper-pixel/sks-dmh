@@ -8,6 +8,7 @@ import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { unapprovableSeniorIds } from '@/lib/senior-review'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { VIEW_AS_COOKIE } from '@/lib/view-as'
 import { SELECTED_PROJECT_COOKIE } from '@/lib/selected-project'
@@ -114,7 +115,9 @@ export async function getNavCounts(): Promise<NavCounts> {
         db.from('team_change_requests').select('requested_by').eq('status', 'pending'),
         db.from('employees').select('id').eq('status', 'pending').not('requested_team_id', 'is', null),
       ])
-      const a = pendAch.filter(r => !testIds.has(r.employee_id)).length
+      // 管理者（MG・AC・課長など）の申請は、承認する人に選ばれていなければ数えない（承認センターと同じ範囲。B-④-3）
+      const senior = await unapprovableSeniorIds(db, targetId, pendAch.map(r => r.employee_id))
+      const a = pendAch.filter(r => !testIds.has(r.employee_id) && !senior.has(r.employee_id)).length
       const t = (pendReq ?? []).filter(r => !r.requested_by || !testIds.has(r.requested_by)).length
       const j = (pendJoin ?? []).filter(r => !testIds.has(r.id)).length
       return a + t + j
@@ -131,7 +134,8 @@ export async function getNavCounts(): Promise<NavCounts> {
       db.from('team_change_requests').select('requested_by').eq('status', 'pending').in('team_id', managedTeamIds),
       db.from('employees').select('id').eq('status', 'pending').not('requested_team_id', 'is', null).in('requested_team_id', managedTeamIds),
     ])
-    const a = (pendAch ?? []).length
+    const senior = await unapprovableSeniorIds(db, targetId, (pendAch ?? []).map(r => r.employee_id))
+    const a = (pendAch ?? []).filter(r => !senior.has(r.employee_id)).length
     const t = (pendReq ?? []).filter(r => !r.requested_by || !testIds.has(r.requested_by)).length
     const j = (pendJoin ?? []).filter(r => !testIds.has(r.id)).length
     return a + t + j
@@ -145,7 +149,8 @@ export async function getNavCounts(): Promise<NavCounts> {
     let global = 0
     if (canAdminister(effectiveEmp)) {
       const data = await getPendingAchievements()
-      global = data.filter(a => !testIds.has(a.employee_id) && a.employee_id !== targetId).length
+      const senior = await unapprovableSeniorIds(db, targetId, data.map(a => a.employee_id))
+      global = data.filter(a => !testIds.has(a.employee_id) && a.employee_id !== targetId && !senior.has(a.employee_id)).length
     }
     let team = 0
     const { data: managed } = await db.from('team_managers').select('team_id').eq('employee_id', targetId)
@@ -155,7 +160,8 @@ export async function getNavCounts(): Promise<NavCounts> {
       const memberIds = [...new Set((members ?? []).map(m => m.employee_id))].filter(id => !testIds.has(id) && id !== targetId)
       if (memberIds.length > 0) {
         const { data } = await db.from('achievements').select('employee_id').eq('status', 'pending').in('employee_id', memberIds)
-        team = (data ?? []).length
+        const senior = await unapprovableSeniorIds(db, targetId, (data ?? []).map(a => a.employee_id))
+        team = (data ?? []).filter(a => !senior.has(a.employee_id)).length
       }
     }
     return { global, team }

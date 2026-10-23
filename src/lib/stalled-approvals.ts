@@ -1,6 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { leaderIdsUnderUpperApprover, upperApproversByTeam } from '@/lib/upper-approvers'
+import { getSeniorReviewOrInactive } from '@/lib/settings'
+import { seniorApplicantIds } from '@/lib/senior-review'
 
 /**
  * 承認の滞留（2026-09-20 決定）
@@ -23,6 +25,8 @@ export interface StalledItem {
   teamId: string | null
   teamName: string | null
   approverIds: string[]
+  /** 管理者（MG・AC・課長など）の申請（設定で選んだ人だけが承認する。B-④-3） */
+  senior: boolean
 }
 
 export interface ApproverSummary {
@@ -113,6 +117,10 @@ export async function getStalledApprovals(db: SupabaseClient, now: Date, exclude
   }
   // 担当リーダー（店長）ご本人の申請は、その店舗の「上の承認者」も承認できる（B-④-3）
   const upperByTeam = await upperApproversByTeam(db, teamIds)
+  // 管理者（MG・AC・課長など）の申請は、設定で選んだ人（部長・常務・社長）だけが承認する（B-④-3）
+  const senior = await getSeniorReviewOrInactive()
+  const seniorIds = senior.active ? await seniorApplicantIds(db, empIds, senior.roleIds) : new Set<string>()
+  const seniorApprovers = senior.approverIds.filter(id => !excludedIds.has(id))
   const leaderOf = new Set((mgrRows ?? []).map(r => `${r.team_id}:${r.employee_id}`))
 
   const items: StalledItem[] = stalledRows.map(a => {
@@ -120,7 +128,10 @@ export async function getStalledApprovals(db: SupabaseClient, now: Date, exclude
     const sk = Array.isArray(a.skills) ? a.skills[0] : a.skills
     // 自分の申請は自分で承認できない → 承認者から本人を除く
     const uppers = t && leaderOf.has(`${t.id}:${a.employee_id}`) ? (upperByTeam[t.id] ?? []).filter(id => !excludedIds.has(id)) : []
-    const approverIds = [...new Set([...(t ? (approversByTeam[t.id] ?? []) : []), ...uppers])].filter(id => id !== a.employee_id)
+    const approverIds = (seniorIds.has(a.employee_id)
+      ? seniorApprovers
+      : [...new Set([...(t ? (approversByTeam[t.id] ?? []) : []), ...uppers])]
+    ).filter(id => id !== a.employee_id)
     return {
       achievementId: a.id,
       employeeId: a.employee_id,
@@ -131,6 +142,7 @@ export async function getStalledApprovals(db: SupabaseClient, now: Date, exclude
       teamId: t?.id ?? null,
       teamName: t?.name ?? null,
       approverIds,
+      senior: seniorIds.has(a.employee_id),
     }
   })
 
@@ -200,7 +212,9 @@ export async function countStalledForApprover(
   // 管理者: 全社の滞留に加えて「承認者が未設定の店舗・チーム」の数も返す（ログイン時の案内に使う）
   if (isAdmin) {
     const all = await getStalledApprovals(db, now, excludedIds)
-    return { count: all.total, maxDays: all.items.reduce((m, i) => Math.max(m, i.days), 0), unassignedTeams: all.unassigned.length }
+    // 管理者の申請は、承認する人に選ばれていなければ数えない（承認センターに出る範囲と合わせる）
+    const mine = all.items.filter(i => !i.senior || i.approverIds.includes(approverId))
+    return { count: mine.length, maxDays: mine.reduce((m, i) => Math.max(m, i.days), 0), unassignedTeams: all.unassigned.length }
   }
   const threshold = new Date(now.getTime() - (STALLED_APPROVAL_DAYS - 1) * DAY).toISOString()
   let q = db.from('achievements').select('employee_id, achieved_at').eq('status', 'pending').lt('achieved_at', threshold)
@@ -217,10 +231,15 @@ export async function countStalledForApprover(
     q = q.in('employee_id', memberIds)
   }
   const { data } = await q
+  // 管理者（MG・AC・課長など）の申請は、設定で選んだ人だけが承認するので、それ以外の人の件数からは外す（B-④-3）
+  const senior = await getSeniorReviewOrInactive()
+  const seniorIds = senior.active && !senior.approverIds.includes(approverId)
+    ? await seniorApplicantIds(db, (data ?? []).map(a => a.employee_id), senior.roleIds)
+    : new Set<string>()
   let count = 0
   let maxDays = 0
   for (const a of data ?? []) {
-    if (excludedIds.has(a.employee_id) || a.employee_id === approverId) continue
+    if (excludedIds.has(a.employee_id) || a.employee_id === approverId || seniorIds.has(a.employee_id)) continue
     const d = jstDayDiff(a.achieved_at, now)
     if (d >= STALLED_APPROVAL_DAYS) { count++; maxDays = Math.max(maxDays, d) }
   }

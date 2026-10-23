@@ -5,6 +5,7 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { unapprovableSeniorIds } from '@/lib/senior-review'
 import { getViewAsContext } from '@/lib/supabase/auth-cache'
 import { TopBar } from '@/components/layout/nav'
 import { DashboardContent } from '@/components/dashboard/dashboard-content'
@@ -112,7 +113,11 @@ export default async function DashboardPage({
     const globalCountP = isAdmin
       ? db.from('achievements').select('employee_id')
           .eq('status', 'pending')
-          .then(r => (r.data ?? []).filter(a => !testEmpIds.has(a.employee_id) && a.employee_id !== employee.id).length)
+          .then(async r => {
+            // 管理者（MG・AC・課長など）の申請は、承認する人に選ばれていなければ数えない（B-④-3）
+            const senior = await unapprovableSeniorIds(db, employee.id, (r.data ?? []).map(a => a.employee_id))
+            return (r.data ?? []).filter(a => !testEmpIds.has(a.employee_id) && a.employee_id !== employee.id && !senior.has(a.employee_id)).length
+          })
       : Promise.resolve(0)
 
     // 担当チームの認定待ち（リーダー以上。自分とテスト社員を除外 → /team?tab=pending の表示と一致）
@@ -129,7 +134,8 @@ export default async function DashboardPage({
       const { data: pend } = await db
         .from('achievements').select('employee_id')
         .eq('status', 'pending').in('employee_id', myMemberIds)
-      return (pend ?? []).length
+      const senior = await unapprovableSeniorIds(db, employee.id, (pend ?? []).map(a => a.employee_id))
+      return (pend ?? []).filter(a => !senior.has(a.employee_id)).length
     })()
 
     const teamRequestsCountP = isAdmin

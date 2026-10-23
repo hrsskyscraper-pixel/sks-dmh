@@ -8,6 +8,7 @@ import { sendLineMessage } from '@/lib/notifications/line'
 import { writeAuditLog } from '@/lib/audit'
 import { canApprove, canAdminister } from '@/lib/permissions'
 import { notLeftFilter } from '@/lib/left'
+import { seniorReviewCheck } from '@/lib/approval-scope'
 
 /** 付与権限チェック（canApprove かつ、リーダーの場合は管理チームメンバー限定） */
 async function assertCanActOn(employeeId: string) {
@@ -36,6 +37,17 @@ async function assertCanActOn(employeeId: string) {
   return { actor, db }
 }
 
+/** 管理者（MG・AC・課長など）のスキルは、設定で選んだ人だけが合格・取り消しできる（B-④-3。承認センターと同じ判定） */
+async function seniorGuard(db: ReturnType<typeof createAdminClient>, actor: { id: string; role?: string | null; system_permission?: string | null }, employeeId: string): Promise<string | null> {
+  try {
+    const { error } = await seniorReviewCheck(db, actor as Parameters<typeof seniorReviewCheck>[1], [employeeId])
+    return error
+  } catch (e) {
+    console.error('管理者の申請の確認に失敗:', e)
+    return '確認に失敗しました。時間をおいてもう一度お試しください'
+  }
+}
+
 /**
  * リーダー・管理者がメンバーのスキルに対し直接「合格」を付与する。
  * 既存の achievement があれば certified に更新、なければ新規作成。
@@ -52,6 +64,8 @@ export async function grantSkill(params: {
 
   // 自己承認の禁止: 自分のスキルは自分で付与（承認）できない
   if (params.employeeId === certifier.id) return { error: '自分のスキルは承認（付与）できません' }
+  const seniorErr = await seniorGuard(db, certifier, params.employeeId)
+  if (seniorErr) return { error: seniorErr }
 
   // 対象取得
   const { data: target } = await db
@@ -154,6 +168,8 @@ export async function revokeCertification(params: {
   const check = await assertCanActOn(params.employeeId)
   if ('error' in check) return { error: check.error }
   const { actor, db } = check
+  const seniorErr = await seniorGuard(db, actor, params.employeeId)
+  if (seniorErr) return { error: seniorErr }
 
   // 対象取得（certified のみ取消可）
   const { data: ach } = await db

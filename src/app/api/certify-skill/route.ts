@@ -49,7 +49,13 @@ export async function POST(request: Request) {
   if (!achievement) return NextResponse.json({ error: '対象が見つかりません' }, { status: 404 })
 
   // 自己承認の禁止と、担当の範囲（担当チームのメンバー・上の承認者として受け持つ店長）だけを処理できるかを確かめる
-  const scopeErr = await certifyScopeError(db, certifier, [achievement])
+  let scopeErr: string | null
+  try {
+    scopeErr = await certifyScopeError(db, certifier, [achievement])
+  } catch (e) {
+    console.error('承認範囲の確認に失敗:', e)
+    return NextResponse.json({ error: '確認に失敗しました。時間をおいてもう一度お試しください' }, { status: 503 })
+  }
   if (scopeErr) return NextResponse.json({ error: scopeErr }, { status: 403 })
   // すでに同じ状態（古い画面から押し直したなど）なら、何もしない。履歴・お知らせ・通知が二重にならないように
   if (achievement.status === action) {

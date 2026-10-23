@@ -8,10 +8,12 @@ import { EmailNotificationToggle } from '@/components/admin/email-notification-t
 import { LineNotificationToggle } from '@/components/admin/line-notification-toggle'
 import { OpsTeamRecipients, type OpsCandidate } from '@/components/admin/ops-team-recipients'
 import { GradeWageUps } from '@/components/admin/grade-wage-ups'
+import { SeniorReview } from '@/components/admin/senior-review'
+import { hasLeft } from '@/lib/left'
 import Link from 'next/link'
 import { FolderKanban, Upload, Award, ChevronRight, BookOpen, Tag, Briefcase, Bell, BarChart3, UserCheck } from 'lucide-react'
 import { canAdminister } from '@/lib/permissions'
-import { getEmailNotificationsSetting, getGradeWageUpSetting, getLineNotificationsSetting, getOpsTeamRecipientSetting, getQaModeratorSetting } from '@/lib/settings'
+import { getEmailNotificationsSetting, getGradeWageUpSetting, getLineNotificationsSetting, getOpsTeamRecipientSetting, getQaModeratorSetting, getSeniorReviewSetting } from '@/lib/settings'
 
 export default async function SettingsPage() {
   const currentEmployee = await getCurrentEmployee()
@@ -20,7 +22,7 @@ export default async function SettingsPage() {
   }
 
   const db = createAdminClient()
-  const [{ data: certifications }, emailSetting, lineSetting, opsSetting, { data: opsCandidatesRows }, qaModSetting, wageSetting] = await Promise.all([
+  const [{ data: certifications }, emailSetting, lineSetting, opsSetting, { data: opsCandidatesRows }, qaModSetting, wageSetting, seniorSetting, { data: businessRoles }] = await Promise.all([
     db
       .from('certifications')
       .select('id, name, description, icon, color, order_index, is_active, created_at')
@@ -29,10 +31,12 @@ export default async function SettingsPage() {
     getLineNotificationsSetting(),
     getOpsTeamRecipientSetting(),
     // 運営チームの候補: 運用管理者・開発者（権限で引く。旧 role で引くと取りこぼす）
-    db.from('employees').select('id, name, email, line_user_id, role, employment_type, system_permission').eq('status', 'approved')
+    db.from('employees').select('id, name, email, line_user_id, role, employment_type, system_permission, left_at').eq('status', 'approved')
       .in('system_permission', ['ops_admin', 'developer']).order('name'),
     getQaModeratorSetting(),
     getGradeWageUpSetting(),
+    getSeniorReviewSetting(),
+    db.from('business_roles').select('id, name').order('sort_order'),
   ])
   const opsCandidates: OpsCandidate[] = (opsCandidatesRows ?? []).map(e => ({
     id: e.id,
@@ -41,6 +45,9 @@ export default async function SettingsPage() {
     hasEmail: !!e.email,
     hasLine: !!e.line_user_id,
   }))
+  // 管理者の申請を承認する人は、退職日を迎えた人を候補にしない（保存でも断る）
+  const leftIds = new Set((opsCandidatesRows ?? []).filter(e => hasLeft(e.left_at)).map(e => e.id))
+  const seniorCandidates = opsCandidates.filter(c => !leftIds.has(c.id))
 
   return (
     <>
@@ -72,6 +79,16 @@ export default async function SettingsPage() {
           selectedIds={qaModSetting.ids}
           updatedBy={qaModSetting.updatedBy}
           updatedAt={qaModSetting.updatedAt}
+        />
+
+        {/* 管理者（MG・AC・課長など）の申請を承認する人（2026-10-23 B-④-3） */}
+        <SeniorReview
+          roles={businessRoles ?? []}
+          candidates={seniorCandidates}
+          roleIds={seniorSetting.roleIds}
+          approverIds={seniorSetting.approverIds}
+          updatedBy={seniorSetting.updatedBy}
+          updatedAt={seniorSetting.updatedAt}
         />
 
         {/* 級を取得したときの時給アップ（2026-10-22 A-5）。級の資格だけを並べる */}

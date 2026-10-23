@@ -14,6 +14,8 @@ import { getTestEmployeeIds } from '@/lib/test-data'
 import { signSkillPhotoPaths } from '@/lib/skill-photos'
 import { getAffiliationsAndCurricula } from '@/lib/affiliations'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
+import { getSeniorReview } from '@/lib/settings'
+import { seniorApplicantIds } from '@/lib/senior-review'
 
 export default async function ApprovalsPage({ searchParams }: { searchParams?: Promise<{ approver?: string; team?: string; tab?: string }> }) {
   const employee = await getCurrentEmployee()
@@ -46,12 +48,12 @@ export default async function ApprovalsPage({ searchParams }: { searchParams?: P
 
   const db = createAdminClient()
   const isSystemAdmin = canAdminister(employee)
-  const testEmpIds = await getTestEmployeeIds()
+  // 管理者（MG・AC・課長など）の申請の設定。読めなければ画面ごと止める（承認できない申請を出さないため。B-④-3）
+  const [testEmpIds, senior] = await Promise.all([getTestEmployeeIds(), getSeniorReview()])
 
   // 管理するチームのメンバーID
   let managedMemberIds: string[] = []
   let managedTeamIds: string[] = []
-  let upperTeamIds: string[] = []
   if (!isSystemAdmin) {
     const { data: managed } = await db.from('team_managers').select('team_id').eq('employee_id', employee.id)
     managedTeamIds = (managed ?? []).map(m => m.team_id)
@@ -60,11 +62,7 @@ export default async function ApprovalsPage({ searchParams }: { searchParams?: P
       managedMemberIds = [...new Set((members ?? []).map(m => m.employee_id))]
     }
     // 上の承認者に指定された店舗では、担当リーダー（店長）ご本人の申請も承認できる（B-④-3）
-    const [upperLeaderIds, { data: ups }] = await Promise.all([
-      leaderIdsUnderUpperApprover(db, employee.id),
-      db.from('team_upper_approvers').select('team_id').eq('employee_id', employee.id),
-    ])
-    upperTeamIds = (ups ?? []).map(u => u.team_id)
+    const upperLeaderIds = await leaderIdsUnderUpperApprover(db, employee.id)
     managedMemberIds = [...new Set([...managedMemberIds, ...upperLeaderIds])]
   }
 
@@ -78,12 +76,40 @@ export default async function ApprovalsPage({ searchParams }: { searchParams?: P
       .range(from, to),
   )
 
+  // 承認できる申請。管理者（MG・AC・課長など）の申請は、設定で選んだ人（部長・常務・社長）にだけ出す（B-④-3）
+  const seniorIds = senior.active ? await seniorApplicantIds(db, pendingAchievements.map(a => a.employee_id), senior.roleIds) : new Set<string>()
+  const isSeniorApprover = senior.approverIds.includes(employee.id)
+  const visibleAchievements = pendingAchievements
+    .filter(a => !testEmpIds.has(a.employee_id))
+    .filter(a => a.employee_id !== employee.id) // 自己承認の禁止: 自分の申請は承認キューに出さない
+    .filter(a => seniorIds.has(a.employee_id) ? isSeniorApprover : (isSystemAdmin || managedMemberIds.includes(a.employee_id)))
+
+  // 店舗・部署ごとの承認待ちの件数（申請したばかりのものも含めて全部。押すとその店舗の申請だけに絞る。B-④-3）
+  const visibleEmpIds = [...new Set(visibleAchievements.map(a => a.employee_id))]
+  type StoreRow = { employee_id: string; teams: { id: string; name: string; type: string } | { id: string; name: string; type: string }[] | null }
+  const storeRows: StoreRow[] = []
+  for (let i = 0; i < visibleEmpIds.length; i += 100) {
+    const { data } = await db.from('team_members').select('employee_id, teams(id, name, type)').in('employee_id', visibleEmpIds.slice(i, i + 100))
+    storeRows.push(...((data ?? []) as StoreRow[]))
+  }
+  const storesByEmp: Record<string, { id: string; name: string }[]> = {}
+  for (const r of storeRows) {
+    const t = Array.isArray(r.teams) ? r.teams[0] : r.teams
+    if (t && (t.type === 'store' || t.type === 'department')) (storesByEmp[r.employee_id] ??= []).push({ id: t.id, name: t.name })
+  }
+  const storeCountMap: Record<string, { teamId: string; name: string; count: number }> = {}
+  for (const a of visibleAchievements) {
+    for (const t of storesByEmp[a.employee_id] ?? []) (storeCountMap[t.id] ??= { teamId: t.id, name: t.name, count: 0 }).count++
+  }
+  const storeCounts = Object.values(storeCountMap).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'ja'))
+
   // デイリーレポートの承認者名リンクからの絞り込み（?approver=）: その承認者が担当するチームのメンバーの申請だけ。
   // 見られるのは 管理者 か 本人。他の人が指定しても無視する
-  // ?team= は、その店舗・部署のメンバーの申請だけ（管理者 か そのチームの担当リーダー）
+  // ?team= は、その店舗・部署のメンバーの申請だけ。もともと見られる申請（visibleAchievements）の中で絞るだけなので、
+  // どの店舗・部署を指定しても見えてはいけない申請は出ない。店舗別の件数から開いた店舗を処理し終えて 0 件になっても、絞り込みを保つ
   let filterApprover: { id: string; name: string; count: number } | null = null
   let approverMemberIds: Set<string> | null = null
-  if (sp.team && /^[0-9a-f-]{36}$/.test(sp.team) && (isSystemAdmin || managedTeamIds.includes(sp.team) || upperTeamIds.includes(sp.team))) {
+  if (sp.team && /^[0-9a-f-]{36}$/.test(sp.team)) {
     const [{ data: team }, { data: members }] = await Promise.all([
       db.from('teams').select('id, name').eq('id', sp.team).maybeSingle(),
       db.from('team_members').select('employee_id').eq('team_id', sp.team),
@@ -104,15 +130,14 @@ export default async function ApprovalsPage({ searchParams }: { searchParams?: P
         // 上の承認者として受け持つ店長の申請も含める（滞留の知らせの件数と合わせる）
         leaderIdsUnderUpperApprover(db, ap.id),
       ])
-      approverMemberIds = new Set([...(members ?? []).map(m => m.employee_id), ...upperLeaders].filter(id => id !== ap.id))
+      // 管理者の申請は、その人が承認する人に選ばれていれば全部、選ばれていなければ含めない（滞留の知らせの件数と合わせる）
+      approverMemberIds = new Set([...(members ?? []).map(m => m.employee_id), ...upperLeaders].filter(id => id !== ap.id && !seniorIds.has(id)))
+      if (senior.approverIds.includes(ap.id)) for (const id of seniorIds) if (id !== ap.id) approverMemberIds.add(id)
       filterApprover = { id: ap.id, name: ap.name, count: 0 }
     }
   }
 
-  const filteredAchievementsBase = pendingAchievements
-    .filter(a => !testEmpIds.has(a.employee_id))
-    .filter(a => a.employee_id !== employee.id) // 自己承認の禁止: 自分の申請は承認キューに出さない
-    .filter(a => isSystemAdmin || managedMemberIds.includes(a.employee_id))
+  const filteredAchievementsBase = visibleAchievements
     .filter(a => !approverMemberIds || approverMemberIds.has(a.employee_id))
   if (filterApprover) filterApprover.count = filteredAchievementsBase.length
 
@@ -301,6 +326,7 @@ export default async function ApprovalsPage({ searchParams }: { searchParams?: P
         reviewerMap={reviewerMap as Record<string, { id: string; name: string; avatar_url: string | null }>}
         auditLogs={(auditLogs ?? []) as any[]}
         filterApprover={filterApprover ? { ...filterApprover, kind: sp.team ? 'team' as const : 'approver' as const } : null}
+        storeCounts={storeCounts}
       />
     </>
   )

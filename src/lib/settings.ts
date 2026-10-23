@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { Json } from '@/types/database'
+import { notLeftFilter } from '@/lib/left'
 
 /**
  * アプリ全体の設定（app_settings テーブル）の読み書き。
@@ -24,7 +25,11 @@ export const QA_MODERATOR_IDS = 'qa_moderator_ids'
 /** 級ごとの上がる金額（円）。キーは社内資格名（2026-10-22 原島さん確定 A-5。メイトさんご本人の演出にだけ出す） */
 export const GRADE_WAGE_UPS = 'grade_wage_ups'
 
-export type SettingMeta = { updatedBy: string | null; updatedAt: string | null }
+/** 管理者の申請（B-④-3。2026-10-23 原島さん確定）: 対象の役職ID配列と、その申請を承認する社員ID配列 */
+export const SENIOR_REVIEW_ROLE_IDS = 'senior_review_role_ids'
+export const SENIOR_REVIEW_APPROVER_IDS = 'senior_review_approver_ids'
+
+export type SettingMeta ={ updatedBy: string | null; updatedAt: string | null }
 
 /**
  * 真偽の設定を読む。既定は「有効」。行が無い場合・取得に失敗した場合も有効として扱う（fail-open）。
@@ -112,6 +117,60 @@ export async function getQaModeratorSetting(): Promise<{ ids: string[] } & Setti
   const row = await getSettingRow(QA_MODERATOR_IDS)
   const v = row?.value
   return { ids: Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [], updatedBy: row?.updatedBy ?? null, updatedAt: row?.updatedAt ?? null }
+}
+
+// ---------- 管理者（MG・AC・課長）の申請を承認する人 ----------
+async function getIdArraySetting(key: string): Promise<{ ids: string[] } & SettingMeta> {
+  const row = await getSettingRow(key)
+  const v = row?.value
+  return { ids: Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [], updatedBy: row?.updatedBy ?? null, updatedAt: row?.updatedAt ?? null }
+}
+const idArray = (v: unknown): string[] => Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []
+
+/**
+ * 対象の役職と承認する人（承認の可否に使う）。active は両方とも選ばれているとき（未設定のあいだは、これまでどおりの承認範囲）。
+ * 承認する人は、読むたびに「承認済みの運用管理者・開発者で、退職日を迎えていない人」だけに絞る（あとで権限を下げた人を残さない）。
+ * 読み取りに失敗したら例外にする（制限が黙って外れないように。表示だけに使うなら getSeniorReviewOrInactive）。
+ */
+export async function getSeniorReview(): Promise<{ roleIds: string[]; approverIds: string[]; active: boolean }> {
+  const db = createAdminClient()
+  const { data, error } = await db.from('app_settings').select('key, value').in('key', [SENIOR_REVIEW_ROLE_IDS, SENIOR_REVIEW_APPROVER_IDS])
+  if (error) throw new Error(`管理者の申請の設定の取得に失敗: ${error.message}`)
+  const roleIds = idArray(data?.find(r => r.key === SENIOR_REVIEW_ROLE_IDS)?.value)
+  const saved = idArray(data?.find(r => r.key === SENIOR_REVIEW_APPROVER_IDS)?.value)
+  let approverIds: string[] = []
+  if (saved.length > 0) {
+    const { data: emps, error: empErr } = await db.from('employees').select('id')
+      .in('id', saved).eq('status', 'approved').in('system_permission', ['ops_admin', 'developer']).or(notLeftFilter())
+    if (empErr) throw new Error(`管理者の申請を承認する人の取得に失敗: ${empErr.message}`)
+    approverIds = saved.filter(id => (emps ?? []).some(e => e.id === id))
+  }
+  return { roleIds, approverIds, active: roleIds.length > 0 && approverIds.length > 0 }
+}
+/** 件数の表示など、承認の可否に使わないところ向け。読めないときは「未設定」として続ける */
+export async function getSeniorReviewOrInactive(): Promise<{ roleIds: string[]; approverIds: string[]; active: boolean }> {
+  try {
+    return await getSeniorReview()
+  } catch (e) {
+    console.error('[設定] 管理者の申請の設定の取得に失敗（表示は未設定として続行）:', e)
+    return { roleIds: [], approverIds: [], active: false }
+  }
+}
+export async function getSeniorReviewSetting(): Promise<{ roleIds: string[]; approverIds: string[] } & SettingMeta> {
+  const [roles, approvers] = await Promise.all([getIdArraySetting(SENIOR_REVIEW_ROLE_IDS), getIdArraySetting(SENIOR_REVIEW_APPROVER_IDS)])
+  const later = (roles.updatedAt ?? '') > (approvers.updatedAt ?? '') ? roles : approvers
+  return { roleIds: roles.ids, approverIds: approvers.ids, updatedBy: later.updatedBy, updatedAt: later.updatedAt }
+}
+/** 2つのキーを1回の書き込みで保存する（片方だけ新しくなる食い違いを残さない） */
+export async function setSeniorReview(roleIds: string[], approverIds: string[], actorId: string): Promise<{ error?: string }> {
+  const db = createAdminClient()
+  const at = new Date().toISOString()
+  const { error } = await db.from('app_settings').upsert([
+    { key: SENIOR_REVIEW_ROLE_IDS, value: roleIds, updated_by: actorId, updated_at: at },
+    { key: SENIOR_REVIEW_APPROVER_IDS, value: approverIds, updated_by: actorId, updated_at: at },
+  ], { onConflict: 'key' })
+  if (error) return { error: error.message }
+  return {}
 }
 
 // ---------- 級ごとの上がる金額（時給アップの演出） ----------

@@ -58,7 +58,13 @@ export async function POST(request: Request) {
 
   // 自己承認の禁止と、担当の範囲（担当チームのメンバー・上の承認者として受け持つ店長）だけを処理できるかを確かめる
   // 1件でも範囲外が混ざっていたら、まとめて止める（一部だけ処理されると、画面と食い違うため）
-  const scopeErr = await certifyScopeError(db, certifier, fetched)
+  let scopeErr: string | null
+  try {
+    scopeErr = await certifyScopeError(db, certifier, fetched)
+  } catch (e) {
+    console.error('承認範囲の確認に失敗:', e)
+    return NextResponse.json({ error: '確認に失敗しました。時間をおいてもう一度お試しください' }, { status: 503 })
+  }
   if (scopeErr) return NextResponse.json({ error: scopeErr }, { status: 403 })
 
   const trimmedComment = comment?.trim() || null

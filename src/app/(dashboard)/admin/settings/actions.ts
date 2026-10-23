@@ -4,8 +4,9 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getRealEmployee } from '@/lib/supabase/auth-cache'
 import { canAdminister } from '@/lib/permissions'
-import { getGradeWageUps, setEmailNotificationsEnabled, setGradeWageUps, setLineNotificationsEnabled, setOpsTeamRecipientIds, setQaModeratorIds } from '@/lib/settings'
+import { getGradeWageUps, setEmailNotificationsEnabled, setGradeWageUps, setLineNotificationsEnabled, setOpsTeamRecipientIds, setQaModeratorIds, setSeniorReview, getSeniorReviewSetting } from '@/lib/settings'
 import { writeAuditLog } from '@/lib/audit'
+import { notLeftFilter } from '@/lib/left'
 
 /**
  * メール通知の一括スイッチを切り替える。
@@ -75,6 +76,44 @@ export async function setQaModerators(ids: string[]): Promise<{ error?: string }
   await writeAuditLog({ action: 'qa_moderators_updated', actorId: me.id, details: { ids: clean } }).catch(console.error)
   revalidatePath('/admin/settings')
   return {}
+}
+
+/**
+ * 管理者（MG・AC・課長など）の申請を承認する人（2026-10-23 原島さん確定 B-④-3）。システム管理者のみ。
+ * roleIds は役職マスタにあるものだけ、approverIds は運用管理者・開発者だけを残す。
+ */
+export async function saveSeniorReview(roleIds: string[], approverIds: string[]): Promise<{ error?: string; roleIds?: string[]; approverIds?: string[] }> {
+  const me = await getRealEmployee()
+  if (!me || !canAdminister(me)) return { error: '権限がありません' }
+  const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  const ids = (xs: unknown) => Array.isArray(xs) ? [...new Set(xs.filter((x): x is string => typeof x === 'string' && UUID.test(x)).map(x => x.toLowerCase()))] : []
+  const askedRoles = ids(roleIds)
+  const askedApprovers = ids(approverIds)
+  if (askedRoles.length > 50 || askedApprovers.length > 50) return { error: '選べるのは50件までです' }
+  const db = createAdminClient()
+  const [rolesRes, empsRes] = await Promise.all([
+    askedRoles.length > 0 ? db.from('business_roles').select('id').in('id', askedRoles) : Promise.resolve({ data: [] as { id: string }[], error: null }),
+    askedApprovers.length > 0
+      ? db.from('employees').select('id').in('id', askedApprovers).eq('status', 'approved').in('system_permission', ['ops_admin', 'developer']).or(notLeftFilter())
+      : Promise.resolve({ data: [] as { id: string }[], error: null }),
+  ])
+  // 確かめられないまま保存すると、選んだ人が消えて制限が黙って外れる。失敗したら保存しない
+  if (rolesRes.error || empsRes.error) return { error: '確認に失敗しました。時間をおいてもう一度お試しください' }
+  const cleanRoles = askedRoles.filter(id => (rolesRes.data ?? []).some(r => r.id === id))
+  const cleanApprovers = askedApprovers.filter(id => (empsRes.data ?? []).some(e => e.id === id))
+  if (cleanRoles.length !== askedRoles.length || cleanApprovers.length !== askedApprovers.length) {
+    return { error: '選べない役職か人が含まれています（運用管理者・開発者ではない、退職したなど）。画面を開き直してください' }
+  }
+  const before = await getSeniorReviewSetting()
+  const { error } = await setSeniorReview(cleanRoles, cleanApprovers, me.id)
+  if (error) return { error: '設定の保存に失敗しました' }
+  await writeAuditLog({
+    action: 'senior_review_updated',
+    actorId: me.id,
+    details: { roleIds: cleanRoles, approverIds: cleanApprovers, before: { roleIds: before.roleIds, approverIds: before.approverIds } },
+  }).catch(console.error)
+  revalidatePath('/admin/settings')
+  return { roleIds: cleanRoles, approverIds: cleanApprovers }
 }
 
 /** 級ごとの上がる金額（時給アップの演出。2026-10-22 原島さん確定）。システム管理者のみ。キーは社内資格のマスタにある名前だけ */

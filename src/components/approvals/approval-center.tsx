@@ -52,12 +52,14 @@ interface Props {
   recentJoins: any[]
   reviewerMap: Record<string, { id: string; name: string; avatar_url: string | null }>
   auditLogs: any[]
+  /** 店舗・部署ごとのスキル申請の承認待ち件数（押すとその店舗の申請だけに絞る。B-④-3） */
+  storeCounts?: { teamId: string; name: string; count: number }[]
 }
 
 export function ApprovalCenter({
   pendingAchievements, applicantAff = {}, applicantCurricula = {}, pendingTeamRequests, pendingJoins,
   teamMap, projectTeams, currentEmployeeId, isSystemAdmin, approverRole, storeDeptTeams,
-  recentAchievements, recentTeamRequests, recentJoins, reviewerMap, auditLogs, filterApprover = null,
+  recentAchievements, recentTeamRequests, recentJoins, reviewerMap, auditLogs, filterApprover = null, storeCounts = [],
 }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -337,6 +339,22 @@ export function ApprovalCenter({
             <span className="font-semibold text-amber-700">{filterApprover.count}件</span>
           </p>
           <Link href="/approvals" className="text-xs font-medium text-orange-700 hover:underline whitespace-nowrap">解除して全部見る</Link>
+        </div>
+      )}
+      {!filterApprover && storeCounts.length > 0 && (
+        <div className="rounded-lg border border-gray-200 bg-white px-3 py-2">
+          <p className="text-[11px] font-semibold text-gray-600 mb-1.5">店舗別のスキル申請の承認待ち（押すとその店舗だけに絞れます。いくつかの店舗に所属する方の申請は、それぞれの店舗に数えます）</p>
+          <div className="flex flex-wrap gap-1.5">
+            {storeCounts.slice(0, 8).map(sc => <StoreCountChip key={sc.teamId} {...sc} />)}
+          </div>
+          {storeCounts.length > 8 && (
+            <details className="mt-1.5">
+              <summary className="text-[11px] text-orange-700 cursor-pointer">ほか {storeCounts.length - 8} 店舗を見る</summary>
+              <div className="flex flex-wrap gap-1.5 mt-1.5">
+                {storeCounts.slice(8).map(sc => <StoreCountChip key={sc.teamId} {...sc} />)}
+              </div>
+            </details>
+          )}
         </div>
       )}
       {/* タブ */}
@@ -937,5 +955,17 @@ export function ApprovalCenter({
         </DialogContent>
       </Dialog>
     </div>
+  )
+}
+
+function StoreCountChip({ teamId, name, count }: { teamId: string; name: string; count: number }) {
+  return (
+    <Link
+      href={`/approvals?team=${teamId}`}
+      className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-gray-50 hover:bg-orange-50 hover:border-orange-300 px-2.5 py-1 text-xs text-gray-700"
+    >
+      {name}
+      <span className="font-bold text-orange-700">{count}件</span>
+    </Link>
   )
 }
