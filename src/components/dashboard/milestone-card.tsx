@@ -8,15 +8,15 @@ import type { MilestoneProgress } from '@/lib/milestones'
 
 /**
  * ホームの「次の目標まで」カード（2026-10-23 「次の級まで」から改名）。
- * - 級（grade）: 到達していないものを「あと○項目」が少ない順に最大3件
+ * - 目標（grade）: 到達していないものを、カリキュラムの順番（フェーズの順）で先頭から最大3件
+ *   （2026-10-23 残りの少ない順から変更。３級を取っていない方に２級や店長代行が先に出ていたため）
  * - 全体ゴール（goal）: 1件（カリキュラム全体の残り）
  * - 何も設定されていないカリキュラムでは表示しない
  */
 export function MilestoneCard({ milestones, skillsHref = '/skills' }: { milestones: MilestoneProgress[]; skillsHref?: string }) {
   const grades = milestones
     .filter(m => m.kind === 'grade' && m.status !== 'certified')
-    .sort((a, b) => a.remaining - b.remaining || a.total - b.total)
-    .slice(0, 3)
+    .slice(0, 3) // computeMilestones はカリキュラムの順（フェーズの順 → スキルの順）で返す
   const goal = milestones.find(m => m.kind === 'goal')
   const certifiedGrades = milestones.filter(m => m.kind === 'grade' && m.status === 'certified').length
   if (grades.length === 0 && !goal) return null
