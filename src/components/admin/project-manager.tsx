@@ -582,7 +582,7 @@ export function ProjectManager({
             onValueChange={v => handleChangeMilestone(skill.id, v === 'none' ? null : (v as 'grade' | 'goal'), skill.milestone_cert ?? null)}
             disabled={isPending}
           >
-            <SelectTrigger className={cn('h-6 text-[10px] w-[4.5rem] px-1.5', skill.milestone_kind === 'grade' && 'border-amber-400 text-amber-700', skill.milestone_kind === 'goal' && 'border-orange-500 text-orange-700')}>
+            <SelectTrigger className={cn('h-6 text-[10px] w-[5.5rem] px-1.5', skill.milestone_kind === 'grade' && 'border-amber-400 text-amber-700', skill.milestone_kind === 'goal' && 'border-orange-500 text-orange-700')}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

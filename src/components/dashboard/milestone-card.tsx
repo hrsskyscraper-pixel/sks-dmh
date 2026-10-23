@@ -10,7 +10,7 @@ import type { MilestoneProgress } from '@/lib/milestones'
  * ホームの「次の目標まで」カード（2026-10-23 「次の級まで」から改名）。
  * - 目標（grade）: 到達していないものを、カリキュラムの順番（フェーズの順）で先頭から最大3件
  *   （2026-10-23 残りの少ない順から変更。３級を取っていない方に２級や店長代行が先に出ていたため）
- * - 全体ゴール（goal）: 1件（カリキュラム全体の残り）
+ * - 最終目標（goal）: 1件（カリキュラム全体の残り）
  * - 何も設定されていないカリキュラムでは表示しない
  */
 export function MilestoneCard({ milestones, skillsHref = '/skills' }: { milestones: MilestoneProgress[]; skillsHref?: string }) {
