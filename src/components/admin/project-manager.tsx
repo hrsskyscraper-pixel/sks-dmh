@@ -575,20 +575,20 @@ export function ProjectManager({
         >
           CP
         </button>
-        {/* 級・全体ゴール（「あと○項目」の基準）。級のときは自動登録する社内資格を選べる */}
-        <div title="級／全体ゴール（あと○項目の基準）" className="flex items-center gap-0.5 flex-shrink-0">
+        {/* 目標（grade）・最終目標（goal）。「あと○項目」の基準。目標のときは自動登録する社内資格を選べる（2026-10-23 原島さん確定で 級→目標・ゴール→最終目標 に改名） */}
+        <div title="目標（そのフェーズの到達点）／最終目標（カリキュラム全体の到達点）。社内資格を選んだ目標だけが、級として資格の登録・お知らせ・時給アップの対象になります" className="flex items-center gap-0.5 flex-shrink-0">
           <Select
             value={skill.milestone_kind ?? 'none'}
             onValueChange={v => handleChangeMilestone(skill.id, v === 'none' ? null : (v as 'grade' | 'goal'), skill.milestone_cert ?? null)}
             disabled={isPending}
           >
-            <SelectTrigger className={cn('h-6 text-[10px] w-14 px-1.5', skill.milestone_kind === 'grade' && 'border-amber-400 text-amber-700', skill.milestone_kind === 'goal' && 'border-orange-500 text-orange-700')}>
+            <SelectTrigger className={cn('h-6 text-[10px] w-[4.5rem] px-1.5', skill.milestone_kind === 'grade' && 'border-amber-400 text-amber-700', skill.milestone_kind === 'goal' && 'border-orange-500 text-orange-700')}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="none">－</SelectItem>
-              <SelectItem value="grade">級</SelectItem>
-              <SelectItem value="goal">ゴール</SelectItem>
+              <SelectItem value="grade">目標</SelectItem>
+              <SelectItem value="goal">最終目標</SelectItem>
             </SelectContent>
           </Select>
           {skill.milestone_kind === 'grade' && (

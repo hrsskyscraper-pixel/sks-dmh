@@ -841,7 +841,7 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
               </div>
               {applyMilestone && applyMilestone.remaining > 0 && (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-                  <p className="font-semibold flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />この{applyMilestone.kind === 'goal' ? 'ゴール' : '級'}には、まだ認定されていない前提が {applyMilestone.remaining} 件あります</p>
+                  <p className="font-semibold flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />この{applyMilestone.kind === 'goal' ? '最終目標' : '目標'}には、まだ認定されていない前提が {applyMilestone.remaining} 件あります</p>
                   <p className="mt-1 text-amber-700">先にこれらの習得を進めましょう: {applyMilestone.remainingSkills.slice(0, 5).map(s => s.name).join('、')}{applyMilestone.remainingSkills.length > 5 ? ` ほか${applyMilestone.remainingSkills.length - 5}件` : ''}</p>
                   <p className="mt-1 text-[10px] text-amber-600">前提がすべて認定されると、この申請ができるようになります</p>
                 </div>

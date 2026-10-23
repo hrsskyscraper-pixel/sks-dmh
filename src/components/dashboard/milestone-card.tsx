@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
 import type { MilestoneProgress } from '@/lib/milestones'
 
 /**
- * ホームの「次の級まで」カード。
+ * ホームの「次の目標まで」カード（2026-10-23 「次の級まで」から改名）。
  * - 級（grade）: 到達していないものを「あと○項目」が少ない順に最大3件
  * - 全体ゴール（goal）: 1件（カリキュラム全体の残り）
  * - 何も設定されていないカリキュラムでは表示しない
@@ -27,7 +27,7 @@ export function MilestoneCard({ milestones, skillsHref = '/skills' }: { mileston
         <div className="flex items-center justify-between mb-2">
           <p className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
             <Award className="w-4 h-4 text-orange-500" />
-            次の級まで
+            次の目標まで
           </p>
           {certifiedGrades > 0 && (
             <span className="text-[10px] text-gray-400">到達済み {certifiedGrades}</span>
@@ -49,7 +49,7 @@ function MilestoneRow({ m, href, isGoal = false }: { m: MilestoneProgress; href:
   const pct = m.total === 0 ? 100 : Math.round((m.done / m.total) * 100)
   const right =
     m.status === 'pending' ? { text: '認定待ち', cls: 'text-amber-600' }
-    : m.status === 'ready' ? { text: isGoal ? 'ゴール申請へ' : '級の申請へ', cls: 'text-orange-600' }
+    : m.status === 'ready' ? { text: isGoal ? '最終目標の申請へ' : '目標の申請へ', cls: 'text-orange-600' }
     : { text: `あと ${m.remaining} 項目`, cls: 'text-gray-800' }
   const next = m.remainingSkills[0]
   return (
