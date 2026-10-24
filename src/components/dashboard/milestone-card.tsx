@@ -10,12 +10,14 @@ import type { MilestoneProgress } from '@/lib/milestones'
  * ホームの「次の目標まで」カード（2026-10-23 「次の級まで」から改名）。
  * - 目標（grade）: 到達していないものを、カリキュラムの順番（フェーズの順）で先頭から最大3件
  *   （2026-10-23 残りの少ない順から変更。３級を取っていない方に２級や店長代行が先に出ていたため）
+ * - 手前の目標がまだ認定されていない目標は出さない（2026-10-25。申請できないため）。結果として、
+ *   区分（接客・調理など）ごとに、まだ到達していない次の目標が1つずつ並ぶ。申請中の目標は「認定待ち」で出す
  * - 最終目標（goal）: 1件（カリキュラム全体の残り）
  * - 何も設定されていないカリキュラムでは表示しない
  */
 export function MilestoneCard({ milestones, skillsHref = '/skills' }: { milestones: MilestoneProgress[]; skillsHref?: string }) {
   const grades = milestones
-    .filter(m => m.kind === 'grade' && m.status !== 'certified')
+    .filter(m => m.kind === 'grade' && m.status !== 'certified' && (m.status === 'pending' || !m.blockedBy))
     .slice(0, 3) // computeMilestones はカリキュラムの順（フェーズの順 → スキルの順）で返す
   const goal = milestones.find(m => m.kind === 'goal')
   const certifiedGrades = milestones.filter(m => m.kind === 'grade' && m.status === 'certified').length
@@ -50,9 +52,7 @@ function MilestoneRow({ m, href, isGoal = false }: { m: MilestoneProgress; href:
   const right =
     m.status === 'pending' ? { text: '認定待ち', cls: 'text-amber-600' }
     : m.status === 'ready' ? { text: isGoal ? '最終目標の申請へ' : '目標の申請へ', cls: 'text-orange-600' }
-    : m.remaining > 0 ? { text: `あと ${m.remaining} 項目`, cls: 'text-gray-800' }
-    // 項目は揃ったが、手前の目標がまだ（2026-10-24 決定: 手前の目標の認定から申請できる）
-    : { text: '手前の目標から', cls: 'text-gray-500' }
+    : { text: `あと ${m.remaining} 項目`, cls: 'text-gray-800' }
   const next = m.remainingSkills[0]
   return (
     <Link href={href} className="block rounded-lg px-2 py-1.5 -mx-2 hover:bg-orange-50 transition-colors">
@@ -72,10 +72,7 @@ function MilestoneRow({ m, href, isGoal = false }: { m: MilestoneProgress; href:
       </div>
       <div className="flex items-center justify-between mt-0.5">
         <span className="text-[10px] text-gray-400 tabular-nums">{m.done} / {m.total}</span>
-        {m.status === 'in_progress' && m.blockedBy && (
-          <span className="text-[10px] text-gray-500 truncate ml-2">先に: {m.blockedBy.name}</span>
-        )}
-        {next && m.status === 'in_progress' && !m.blockedBy && (
+        {next && m.status === 'in_progress' && (
           <span className="text-[10px] text-gray-500 truncate ml-2">次: {next.name}</span>
         )}
       </div>
