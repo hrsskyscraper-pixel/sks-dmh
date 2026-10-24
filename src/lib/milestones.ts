@@ -7,6 +7,9 @@
  *   「同じ区分（category）で手前に並ぶスキル」を数える（2026-09-19 MTG の数え方）。
  * - 全体ゴール（milestone_kind = 'goal'）: カリキュラムの全スキル（自分自身を除く）のうち未認定の数。
  * - 級の行そのものは前提に含めない。前提が 0 になったら、その行を申請 → 認定で到達（認定操作を挟む）。
+ * - 手前の目標（2026-10-24 原島さん確定）: 目標（grade）は、同じ区分（category）でカリキュラムの1つ手前にある目標が
+ *   認定されるまで申請できない（例: 接客３級 → 接客２級）。手前に目標がなければ条件なし。止めるのは目標の申請だけで、
+ *   フェーズのほかのスキルはいまどおり申請できる（案 A）。最終目標（goal）は全スキルが前提なので対象外。
  */
 export type MilestoneKind = 'grade' | 'goal'
 
@@ -38,6 +41,13 @@ export interface MilestoneProgress {
   status: MilestoneStatus
   /** 未認定の前提（並び順）。画面で「次はこれ」を出すために先頭数件を使う */
   remainingSkills: { id: string; name: string }[]
+  /** まだ認定されていない手前の目標（同じ区分で1つ手前の目標）。null なら手前の条件は満たしている */
+  blockedBy: { id: string; name: string } | null
+}
+
+/** 目標・最終目標をまだ申請できないか（前提が残っている、または手前の目標が未認定） */
+export function isMilestoneBlocked(m: MilestoneProgress | null): boolean {
+  return !!m && (m.remaining > 0 || !!m.blockedBy)
 }
 
 /**
@@ -79,11 +89,16 @@ export function computeMilestones(
         ? inCurriculum.filter(s => s.id !== m.id && skillPhaseMap[s.id] === phaseId && !s.milestone_kind)
         : inCurriculum.filter(s => s.id !== m.id && s.category === m.category && sortKey(s) < key)
     const remainingSkills = prereq.filter(s => !certified.has(s.id)).map(s => ({ id: s.id, name: s.name }))
+    // 同じ区分で1つ手前にある目標（inCurriculum はカリキュラムの順に並んでいる）
+    const previous = m.milestone_kind === 'grade'
+      ? inCurriculum.filter(s => s.milestone_kind === 'grade' && s.category === m.category && sortKey(s) < key).at(-1)
+      : undefined
+    const blockedBy = previous && !certified.has(previous.id) ? { id: previous.id, name: previous.name } : null
     const status: MilestoneStatus = certified.has(m.id)
       ? 'certified'
       : pending.has(m.id)
         ? 'pending'
-        : remainingSkills.length === 0
+        : remainingSkills.length === 0 && !blockedBy
           ? 'ready'
           : 'in_progress'
     result.push({
@@ -97,6 +112,7 @@ export function computeMilestones(
       remaining: remainingSkills.length,
       status,
       remainingSkills,
+      blockedBy,
     })
   }
   return result
@@ -125,8 +141,13 @@ export function milestoneOf(
  * 承認者が承認センターや対話履歴で「前提未認定」を見られるようにする。
  */
 export function prerequisiteNote(m: MilestoneProgress | null): string | null {
-  if (!m || m.remaining === 0) return null
-  const names = m.remainingSkills.slice(0, 5).map(s => s.name).join('、')
-  const more = m.remainingSkills.length > 5 ? ` ほか${m.remainingSkills.length - 5}件` : ''
-  return `【前提未認定 ${m.remaining}件】${names}${more}`
+  if (!isMilestoneBlocked(m) || !m) return null
+  const notes: string[] = []
+  if (m.blockedBy) notes.push(`【手前の目標が未認定】${m.blockedBy.name}`)
+  if (m.remaining > 0) {
+    const names = m.remainingSkills.slice(0, 5).map(s => s.name).join('、')
+    const more = m.remainingSkills.length > 5 ? ` ほか${m.remainingSkills.length - 5}件` : ''
+    notes.push(`【前提未認定 ${m.remaining}件】${names}${more}`)
+  }
+  return notes.join('\n')
 }

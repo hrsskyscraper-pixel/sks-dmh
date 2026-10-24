@@ -639,6 +639,7 @@ export function ApprovalCenter({
                             ))}
                           </div>
                         )}
+                        {a.prereq_note && <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 mt-1 whitespace-pre-line">{a.prereq_note}</p>}
                         {a.apply_comment && <p className="text-xs text-gray-500 mt-0.5">{a.apply_comment}</p>}
                         {a.photo_urls?.length > 0 && (
                           <div className="mt-1.5" onClick={e => e.stopPropagation()}>
@@ -804,6 +805,9 @@ export function ApprovalCenter({
               {certifyTarget?.employees?.name} — {certifyTarget?.skills?.name}
             </DialogDescription>
           </DialogHeader>
+          {certifyTarget?.prereq_note && (
+            <p className="text-sm text-amber-800 bg-amber-50 rounded-lg px-3 py-2 border border-amber-300 whitespace-pre-line">{certifyTarget.prereq_note}{'\n'}前提が揃っていない申請です。内容を確かめてから認定してください。</p>
+          )}
           {certifyTarget?.apply_comment && (
             <p className="text-sm text-gray-700 bg-amber-50 rounded-lg px-3 py-2 border border-amber-100">{certifyTarget.apply_comment}</p>
           )}

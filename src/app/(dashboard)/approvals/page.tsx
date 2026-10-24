@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { milestonePrereqNotes } from '@/lib/milestone-prereq'
 import { TopBar } from '@/components/layout/nav'
 import { ApprovalCenter } from '@/components/approvals/approval-center'
 import { UnjoinedMembersCard } from '@/components/approvals/unjoined-members-card'
@@ -142,15 +143,22 @@ export default async function ApprovalsPage({ searchParams }: { searchParams?: P
   if (filterApprover) filterApprover.count = filteredAchievementsBase.length
 
   // 申請写真に署名付きURLを付与（非公開バケット）
-  const pendingPhotoMap = await signSkillPhotoPaths(
-    db,
-    filteredAchievementsBase.flatMap(a => (a as { photo_paths?: string[] }).photo_paths ?? [])
-  )
+  // あわせて、目標・最終目標の前提が揃っているかをサーバー側で判定して承認する人に見せる（2026-10-25）
+  const [pendingPhotoMap, prereqNotes] = await Promise.all([
+    signSkillPhotoPaths(
+      db,
+      filteredAchievementsBase.flatMap(a => (a as { photo_paths?: string[] }).photo_paths ?? [])
+    ),
+    milestonePrereqNotes(db, filteredAchievementsBase).catch(err => {
+      console.error('前提の判定に失敗:', err)
+      return {} as Record<string, string>
+    }),
+  ])
   const filteredAchievements = filteredAchievementsBase.map(a => {
     const pairs = ((a as { photo_paths?: string[] }).photo_paths ?? [])
       .map(p => ({ path: p, url: pendingPhotoMap[p] }))
       .filter(x => x.url)
-    return { ...a, photo_urls: pairs.map(x => x.url), photo_paths: pairs.map(x => x.path) }
+    return { ...a, photo_urls: pairs.map(x => x.url), photo_paths: pairs.map(x => x.path), prereq_note: prereqNotes[a.id] ?? null }
   })
 
   // 処理済みスキル認定（承認権限者全員が閲覧可能・直近30件）

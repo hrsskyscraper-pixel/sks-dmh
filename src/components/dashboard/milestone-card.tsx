@@ -50,7 +50,9 @@ function MilestoneRow({ m, href, isGoal = false }: { m: MilestoneProgress; href:
   const right =
     m.status === 'pending' ? { text: '認定待ち', cls: 'text-amber-600' }
     : m.status === 'ready' ? { text: isGoal ? '最終目標の申請へ' : '目標の申請へ', cls: 'text-orange-600' }
-    : { text: `あと ${m.remaining} 項目`, cls: 'text-gray-800' }
+    : m.remaining > 0 ? { text: `あと ${m.remaining} 項目`, cls: 'text-gray-800' }
+    // 項目は揃ったが、手前の目標がまだ（2026-10-24 決定: 手前の目標の認定から申請できる）
+    : { text: '手前の目標から', cls: 'text-gray-500' }
   const next = m.remainingSkills[0]
   return (
     <Link href={href} className="block rounded-lg px-2 py-1.5 -mx-2 hover:bg-orange-50 transition-colors">
@@ -70,7 +72,10 @@ function MilestoneRow({ m, href, isGoal = false }: { m: MilestoneProgress; href:
       </div>
       <div className="flex items-center justify-between mt-0.5">
         <span className="text-[10px] text-gray-400 tabular-nums">{m.done} / {m.total}</span>
-        {next && m.status === 'in_progress' && (
+        {m.status === 'in_progress' && m.blockedBy && (
+          <span className="text-[10px] text-gray-500 truncate ml-2">先に: {m.blockedBy.name}</span>
+        )}
+        {next && m.status === 'in_progress' && !m.blockedBy && (
           <span className="text-[10px] text-gray-500 truncate ml-2">次: {next.name}</span>
         )}
       </div>

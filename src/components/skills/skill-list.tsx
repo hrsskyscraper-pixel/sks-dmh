@@ -23,7 +23,7 @@ import { calcSkillTargetHours } from '@/lib/skill-progress'
 import { SkillStatsContent } from '@/components/skills/skill-stats-content'
 import { sortCategories } from '@/lib/category-order'
 import { cn } from '@/lib/utils'
-import { milestoneOf, prerequisiteNote } from '@/lib/milestones'
+import { isMilestoneBlocked, milestoneOf, prerequisiteNote } from '@/lib/milestones'
 import { SkillPhotoInput } from '@/components/skills/skill-photo-input'
 import { SkillPhotoGallery } from '@/components/skills/skill-photo-gallery'
 import { uploadSkillPhotos } from '@/lib/skill-photos'
@@ -217,12 +217,14 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
 
   /** 申請ダイアログで開いているスキルが級・ゴールなら、その前提の到達状況（前提未認定の注意表示に使う） */
   const applyMilestone = applyDialogSkill ? milestoneOf(applyDialogSkill.id, skills, skillPhaseMap, phases, achievements) : null
+  const reapplyMilestone = reapplyDialogSkill ? milestoneOf(reapplyDialogSkill.id, skills, skillPhaseMap, phases, achievements) : null
 
   const handleSubmitApply = (skill: Skill, comment: string, photos: File[]) => {
     // 級・ゴールで前提が残っていれば、申請コメントの先頭に注記を付けて承認者に見えるようにする
-    // 級・ゴールは前提がすべて認定されるまで申請できない（2026-09-20 決定）
-    if ((milestoneOf(skill.id, skills, skillPhaseMap, phases, achievements)?.remaining ?? 0) > 0) {
-      toast.error('前提のスキルがまだ認定されていません', { description: '前提がすべて認定されると申請できるようになります' })
+    // 級・ゴールは前提がすべて認定されるまで申請できない（2026-09-20 決定）。目標は手前の目標の認定も要る（2026-10-24 決定）
+    const blockedMilestone = milestoneOf(skill.id, skills, skillPhaseMap, phases, achievements)
+    if (isMilestoneBlocked(blockedMilestone)) {
+      toast.error(blockedMilestone?.remaining ? '前提のスキルがまだ認定されていません' : '手前の目標がまだ認定されていません', { description: '認定されると申請できるようになります' })
       return
     }
     const finalComment = [prerequisiteNote(milestoneOf(skill.id, skills, skillPhaseMap, phases, achievements)), comment.trim()].filter(Boolean).join('\n') || null
@@ -839,11 +841,18 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
                   <Badge className={cn('text-[10px] border-0', getCategoryColor(applyDialogSkill.category, categories))}>{applyDialogSkill.category}</Badge>
                 </div>
               </div>
-              {applyMilestone && applyMilestone.remaining > 0 && (
+              {isMilestoneBlocked(applyMilestone) && applyMilestone && (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-                  <p className="font-semibold flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />この{applyMilestone.kind === 'goal' ? '最終目標' : '目標'}には、まだ認定されていない前提が {applyMilestone.remaining} 件あります</p>
-                  <p className="mt-1 text-amber-700">先にこれらの習得を進めましょう: {applyMilestone.remainingSkills.slice(0, 5).map(s => s.name).join('、')}{applyMilestone.remainingSkills.length > 5 ? ` ほか${applyMilestone.remainingSkills.length - 5}件` : ''}</p>
-                  <p className="mt-1 text-[10px] text-amber-600">前提がすべて認定されると、この申請ができるようになります</p>
+                  {applyMilestone.blockedBy && (
+                    <p className="font-semibold flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />手前の目標「{applyMilestone.blockedBy.name}」が、まだ認定されていません</p>
+                  )}
+                  {applyMilestone.remaining > 0 && (
+                    <>
+                      <p className="font-semibold flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />この{applyMilestone.kind === 'goal' ? '最終目標' : '目標'}には、まだ認定されていない前提が {applyMilestone.remaining} 件あります</p>
+                      <p className="mt-1 text-amber-700">先にこれらの習得を進めましょう: {applyMilestone.remainingSkills.slice(0, 5).map(s => s.name).join('、')}{applyMilestone.remainingSkills.length > 5 ? ` ほか${applyMilestone.remainingSkills.length - 5}件` : ''}</p>
+                    </>
+                  )}
+                  <p className="mt-1 text-[10px] text-amber-600">{!applyMilestone.blockedBy ? '前提がすべて認定されると、この申請ができるようになります' : applyMilestone.remaining > 0 ? '手前の目標と前提がすべて認定されると、この申請ができるようになります' : '手前の目標が認定されると、この申請ができるようになります'}</p>
                 </div>
               )}
               <div>
@@ -862,9 +871,9 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
             <Button
               className="w-full bg-orange-500 hover:bg-orange-600 text-white"
               onClick={() => applyDialogSkill && handleSubmitApply(applyDialogSkill, applyComment, applyPhotos)}
-              disabled={isPending || (applyMilestone?.remaining ?? 0) > 0}
+              disabled={isPending || isMilestoneBlocked(applyMilestone)}
             >
-              {isPending ? '申請中...' : applyMilestone && applyMilestone.remaining > 0 ? '前提が揃うと申請できます' : 'できました！申請する'}
+              {isPending ? '申請中...' : isMilestoneBlocked(applyMilestone) ? '前提が揃うと申請できます' : 'できました！申請する'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -893,6 +902,12 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
                   ) : null
                 })()}
               </div>
+              {isMilestoneBlocked(reapplyMilestone) && reapplyMilestone && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                  <p className="font-semibold flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />{reapplyMilestone.blockedBy ? `手前の目標「${reapplyMilestone.blockedBy.name}」が、まだ認定されていません` : `まだ認定されていない前提が ${reapplyMilestone.remaining} 件あります`}</p>
+                  <p className="mt-1 text-[10px] text-amber-600">認定されると、再申請ができるようになります</p>
+                </div>
+              )}
               <div>
                 <p className="text-xs font-medium text-gray-600 mb-1">コメント（任意）</p>
                 <Textarea
@@ -914,7 +929,7 @@ export function SkillList({ employeeId, skills, achievements: initialAchievement
             <Button
               className="w-full bg-orange-500 hover:bg-orange-600 text-white"
               onClick={() => reapplyDialogSkill && handleSubmitApply(reapplyDialogSkill, reapplyComment, reapplyPhotos)}
-              disabled={isPending}
+              disabled={isPending || isMilestoneBlocked(reapplyMilestone)}
             >
               {isPending ? '再申請中...' : '再申請する'}
             </Button>
