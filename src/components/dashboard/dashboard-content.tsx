@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useTransition, useEffect } from 'react'
-import { getDisplayRole, type DisplayRole } from '@/lib/display-role'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Card, CardContent } from '@/components/ui/card'
@@ -52,6 +51,8 @@ interface Props {
   careerSummary?: Record<string, string[]>
   storeName?: string | null
   position?: string | null
+  /** 社内役職（公式役職）。略称の役職は、カーソルを合わせると正式名称 */
+  titles?: { name: string; fullName: string | null }[]
   internalCerts?: string[]
   employeeId?: string
   hasGoalRecords?: boolean
@@ -110,20 +111,11 @@ function calcHireYear(hireDate: string | null): number {
   return Math.max(1, todayFY - hireFY + 1)
 }
 
-/** ホーム上部の肩書きバッジの色。社員・メイトは出さない（従来どおり） */
-const HEADER_ROLE_BADGE: Partial<Record<DisplayRole, string>> = {
-  '店長':       'bg-teal-400/40 text-teal-100',
-  'マネジャー': 'bg-blue-400/40 text-blue-100',
-  '運用管理者': 'bg-purple-400/40 text-purple-100',
-  '役員':       'bg-rose-400/40 text-rose-100',
-  '開発者':     'bg-red-400/40 text-red-100',
-}
-
 export function DashboardContent({
   employee, skills, achievements: initialAchievements, cumulativeHours, milestones,
   projectPhases, skillPhaseMap, currentProject, employeeProjects,
   globalPendingAchievementsCount = 0, teamPendingAchievementsCount = 0, pendingTeamRequestsCount = 0, celebration,
-  currentGoal: initialGoal, isOwnDashboard, careerSummary = {}, storeName = null, position = null, internalCerts = [], employeeId, hasGoalRecords = false,
+  currentGoal: initialGoal, isOwnDashboard, careerSummary = {}, storeName = null, position = null, titles = [], internalCerts = [], employeeId, hasGoalRecords = false,
   skillManuals = {},
   rankingSlot, checkpointSlot, announcementsSlot, skillRankingSlot, setupNoticeSlot
 }: Props) {
@@ -389,12 +381,11 @@ export function DashboardContent({
                 {currentProject && (
                   <span className="text-[10px] bg-white/15 text-orange-100 rounded-full px-2 py-0.5">{currentProject.name}</span>
                 )}
-                {HEADER_ROLE_BADGE[getDisplayRole(employee)] && (
-                  <span className={`text-[10px] rounded-full px-2 py-0.5 font-medium ${HEADER_ROLE_BADGE[getDisplayRole(employee)]}`}>
-                    {getDisplayRole(employee)}
-                  </span>
-                )}
-                {position && <span className="text-[10px] bg-sky-400/40 text-sky-100 rounded-full px-2 py-0.5 font-medium">{position}</span>}
+                {/* 社内役職（2026-10-27〜。利用者に見える役職は、社内の公式役職と同じにする） */}
+                {titles.map(t => (
+                  <span key={t.name} title={t.fullName ?? undefined} className="text-[10px] rounded-full px-2 py-0.5 font-medium bg-teal-400/40 text-teal-100">{t.name}</span>
+                ))}
+                {position && !titles.some(t => t.name === position) && <span className="text-[10px] bg-sky-400/40 text-sky-100 rounded-full px-2 py-0.5 font-medium">{position}</span>}
                 {internalCerts.map(name => (
                   <span key={name} className="text-[10px] bg-emerald-400/40 text-emerald-100 rounded-full px-2 py-0.5 font-medium">{name}</span>
                 ))}

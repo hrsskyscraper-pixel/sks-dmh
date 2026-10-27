@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { getDisplayRole } from '@/lib/display-role'
+import { officialTitleLabel, titleLookupOf } from '@/lib/display-role'
 import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { TopBar } from '@/components/layout/nav'
@@ -11,7 +11,7 @@ import { GradeWageUps } from '@/components/admin/grade-wage-ups'
 import { SeniorReview } from '@/components/admin/senior-review'
 import { hasLeft } from '@/lib/left'
 import Link from 'next/link'
-import { FolderKanban, Upload, Award, ChevronRight, BookOpen, Tag, Briefcase, Bell, BarChart3, UserCheck } from 'lucide-react'
+import { FolderKanban, Upload, Award, ChevronRight, BookOpen, Tag, Briefcase, Bell, BarChart3, UserCheck, UserPlus } from 'lucide-react'
 import { canAdminister } from '@/lib/permissions'
 import { getEmailNotificationsSetting, getGradeWageUpSetting, getLineNotificationsSetting, getOpsTeamRecipientSetting, getQaModeratorSetting, getSeniorReviewSetting } from '@/lib/settings'
 
@@ -31,17 +31,18 @@ export default async function SettingsPage() {
     getLineNotificationsSetting(),
     getOpsTeamRecipientSetting(),
     // 運営チームの候補: 運用管理者・開発者（権限で引く。旧 role で引くと取りこぼす）
-    db.from('employees').select('id, name, email, line_user_id, role, employment_type, system_permission, left_at').eq('status', 'approved')
+    db.from('employees').select('id, name, email, line_user_id, role, employment_type, system_permission, left_at, business_role_ids').eq('status', 'approved')
       .in('system_permission', ['ops_admin', 'developer']).order('name'),
     getQaModeratorSetting(),
     getGradeWageUpSetting(),
     getSeniorReviewSetting(),
-    db.from('business_roles').select('id, name').order('sort_order'),
+    db.from('business_roles').select('id, name, sort_order, full_name').order('sort_order'),
   ])
+  const titles = titleLookupOf(businessRoles)
   const opsCandidates: OpsCandidate[] = (opsCandidatesRows ?? []).map(e => ({
     id: e.id,
     name: e.name,
-    label: getDisplayRole(e),
+    label: officialTitleLabel(e, titles),
     hasEmail: !!e.email,
     hasLine: !!e.line_user_id,
   }))
@@ -81,7 +82,7 @@ export default async function SettingsPage() {
           updatedAt={qaModSetting.updatedAt}
         />
 
-        {/* 管理者（MG・AC・課長など）の申請を承認する人（2026-10-23 B-④-3） */}
+        {/* 管理者（マネージャー・エリアキャスト・課長など）の申請を承認する人（2026-10-23 B-④-3） */}
         <SeniorReview
           roles={businessRoles ?? []}
           candidates={seniorCandidates}
@@ -137,8 +138,8 @@ export default async function SettingsPage() {
               <Briefcase className="w-5 h-5 text-sky-600" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-gray-800">業務役職マスタ</p>
-              <p className="text-xs text-gray-500">役員・部長・店長・女将・育成担当 等の業務上の役職</p>
+              <p className="text-sm font-semibold text-gray-800">社内役職マスタ</p>
+              <p className="text-xs text-gray-500">社内の公式役職（組織図）・正式名称・標準の承認の権限・役員として扱う</p>
             </div>
             <ChevronRight className="w-4 h-4 text-gray-300" />
           </Link>
@@ -186,6 +187,20 @@ export default async function SettingsPage() {
           </Link>
 
           <Link
+            href="/admin/account-issue"
+            className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white p-4 hover:bg-gray-50 transition-colors"
+          >
+            <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0">
+              <UserPlus className="w-5 h-5 text-emerald-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-gray-800">アカウントの発行</p>
+              <p className="text-xs text-gray-500">社員リストの内容で社員データを先に作り、本人用のログインリンクを渡す（区分・店舗の選び間違いを防ぐ）</p>
+            </div>
+            <ChevronRight className="w-4 h-4 text-gray-300" />
+          </Link>
+
+          <Link
             href="/admin/roster-import"
             className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white p-4 hover:bg-gray-50 transition-colors"
           >
@@ -208,7 +223,7 @@ export default async function SettingsPage() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-gray-800">店長の申請を承認する人</p>
-              <p className="text-xs text-gray-500">店舗ごとに、店長（担当リーダー）ご本人の申請を承認する MG・課長などを決める</p>
+              <p className="text-xs text-gray-500">店舗ごとに、店長（担当リーダー）ご本人の申請を承認するマネージャー・課長などを決める</p>
             </div>
             <ChevronRight className="w-4 h-4 text-gray-300" />
           </Link>

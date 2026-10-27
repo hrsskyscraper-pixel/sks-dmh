@@ -196,6 +196,9 @@ export type Database = {
         Row: {
           id: string
           name: string
+          full_name: string | null
+          standard_permission: 'training_member' | 'training_leader' | 'ops_admin' | null
+          is_executive: boolean
           sort_order: number
           created_at: string
           updated_at: string
@@ -203,6 +206,9 @@ export type Database = {
         Insert: {
           id?: string
           name: string
+          full_name?: string | null
+          standard_permission?: 'training_member' | 'training_leader' | 'ops_admin' | null
+          is_executive?: boolean
           sort_order?: number
           created_at?: string
           updated_at?: string
@@ -210,6 +216,9 @@ export type Database = {
         Update: {
           id?: string
           name?: string
+          full_name?: string | null
+          standard_permission?: 'training_member' | 'training_leader' | 'ops_admin' | null
+          is_executive?: boolean
           sort_order?: number
           created_at?: string
           updated_at?: string
@@ -433,6 +442,86 @@ export type Database = {
           allowed_team_types?: string[] | null
           revoked_at?: string | null
           created_at?: string
+        }
+        Relationships: []
+      }
+      account_requests: {
+        Row: {
+          id: string
+          requested_by: string
+          last_name: string
+          first_name: string
+          last_kana: string | null
+          first_kana: string | null
+          employee_number: string | null
+          employment_type: '社員' | 'メイト' | null
+          team_id: string | null
+          business_role_ids: string[]
+          hire_date: string | null
+          note: string | null
+          status: 'pending' | 'issued' | 'declined'
+          handled_by: string | null
+          handled_at: string | null
+          decline_reason: string | null
+          issued_employee_id: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          requested_by: string
+          last_name: string
+          first_name?: string
+          last_kana?: string | null
+          first_kana?: string | null
+          employee_number?: string | null
+          employment_type?: '社員' | 'メイト' | null
+          team_id?: string | null
+          business_role_ids?: string[]
+          hire_date?: string | null
+          note?: string | null
+          status?: 'pending' | 'issued' | 'declined'
+          handled_by?: string | null
+          handled_at?: string | null
+          decline_reason?: string | null
+          issued_employee_id?: string | null
+          created_at?: string
+        }
+        Update: {
+          status?: 'pending' | 'issued' | 'declined'
+          handled_by?: string | null
+          handled_at?: string | null
+          decline_reason?: string | null
+          issued_employee_id?: string | null
+        }
+        Relationships: []
+      }
+      account_claims: {
+        Row: {
+          id: string
+          employee_id: string
+          created_by: string | null
+          created_at: string
+          expires_at: string
+          used_at: string | null
+          revoked_at: string | null
+        }
+        Insert: {
+          id?: string
+          employee_id: string
+          created_by?: string | null
+          created_at?: string
+          expires_at?: string
+          used_at?: string | null
+          revoked_at?: string | null
+        }
+        Update: {
+          id?: string
+          employee_id?: string
+          created_by?: string | null
+          created_at?: string
+          expires_at?: string
+          used_at?: string | null
+          revoked_at?: string | null
         }
         Relationships: []
       }

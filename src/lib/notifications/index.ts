@@ -2,6 +2,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { sendMail, type SendResult } from './email'
 import { sendLineMessages, sendLineMessage, type LineResult } from './line'
 import { logNotification } from './log'
+import { isPlaceholderEmail } from '@/lib/account-issue'
 
 // メール送信結果を notification_log に記録する（宛先は要約文字列）。
 async function logMail(category: string, recipient: string, subject: string, res: SendResult) {
@@ -110,8 +111,10 @@ export async function sendJoinRequestNotification({ applicant, team, projectTeam
 
   // 2. 承認者宛メール（店舗の管理者宛、CC: システム管理者。管理者未設定ならシステム管理者宛）
   //    重複を除いた上で、宛先が空にならないよう常にシステム管理者を含める。
-  const primaryTo = managerEmails.length > 0 ? managerEmails : sysAdminEmails
-  const ccAddresses = managerEmails.length > 0 ? sysAdminEmails.filter(e => !primaryTo.includes(e)) : []
+  //    まだログインしていない方の仮のアドレス（@issue.invalid）は、宛先として数えない
+  const realManagerEmails = managerEmails.filter(e => !isPlaceholderEmail(e))
+  const primaryTo = realManagerEmails.length > 0 ? realManagerEmails : sysAdminEmails
+  const ccAddresses = realManagerEmails.length > 0 ? sysAdminEmails.filter(e => !primaryTo.includes(e)) : []
   const approverSubject = `【Mission Board】参加許諾依頼: ${applicant.name}（${team.name}）`
   const r2 = await sendMail({
     to: primaryTo,

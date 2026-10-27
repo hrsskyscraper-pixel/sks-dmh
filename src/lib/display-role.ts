@@ -66,3 +66,20 @@ export const JOIN_ROLE_OPTIONS_ADMIN: { value: string; label: string }[] = [
   { value: 'ops_manager', label: '運用管理者' },
   { value: 'executive', label: '役員' },
 ]
+
+/** 社内役職を引く表（id → 名前・並び順・正式名称） */
+export type TitleLookup = Map<string, { name: string; sort_order: number; full_name?: string | null }>
+
+export function titleLookupOf(rows: { id: string; name: string; sort_order: number; full_name?: string | null }[] | null | undefined): TitleLookup {
+  return new Map((rows ?? []).map(r => [r.id, { name: r.name, sort_order: r.sort_order, full_name: r.full_name ?? null }]))
+}
+
+/**
+ * 画面に出す役職（2026-10-27〜）。利用者に見える役職は、社内の公式役職（社内役職マスタ）と同じにする。
+ * 役職が無い人は、区分（社員／メイト）を出す。権限（リーダー・運用管理者など）は役職ではないので、ここには出さない。
+ */
+export function officialTitleLabel(emp: { business_role_ids?: string[] | null; employment_type?: string | null }, titles: TitleLookup): string {
+  const names = (emp.business_role_ids ?? []).map(id => titles.get(id)).filter((t): t is NonNullable<typeof t> => !!t)
+    .sort((a, b) => a.sort_order - b.sort_order).map(t => t.name)
+  return names.length > 0 ? names.join('・') : (emp.employment_type === 'メイト' ? 'メイト' : '社員')
+}

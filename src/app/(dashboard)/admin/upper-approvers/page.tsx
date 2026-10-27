@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation'
 import { getCurrentEmployee } from '@/lib/supabase/auth-cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { canAdminister } from '@/lib/permissions'
-import { getDisplayRole } from '@/lib/display-role'
+import { officialTitleLabel, titleLookupOf } from '@/lib/display-role'
 import { getTestEmployeeIds } from '@/lib/test-data'
 import { TopBar } from '@/components/layout/nav'
 import { UpperApproversView, type UpperRow, type UpperCandidate } from '@/components/admin/upper-approvers'
@@ -28,15 +28,17 @@ export default async function UpperApproversPage() {
   }
 
   const db = createAdminClient()
-  const [{ data: stores }, { data: leaders }, { data: uppers }, { data: emps }, testIds] = await Promise.all([
+  const [{ data: stores }, { data: leaders }, { data: uppers }, { data: emps }, testIds, { data: titleRows }] = await Promise.all([
     db.from('teams').select('id, name, is_test').eq('type', 'store').order('name'),
     db.from('team_managers').select('team_id, employee_id'),
     db.from('team_upper_approvers').select('team_id, employee_id'),
     db.from('employees').select('id, name, role, business_role_ids, system_permission, employment_type, status').eq('status', 'approved').order('name'),
     getTestEmployeeIds(),
+    db.from('business_roles').select('id, name, sort_order, full_name'),
   ])
   const empById = new Map((emps ?? []).map(e => [e.id, e]))
-  const label = (id: string) => { const e = empById.get(id); return e ? getDisplayRole(e) : '' }
+  const titles = titleLookupOf(titleRows)
+  const label = (id: string) => { const e = empById.get(id); return e ? officialTitleLabel(e, titles) : '' }
   const rows: UpperRow[] = (stores ?? []).filter(s => !s.is_test).map(s => ({
     teamId: s.id,
     teamName: s.name,
@@ -48,7 +50,7 @@ export default async function UpperApproversPage() {
   // 候補: 承認の権限がある人（育成リーダー・運用管理者・開発者）。テスト用は外す
   const candidates: UpperCandidate[] = (emps ?? [])
     .filter(e => ['training_leader', 'ops_admin', 'developer'].includes(e.system_permission ?? '') && !testIds.has(e.id))
-    .map(e => ({ id: e.id, name: e.name, label: getDisplayRole(e) }))
+    .map(e => ({ id: e.id, name: e.name, label: officialTitleLabel(e, titles) }))
 
   return (
     <>

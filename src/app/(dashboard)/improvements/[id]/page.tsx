@@ -8,7 +8,7 @@ import { TopBar } from '@/components/layout/nav'
 import { Card, CardContent } from '@/components/ui/card'
 import { CertRingAvatar } from '@/components/ui/cert-ring-avatar'
 import { ChevronLeft } from 'lucide-react'
-import { getExecRoleId, isDevEmp, isExecEmp, isOpsEmp } from '@/lib/improvements'
+import { getExecRoleIds, isDevEmp, isExecEmp, isOpsEmp } from '@/lib/improvements'
 import { ImprovementStatusBadge } from '@/components/improvements/status-badge'
 import { RequestActions } from '@/components/improvements/request-actions'
 
@@ -40,9 +40,9 @@ export default async function ImprovementDetailPage({ params }: { params: Promis
   if (!me) redirect('/login')
 
   const db = createAdminClient()
-  const execRoleId = await getExecRoleId()
+  const execRoleIds = await getExecRoleIds()
   const isOps = isOpsEmp(me)
-  const isExec = isExecEmp(me, execRoleId)
+  const isExec = isExecEmp(me, execRoleIds)
   const isDev = isDevEmp(me)
 
   const { data: req } = await db.from('improvement_requests').select('*').eq('id', id).maybeSingle()

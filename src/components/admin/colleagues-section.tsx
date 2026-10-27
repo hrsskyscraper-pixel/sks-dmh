@@ -71,6 +71,7 @@ export async function ColleaguesSection({ embedded = false }: { embedded?: boole
       db.from('team_managers').select('team_id, employee_id, role').order('team_id').order('employee_id').range(from, to)),
     db.from('project_teams').select('team_id'),
   ])
+  const { data: titleRows } = await db.from('business_roles').select('id, name, sort_order, full_name')
 
   const certifiedSet = new Set<string>((allCertified ?? []).map(a => `${a.employee_id}:${a.skill_id}`))
 
@@ -210,6 +211,7 @@ export async function ColleaguesSection({ embedded = false }: { embedded?: boole
       certMaster={(certMaster ?? []) as { name: string; icon: string; color: string }[]}
       teamManagersList={(allTeamManagers ?? []) as { team_id: string; employee_id: string; role: string }[]}
       projectTeamIds={[...new Set((projectTeamsData ?? []).map(pt => pt.team_id))]}
+      titleRows={titleRows ?? []}
       currentEmployeeId={effectiveEmployeeId}
       defaultMyTeams={embedded}
     />

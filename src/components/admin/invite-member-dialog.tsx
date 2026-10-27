@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useState, useMemo, useTransition, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
 import { Mail, Check, Copy, Link as LinkIcon, Send, Eye, Ban } from 'lucide-react'
@@ -339,8 +340,11 @@ export function InviteMemberDialog({ open, onOpenChange, teamId, teamName, invit
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-2.5 text-xs text-blue-700 space-y-1">
                 <p className="font-medium">LINE等で送る招待リンクを発行します</p>
                 <p className="text-[11px]">
-                  リンクを開いてGoogleログインすると、自動的にアカウントが作成され、
-                  このチームに参加できます（承認不要）。
+                  すでに Mission Board のアカウントがある方が、リンクを開いてログインすると、このチームに参加できます（承認不要）。
+                </p>
+                <p className="text-[11px] font-medium">
+                  新しく入る方（まだアカウントの無い方）は、このリンクでは登録できません。
+                  <Link href="/account-request" className="underline">運用管理者にアカウントの発行を依頼する</Link>
                 </p>
                 <p className="text-[11px]">
                   このリンクは<span className="font-medium">複数人が使えます</span>。

@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils'
 import { Checkbox } from '@/components/ui/checkbox'
 import { updateEmployeePermission } from '@/app/(dashboard)/admin/business-roles/actions'
 import { SYSTEM_PERMISSION_LABELS, type BusinessRole, type SystemPermission, type EmploymentType } from '@/types/database'
+import { standardPermissionOf, widerPermission } from '@/lib/legacy-role'
 import { Plus, Trash2, ArrowLeft, Users, Briefcase, GraduationCap, MapPin, ArrowRightLeft, FileText, Pencil, Instagram, MessageCircle, X, Store, FolderKanban, Building2, Award, Star, UserCog, LogIn, Camera, Loader2, ChevronDown, ChevronUp, ChevronRight, Target } from 'lucide-react'
 import { CertIcon as CertIconComponent, getCertColorClasses } from '@/components/admin/certification-manager'
 import { addCareerRecord, updateCareerRecord, deleteCareerRecord, updateEmployeeName, updateEmployeeProfile } from '@/app/(dashboard)/actions'
@@ -159,6 +160,7 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
   const handleProfileSave = () => {
     if (!editLastName.trim()) return
     startTransition(async () => {
+      let savedPermission = editSystemPermission
       // 権限・業務役職の変更（canEditPermission のみ実行・dual-write で旧 role も更新される）
       if (canEditPermission) {
         const permChanged =
@@ -174,6 +176,10 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
             employment_type: editEmploymentType,
           })
           if (res.error) { toast.error(res.error); return }
+          if (res.system_permission && res.system_permission !== editSystemPermission) {
+            savedPermission = res.system_permission
+            toast.message(`役職の標準の承認の権限に合わせて「${SYSTEM_PERMISSION_LABELS[res.system_permission]}」にしました`)
+          }
         }
       }
       const res = await updateEmployeeProfile(employee.id, {
@@ -190,7 +196,8 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
       setEmployeeName(`${editLastName.trim()} ${editFirstName.trim()}`.trim())
       setCurrentNameKana(`${editLastNameKana.trim()} ${editFirstNameKana.trim()}`.trim() || null)
       if (canEditPermission) {
-        setCurrentSystemPermission(editSystemPermission)
+        setCurrentSystemPermission(savedPermission)
+        setEditSystemPermission(savedPermission)
         setCurrentEmploymentType(editEmploymentType)
         setCurrentBusinessRoleIds([...editBusinessRoleIds])
       }
@@ -418,7 +425,7 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
                 {currentBusinessRoleIds.length > 0 && businessRoles
                   .filter(r => currentBusinessRoleIds.includes(r.id))
                   .map(r => (
-                    <Badge key={r.id} className="text-[10px] bg-amber-100 text-amber-700 border-0">{r.name}</Badge>
+                    <Badge key={r.id} className="text-[10px] bg-amber-100 text-amber-700 border-0" title={r.full_name ?? undefined}>{r.name}</Badge>
                   ))}
                 {(() => {
                   const latestPosition = careerRecords.find(r => r.record_type === '役職')
@@ -567,24 +574,28 @@ export function EmployeeCareerCard({ employee, careerRecords, employeeMap, allEm
                   </Select>
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-gray-600">業務役職（複数選択可）</label>
+                  <label className="text-xs font-medium text-gray-600">社内役職（複数選択可）</label>
+                  <p className="text-[11px] text-gray-500">役職を付けると、その役職の標準の承認の権限まで上がります。</p>
                   <div className="mt-1.5 space-y-1.5">
                     {businessRoles.length === 0 ? (
-                      <p className="text-xs text-gray-400">業務役職マスタが空です</p>
+                      <p className="text-xs text-gray-400">社内役職マスタが空です</p>
                     ) : (
                       businessRoles.map(r => (
                         <label key={r.id} className="flex items-center gap-2 text-sm cursor-pointer">
                           <Checkbox
                             checked={editBusinessRoleIds.has(r.id)}
-                            onCheckedChange={() => setEditBusinessRoleIds(prev => {
-                              const next = new Set(prev)
+                            onCheckedChange={() => {
+                              const next = new Set(editBusinessRoleIds)
                               if (next.has(r.id)) next.delete(r.id)
                               else next.add(r.id)
-                              return next
-                            })}
+                              setEditBusinessRoleIds(next)
+                              // 役職の標準の承認の権限まで上げる（案B 2026-10-27。サーバー側でも同じ処理をする）
+                              setEditSystemPermission(prev => widerPermission(prev, standardPermissionOf(businessRoles.filter(x => next.has(x.id)))))
+                            }}
                             disabled={isPending}
                           />
-                          <span>{r.name}</span>
+                          <span title={r.full_name ?? undefined}>{r.name}</span>
+                          {r.full_name && <span className="text-[11px] text-gray-400">{r.full_name}</span>}
                         </label>
                       ))
                     )}

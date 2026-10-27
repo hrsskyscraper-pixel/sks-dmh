@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer'
 import { isEmailNotificationsEnabled } from '@/lib/settings'
+import { isPlaceholderEmail } from '@/lib/account-issue'
 
 const transporter = nodemailer.createTransport({
   service: 'gmail',
@@ -39,8 +40,14 @@ function sleep(ms: number) {
  */
 export async function sendMail({ to, cc, subject, body, bypassPause = false }: SendMailParams): Promise<SendResult> {
   const from = `Mission Board <${process.env.GMAIL_USER}>`
-  const toStr = Array.isArray(to) ? to.join(', ') : to
-  const ccStr = cc ? (Array.isArray(cc) ? cc.join(', ') : cc) : undefined
+  // 発行したばかりでまだログインしていない方の仮のアドレス（@issue.invalid）には送らない（「名前 <x@…>」の形も見る）
+  const real = (xs: string | string[]) => (Array.isArray(xs) ? xs : [xs]).filter(x => x && !isPlaceholderEmail(x.match(/<([^>]+)>/)?.[1] ?? x.trim()))
+  // 宛先がすべて仮のアドレスで消えたときは送らない（写しを宛先に繰り上げると、本人宛の文面が別の人に届くため。
+  // 承認者宛の通知は、宛先を集める側で仮のアドレスを先に外している）
+  const toList = real(to)
+  const ccList = cc ? real(cc) : []
+  const toStr = toList.join(', ')
+  const ccStr = ccList.length ? ccList.join(', ') : undefined
 
   if (!bypassPause && !(await isEmailNotificationsEnabled())) {
     console.warn('[メール] 通知休止中のため送信スキップ:', { to: toStr, subject })

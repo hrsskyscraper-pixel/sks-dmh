@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -181,7 +182,7 @@ export default async function TeamPage() {
 
   return (
     <>
-      <TopBar title="スキル認定" />
+      <TopBar title="スキル認定" right={<Link href="/account-request" className="text-xs text-teal-700 underline whitespace-nowrap">新しく入る方の発行を依頼</Link>} />
       <TeamDashboard
         currentEmployee={currentEmployee}
         employees={visibleEmployees}

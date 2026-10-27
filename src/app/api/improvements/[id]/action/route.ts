@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
-import { getExecRoleId, isDevEmp, isExecEmp, isOpsEmp } from '@/lib/improvements'
+import { getExecRoleIds, isDevEmp, isExecEmp, isOpsEmp } from '@/lib/improvements'
 import { notLeftFilter } from '@/lib/left'
 import {
   notifyImprovementOpsApproved,
@@ -45,9 +45,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     .maybeSingle()
   if (!req) return NextResponse.json({ error: '対象が見つかりません' }, { status: 404 })
 
-  const execRoleId = await getExecRoleId()
+  const execRoleIds = await getExecRoleIds()
   const isOps = isOpsEmp(me)
-  const isExec = isExecEmp(me, execRoleId)
+  const isExec = isExecEmp(me, execRoleIds)
   const isDev = isDevEmp(me)
 
   // (更新内容, イベント種別, 通知, 権限, 想定元ステータス) を action ごとに決める

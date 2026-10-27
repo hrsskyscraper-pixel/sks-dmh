@@ -40,6 +40,7 @@ export default async function AdminTeamsPage({ searchParams }: { searchParams?: 
     db.from('project_teams').select('project_id, team_id'),
     db.from('skill_projects').select('id, name').eq('is_active', true),
   ])
+  const { data: titleRows } = await db.from('business_roles').select('id, name, sort_order, full_name')
   const { data: brands } = await db.from('brands').select('id, name, color').order('sort_order')
 
   // 各習得カリキュラムのフェーズ件数（セットアップ未完了判定用）
@@ -92,6 +93,7 @@ export default async function AdminTeamsPage({ searchParams }: { searchParams?: 
       <TopBar title="所属一覧" />
       <TeamManager
         attention={attention}
+        titleRows={titleRows ?? []}
         currentEmployee={currentEmployee}
         effectiveEmployee={effectiveEmployee}
         effectiveRole={effectiveRole}

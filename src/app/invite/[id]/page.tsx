@@ -148,34 +148,13 @@ export default async function InvitePage({
     return errorScreen('この招待はあなた宛ではありません。')
   }
 
-  // 招待経由でアカウントを作成/紐付け。承認は権限者が参加承認画面で行うため、ここでは必ず status=pending。
-  // 「誰の(invited_by)・どの招待リンク(invitation_id)経由か」を記録し、招待先(team)は承認時の候補として残す。
+  // 新しく参加する方（Mission Board にまだ社員データが無い方）は、招待リンクからは登録しない（2026-10-27 須貝さん決定）。
+  // 本人が区分・店舗を選ぶと間違いのもとになるため、運用管理者が社員リストの内容で発行し、本人用のリンク（/claim）を渡す。
+  // 招待リンクは、すでにアカウントのある方が別のチームに入る・リーダーになる ためだけに使う。
   if (!me) {
-    // employees レコード未作成 → Googleメタデータから自動作成（status=pending・自動承認しない）
-    const fullName = (user.user_metadata.full_name as string | undefined) ?? user.email ?? '未設定'
-    const nameParts = fullName.split(' ')
-    const { data: created, error: createError } = await db
-      .from('employees')
-      .insert({
-        auth_user_id: user.id,
-        last_name: nameParts[0],
-        first_name: nameParts.slice(1).join(' ') || '',
-        email: user.email ?? '',
-        role: 'employee',
-        system_permission: 'training_member',
-        employment_type: '社員',
-        avatar_url: (user.user_metadata.avatar_url as string | undefined) ?? null,
-        status: 'pending',
-        invited_by: inv.invited_by,
-        invitation_id: inv.id,
-        requested_team_id: inv.team_id,                 // 承認時の候補（固定チーム招待のみ。自己選択型は null）
-        requested_project_team_id: inv.project_team_id,
-      })
-      .select('id, name, last_name, first_name, status')
-      .single()
-    if (createError || !created) return errorScreen('アカウント作成に失敗しました: ' + (createError?.message ?? ''))
-    me = created
-  } else if (me.status === 'pending') {
+    return errorScreen('新しく参加する方は、運用管理者がアカウントを発行します。店長か運用管理者に「アカウントの発行」を頼んでください。発行されると、あなた専用のリンクが届きます。')
+  }
+  if (me.status === 'pending') {
     // 既に pending レコードあり → 招待元が未記録なら記録（既に記録済みなら上書きしない）
     await db
       .from('employees')
@@ -194,7 +173,6 @@ export default async function InvitePage({
   // 「既に使用済み」で拒否される不具合になっていた。流用防止は宛先チェック
   // （target_employee_id と本人の一致）で足りており、消費は参加完了時（acceptInvitation）に行う。
 
-  if (!me) return errorScreen('ユーザー情報の取得・作成に失敗しました')
 
   // 招待経由でも承認待ち。権限者が確認・登録（店舗/部署）するまでアプリには入れない（ホームの承認待ち画面へ）。
   if (me.status !== 'approved') redirect('/')

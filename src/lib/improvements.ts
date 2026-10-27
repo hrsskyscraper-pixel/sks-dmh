@@ -25,17 +25,19 @@ export const CATEGORY_OPTIONS = ['不具合', '改善', '新機能', 'その他'
 // --- 役割判定 ---
 type EmpLike = { role?: Role | null; system_permission?: SystemPermission | null; business_role_ids?: string[] | null }
 
-/** 役員（意思決定者）業務役職の ID を取得（キャッシュしない・呼び出し側で保持） */
-export async function getExecRoleId(): Promise<string | null> {
+/**
+ * 役員（意思決定者）として扱う役職の ID（キャッシュしない・呼び出し側で保持）。
+ * 役職の設定「役員として扱う」（business_roles.is_executive）が付いたもの。会長・社長・常務取締役など（2026-10-27〜）
+ */
+export async function getExecRoleIds(): Promise<string[]> {
   const db = createAdminClient()
-  const { data } = await db.from('business_roles').select('id').eq('name', '役員').maybeSingle()
-  return data?.id ?? null
+  const { data } = await db.from('business_roles').select('id').eq('is_executive', true)
+  return (data ?? []).map(r => r.id)
 }
 
 /** 意思決定者（役員）か */
-export function isExecEmp(emp: EmpLike, execRoleId: string | null): boolean {
-  if (!execRoleId) return false
-  return (emp.business_role_ids ?? []).includes(execRoleId)
+export function isExecEmp(emp: EmpLike, execRoleIds: string[]): boolean {
+  return (emp.business_role_ids ?? []).some(id => execRoleIds.includes(id))
 }
 
 /** 運営管理者（運用管理者）か */
@@ -96,14 +98,14 @@ export async function getDevelopers(): Promise<Recipient[]> {
 
 /** 意思決定者（役員）一覧 */
 export async function getExecs(): Promise<Recipient[]> {
-  const execRoleId = await getExecRoleId()
-  if (!execRoleId) return []
+  const execRoleIds = await getExecRoleIds()
+  if (execRoleIds.length === 0) return []
   const db = createAdminClient()
   const { data } = await db
     .from('employees')
     .select('id, name, email, line_user_id')
     .eq('status', 'approved')
-    .contains('business_role_ids', [execRoleId])
+    .overlaps('business_role_ids', execRoleIds)
   return (data ?? []) as Recipient[]
 }
 

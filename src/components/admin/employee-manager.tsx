@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useMemo } from 'react'
 import { toast } from 'sonner'
 import { CertRingAvatar } from '@/components/ui/cert-ring-avatar'
 import { Badge } from '@/components/ui/badge'
@@ -19,8 +19,8 @@ import { VIEW_AS_COOKIE } from '@/lib/view-as'
 import { Store, FolderKanban, Building2, ChevronDown, ChevronRight, MapPin, Award, Star, Instagram, MessageCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { setEmployeeTest } from '@/app/(dashboard)/actions'
-import type { Employee, Team, TeamMember } from '@/types/database'
-import { getDisplayRole, DISPLAY_ROLE_ORDER, type DisplayRole } from '@/lib/display-role'
+import { SYSTEM_PERMISSION_LABELS, type Employee, type SystemPermission, type Team, type TeamMember } from '@/types/database'
+import { getDisplayRole, DISPLAY_ROLE_ORDER, officialTitleLabel, titleLookupOf, type DisplayRole } from '@/lib/display-role'
 
 // UI上の表示役割
 
@@ -51,6 +51,8 @@ interface Props {
   currentEmployeeId?: string
   /** 初期表示を「自分の所属（自分のチーム・部署・店舗の合算）」に絞る */
   defaultMyTeams?: boolean
+  /** 社内役職マスタ（札に出す役職。2026-10-27〜 社内の公式役職） */
+  titleRows?: { id: string; name: string; sort_order: number; full_name?: string | null }[]
 }
 
 const DISPLAY_ROLE_COLORS: Record<DisplayRole, string> = {
@@ -84,7 +86,8 @@ const CARD_BG_COLORS: Record<DisplayRole, string> = {
 }
 
 
-export function EmployeeManager({ employees: initialEmployees, canEdit = true, isTeamManager = false, managedMemberIds = [], employeeStats = {}, teams = [], teamMembers = [], positionByEmployee = {}, certsByEmployee = {}, certMaster = [], teamManagersList = [], projectTeamIds = [], currentEmployeeId, defaultMyTeams = false }: Props) {
+export function EmployeeManager({ employees: initialEmployees, canEdit = true, isTeamManager = false, managedMemberIds = [], employeeStats = {}, teams = [], teamMembers = [], positionByEmployee = {}, certsByEmployee = {}, certMaster = [], teamManagersList = [], projectTeamIds = [], currentEmployeeId, defaultMyTeams = false, titleRows = [] }: Props) {
+  const titles = useMemo(() => titleLookupOf(titleRows), [titleRows])
   const [employees, setEmployees] = useState(initialEmployees)
   const [isPending, startTransition] = useTransition()
   const [uploadingId, setUploadingId] = useState<string | null>(null)
@@ -446,9 +449,9 @@ export function EmployeeManager({ employees: initialEmployees, canEdit = true, i
                     {employee.line_user_id && (
                       <span title="LINE連携済み" className="text-green-500"><MessageCircle className="w-3 h-3 fill-current" /></span>
                     )}
-                    <Badge className={`${DISPLAY_ROLE_COLORS[displayRole]} text-xs border-0 flex items-center gap-1 flex-shrink-0`}>
+                    <Badge title={`色は承認の権限（${SYSTEM_PERMISSION_LABELS[employee.system_permission as SystemPermission] ?? ''}）、文字は社内役職`} className={`${DISPLAY_ROLE_COLORS[displayRole]} text-xs border-0 flex items-center gap-1 flex-shrink-0`}>
                       {DISPLAY_ROLE_ICONS[displayRole]}
-                      {displayRole}
+                      {officialTitleLabel(employee, titles)}
                     </Badge>
                     {employee.status === 'pending' && (
                       <Badge className="text-[9px] bg-amber-100 text-amber-700 border border-amber-300 flex-shrink-0">承認待ち</Badge>

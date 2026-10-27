@@ -8,7 +8,7 @@ import { TopBar } from '@/components/layout/nav'
 import { Card, CardContent } from '@/components/ui/card'
 import { CertRingAvatar } from '@/components/ui/cert-ring-avatar'
 import { ChevronRight, Inbox } from 'lucide-react'
-import { CATEGORY_OPTIONS, getExecRoleId, isDevEmp, isExecEmp, isOpsEmp } from '@/lib/improvements'
+import { CATEGORY_OPTIONS, getExecRoleIds, isDevEmp, isExecEmp, isOpsEmp } from '@/lib/improvements'
 import { NewRequestDialog } from '@/components/improvements/new-request-dialog'
 import { ImprovementStatusBadge } from '@/components/improvements/status-badge'
 
@@ -40,9 +40,9 @@ export default async function ImprovementsPage() {
   if (!me) redirect('/login')
 
   const db = createAdminClient()
-  const execRoleId = await getExecRoleId()
+  const execRoleIds = await getExecRoleIds()
   const isOps = isOpsEmp(me)
-  const isExec = isExecEmp(me, execRoleId)
+  const isExec = isExecEmp(me, execRoleIds)
   const isDev = isDevEmp(me)
   const isManager = isOps || isExec || isDev
 

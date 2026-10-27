@@ -81,7 +81,7 @@ export function WelcomeContent({
           {selfSelect ? (
             <h1 className="text-xl font-bold leading-tight mb-1">
               {inviterName}さんから<br />
-              <span className="inline-block mt-1">アプリ登録のご案内です</span><br />
+              <span className="inline-block mt-1">所属の登録のご案内です</span><br />
               <span className="inline-block text-sm font-medium opacity-90">参加時にご自身の所属（店舗など）を選べます</span>
             </h1>
           ) : (
@@ -233,6 +233,14 @@ export function WelcomeContent({
           </CardContent>
         </Card>
 
+        {/* 新しく入る方は招待リンクでは登録できない（2026-10-27〜 運用管理者が発行する） */}
+        <Card className="border-amber-200 bg-amber-50/60">
+          <CardContent className="py-3 px-4 text-xs text-amber-900 space-y-1">
+            <p className="font-bold">このリンクは、すでに Mission Board のアカウントがある方向けです</p>
+            <p>新しく入る方は、このリンクでは登録できません。店長に「アカウントの発行」を頼んでください。運用管理者が発行すると、あなた専用のリンクが届きます。</p>
+          </CardContent>
+        </Card>
+
         {/* Googleアカウントを持っていない場合 */}
         <div>
           <button
@@ -245,7 +253,7 @@ export function WelcomeContent({
           {showGoogleHelp && (
             <Card className="mt-1">
               <CardContent className="py-3 px-4 space-y-2 text-xs text-gray-700">
-                <p>Googleアカウントは無料で作成できます。下のリンクから作成後、改めて招待リンクを開いてご参加ください。</p>
+                <p>新しく入る方は、まず店長に「アカウントの発行」を頼んでください。Google アカウントは無料で作れます。あなた専用のリンクが届いたら、そのリンクから参加してください。</p>
                 <a
                   href="https://accounts.google.com/signup"
                   target="_blank"
@@ -270,7 +278,7 @@ export function WelcomeContent({
                   <p className="text-xs font-bold text-blue-800 mb-1">店長・リーダー向けの共通リンクです</p>
                   <p className="text-xs text-blue-700 leading-relaxed">
                     このリンクは{asManager ? 'リーダー' : 'メンバー'}登録用に共有されています。
-                    参加時にご自身の所属（店舗・部署・チーム）を選んでください。各自おひとりずつご登録ください。
+                    参加時にご自身の所属（店舗・部署・チーム）を選んでください。各自おひとりずつご参加ください。
                   </p>
                 </div>
               </div>

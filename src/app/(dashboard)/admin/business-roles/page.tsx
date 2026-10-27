@@ -33,7 +33,7 @@ export default async function BusinessRolesPage() {
 
   return (
     <>
-      <TopBar title="業務役職マスタ" />
+      <TopBar title="社内役職マスタ" />
       <BusinessRoleManager businessRoles={businessRoles ?? []} usageCount={usageCount} />
     </>
   )

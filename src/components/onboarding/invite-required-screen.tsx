@@ -29,15 +29,15 @@ export function InviteRequiredScreen({ email }: { email: string }) {
           <div className="mx-auto w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center mb-2">
             <Mail className="w-6 h-6 text-orange-500" />
           </div>
-          <CardTitle className="text-lg">招待が必要です</CardTitle>
+          <CardTitle className="text-lg">アカウントの発行が必要です</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 text-center">
           <p className="text-sm text-gray-600">
-            Mission Board のご利用には、担当者からの<span className="font-medium text-orange-600">招待リンク</span>が必要です。
+            Mission Board のご利用には、運用管理者が発行する<span className="font-medium text-orange-600">あなた専用のリンク</span>が必要です。
           </p>
           <p className="text-xs text-gray-500 leading-relaxed">
-            お手元の招待リンクを開いて参加手続きを行ってください。招待リンクが無い場合は、
-            所属先の管理者・運営管理者にお問い合わせください。
+            お手元のリンクを開いて参加してください。リンクが無い場合は、店長か運用管理者に「アカウントの発行」を頼んでください。
+            いまログインしている Google アカウントが違うときは、下のボタンで切り替えられます。
           </p>
           {email && <p className="text-[11px] text-gray-400">ログイン中: {email}</p>}
           <Button variant="outline" className="w-full" onClick={signOut} disabled={loading}>

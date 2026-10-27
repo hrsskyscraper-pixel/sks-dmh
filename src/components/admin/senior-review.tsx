@@ -18,7 +18,7 @@ interface Props {
 }
 
 /**
- * 管理者（MG・AC・課長など）の申請を承認する人（2026-10-23 原島さん確定 B-④-3）。
+ * 管理者（マネージャー・エリアキャスト・課長など）の申請を承認する人（2026-10-23 原島さん確定 B-④-3）。
  * 選んだ役職の方の申請は、選んだ人だけが承認できる。どちらかが空のあいだは、これまでどおり（運用管理者ならだれでも）。
  */
 export function SeniorReview({ roles, candidates, roleIds: initialRoles, approverIds: initialApprovers, updatedBy, updatedAt }: Props) {
@@ -60,7 +60,7 @@ export function SeniorReview({ roles, candidates, roleIds: initialRoles, approve
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-gray-800">管理者の申請を承認する人</p>
-          <p className="text-xs text-gray-500">MG・AC・課長など、選んだ役職の方のスキル申請を承認できる人</p>
+          <p className="text-xs text-gray-500">マネージャー・エリアキャスト・課長など、選んだ役職の方のスキル申請を承認できる人</p>
         </div>
         <Button size="sm" onClick={save} disabled={isPending || !dirty} className="bg-indigo-600 hover:bg-indigo-700 text-white">保存</Button>
       </div>

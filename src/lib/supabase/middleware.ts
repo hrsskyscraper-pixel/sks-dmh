@@ -36,7 +36,7 @@ export async function updateSession(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // 未認証ユーザーをログインページへリダイレクト
-  // 公開ページ（/privacy, /terms, /invite, /help）は除外
+  // 公開ページ（/privacy, /terms, /invite, /claim, /help）は除外
   if (
     !user &&
     !pathname.startsWith('/login') &&
@@ -44,6 +44,7 @@ export async function updateSession(request: NextRequest) {
     !pathname.startsWith('/privacy') &&
     !pathname.startsWith('/terms') &&
     !pathname.startsWith('/invite/') &&
+    !pathname.startsWith('/claim/') &&
     !pathname.startsWith('/api/daily-report') &&
     !pathname.startsWith('/api/keepalive')
   ) {

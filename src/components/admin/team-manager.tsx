@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useEffect, useRef } from 'react'
+import { useState, useTransition, useEffect, useRef, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
@@ -23,7 +23,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { createClient } from '@/lib/supabase/client'
 import type { Employee, Team, TeamMember, TeamManager, TeamChangeRequest, Role } from '@/types/database'
-import { getDisplayRole, DISPLAY_ROLE_ORDER } from '@/lib/display-role'
+import { getDisplayRole, DISPLAY_ROLE_ORDER, officialTitleLabel, titleLookupOf } from '@/lib/display-role'
 import { canAdminister, canApprove, isTrainingLeader } from '@/lib/permissions'
 import { addTeamMembers, removeTeamMember, reorderTeamMembers } from '@/app/(dashboard)/admin/teams/actions'
 
@@ -43,6 +43,8 @@ interface Props {
   activeProjects?: { id: string; name: string; phaseCount?: number }[]
   /** ?attention=1 のとき: 承認できる人がいない申請のある店舗・チーム（これだけを一覧に出す） */
   attention?: { teamId: string; teamName: string; count: number; maxDays: number; selfOnly: boolean }[]
+  /** 社内役職マスタ（候補の表示に出す役職。2026-10-27〜 社内の公式役職） */
+  titleRows?: { id: string; name: string; sort_order: number; full_name?: string | null }[]
 }
 
 type RequestType = TeamChangeRequest['request_type']
@@ -94,7 +96,9 @@ export function TeamManager({
   brands = [],
   activeProjects = [],
   attention,
+  titleRows = [],
 }: Props) {
+  const titles = useMemo(() => titleLookupOf(titleRows), [titleRows])
   const [teamProjectNames, setTeamProjectNames] = useState(initialTeamProjectNames)
   const [assignProjectDialog, setAssignProjectDialog] = useState<{ teamId: string; teamName: string } | null>(null)
   const [assignProjectId, setAssignProjectId] = useState<string>('')
@@ -408,7 +412,7 @@ export function TeamManager({
       const { error: managerError } = await supabase
         .from('team_managers')
         .insert(managerInserts)
-      if (managerError) { toast.error('マネジャー設定に失敗しました'); return }
+      if (managerError) { toast.error('リーダーの設定に失敗しました'); return }
 
       // メンバー登録
       if (newTeamMemberIds.length > 0) {
@@ -521,7 +525,7 @@ export function TeamManager({
       setAddDialog(null)
       setSelectedEmployeeIds(new Set())
       setNewManagerRole('secondary')
-      toast.success(`${employeeIds.length}名をマネジャーに追加しました`)
+      toast.success(`${employeeIds.length}名をリーダーに追加しました`)
     })
   }
 
@@ -537,7 +541,7 @@ export function TeamManager({
       setTeamManagers(prev => prev.filter(m => !(m.team_id === teamId && m.employee_id === employeeId)))
       const teamName = teams.find(t => t.id === teamId)?.name ?? ''
       await logDirectAction('remove_manager', teamId, { team_name: teamName, employee_id: employeeId, employee_name: getEmployeeName(employeeId) })
-      toast.success('マネジャーを削除しました')
+      toast.success('リーダーを外しました')
     })
   }
 
@@ -901,7 +905,7 @@ export function TeamManager({
         label = `「${teamName}」へのリーダー追加を申請`
       } else if (req.request_type === 'remove_manager') {
         payload = { employee_id: p.employee_id, employee_name: p.employee_name, team_name: teamName }
-        label = `「${teamName}」から${p.employee_name as string}のマネジャー削除申請`
+        label = `「${teamName}」から${p.employee_name as string}のリーダー削除申請`
       }
     }
 
@@ -923,7 +927,7 @@ export function TeamManager({
       .filter((t): t is Team => t?.type === 'store')
       .map(t => t.name)
       .join('・')
-    return `${emp.name} / ${getDisplayRole(emp)} / ${storeNames || '—'}`
+    return `${emp.name} / ${officialTitleLabel(emp, titles)} / ${storeNames || '—'}`
   }
 
   const getTeamMemberIds = (teamId: string) => {
@@ -1213,7 +1217,7 @@ export function TeamManager({
                       className="h-7 w-7 p-0 text-red-400 hover:text-red-600 hover:bg-red-50"
                       onClick={() => setConfirmDialog({
                         title: '削除の確認',
-                        message: `チーム「${team.name}」を削除しますか？\nメンバー・マネジャーの紐付けもすべて削除されます。`,
+                        message: `チーム「${team.name}」を削除しますか？\nメンバー・リーダーの紐付けもすべて削除されます。`,
                         confirmLabel: '削除する',
                         confirmClassName: 'flex-1 bg-red-500 hover:bg-red-600 text-white',
                         onConfirm: () => handleDeleteTeam(team.id),
@@ -1450,7 +1454,7 @@ export function TeamManager({
                                   requestType: 'remove_manager',
                                   teamId: team.id,
                                   payload: { employee_id: manager.employee_id, employee_name: getEmployeeName(manager.employee_id), team_name: team.name },
-                                  label: `「${team.name}」から${getEmployeeName(manager.employee_id)}のマネジャー削除申請`,
+                                  label: `「${team.name}」から${getEmployeeName(manager.employee_id)}のリーダー削除申請`,
                                 })
                                 setRequestComment('')
                               }}
@@ -2402,7 +2406,7 @@ export function TeamManager({
                     </select>
                     {requestManagerId !== effectiveEmployee.id && (
                       <p className="text-xs text-orange-600 mt-1">
-                        ※ 申請者以外をマネジャーに設定しています。コメントで理由を説明してください。
+                        ※ 申請者以外をリーダーに設定しています。コメントで理由を説明してください。
                       </p>
                     )}
                   </div>

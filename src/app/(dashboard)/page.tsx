@@ -164,6 +164,7 @@ export default async function DashboardPage({
     { globalPendingAchievementsCount, teamPendingAchievementsCount, pendingTeamRequestsCount },
     { data: skillManualsRows },
     { data: manualsRows },
+    { data: titleRows },
   ] = await Promise.all([
     selectedProject
       ? db.from('project_phases').select('id, project_id, name, order_index, end_hours, created_at').eq('project_id', selectedProject.id).order('order_index')
@@ -183,6 +184,10 @@ export default async function DashboardPage({
     pendingCountsTask,
     db.from('skill_manuals').select('skill_id, manual_id, is_primary'),
     db.from('manual_library').select('id, title, url').eq('archived', false),
+    // ホーム上部に出す社内役職（2026-10-27〜。権限から作る呼び名ではなく、社内の公式役職）
+    (employee.business_role_ids ?? []).length > 0
+      ? db.from('business_roles').select('name, full_name, sort_order').in('id', employee.business_role_ids).order('sort_order')
+      : Promise.resolve({ data: [] as { name: string; full_name: string | null; sort_order: number }[] }),
   ])
 
   // キャリア記録に関連する社員のみ取得（全社員を取らない）
@@ -338,6 +343,7 @@ export default async function DashboardPage({
           return (storeTeam as { teams: { name: string } } | undefined)?.teams?.name ?? null
         })()}
         position={(careerRows ?? []).find(r => r.record_type === '役職' && r.department)?.department ?? null}
+        titles={(titleRows ?? []).map(t => ({ name: t.name, fullName: t.full_name }))}
         internalCerts={[...new Set((careerRows ?? []).filter(r => r.record_type === '資格' && r.department?.startsWith('[社内]')).map(r => r.department!.replace('[社内]', '')))]}
         employeeId={employee.id}
         hasGoalRecords={(careerRows ?? []).some(r => r.record_type === '目標')}
