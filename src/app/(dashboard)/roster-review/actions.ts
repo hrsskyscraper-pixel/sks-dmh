@@ -124,7 +124,7 @@ export async function updateItem(itemId: string, patch: ItemPatch): Promise<Resu
   if (contentChanged && batch.stage !== 'draft') {
     await log(batch.id, itemId, me, batch.stage, item.store_answer && batch.stage === 'store' ? '変更案を直しました（店長の回答はやり直しです）' : item.store_answer ? '変更案を直しました（店長の回答は、直す前の案へのものです）' : '変更案を直しました')
     if (batch.stage === 'senior') await db.from('roster_review_signoffs').update({ approved: false, updated_at: new Date().toISOString() }).eq('batch_id', batch.id)
-    await writeAuditLog({ action: 'roster_review_edit', actorId: me.id, targetId: itemId, details: { stage: batch.stage, patch: next } }).catch(() => {})
+    await writeAuditLog({ action: 'roster_review_edit', actorId: me.id, targetId: item.employee_id ?? undefined, details: { batch: batch.id, item: itemId, stage: batch.stage, patch: next } }).catch(() => {})
   }
   done()
   return {}
@@ -149,7 +149,7 @@ export async function answerItem(itemId: string, answer: 'ok' | 'ng', message: s
     ...(answer === 'ng' ? { ops_approved: false } : {}),
   }).eq('id', itemId).eq('batch_id', batch.id)
   if (error) return { error: '送れませんでした。時間をおいてもう一度お試しください' }
-  await writeAuditLog({ action: 'roster_review_answer', actorId: me.id, targetId: itemId, details: { answer, before: item.store_answer } }).catch(() => {})
+  await writeAuditLog({ action: 'roster_review_answer', actorId: me.id, targetId: item.employee_id ?? undefined, details: { batch: batch.id, item: itemId, answer, before: item.store_answer } }).catch(() => {})
   done()
   return {}
 }
@@ -169,7 +169,7 @@ export async function approveItem(itemId: string, approved: boolean, note: strin
     ops_approved: approved, ops_note: cleanNote(note), ops_by: me.id, ops_at: new Date().toISOString(), updated_at: new Date().toISOString(),
   }).eq('id', itemId)
   if (error) return { error: '保存できませんでした' }
-  await writeAuditLog({ action: 'roster_review_approve', actorId: me.id, targetId: itemId, details: { approved } }).catch(() => {})
+  await writeAuditLog({ action: 'roster_review_approve', actorId: me.id, targetId: ctx.item.employee_id ?? undefined, details: { batch: ctx.batch.id, item: itemId, approved } }).catch(() => {})
   done()
   return {}
 }
@@ -215,7 +215,7 @@ export async function approveAllWithoutStore(batchId: string): Promise<Result> {
       .eq('batch_id', batchId).in('id', ids.slice(i, i + 200))
     if (error) return { error: '保存できませんでした' }
   }
-  await writeAuditLog({ action: 'roster_review_approve_all', actorId: me.id, targetId: batchId, details: { count: ids.length } }).catch(() => {})
+  await writeAuditLog({ action: 'roster_review_approve_all', actorId: me.id, details: { batch: batchId, count: ids.length } }).catch(() => {})
   done()
   return {}
 }
@@ -255,7 +255,7 @@ export async function signoff(batchId: string, approved: boolean, comment: strin
   const db = createAdminClient()
   const { error } = await db.from('roster_review_signoffs').upsert({ batch_id: batchId, employee_id: me.id, approved, comment: cleanNote(comment), updated_at: new Date().toISOString() })
   if (error) return { error: '保存できませんでした' }
-  await writeAuditLog({ action: 'roster_review_signoff', actorId: me.id, targetId: batchId, details: { approved } }).catch(() => {})
+  await writeAuditLog({ action: 'roster_review_signoff', actorId: me.id, details: { batch: batchId, approved } }).catch(() => {})
   done()
   return {}
 }
@@ -286,7 +286,7 @@ export async function updateBatch(batchId: string, patch: { overview?: string | 
   const { error } = await db.from('roster_review_batches').update(next).eq('id', batchId).eq('stage', 'draft')
   if (error) return { error: '保存できませんでした' }
   if (patch.senior_ids && [...patch.senior_ids].sort().join() !== [...batch.senior_ids].sort().join()) {
-    await writeAuditLog({ action: 'roster_review_seniors', actorId: me.id, targetId: batchId, details: { from: batch.senior_ids, to: next.senior_ids } }).catch(() => {})
+    await writeAuditLog({ action: 'roster_review_seniors', actorId: me.id, details: { batch: batchId, from: batch.senior_ids, to: next.senior_ids } }).catch(() => {})
   }
   done()
   return {}
@@ -361,7 +361,7 @@ export async function moveStage(batchId: string, to: RosterReviewStage, message?
   const text = message?.trim()
   const auto = key === 'senior>dev_check' ? 'アカウントの変更処理を会社として決定しました。これで依頼します。' : `${STAGE_LABEL[from]} → ${STAGE_LABEL[to]}`
   await log(batchId, null, me, from, text ? `${auto}\n${text}` : auto)
-  await writeAuditLog({ action: 'roster_review_stage', actorId: me.id, targetId: batchId, details: { from, to } }).catch(() => {})
+  await writeAuditLog({ action: 'roster_review_stage', actorId: me.id, details: { batch: batchId, from, to } }).catch(() => {})
   done()
   return {}
 }
@@ -416,7 +416,7 @@ export async function applyChunk(batchId: string, runStart: string): Promise<{ r
     const { data: moved } = await db.from('roster_review_batches').update({ stage: 'done', applied_by: me.id, applied_at: now, stage_changed_at: now, updated_at: now }).eq('id', batchId).eq('stage', 'apply').select('id')
     if (moved?.length) {
       await log(batchId, null, me, 'apply', 'まとめて反映しました')
-      await writeAuditLog({ action: 'roster_review_applied', actorId: me.id, targetId: batchId }).catch(() => {})
+      await writeAuditLog({ action: 'roster_review_applied', actorId: me.id, details: { batch: batchId } }).catch(() => {})
     }
   }
   done()

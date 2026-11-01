@@ -272,7 +272,7 @@ function StagePanel({ data, pending, run, ask, seniorsOk, mySign, counts }: {
         <div className="flex flex-wrap gap-2">
           {counts.directCount > 0 && <Button size="sm" variant="outline" disabled={pending} onClick={() => run(() => approveAllWithoutStore(batch.id), '承認しました')}>店長に回さない行をまとめて承認（{counts.directCount}）</Button>}
           <Button size="sm" className="bg-orange-500 hover:bg-orange-600" disabled={pending || counts.unapproved > 0}
-            onClick={() => ask('senior', '上長に確認を依頼します', `${batch.senior_ids.map(seniorName).join('・')} に、担当者承認した変更案を回します。おふたりのホームに「確認のお願い」が出ます。`, '上長に確認を依頼する')}>上長に確認を依頼する</Button>
+            onClick={() => ask('senior', '上長に確認を依頼します', `${batch.senior_ids.map(seniorName).join('・')} に、担当者承認した変更案を回します。上長のホームに「確認のお願い」が出ます。社内の連絡手段でも一声かけてください。`, '上長に確認を依頼する')}>上長に確認を依頼する</Button>
         </div>
       </div>
     )

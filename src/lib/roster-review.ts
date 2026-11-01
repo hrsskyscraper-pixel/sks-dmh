@@ -46,7 +46,7 @@ export function nextStage(stage: RosterReviewStage): RosterReviewStage | null {
 
 /** 店長に回す行か（店長を飛ばす行・決めていない行・変えない行は回さない） */
 export function goesToStore(item: Pick<RosterReviewItemRow, 'skip_store' | 'confirm_team_id' | 'action'>, storeTeamIdsWithLeader: Set<string>): boolean {
-  if (item.skip_store || item.action === 'none' || item.action === 'undecided') return false
+  if (item.skip_store || !isApplicable(item.action)) return false
   return !!item.confirm_team_id && storeTeamIdsWithLeader.has(item.confirm_team_id)
 }
 

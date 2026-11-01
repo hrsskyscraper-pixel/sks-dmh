@@ -114,7 +114,7 @@ export default async function RosterReviewPage({ searchParams }: { searchParams:
     people,
     comments,
     signoffs: signoffsRes.data ?? [],
-    seniorCandidates: (seniorCandRes.data ?? []).filter(e => !hasLeft(e.left_at)).map(e => ({ id: e.id, name: e.name })),
+    seniorCandidates: (seniorCandRes.data ?? []).filter(e => !hasLeft(e.left_at) && e.id !== me.id).map(e => ({ id: e.id, name: e.name })),
   }
 
   return (
