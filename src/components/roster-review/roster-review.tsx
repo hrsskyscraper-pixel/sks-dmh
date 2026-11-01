@@ -99,12 +99,13 @@ export function RosterReview({ data }: { data: ReviewData }) {
 
   const doApply = async () => {
     setApplying(true)
-    const runStart = new Date().toISOString()
+    let runStart: string | null = null
     const got: ApplyIssued[] = []
     const errs: string[] = []
     try {
       for (let i = 0; i < 200; i++) {
         const res = await applyChunk(batch.id, runStart)
+        if (res.runStart) runStart = res.runStart
         if (res.error) { toast.error(res.error); break }
         got.push(...res.issued); errs.push(...res.errors)
         setIssued([...got]); setApplyErrors([...errs])

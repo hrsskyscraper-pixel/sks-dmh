@@ -8,7 +8,7 @@ import { writeAuditLog } from '@/lib/audit'
 import { hasControlChars } from '@/lib/account-issue'
 import { todayJst } from '@/lib/left'
 import { deriveLegacyRole, standardPermissionOf, widerPermission } from '@/lib/legacy-role'
-import { goesToStore, isApplicable, normName, NOTE_MAX, pickKeep, STAGE_LABEL } from '@/lib/roster-review'
+import { goesToStore, isApplicable, normName, NOTE_MAX, pickKeep, shownToStore, STAGE_LABEL } from '@/lib/roster-review'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { issueAccounts } from '@/app/(dashboard)/admin/account-issue/actions'
 import type { RosterReviewAction, RosterReviewItemRow, RosterReviewStage, SystemPermission } from '@/types/database'
@@ -37,7 +37,7 @@ async function loadItem(itemId: string) {
 async function leadsTeam(me: Me, teamId: string | null): Promise<boolean> {
   if (!teamId) return false
   const db = createAdminClient()
-  const { data } = await db.from('team_managers').select('team_id').eq('employee_id', me.id).eq('team_id', teamId).maybeSingle()
+  const { data } = await db.from('team_managers').select('team_id, teams!inner(type)').eq('employee_id', me.id).eq('team_id', teamId).eq('teams.type', 'store').maybeSingle()
   return !!data
 }
 
@@ -129,7 +129,7 @@ export async function updateItem(itemId: string, patch: ItemPatch): Promise<Resu
   if (contentChanged && batch.stage !== 'draft') {
     await log(batch.id, itemId, me, batch.stage, followsLeft ? '店長の「退職済み」に合わせて、変更案を直しました' : item.store_answer && batch.stage === 'store' ? '変更案を直しました（店長の回答はやり直しです）' : item.store_answer ? '変更案を直しました（店長の回答は、直す前の案へのものです）' : '変更案を直しました')
     if (batch.stage === 'senior') await db.from('roster_review_signoffs').update({ approved: false, updated_at: new Date().toISOString() }).eq('batch_id', batch.id)
-    await writeAuditLog({ action: 'roster_review_edit', actorId: me.id, targetId: item.employee_id ?? undefined, details: { batch: batch.id, item: itemId, stage: batch.stage, patch: next } }).catch(() => {})
+    await writeAuditLog({ action: 'roster_review_edit', actorId: me.id, targetId: item.employee_id ?? undefined, details: { batch: batch.id, item: itemId, stage: batch.stage, patch: { ...next, dev_note: next.dev_note !== undefined ? '(メモを更新)' : undefined, ops_preview_note: next.ops_preview_note !== undefined ? '(メモを更新)' : undefined } } }).catch(() => {})
   }
   done()
   return {}
@@ -153,7 +153,10 @@ export async function answerItem(itemId: string, answer: 'ok' | 'ng' | 'left', m
   if (!ctx) return { error: 'この行が見つかりません' }
   const { item, batch } = ctx
   if (batch.stage !== 'store') return { error: 'いまは店長の確認の段階ではありません' }
-  if (!opsFor(me, batch) && !(await leadsTeam(me, item.confirm_team_id))) return { error: 'この店舗の確認はできません' }
+  if (!opsFor(me, batch)) {
+    // 店長は、自分の店舗（店舗のリーダー）で、店長の画面に出る行にだけ答えられる
+    if (!(await leadsTeam(me, item.confirm_team_id)) || !shownToStore(item, await storesWithLeader())) return { error: 'この店舗の確認はできません' }
+  }
   const db = createAdminClient()
   const { error } = await db.from('roster_review_items').update({
     store_answer: answer, store_message: cleanNote(message), store_answered_by: me.id, store_answered_at: new Date().toISOString(), updated_at: new Date().toISOString(),
@@ -358,11 +361,13 @@ export async function moveStage(batchId: string, to: RosterReviewStage, message?
       const ok = new Set((signs ?? []).filter(s => s.approved).map(s => s.employee_id))
       const waiting = batch.senior_ids.filter(id => !ok.has(id)).length
       if (waiting) return { error: `上長の承認がまだの方が ${waiting} 名います` }
+      if (invalidCount(rows)) return { error: `反映できない形の行が ${invalidCount(rows)} 件あります` }
       break
     }
     case 'dev_check>senior':
     case 'dev_check>apply':
       if (!dev) return { error: '須貝の確認は須貝だけが進められます' }
+      if (invalidCount(rows)) return { error: `反映できない形の行が ${invalidCount(rows)} 件あります` }
       break
     default:
       return { error: 'この段階には動かせません' }
@@ -390,16 +395,25 @@ export type ApplyIssued = { name: string; claimId: string }
  * 担当者承認した行だけを反映する。うまくいかなかった行は「反映待ち」に戻し、直してからもう一度押せば反映する。
  * 全部反映できたら「反映済み」にする。
  */
-export async function applyChunk(batchId: string, runStart: string): Promise<{ remaining: number; processed: number; issued: ApplyIssued[]; errors: string[]; error?: string }> {
+export async function applyChunk(batchId: string, runStartIn: string | null): Promise<{ remaining: number; processed: number; issued: ApplyIssued[]; errors: string[]; error?: string; runStart?: string }> {
   const empty = { remaining: 0, processed: 0, issued: [] as ApplyIssued[], errors: [] as string[] }
+  // 1回の「まとめて反映」の始まりの時刻は、サーバーの時計で決める（最初の呼び出しで決めて、画面が持ち回る）
+  const runStart = runStartIn ?? new Date().toISOString()
   const me = await getRealEmployee()
   if (!me) return { ...empty, error: '権限がありません' }
-  if (typeof runStart !== 'string' || Number.isNaN(Date.parse(runStart))) return { ...empty, error: '画面を開き直してください' }
+  if (typeof runStart !== 'string' || Number.isNaN(Date.parse(runStart)) || Date.parse(runStart) > Date.now() + 60_000) return { ...empty, error: '画面を開き直してください' }
   const batch = await loadBatch(batchId)
   if (!batch || !opsFor(me, batch)) return { ...empty, error: '権限がありません' }
   if (batch.stage !== 'apply') return { ...empty, error: 'いまは反映の段階ではありません' }
   const db = createAdminClient()
   const since = new Date(runStart).toISOString()
+  // 前の反映が途中で止まった行（「反映しています」のまま10分たった）を戻す。
+  // 直す・止めるは、もう一度反映しても同じ結果になるので反映し直す。発行は二重にならないよう、確かめてもらう
+  const cutoff = new Date(Date.now() - 10 * 60 * 1000).toISOString()
+  await db.from('roster_review_items').update({ applied_at: null, apply_result: '×途中で止まりました（もう一度反映します）' })
+    .eq('batch_id', batchId).eq('apply_result', '反映しています').lt('applied_at', cutoff).in('action', ['change', 'stop'])
+  await db.from('roster_review_items').update({ apply_result: '×途中で止まりました。設定 → アカウントの発行 で、発行済みかを確かめてください' })
+    .eq('batch_id', batchId).eq('apply_result', '反映しています').lt('applied_at', cutoff).eq('action', 'issue')
   const { data: pending } = await db.from('roster_review_items').select('*').eq('batch_id', batchId).is('applied_at', null).eq('ops_approved', true)
     .in('action', ['change', 'stop', 'issue']).or(`apply_result.is.null,updated_at.lt.${since}`).order('seq').limit(15)
   const list = (pending ?? []) as RosterReviewItemRow[]
@@ -436,7 +450,7 @@ export async function applyChunk(batchId: string, runStart: string): Promise<{ r
     }
   }
   done()
-  return { remaining, processed: list.length, issued, errors }
+  return { runStart, remaining, processed: list.length, issued, errors }
 }
 
 type RoleSetting = { id: string; name: string; is_executive: boolean | null; standard_permission: SystemPermission | null }
@@ -461,6 +475,7 @@ async function applyOne(it: RosterReviewItemRow, roleMap: Map<string, RoleSettin
     }], { rosterChecked: true })
     if (res.error || !res.issued.length) return `×${res.error ?? '発行できませんでした'}`
     issued.push({ name: res.issued[0].name, claimId: res.issued[0].claimId })
+    await db.from('roster_review_items').update({ employee_id: res.issued[0].employeeId }).eq('id', it.id)
     await writeAuditLog({ action: 'roster_review_apply', actorId: me.id, targetId: res.issued[0].employeeId, details: { item: it.id, action: 'issue' } }).catch(() => {})
     return '発行しました（本人用のリンクを渡してください）'
   }
@@ -470,6 +485,7 @@ async function applyOne(it: RosterReviewItemRow, roleMap: Map<string, RoleSettin
   if (!emp) return '×MB のアカウントが見つかりません'
 
   if (it.action === 'stop') {
+    if (!it.stop_reason) return '×止める理由が入っていません'
     if (emp.left_at && emp.left_at <= todayJst()) return 'すでに止まっています'
     // 運用管理者・開発者を止めると、管理する人が締め出されることがあるので、ここでは止めない
     if (emp.system_permission === 'ops_admin' || emp.system_permission === 'developer') return '×運用管理者・開発者の方は、ここでは止めません（プロフィールで権限を外してから止めてください）'
@@ -568,6 +584,11 @@ export async function mergeDuplicates(itemId: string, keepId: string, stopIds: s
   const { data: emps } = await db.from('employees').select('id, name, system_permission').in('id', [keepId, ...stops])
   if ((emps ?? []).length !== stops.length + 1) return { error: 'アカウントが見つかりません。画面を読み込み直してください' }
   if (new Set((emps ?? []).map(e => normName(e.name))).size !== 1) return { error: '同じ名前のアカウントだけをまとめられます' }
+  // この行の方（社員リストの氏名か、いまつながっているアカウントの氏名）と同じ名前のアカウントだけ
+  const groupKey = normName(emps![0].name)
+  const { data: curEmp } = ctx.item.employee_id ? await db.from('employees').select('name').eq('id', ctx.item.employee_id).maybeSingle() : { data: null }
+  const rosterKey = normName(ctx.item.roster.name || `${ctx.item.roster.last_name ?? ''}${ctx.item.roster.first_name ?? ''}`)
+  if (groupKey !== rosterKey && groupKey !== normName(curEmp?.name)) return { error: 'この行の方と同じ名前のアカウントだけをまとめられます' }
   if ((emps ?? []).some(e => stops.includes(e.id) && (e.system_permission === 'ops_admin' || e.system_permission === 'developer'))) return { error: '運用管理者・開発者のアカウントは、ここでは止めません' }
 
   const rows = await fetchAllRows<Pick<RosterReviewItemRow, 'id' | 'employee_id' | 'merged_into' | 'action' | 'dup_stop_ids'>>((from, to) =>
@@ -577,11 +598,15 @@ export async function mergeDuplicates(itemId: string, keepId: string, stopIds: s
   const wasMerged = (r: { merged_into: string | null }) => r.merged_into === itemId || r.merged_into === primary.id
   const others = rows.filter(r => r.id !== primary.id && ((r.employee_id && stops.includes(r.employee_id)) || r.id === itemId || (wasMerged(r) && !r.employee_id)))
   // ほかの行で、すでに別のまとめに入っているアカウントは選べない
+  // 止める方の行が、それ自体ほかの方をまとめている行なら、先にそちらを外してもらう
+  if (rows.some(r => r.id !== primary.id && r.id !== itemId && r.employee_id && stops.includes(r.employee_id) && (r.dup_stop_ids ?? []).length)) return { error: '止めるアカウントの行で、ほかのアカウントをまとめています。そちらの「まとめるのをやめる」を先に押してください' }
   if (rows.some(r => r.id !== primary.id && r.id !== itemId && r.dup_stop_ids?.some(id => id === keepId || stops.includes(id)))) return { error: 'このアカウントは、別の行のまとめに入っています。そちらの「まとめるのをやめる」を先に押してください' }
 
   const now = new Date().toISOString()
   const { error } = await db.from('roster_review_items').update({
     employee_id: keepId, dup_stop_ids: stops, merged_into: null,
+    // まとめた行だった行を活かす側にしたら、店長に回す（まとめたときに付けた「店長に回さない」を外す）
+    ...(primary.merged_into ? { skip_store: false } : {}),
     action: 'change', stop_reason: null, needs_check: true, updated_at: now,
   }).eq('id', primary.id)
   if (error) return { error: '保存できませんでした。時間をおいてもう一度お試しください' }

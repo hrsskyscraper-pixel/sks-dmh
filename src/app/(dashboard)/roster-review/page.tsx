@@ -16,6 +16,8 @@ import type { RosterReviewBatchRow, RosterReviewItemRow, SystemPermission } from
  * - 上長（確認ごとに選んだ方）: すべての行（上長の確認の段階から）
  * - 店長（店舗のリーダー）: 自分の店舗に回ってきた行だけ（店長の確認の段階から）
  */
+const atLeastStage = (s: string, min: RosterReviewBatchRow['stage']) => STAGE_ORDER.indexOf(s as RosterReviewBatchRow['stage']) >= STAGE_ORDER.indexOf(min)
+
 export default async function RosterReviewPage({ searchParams }: { searchParams: Promise<{ batch?: string }> }) {
   const { batch: batchParam } = await searchParams
   const me = await getRealEmployee()
@@ -64,16 +66,19 @@ export default async function RosterReviewPage({ searchParams }: { searchParams:
   const seesAll = ops || isSenior
   const shown = seesAll ? items : items.filter(it => it.confirm_team_id && myTeamIds.has(it.confirm_team_id) && shownToStore(it, ledTeams))
   const shownIds = new Set(shown.map(it => it.id))
-  const comments = (commentsRes.data ?? []).reverse().filter(c => seesAll || (c.item_id && shownIds.has(c.item_id)))
+  // 店長には、店長の確認の段階からのやりとりだけを出す（下書き・概要の確認のやりとりは出さない）
+  const comments = (commentsRes.data ?? []).reverse().filter(c => seesAll || (c.item_id && shownIds.has(c.item_id) && atLeastStage(c.stage, 'store')))
 
   // 行に出す人（MB のアカウント・回答した人・コメントした人・上長）の名前と、いまの状態
-  const empIds = new Set<string>()
+  const baseIds = new Set<string>()
+  const empIds = baseIds
   for (const it of shown) { if (it.employee_id) empIds.add(it.employee_id); if (it.store_answered_by) empIds.add(it.store_answered_by); if (it.ops_by) empIds.add(it.ops_by) }
   for (const c of comments) empIds.add(c.author_id)
   if (seesAll) for (const id of batch.senior_ids) empIds.add(id)
 
   // 同じ名前の MB アカウント（重複アカウントを並べて見比べる）。空白・全角半角の違いは無視する
   const allNames = await fetchAllRows<{ id: string; name: string }>((from, to) => db.from('employees').select('id, name').order('id').range(from, to))
+  const dupCand = new Set<string>()
   const nameOf = new Map(allNames.map(e => [e.id, e.name]))
   const byName = new Map<string, string[]>()
   for (const e of allNames) { const k = normName(e.name); if (k) byName.set(k, [...(byName.get(k) ?? []), e.id]) }
@@ -81,10 +86,20 @@ export default async function RosterReviewPage({ searchParams }: { searchParams:
   for (const it of shown) {
     const keys = new Set([normName(it.roster.name || [it.roster.last_name, it.roster.first_name].filter(Boolean).join('')), it.employee_id ? normName(nameOf.get(it.employee_id) ?? '') : ''].filter(Boolean))
     const others = [...new Set([...keys].flatMap(k => byName.get(k) ?? []))].filter(id => id !== it.employee_id)
-    if (others.length) { dupes[it.id] = others; others.forEach(id => empIds.add(id)) }
+    if (others.length) { dupes[it.id] = others; others.forEach(id => dupCand.add(id)) }
   }
-  for (const it of shown) for (const id of it.dup_stop_ids ?? []) empIds.add(id)
 
+  // 店長には、自分の店舗に所属する同じ名前のアカウントだけを見せる（ほかの店舗の方の情報は出さない）
+  if (!seesAll && dupCand.size) {
+    const cand = [...dupCand]
+    const inMyStore = new Set<string>()
+    for (let i = 0; i < cand.length; i += 100) {
+      const { data: m } = await db.from('team_members').select('employee_id, team_id').in('employee_id', cand.slice(i, i + 100))
+      for (const r of m ?? []) if (myTeamIds.has(r.team_id)) inMyStore.add(r.employee_id)
+    }
+    for (const k of Object.keys(dupes)) { dupes[k] = dupes[k].filter(id => inMyStore.has(id)); if (!dupes[k].length) delete dupes[k] }
+    for (const id of inMyStore) empIds.add(id)
+  } else for (const id of dupCand) empIds.add(id)
   const ids = [...empIds]
   const emps: { id: string; name: string; employment_type: string | null; business_role_ids: string[] | null; left_at?: string | null; system_permission: SystemPermission; created_at: string; last_login_at?: string | null; auth_user_id: string | null }[] = []
   const mem: { team_id: string; employee_id: string }[] = []
