@@ -187,6 +187,20 @@ export default async function SettingsPage() {
           </Link>
 
           <Link
+            href="/roster-review"
+            className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white p-4 hover:bg-gray-50 transition-colors"
+          >
+            <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center flex-shrink-0">
+              <UserCheck className="w-5 h-5 text-orange-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-gray-800">在職者の確認</p>
+              <p className="text-xs text-gray-500">人事の社員リストと MB のアカウントの違いを、店長・上長に確かめてからまとめて反映する</p>
+            </div>
+            <ChevronRight className="w-4 h-4 text-gray-300" />
+          </Link>
+
+          <Link
             href="/admin/account-issue"
             className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white p-4 hover:bg-gray-50 transition-colors"
           >

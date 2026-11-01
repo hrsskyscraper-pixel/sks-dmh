@@ -495,6 +495,30 @@ export type Database = {
         }
         Relationships: []
       }
+      roster_review_batches: {
+        Row: RosterReviewBatchRow
+        Insert: Partial<RosterReviewBatchRow> & { title: string }
+        Update: Partial<RosterReviewBatchRow>
+        Relationships: []
+      }
+      roster_review_items: {
+        Row: RosterReviewItemRow
+        Insert: Partial<RosterReviewItemRow> & { batch_id: string }
+        Update: Partial<RosterReviewItemRow>
+        Relationships: []
+      }
+      roster_review_signoffs: {
+        Row: { batch_id: string; employee_id: string; approved: boolean; comment: string | null; updated_at: string }
+        Insert: { batch_id: string; employee_id: string; approved?: boolean; comment?: string | null; updated_at?: string }
+        Update: { approved?: boolean; comment?: string | null; updated_at?: string }
+        Relationships: []
+      }
+      roster_review_comments: {
+        Row: { id: string; batch_id: string; item_id: string | null; author_id: string; stage: string; body: string; created_at: string }
+        Insert: { id?: string; batch_id: string; item_id?: string | null; author_id: string; stage: string; body: string; created_at?: string }
+        Update: { body?: string }
+        Relationships: []
+      }
       account_claims: {
         Row: {
           id: string
@@ -1612,3 +1636,67 @@ export type PhaseMilestone = {
 
 // ダッシュボードで使うマイルストーンマップ（start/end を計算済み）
 export type MilestoneMap = Record<string, { start: number; end: number }>
+
+// 在職者の確認（2026-11-01）
+export type RosterReviewStage = 'draft' | 'ops_preview' | 'store' | 'senior' | 'dev_check' | 'apply' | 'done'
+export type RosterReviewAction = 'undecided' | 'none' | 'change' | 'stop' | 'issue' | 'skip'
+export type RosterReviewBatchRow = {
+  id: string
+  title: string
+  stage: RosterReviewStage
+  senior_ids: string[]
+  overview: string | null
+  created_by: string | null
+  stage_changed_at: string
+  decided_by: string | null
+  decided_at: string | null
+  applied_by: string | null
+  applied_at: string | null
+  created_at: string
+  updated_at: string
+}
+/** 社員リストの行（取り込んだときのまま。キーは無いこともある） */
+export type RosterSnapshot = {
+  name?: string
+  last_name?: string
+  first_name?: string
+  last_kana?: string
+  first_kana?: string
+  employee_number?: string
+  employment_type?: string
+  store?: string
+  title?: string
+  check?: string
+  answer?: string
+  answer_note?: string
+  mb_name?: string
+  mb_team?: string
+}
+export type RosterReviewItemRow = {
+  id: string
+  batch_id: string
+  seq: number
+  roster: RosterSnapshot
+  employee_id: string | null
+  action: RosterReviewAction
+  target_employment_type: '社員' | 'メイト' | null
+  target_team_id: string | null
+  target_role_ids: string[] | null
+  stop_reason: 'left' | 'shared' | 'duplicate' | null
+  confirm_team_id: string | null
+  dev_note: string | null
+  ops_preview_note: string | null
+  skip_store: boolean
+  store_answer: 'ok' | 'ng' | null
+  store_message: string | null
+  store_answered_by: string | null
+  store_answered_at: string | null
+  ops_approved: boolean
+  ops_note: string | null
+  ops_by: string | null
+  ops_at: string | null
+  applied_at: string | null
+  apply_result: string | null
+  created_at: string
+  updated_at: string
+}

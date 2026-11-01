@@ -14,6 +14,7 @@ import { TeamRankingServer } from '@/components/dashboard/team-ranking-server'
 import { CheckpointRecords } from '@/components/dashboard/checkpoint-records'
 import { AnnouncementsServer } from '@/components/announcements/announcements-server'
 import { SetupIncompleteNotice } from '@/components/dashboard/setup-incomplete-notice'
+import { RosterReviewNotice } from '@/components/roster-review/roster-review-notice'
 import { SkillRankingServer } from '@/components/dashboard/skill-ranking-server'
 import { SELECTED_PROJECT_COOKIE } from '@/lib/selected-project'
 import { buildMilestoneMap } from '@/lib/milestone'
@@ -354,9 +355,16 @@ export default async function DashboardPage({
           </Suspense>
         }
         setupNoticeSlot={
-          <Suspense fallback={null}>
-            <SetupIncompleteNotice employeeId={employee.id} />
-          </Suspense>
+          <>
+            {!viewingAs && (
+              <Suspense fallback={null}>
+                <RosterReviewNotice />
+              </Suspense>
+            )}
+            <Suspense fallback={null}>
+              <SetupIncompleteNotice employeeId={employee.id} />
+            </Suspense>
+          </>
         }
         skillRankingSlot={
           <div className="mt-4">

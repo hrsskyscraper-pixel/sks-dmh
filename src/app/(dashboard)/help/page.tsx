@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   LayoutDashboard, CheckSquare, BadgeCheck, Building2, Users2, Settings,
-  Award, MessageCircle, UserPlus, Pencil, Bell, LogIn, Mail,
+  Award, MessageCircle, UserPlus, Pencil, Bell, LogIn, Mail, ClipboardCheck,
   ChevronRight, HelpCircle, ShieldCheck, Sparkles, Target, TrendingUp, FileText,
   Cog, Tag, BookOpen, Database, Upload, FolderKanban, Search, X, ClipboardList, Type, FlaskConical, Lightbulb, BarChart3,
   MessageCircleQuestion,
@@ -544,6 +544,25 @@ Mission Board は、権限者（店長・リーダー・運用管理者など）
 **断られる場合**
 - いまログインしている Google アカウントが、すでに別の方として登録されている（アカウントの重複を作らないため）。以前の退職済みのアカウントや、承認待ちの登録がつながっているときも断ります（画面にそう出ます）
 - リンクが使用済み・期限切れ・作り直し済み`,
+  },
+  {
+    id: 'roster-review',
+    title: '在職者の確認',
+    icon: ClipboardCheck,
+    content: `人事の社員リスト（正）と MB のアカウントの違いを、**1人1行の変更案**にして、店長・上長に確かめてから **まとめて反映** します。
+**設定 → 在職者の確認**（店長・上長は、ホームに出る「在職者の確認のお願い」）から開きます。
+
+**流れ**
+1. **下書き（須貝）**: 社員リストとの違いを取り込み、行ごとに「内容を直す／アカウントを止める／アカウントを発行する／MB は使わない／変えない」を決めます。原島さんの確認結果を承認する上長も選びます
+2. **概要の確認（原島さん）**: 概要と変更案を見て、その時点で分かることを書きます。ここで決まった行は「店長には回さない」にできます
+3. **店長の確認・担当者承認**: 店長には、自分の店舗の方の行だけが出ます。「このように変更しますが、問題ありませんか？」に **問題ない／問題ある** で答え、メッセージ（自由記入）を書けます。原島さんは回答を見ながら、1行ずつ担当者として承認します（店舗の無い方の行は、店長を飛ばして原島さんへ直接）
+4. **上長の確認・会社としての決定**: 上長（菅原部長・諸沢社長など）が同時に承認・コメントします。原島さんはコメントを受けて、必要なら上長・店長と調整して案を直し（直すと上長の承認はやり直し）、「**アカウントの変更処理を会社として決定。これで依頼する。**」を押します
+5. **須貝の確認**: 会社としての変更案を確かめます。調整が要るときは、原島さんの段階に戻せます
+6. **反映（原島さん）**: 「まとめて反映」で MB に反映します。区分・役職・店舗を直す／退職日を入れて止める／アカウントを発行して本人用のリンクを作る、をまとめて行います
+
+**知らせ方**
+- メール・LINE は送りません。自分の番が来ると、**ホームに「在職者の確認のお願い」** が出ます。あわせて、社内の連絡手段で一声かけてください
+- 行ごと・全体の「やりとり」に書いた内容は、関わる人（原島さん・上長・その店舗の店長）に見えます。須貝のメモは店長には見えません`,
   },
   {
     id: 'roster-import',
