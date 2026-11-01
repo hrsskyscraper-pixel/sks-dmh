@@ -72,7 +72,9 @@ export type ItemPatch = {
   target_employment_type?: '社員' | 'メイト' | null
   target_team_id?: string | null
   target_role_ids?: string[] | null
-  stop_reason?: 'left' | 'shared' | 'duplicate' | null
+  stop_reason?: 'left' | 'shared' | 'duplicate' | 'other' | null
+  stop_note?: string | null
+  fix_name?: boolean
   confirm_team_id?: string | null
   skip_store?: boolean
   dev_note?: string | null
@@ -91,7 +93,8 @@ export async function updateItem(itemId: string, patch: ItemPatch): Promise<Resu
   if (patch.action && patch.action !== 'change' && (item.dup_stop_ids ?? []).length) return { error: '重複アカウントをまとめた行です。「まとめるのをやめる」を押してから、変えてください' }
   if (item.merged_into && patch.action && patch.action !== item.action) return { error: 'ほかの行にまとめた行です。まとめ先の行で「まとめるのをやめる」を押してから、変えてください' }
   if (patch.action === 'undecided' && batch.stage !== 'draft') return { error: '「まだ決めていない」は下書きのときだけ選べます' }
-  if (badNote(patch.dev_note) || badNote(patch.ops_preview_note)) return { error: `メモは ${NOTE_MAX} 文字までで、使えない文字は入れないでください` }
+  if (patch.stop_reason !== undefined && patch.stop_reason !== null && !['left', 'shared', 'duplicate', 'other'].includes(patch.stop_reason)) return { error: '止める理由を選び直してください' }
+  if (badNote(patch.dev_note) || badNote(patch.ops_preview_note) || badNote(patch.stop_note)) return { error: `メモは ${NOTE_MAX} 文字までで、使えない文字は入れないでください` }
   if ((patch.target_role_ids ?? []).length > 10) return { error: '役職が多すぎます' }
 
   const db = createAdminClient()
@@ -106,14 +109,15 @@ export async function updateItem(itemId: string, patch: ItemPatch): Promise<Resu
   }
 
   const next: Record<string, unknown> = { updated_at: new Date().toISOString() }
-  for (const k of ['action', 'target_employment_type', 'target_team_id', 'target_role_ids', 'stop_reason', 'confirm_team_id', 'skip_store'] as const) {
+  for (const k of ['action', 'target_employment_type', 'target_team_id', 'target_role_ids', 'stop_reason', 'fix_name', 'confirm_team_id', 'skip_store'] as const) {
     if (patch[k] !== undefined) next[k] = patch[k]
   }
   if (patch.dev_note !== undefined) next.dev_note = cleanNote(patch.dev_note)
   if (patch.ops_preview_note !== undefined) next.ops_preview_note = cleanNote(patch.ops_preview_note)
+  if (patch.stop_note !== undefined) next.stop_note = cleanNote(patch.stop_note)
   // 実際に変わった項目だけで判定する（画面は保存のたびに全部の項目を送る）
   const same = (a: unknown, b: unknown) => JSON.stringify(Array.isArray(a) ? [...a].sort() : a ?? null) === JSON.stringify(Array.isArray(b) ? [...b].sort() : b ?? null)
-  const contentChanged = (['action', 'target_employment_type', 'target_team_id', 'target_role_ids', 'stop_reason'] as const).some(k => patch[k] !== undefined && !same(patch[k], item[k]))
+  const contentChanged = (['action', 'target_employment_type', 'target_team_id', 'target_role_ids', 'stop_reason', 'stop_note', 'fix_name'] as const).some(k => patch[k] !== undefined && !same(patch[k], item[k]))
   // 店長の「退職済み」に合わせて案を直した（退職で止める／MB は使わない）ときは、店長の回答を残す
   const followsLeft = item.store_answer === 'left' && (
     (next.action ?? item.action) === 'skip' || ((next.action ?? item.action) === 'stop' && (next.stop_reason ?? item.stop_reason) === 'left'))
@@ -203,8 +207,8 @@ async function storesWithLeader(): Promise<Set<string>> {
 
 async function batchItems(batchId: string) {
   const db = createAdminClient()
-  return fetchAllRows<Pick<RosterReviewItemRow, 'id' | 'action' | 'ops_approved' | 'skip_store' | 'confirm_team_id' | 'store_answer' | 'employee_id' | 'target_team_id' | 'target_employment_type' | 'stop_reason' | 'roster'>>((from, to) =>
-    db.from('roster_review_items').select('id, action, ops_approved, skip_store, confirm_team_id, store_answer, employee_id, target_team_id, target_employment_type, stop_reason, roster').eq('batch_id', batchId).order('id').range(from, to))
+  return fetchAllRows<Pick<RosterReviewItemRow, 'id' | 'action' | 'ops_approved' | 'skip_store' | 'confirm_team_id' | 'store_answer' | 'employee_id' | 'target_team_id' | 'target_employment_type' | 'stop_reason' | 'stop_note' | 'roster'>>((from, to) =>
+    db.from('roster_review_items').select('id, action, ops_approved, skip_store, confirm_team_id, store_answer, employee_id, target_team_id, target_employment_type, stop_reason, stop_note, roster').eq('batch_id', batchId).order('id').range(from, to))
 }
 
 /** 反映できない形の行の数（段階を進める前に止める） */
@@ -212,7 +216,7 @@ function invalidCount(rows: Awaited<ReturnType<typeof batchItems>>): number {
   return rows.filter(r =>
     (r.action === 'issue' && (!!r.employee_id || !r.target_team_id || !r.target_employment_type || !(r.roster.last_name || r.roster.name))) ||
     ((r.action === 'change' || r.action === 'stop') && !r.employee_id) ||
-    (r.action === 'stop' && !r.stop_reason)).length
+    (r.action === 'stop' && (!r.stop_reason || (r.stop_reason === 'other' && !r.stop_note)))).length
 }
 
 /** 店長に回さない行（店舗の無い方・原島さんが決めた行）を、まとめて担当者承認する。店長に回す行は1行ずつ */
@@ -481,7 +485,7 @@ async function applyOne(it: RosterReviewItemRow, roleMap: Map<string, RoleSettin
   }
 
   if (!it.employee_id) return '×MB のアカウントがつながっていません'
-  const { data: emp } = await db.from('employees').select('id, employment_type, business_role_ids, system_permission, left_at').eq('id', it.employee_id).maybeSingle()
+  const { data: emp } = await db.from('employees').select('id, name, last_name, first_name, employment_type, business_role_ids, system_permission, left_at').eq('id', it.employee_id).maybeSingle()
   if (!emp) return '×MB のアカウントが見つかりません'
 
   if (it.action === 'stop') {
@@ -502,6 +506,12 @@ async function applyOne(it: RosterReviewItemRow, roleMap: Map<string, RoleSettin
   const notes: string[] = []
   const patch: Record<string, unknown> = {}
   if (it.target_employment_type && it.target_employment_type !== emp.employment_type) patch.employment_type = it.target_employment_type
+  // 氏名を社員リストの氏名に直す
+  if (it.fix_name && it.roster.last_name) {
+    const last = it.roster.last_name.trim(), first = (it.roster.first_name ?? '').trim()
+    const full = [last, first].filter(Boolean).join(' ')
+    if (full !== emp.name || last !== emp.last_name || first !== (emp.first_name ?? '')) { patch.last_name = last; patch.first_name = first; patch.name = full; notes.push('氏名を直しました') }
+  }
   if (it.target_role_ids) {
     const nextIds = it.target_role_ids.filter(id => roleMap.has(id))
     const same = nextIds.length === (emp.business_role_ids ?? []).length && nextIds.every(id => (emp.business_role_ids ?? []).includes(id))
@@ -518,7 +528,7 @@ async function applyOne(it: RosterReviewItemRow, roleMap: Map<string, RoleSettin
   }
   if (Object.keys(patch).length) {
     const { error } = await db.from('employees').update(patch).eq('id', emp.id)
-    if (error) return '×区分・役職を直せませんでした'
+    if (error) return '×氏名・区分・役職を直せませんでした'
   }
   if (it.target_team_id && (emp.system_permission === 'ops_admin' || emp.system_permission === 'developer')) {
     // 上長（運用管理者・開発者）は育成の対象に入れない（店舗のメンバーにしない）
@@ -550,7 +560,7 @@ async function applyOne(it: RosterReviewItemRow, roleMap: Map<string, RoleSettin
   }
   await writeAuditLog({
     action: 'roster_review_apply', actorId: me.id, targetId: emp.id,
-    details: { item: it.id, action: 'change', from: { employment_type: emp.employment_type, business_role_ids: emp.business_role_ids, system_permission: emp.system_permission }, to: patch, team: it.target_team_id },
+    details: { item: it.id, action: 'change', from: { name: patch.name ? emp.name : undefined, employment_type: emp.employment_type, business_role_ids: emp.business_role_ids, system_permission: emp.system_permission }, to: patch, team: it.target_team_id },
   }).catch(() => {})
   return notes.length ? `直しました（${notes.join('・')}）` : '直しました'
 }

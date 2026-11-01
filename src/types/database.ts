@@ -1682,7 +1682,11 @@ export type RosterReviewItemRow = {
   target_employment_type: '社員' | 'メイト' | null
   target_team_id: string | null
   target_role_ids: string[] | null
-  stop_reason: 'left' | 'shared' | 'duplicate' | null
+  stop_reason: 'left' | 'shared' | 'duplicate' | 'other' | null
+  /** 止める理由が「その他」のときの理由（migration 20261102000100） */
+  stop_note: string | null
+  /** 反映のとき、MB の氏名を社員リストの氏名に直す */
+  fix_name: boolean
   confirm_team_id: string | null
   dev_note: string | null
   ops_preview_note: string | null

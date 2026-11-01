@@ -32,11 +32,30 @@ export const ACTION_LABEL: Record<RosterReviewAction, string> = {
   skip: 'MB は使わない',
 }
 
-export const STOP_REASON_LABEL: Record<'left' | 'shared' | 'duplicate', string> = {
+export type StopReason = 'left' | 'shared' | 'duplicate' | 'other'
+export const STOP_REASON_LABEL: Record<StopReason, string> = {
   left: '退職',
   shared: '共有アカウント',
   duplicate: '重複アカウント',
+  other: 'その他',
 }
+/** 変更案で選べる止める理由（重複は「これを活かして、ほかを止める」でまとめる） */
+export const STOP_REASON_CHOICES: StopReason[] = ['left', 'shared', 'other']
+
+/** 店長・上長に見せる、止める理由ごとのお知らせ */
+export function stopMessage(reason: StopReason | null, note: string | null): string {
+  switch (reason) {
+    case 'left': return '退職されたため、アカウントを止めます'
+    case 'shared': return '共有のアカウントのため、止めます（お一人ずつのアカウントを使っていただきます）'
+    case 'duplicate': return '同じ方のアカウントが2つあるため、片方を止めます'
+    case 'other': return `アカウントを止めます（${note || '理由は未入力'}）`
+    default: return 'アカウントを止めます（理由は未入力）'
+  }
+}
+
+/** 社員リストの氏名（姓 名） */
+export const rosterFullName = (r: { last_name?: string; first_name?: string; name?: string }) =>
+  [r.last_name, r.first_name].filter(Boolean).join(' ') || r.name || ''
 
 /** 段階を1つ進めた先 */
 export function nextStage(stage: RosterReviewStage): RosterReviewStage | null {
@@ -71,6 +90,7 @@ export const QUIET_NOTE = '下記の方々は、特に問合せ事項は有り�
 export const isApplicable = (action: RosterReviewAction) => action === 'change' || action === 'stop' || action === 'issue'
 
 export type CurrentState = {
+  name?: string
   employment_type: string | null
   team_names: string[]
   role_names: string[]
@@ -83,14 +103,14 @@ export type CurrentState = {
  * 今の MB の状態と、変更後を比べて、違うところだけを並べる。
  */
 export function describeChange(
-  item: Pick<RosterReviewItemRow, 'action' | 'target_employment_type' | 'target_team_id' | 'target_role_ids' | 'stop_reason'>,
+  item: Pick<RosterReviewItemRow, 'action' | 'target_employment_type' | 'target_team_id' | 'target_role_ids' | 'stop_reason' | 'stop_note' | 'fix_name' | 'roster'>,
   current: CurrentState | null,
   names: { team: (id: string) => string; role: (id: string) => string; std?: (id: string) => SystemPermission | null },
 ): string[] {
   const roles = (ids: string[] | null) => (ids ?? []).map(names.role).join('・') || 'なし'
   switch (item.action) {
     case 'stop':
-      return [`アカウントを止めます（${item.stop_reason ? STOP_REASON_LABEL[item.stop_reason] : '理由は未入力'}）`]
+      return [stopMessage(item.stop_reason, item.stop_note)]
     case 'issue':
       return [
         'アカウントを発行します（承認の権限は役職の標準。リーダーなら、その店舗・部署のリーダーにも登録します）',
@@ -100,6 +120,10 @@ export function describeChange(
       ]
     case 'change': {
       const lines: string[] = []
+      if (item.fix_name && current?.name !== undefined) {
+        const to = rosterFullName(item.roster)
+        if (to && to !== current.name) lines.push(`氏名: ${current.name} → ${to}（社員リストの氏名に直します）`)
+      }
       if (item.target_employment_type && item.target_employment_type !== current?.employment_type) {
         lines.push(`区分: ${current?.employment_type ?? 'なし'} → ${item.target_employment_type}`)
       }

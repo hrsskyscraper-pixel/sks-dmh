@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
 import { addComment, answerItem, approveItem, mergeDuplicates, unmergeDuplicates, updateItem, type ItemPatch } from '@/app/(dashboard)/roster-review/actions'
-import { ACTION_LABEL, describeChange, isApplicable, STOP_REASON_LABEL } from '@/lib/roster-review'
+import { ACTION_LABEL, describeChange, isApplicable, rosterFullName, STOP_REASON_CHOICES, STOP_REASON_LABEL } from '@/lib/roster-review'
 import type { RosterReviewAction, RosterReviewItemRow, RosterReviewStage } from '@/types/database'
 import type { ReviewData } from './roster-review'
 
@@ -48,7 +48,7 @@ export function ReviewItem({ it, ctx }: { it: RosterReviewItemRow; ctx: ItemCtx 
   const person = it.employee_id ? data.people[it.employee_id] : null
   const teamName = (id: string) => data.teams.find(t => t.id === id)?.name ?? '（不明）'
   const roleName = (id: string) => data.roles.find(r => r.id === id)?.name ?? '（不明）'
-  const current = person ? { employment_type: person.employment_type, team_names: person.team_names, role_names: person.role_ids.map(roleName), role_ids: person.role_ids, permission: person.permission } : null
+  const current = person ? { name: person.name, employment_type: person.employment_type, team_names: person.team_names, role_names: person.role_ids.map(roleName), role_ids: person.role_ids, permission: person.permission } : null
   const brief = (p: ReviewData['people'][string]) => [p.team_names.join('・') || '店舗なし', `登録 ${fmtDate(p.created_at)}`, `認定 ${p.certified ?? 0} 件`].join('・')
   const stopIds = it.dup_stop_ids ?? []
   const mergedTo = it.merged_into ? data.items.find(x => x.id === it.merged_into) : null
@@ -243,6 +243,8 @@ function ItemEditor({ it, data, stage, pending, onSave }: { it: RosterReviewItem
   const [roles, setRoles] = useState<string[]>(it.target_role_ids ?? [])
   const [setRolesOn, setSetRolesOn] = useState(it.target_role_ids !== null)
   const [reason, setReason] = useState(it.stop_reason ?? '')
+  const [stopNote, setStopNote] = useState(it.stop_note ?? '')
+  const [fixName, setFixName] = useState(it.fix_name)
   const [confirmTeam, setConfirmTeam] = useState(it.confirm_team_id ?? '')
   const [skipStore, setSkipStore] = useState(it.skip_store)
   const [devNote, setDevNote] = useState(it.dev_note ?? '')
@@ -255,7 +257,9 @@ function ItemEditor({ it, data, stage, pending, onSave }: { it: RosterReviewItem
     target_employment_type: (type || null) as '社員' | 'メイト' | null,
     target_team_id: team || null,
     target_role_ids: setRolesOn ? roles : null,
-    stop_reason: (reason || null) as 'left' | 'shared' | 'duplicate' | null,
+    stop_reason: (reason || null) as 'left' | 'shared' | 'duplicate' | 'other' | null,
+    stop_note: reason === 'other' ? stopNote : null,
+    fix_name: action === 'change' && fixName,
     confirm_team_id: confirmTeam || null,
     skip_store: skipStore,
     ...(data.me.dev ? { dev_note: devNote } : {}),
@@ -301,9 +305,15 @@ function ItemEditor({ it, data, stage, pending, onSave }: { it: RosterReviewItem
         <label className="block text-[11px] text-gray-600">理由
           <select className={`ml-1 ${sel}`} value={reason} onChange={e => setReason(e.target.value)}>
             <option value="">選ぶ</option>
-            {(Object.keys(STOP_REASON_LABEL) as (keyof typeof STOP_REASON_LABEL)[]).map(k => <option key={k} value={k}>{STOP_REASON_LABEL[k]}</option>)}
+            {[...STOP_REASON_CHOICES, ...(it.stop_reason === 'duplicate' ? ['duplicate' as const] : [])].map(k => <option key={k} value={k}>{STOP_REASON_LABEL[k]}</option>)}
           </select>
         </label>
+      )}
+      {action === 'stop' && reason === 'other' && (
+        <Textarea value={stopNote} onChange={e => setStopNote(e.target.value)} placeholder="止める理由（店長にも見えます。例: 休職中のため、本人からの申し出 など）" className="text-sm min-h-[40px]" />
+      )}
+      {action === 'change' && it.roster.last_name && (
+        <label className="flex items-center gap-1 text-[11px] text-gray-600"><input type="checkbox" checked={fixName} onChange={e => setFixName(e.target.checked)} />氏名を社員リストの氏名（{rosterFullName(it.roster)}）に直す</label>
       )}
       <label className="block text-[11px] text-gray-600">確認してもらう店舗（店長に回す）
         <select className={`ml-1 ${sel} max-w-[16rem]`} value={confirmTeam} onChange={e => setConfirmTeam(e.target.value)}>
