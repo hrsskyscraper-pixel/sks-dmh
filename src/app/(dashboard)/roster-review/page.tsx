@@ -16,6 +16,8 @@ import type { RosterReviewBatchRow, RosterReviewItemRow, SystemPermission } from
  * - 上長（確認ごとに選んだ方）: すべての行（上長の確認の段階から）
  * - 店長（店舗のリーダー）: 自分の店舗に回ってきた行だけ（店長の確認の段階から）
  */
+const normName = (s: string) => s.normalize('NFKC').replace(/\s/g, '')
+
 export default async function RosterReviewPage({ searchParams }: { searchParams: Promise<{ batch?: string }> }) {
   const { batch: batchParam } = await searchParams
   const me = await getRealEmployee()
@@ -71,17 +73,34 @@ export default async function RosterReviewPage({ searchParams }: { searchParams:
   for (const it of shown) { if (it.employee_id) empIds.add(it.employee_id); if (it.store_answered_by) empIds.add(it.store_answered_by); if (it.ops_by) empIds.add(it.ops_by) }
   for (const c of comments) empIds.add(c.author_id)
   if (seesAll) for (const id of batch.senior_ids) empIds.add(id)
+
+  // 同じ名前の MB アカウント（重複アカウントを並べて見比べる）。空白・全角半角の違いは無視する
+  const allNames = await fetchAllRows<{ id: string; name: string }>((from, to) => db.from('employees').select('id, name').order('id').range(from, to))
+  const nameOf = new Map(allNames.map(e => [e.id, e.name]))
+  const byName = new Map<string, string[]>()
+  for (const e of allNames) { const k = normName(e.name); if (k) byName.set(k, [...(byName.get(k) ?? []), e.id]) }
+  const dupes: ReviewData['dupes'] = {}
+  for (const it of shown) {
+    const keys = new Set([normName(it.roster.name || [it.roster.last_name, it.roster.first_name].filter(Boolean).join('')), it.employee_id ? normName(nameOf.get(it.employee_id) ?? '') : ''].filter(Boolean))
+    const others = [...new Set([...keys].flatMap(k => byName.get(k) ?? []))].filter(id => id !== it.employee_id)
+    if (others.length) { dupes[it.id] = others; others.forEach(id => empIds.add(id)) }
+  }
+
   const ids = [...empIds]
-  const emps: { id: string; name: string; employment_type: string | null; business_role_ids: string[] | null; left_at?: string | null; system_permission: SystemPermission }[] = []
+  const emps: { id: string; name: string; employment_type: string | null; business_role_ids: string[] | null; left_at?: string | null; system_permission: SystemPermission; created_at: string; last_login_at?: string | null }[] = []
   const mem: { team_id: string; employee_id: string }[] = []
+  const ach: { employee_id: string; status: string }[] = []
   for (let i = 0; i < ids.length; i += 100) {
     const chunk = ids.slice(i, i + 100)
-    const [e, m] = await Promise.all([
-      db.from('employees').select('id, name, employment_type, business_role_ids, left_at, system_permission').in('id', chunk),
+    const [e, m, a] = await Promise.all([
+      db.from('employees').select('id, name, employment_type, business_role_ids, left_at, system_permission, created_at, last_login_at').in('id', chunk),
       db.from('team_members').select('team_id, employee_id').in('employee_id', chunk),
+      // これまでのスキルの申請・認定の数
+      fetchAllRows<{ employee_id: string; status: string }>((from, to) => db.from('achievements').select('employee_id, status').in('employee_id', chunk).order('id').range(from, to)),
     ])
     emps.push(...(e.data ?? []))
     mem.push(...(m.data ?? []))
+    ach.push(...a)
   }
   const teamName = new Map(teams.map(t => [t.id, t.name]))
   const people: ReviewData['people'] = {}
@@ -93,6 +112,10 @@ export default async function RosterReviewPage({ searchParams }: { searchParams:
       team_names: mem.filter(m => m.employee_id === e.id && teamName.has(m.team_id)).map(m => teamName.get(m.team_id)!),
       left: hasLeft(e.left_at),
       permission: e.system_permission,
+      created_at: e.created_at,
+      last_login_at: e.last_login_at ?? null,
+      applied: ach.filter(a => a.employee_id === e.id).length,
+      certified: ach.filter(a => a.employee_id === e.id && a.status === 'certified').length,
     }
   }
   // 店長には、須貝・原島さんのメモと人事の確認事項・社員番号を見せない（見せるのは、氏名・いまの MB・変更案）
@@ -112,6 +135,7 @@ export default async function RosterReviewPage({ searchParams }: { searchParams:
     ledTeamIds: [...ledTeams],
     roles: (rolesRes.data ?? []).map(r => ({ id: r.id, name: r.name, fullName: r.full_name, std: r.standard_permission ?? null })),
     people,
+    dupes,
     comments,
     signoffs: signoffsRes.data ?? [],
     seniorCandidates: (seniorCandRes.data ?? []).filter(e => !hasLeft(e.left_at) && e.id !== me.id).map(e => ({ id: e.id, name: e.name })),

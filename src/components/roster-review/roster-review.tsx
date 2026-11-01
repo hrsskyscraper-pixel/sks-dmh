@@ -23,7 +23,9 @@ export type ReviewData = {
   /** 店長（リーダー）が登録されている店舗 */
   ledTeamIds: string[]
   roles: { id: string; name: string; fullName: string | null; std: SystemPermission | null }[]
-  people: Record<string, { name: string; employment_type: string | null; role_ids: string[]; team_names: string[]; left: boolean; permission: SystemPermission }>
+  people: Record<string, { name: string; employment_type: string | null; role_ids: string[]; team_names: string[]; left: boolean; permission: SystemPermission; created_at?: string; last_login_at?: string | null; applied?: number; certified?: number }>
+  /** 行ごとの、同じ名前のほかの MB アカウント */
+  dupes: Record<string, string[]>
   comments: { id: string; item_id: string | null; author_id: string; stage: string; body: string; created_at: string }[]
   signoffs: { employee_id: string; approved: boolean; comment: string | null; updated_at: string }[]
   seniorCandidates: { id: string; name: string }[]

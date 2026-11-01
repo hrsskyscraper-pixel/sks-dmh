@@ -11,6 +11,7 @@ import { ACTION_LABEL, describeChange, isApplicable, STOP_REASON_LABEL } from '@
 import type { RosterReviewAction, RosterReviewItemRow, RosterReviewStage } from '@/types/database'
 import type { ReviewData } from './roster-review'
 
+const fmtDate = (iso: string | null | undefined) => iso ? new Date(iso).toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: 'numeric', day: 'numeric' }) : 'なし'
 const fmt = (iso: string) => new Date(iso).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 
 export type ItemCtx = {
@@ -43,6 +44,8 @@ export function ReviewItem({ it, ctx }: { it: RosterReviewItemRow; ctx: ItemCtx 
   const lines = describeChange(it, current, { team: teamName, role: roleName, std: id => data.roles.find(r => r.id === id)?.std ?? null })
   const name = it.roster.name || [it.roster.last_name, it.roster.first_name].filter(Boolean).join(' ') || person?.name || '（氏名なし）'
   const thread = data.comments.filter(c => c.item_id === it.id)
+  const dupes = (data.dupes[it.id] ?? []).filter(id => data.people[id])
+  const usage = (p: ReviewData['people'][string]) => `スキルの申請 ${p.applied ?? 0} 件・認定 ${p.certified ?? 0} 件・登録 ${fmtDate(p.created_at)}・最終ログイン ${fmtDate(p.last_login_at)}`
   const toStore = ctx.toStore(it)
   const answeredBy = it.store_answered_by ? data.people[it.store_answered_by]?.name : null
   const showStore = preview || (stage !== 'draft' && stage !== 'ops_preview' && toStore)
@@ -67,11 +70,28 @@ export function ReviewItem({ it, ctx }: { it: RosterReviewItemRow; ctx: ItemCtx 
             いまの MB: {person ? [person.employment_type, person.team_names.join('・'), person.role_ids.map(roleName).join('・')].filter(Boolean).join('・') || '—' : 'アカウントなし'}
             {person?.left ? '（止まっています）' : ''}
           </p>
+          {person && !dupes.length && <p className="text-[11px] text-gray-500">{usage(person)}</p>}
         </div>
         <Badge variant="secondary" className="text-[11px]">{ACTION_LABEL[it.action]}</Badge>
         {!preview && !toStore && isApplicable(it.action) && stage !== 'draft' && <Badge variant="outline" className="text-[11px]">原島さんへ直接</Badge>}
         {!preview && it.ops_approved && <Badge className="text-[11px] bg-emerald-600">担当者承認済み</Badge>}
       </div>
+
+      {dupes.length > 0 && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-2">
+          <p className="text-[11px] font-semibold text-amber-800">同じ名前の MB アカウントが {dupes.length + (person ? 1 : 0)} つあります。並べて見比べられます</p>
+          <div className="mt-1 grid gap-2 grid-cols-1 sm:grid-cols-2">
+            {[...(it.employee_id && person ? [{ id: it.employee_id, p: person, mine: true }] : []), ...dupes.map(id => ({ id, p: data.people[id], mine: false }))].filter(x => x.p).map(({ id, p, mine }) => (
+              <div key={id} className={`rounded-md border bg-white p-2 text-[11px] text-gray-600 ${mine ? 'border-orange-400' : 'border-gray-200'}`}>
+                <p className="text-xs font-semibold text-gray-800">{p.name}{mine ? <span className="ml-1 text-orange-700">（この行のアカウント）</span> : ''}{p.left ? <span className="ml-1 text-gray-500">（止まっています）</span> : ''}</p>
+                <p>{[p.employment_type, p.team_names.join('・'), p.role_ids.map(roleName).join('・')].filter(Boolean).join('・') || '—'}</p>
+                <p>スキルの申請 {p.applied ?? 0} 件・認定 {p.certified ?? 0} 件</p>
+                <p>登録 {fmtDate(p.created_at)}・最終ログイン {fmtDate(p.last_login_at)}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="rounded-lg bg-orange-50 border border-orange-100 px-3 py-2">
         <p className="text-[11px] text-orange-700 font-semibold">このように変更します</p>
@@ -104,7 +124,7 @@ export function ReviewItem({ it, ctx }: { it: RosterReviewItemRow; ctx: ItemCtx 
           )}
           {preview && (
             <>
-              <Textarea placeholder="メッセージ（自由記入。「問題ある」のときは、どこが違うかを書いてください）" className="text-sm min-h-[56px]" disabled />
+              <Textarea placeholder="メッセージ（任意。「問題ある」のときは、どこが違うかを書いていただけると助かります）" className="text-sm min-h-[56px]" disabled />
               <div className="flex gap-2">
                 <Button size="sm" className="bg-emerald-600" disabled>問題ない</Button>
                 <Button size="sm" variant="outline" className="border-red-300 text-red-700" disabled>問題ある</Button>
@@ -114,7 +134,7 @@ export function ReviewItem({ it, ctx }: { it: RosterReviewItemRow; ctx: ItemCtx 
           {!preview && !it.store_answer && stage !== 'store' && <p className="text-xs text-gray-500">回答はありません</p>}
           {!preview && stage === 'store' && ctx.canAnswer(it) && (
             <>
-              <Textarea value={msg} onChange={e => setMsg(e.target.value)} placeholder="メッセージ（自由記入。「問題ある」のときは、どこが違うかを書いてください）" className="text-sm min-h-[56px]" disabled={isPending} />
+              <Textarea value={msg} onChange={e => setMsg(e.target.value)} placeholder="メッセージ（任意。「問題ある」のときは、どこが違うかを書いていただけると助かります）" className="text-sm min-h-[56px]" disabled={isPending} />
               <div className="flex gap-2">
                 <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" disabled={isPending} onClick={() => run(() => answerItem(it.id, 'ok', msg), '送りました')}>問題ない</Button>
                 <Button size="sm" variant="outline" className="border-red-300 text-red-700" disabled={isPending} onClick={() => run(() => answerItem(it.id, 'ng', msg), '送りました')}>問題ある</Button>
