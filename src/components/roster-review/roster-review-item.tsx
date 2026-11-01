@@ -20,12 +20,15 @@ export type ItemCtx = {
   /** 店長として答えられる（その店舗のリーダー）か、代わりに入れられる（原島さん） */
   canAnswer: (it: RosterReviewItemRow) => boolean
   toStore: (it: RosterReviewItemRow) => boolean
+  /** 店長の画面の見本（須貝・原島さん・上長が、店長にどう見えるかを確かめる。操作はできない） */
+  preview?: boolean
 }
 
 export function ReviewItem({ it, ctx }: { it: RosterReviewItemRow; ctx: ItemCtx }) {
   const { data, stage } = ctx
+  const preview = !!ctx.preview
   // 反映でうまくいかなかった行は、反映の段階でも原島さんが直せる
-  const canEdit = ctx.canEdit || (stage === 'apply' && data.me.ops && !it.applied_at && (it.apply_result ?? '').startsWith('×'))
+  const canEdit = !preview && (ctx.canEdit || (stage === 'apply' && data.me.ops && !it.applied_at && (it.apply_result ?? '').startsWith('×')))
   const [isPending, startTransition] = useTransition()
   const [editing, setEditing] = useState(false)
   const [openThread, setOpenThread] = useState(false)
@@ -42,8 +45,8 @@ export function ReviewItem({ it, ctx }: { it: RosterReviewItemRow; ctx: ItemCtx 
   const thread = data.comments.filter(c => c.item_id === it.id)
   const toStore = ctx.toStore(it)
   const answeredBy = it.store_answered_by ? data.people[it.store_answered_by]?.name : null
-  const showStore = stage !== 'draft' && stage !== 'ops_preview' && toStore
-  const showApprove = data.me.ops && (stage === 'store' || stage === 'senior') && isApplicable(it.action)
+  const showStore = preview || (stage !== 'draft' && stage !== 'ops_preview' && toStore)
+  const showApprove = !preview && data.me.ops && (stage === 'store' || stage === 'senior') && isApplicable(it.action)
 
   const run = (fn: () => Promise<{ error?: string }>, ok?: string) => startTransition(async () => {
     const res = await fn()
@@ -58,7 +61,7 @@ export function ReviewItem({ it, ctx }: { it: RosterReviewItemRow; ctx: ItemCtx 
           <p className="text-sm font-semibold text-gray-800">{name}</p>
           <p className="text-[11px] text-gray-500">
             社員リスト: {[it.roster.employment_type, it.roster.store, it.roster.title].filter(Boolean).join('・') || '—'}
-            {it.roster.employee_number ? `（社員番号 ${it.roster.employee_number}）` : ''}
+            {it.roster.employee_number && !preview ? `（社員番号 ${it.roster.employee_number}）` : ''}
           </p>
           <p className="text-[11px] text-gray-500">
             いまの MB: {person ? [person.employment_type, person.team_names.join('・'), person.role_ids.map(roleName).join('・')].filter(Boolean).join('・') || '—' : 'アカウントなし'}
@@ -66,8 +69,8 @@ export function ReviewItem({ it, ctx }: { it: RosterReviewItemRow; ctx: ItemCtx 
           </p>
         </div>
         <Badge variant="secondary" className="text-[11px]">{ACTION_LABEL[it.action]}</Badge>
-        {!toStore && isApplicable(it.action) && stage !== 'draft' && <Badge variant="outline" className="text-[11px]">原島さんへ直接</Badge>}
-        {it.ops_approved && <Badge className="text-[11px] bg-emerald-600">担当者承認済み</Badge>}
+        {!preview && !toStore && isApplicable(it.action) && stage !== 'draft' && <Badge variant="outline" className="text-[11px]">原島さんへ直接</Badge>}
+        {!preview && it.ops_approved && <Badge className="text-[11px] bg-emerald-600">担当者承認済み</Badge>}
       </div>
 
       <div className="rounded-lg bg-orange-50 border border-orange-100 px-3 py-2">
@@ -75,7 +78,7 @@ export function ReviewItem({ it, ctx }: { it: RosterReviewItemRow; ctx: ItemCtx 
         <ul className="text-sm text-gray-800 list-disc pl-5">{lines.map(l => <li key={l}>{l}</li>)}</ul>
       </div>
 
-      {(it.roster.check || it.dev_note || it.ops_preview_note) && (
+      {!preview && (it.roster.check || it.dev_note || it.ops_preview_note) && (
         <div className="text-[11px] text-gray-600 space-y-0.5">
           {it.roster.check && <p>確認事項: {it.roster.check}</p>}
           {it.dev_note && <p>須貝のメモ: {it.dev_note}</p>}
@@ -99,8 +102,17 @@ export function ReviewItem({ it, ctx }: { it: RosterReviewItemRow; ctx: ItemCtx 
               <span className="ml-1 text-[11px] text-gray-500">（{answeredBy ?? ''} {it.store_answered_at ? fmt(it.store_answered_at) : ''}）</span>
             </p>
           )}
-          {!it.store_answer && stage !== 'store' && <p className="text-xs text-gray-500">回答はありません</p>}
-          {stage === 'store' && ctx.canAnswer(it) && (
+          {preview && (
+            <>
+              <Textarea placeholder="メッセージ（自由記入。「問題ある」のときは、どこが違うかを書いてください）" className="text-sm min-h-[56px]" disabled />
+              <div className="flex gap-2">
+                <Button size="sm" className="bg-emerald-600" disabled>問題ない</Button>
+                <Button size="sm" variant="outline" className="border-red-300 text-red-700" disabled>問題ある</Button>
+              </div>
+            </>
+          )}
+          {!preview && !it.store_answer && stage !== 'store' && <p className="text-xs text-gray-500">回答はありません</p>}
+          {!preview && stage === 'store' && ctx.canAnswer(it) && (
             <>
               <Textarea value={msg} onChange={e => setMsg(e.target.value)} placeholder="メッセージ（自由記入。「問題ある」のときは、どこが違うかを書いてください）" className="text-sm min-h-[56px]" disabled={isPending} />
               <div className="flex gap-2">
@@ -121,11 +133,11 @@ export function ReviewItem({ it, ctx }: { it: RosterReviewItemRow; ctx: ItemCtx 
             : <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" disabled={isPending} onClick={() => run(() => approveItem(it.id, true, note), '承認しました')}>担当者として承認</Button>}
         </div>
       )}
-      {!showApprove && it.ops_note && <p className="text-[11px] text-gray-600">担当者のメモ: {it.ops_note}</p>}
+      {!preview && !showApprove && it.ops_note && <p className="text-[11px] text-gray-600">担当者のメモ: {it.ops_note}</p>}
 
-      {it.apply_result && <p className={`text-xs ${it.apply_result.startsWith('×') ? 'text-red-700' : 'text-emerald-700'}`}>反映: {it.apply_result.replace(/^×/, '')}</p>}
+      {!preview && it.apply_result && <p className={`text-xs ${it.apply_result.startsWith('×') ? 'text-red-700' : 'text-emerald-700'}`}>反映: {it.apply_result.replace(/^×/, '')}</p>}
 
-      <div>
+      {!preview && <div>
         <button type="button" className="flex items-center gap-1 text-[11px] text-gray-500" onClick={() => setOpenThread(v => !v)}>
           {openThread ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}<MessageSquare className="w-3 h-3" />この方についてのやりとり（{thread.length}）
         </button>
@@ -142,7 +154,7 @@ export function ReviewItem({ it, ctx }: { it: RosterReviewItemRow; ctx: ItemCtx 
             )}
           </div>
         )}
-      </div>
+      </div>}
     </li>
   )
 }

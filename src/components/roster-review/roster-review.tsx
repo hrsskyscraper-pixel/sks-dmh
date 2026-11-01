@@ -39,6 +39,9 @@ export function RosterReview({ data }: { data: ReviewData }) {
   const [filter, setFilter] = useState<Filter>(me.ops || me.senior ? 'all' : 'todo')
   const [q, setQ] = useState('')
   const [teamFilter, setTeamFilter] = useState('')
+  // 店長の画面の見本（店舗ごとに ◁ ▷ で移る）
+  const [storeView, setStoreView] = useState(false)
+  const [storeIdx, setStoreIdx] = useState(0)
   const [confirm, setConfirm] = useState<null | { to: RosterReviewStage; title: string; body: string; label: string }>(null)
   const [stageMsg, setStageMsg] = useState('')
   const [applying, setApplying] = useState(false)
@@ -110,6 +113,15 @@ export function RosterReview({ data }: { data: ReviewData }) {
     }
   }
 
+  // 店長に回る行がある店舗（店長には、自分の店舗の行だけが出る）
+  const storeGroups = data.teams
+    .filter(t => t.type === 'store')
+    .map(t => ({ team: t, rows: items.filter(it => it.confirm_team_id === t.id && toStore(it)), undecided: items.filter(it => it.confirm_team_id === t.id && it.action === 'undecided').length }))
+    .filter(g => g.rows.length > 0 || g.undecided > 0)
+  const cur = storeGroups[Math.min(storeIdx, Math.max(storeGroups.length - 1, 0))]
+  const move = (d: number) => { setStoreIdx(i => (i + d + storeGroups.length) % storeGroups.length); window.scrollTo({ top: 0, behavior: 'smooth' }) }
+  const previewCtx: ItemCtx = { data: { ...data, me: { ...me, dev: false, ops: false, senior: false } }, stage: 'store', canEdit: false, canAnswer: () => false, toStore, preview: true }
+
   const teamsInItems = data.teams.filter(t => items.some(it => it.confirm_team_id === t.id || it.target_team_id === t.id))
   const directCount = items.filter(it => isApplicable(it.action) && !toStore(it) && !it.ops_approved).length
 
@@ -154,6 +166,36 @@ export function RosterReview({ data }: { data: ReviewData }) {
         </div>
       )}
 
+      {(me.ops || me.dev || me.senior) && storeGroups.length > 0 && (
+        <div className="flex gap-2">
+          <button type="button" onClick={() => setStoreView(false)} className={`flex-1 rounded-lg border px-3 py-2 text-sm ${!storeView ? 'border-orange-500 bg-orange-50 text-orange-800 font-semibold' : 'border-gray-300 text-gray-600'}`}>全体の一覧</button>
+          <button type="button" onClick={() => setStoreView(true)} className={`flex-1 rounded-lg border px-3 py-2 text-sm ${storeView ? 'border-orange-500 bg-orange-50 text-orange-800 font-semibold' : 'border-gray-300 text-gray-600'}`}>店長の画面で見る（店舗ごと）</button>
+        </div>
+      )}
+
+      {storeView && cur ? (
+        <div className="space-y-3">
+          <div className="sticky z-10 flex items-center gap-2 rounded-xl border border-gray-200 bg-white p-2 shadow-sm" style={{ top: 'calc(var(--banner-h, 0px) + 3.75rem)' }}>
+            <Button size="sm" variant="outline" className="h-9 w-9 p-0 text-base" onClick={() => move(-1)} aria-label="前の店舗">◁</Button>
+            <select className="h-9 flex-1 min-w-0 rounded border border-gray-300 px-1 text-sm" value={storeGroups.indexOf(cur)} onChange={e => { setStoreIdx(Number(e.target.value)); window.scrollTo({ top: 0 }) }}>
+              {storeGroups.map((g, i) => <option key={g.team.id} value={i}>{g.team.name}（{g.rows.length}）</option>)}
+            </select>
+            <span className="text-xs text-gray-500 whitespace-nowrap">{storeGroups.indexOf(cur) + 1}/{storeGroups.length}</span>
+            <Button size="sm" variant="outline" className="h-9 w-9 p-0 text-base" onClick={() => move(1)} aria-label="次の店舗">▷</Button>
+          </div>
+          <p className="text-[11px] text-gray-500">見本です。{cur.team.name}の店長には、次のように見えます（ボタンは押せません）。店長には、須貝・原島さんのメモ・人事の確認事項・社員番号は見えません。</p>
+          {cur.undecided > 0 && <p className="text-[11px] text-red-600">この店舗には「まだ決めていない」行が {cur.undecided} 件あります。決めると、ここに出ます。</p>}
+          <div className="rounded-lg border border-orange-200 bg-orange-50 p-3"><p className="text-sm font-semibold text-orange-800">あなたの店舗の方の変更案です。1行ずつ「問題ない」か「問題ある」を選んでください（メッセージも書けます）</p></div>
+          {cur.rows.length === 0
+            ? <p className="text-sm text-gray-500 text-center py-6">店長に回る行はまだありません。</p>
+            : <ul className="space-y-2">{cur.rows.map(it => <ReviewItem key={it.id} it={it} ctx={previewCtx} />)}</ul>}
+          <div className="flex justify-between">
+            <Button size="sm" variant="outline" onClick={() => move(-1)}>◁ 前の店舗</Button>
+            <Button size="sm" variant="outline" onClick={() => move(1)}>次の店舗 ▷</Button>
+          </div>
+        </div>
+      ) : (
+        <>
       <div className="flex flex-wrap items-center gap-2">
         {([['all', 'すべて'], ['todo', '対応が要る行'], ['store', '店長に回す行'], ['direct', '原島さんへ直接'], ['ng', '問題ある'], ['unapproved', '承認まだ']] as [Filter, string][]).map(([k, l]) => (
           <button key={k} type="button" onClick={() => setFilter(k)} className={`rounded-full border px-3 py-1 text-xs ${filter === k ? 'border-orange-500 bg-orange-50 text-orange-800' : 'border-gray-300 text-gray-600'}`}>{l}</button>
@@ -171,6 +213,8 @@ export function RosterReview({ data }: { data: ReviewData }) {
       {shown.length === 0
         ? <p className="text-sm text-gray-500 text-center py-6">{filter === 'todo' ? 'いま対応が要る行はありません。' : '当てはまる行はありません。'}</p>
         : <ul className="space-y-2">{shown.map(it => <ReviewItem key={it.id} it={it} ctx={ctx} />)}</ul>}
+        </>
+      )}
 
       {(me.ops || me.senior) && <BatchThread data={data} pending={isPending} run={run} />}
 
