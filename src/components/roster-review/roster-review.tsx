@@ -31,7 +31,7 @@ export type ReviewData = {
   seniorCandidates: { id: string; name: string }[]
 }
 
-type Filter = 'all' | 'todo' | 'store' | 'direct' | 'ng' | 'unapproved'
+type Filter = 'all' | 'undecided' | 'todo' | 'store' | 'direct' | 'ng' | 'unapproved'
 const fmt = (iso: string) => new Date(iso).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 
 export function RosterReview({ data }: { data: ReviewData }) {
@@ -81,6 +81,7 @@ export function RosterReview({ data }: { data: ReviewData }) {
         if (stage === 'store' && !me.ops) return toStore(it) && !it.store_answer
         if (stage === 'store' || stage === 'senior') return isApplicable(it.action) && !it.ops_approved
         return true
+      case 'undecided': return it.action === 'undecided'
       case 'store': return toStore(it)
       case 'direct': return isApplicable(it.action) && !toStore(it)
       case 'ng': return it.store_answer === 'ng' || it.store_answer === 'left'
@@ -204,7 +205,7 @@ export function RosterReview({ data }: { data: ReviewData }) {
       ) : (
         <>
       <div className="flex flex-wrap items-center gap-2">
-        {([['all', 'すべて'], ['todo', '対応が要る行'], ['store', '店長に回す行'], ['direct', '原島さんへ直接'], ['ng', '問題ある・退職済み'], ['unapproved', '承認まだ']] as [Filter, string][]).map(([k, l]) => (
+        {([['all', 'すべて'], ...(undecided > 0 ? [['undecided', `まだ決めていない（${undecided}）`]] : []), ['todo', '対応が要る行'], ['store', '店長に回す行'], ['direct', '原島さんへ直接'], ['ng', '問題ある・退職済み'], ['unapproved', '承認まだ']] as [Filter, string][]).map(([k, l]) => (
           <button key={k} type="button" onClick={() => setFilter(k)} className={`rounded-full border px-3 py-1 text-xs ${filter === k ? 'border-orange-500 bg-orange-50 text-orange-800' : 'border-gray-300 text-gray-600'}`}>{l}</button>
         ))}
         <Input value={q} onChange={e => setQ(e.target.value)} placeholder="氏名で探す" className="h-8 w-32 text-sm" />
