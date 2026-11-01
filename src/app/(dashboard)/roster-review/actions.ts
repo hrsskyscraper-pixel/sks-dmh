@@ -112,17 +112,20 @@ export async function updateItem(itemId: string, patch: ItemPatch): Promise<Resu
   // 実際に変わった項目だけで判定する（画面は保存のたびに全部の項目を送る）
   const same = (a: unknown, b: unknown) => JSON.stringify(Array.isArray(a) ? [...a].sort() : a ?? null) === JSON.stringify(Array.isArray(b) ? [...b].sort() : b ?? null)
   const contentChanged = (['action', 'target_employment_type', 'target_team_id', 'target_role_ids', 'stop_reason'] as const).some(k => patch[k] !== undefined && !same(patch[k], item[k]))
+  // 店長の「退職済み」に合わせて案を直した（退職で止める／MB は使わない）ときは、店長の回答を残す
+  const followsLeft = item.store_answer === 'left' && (
+    (next.action ?? item.action) === 'skip' || ((next.action ?? item.action) === 'stop' && (next.stop_reason ?? item.stop_reason) === 'left'))
   // 店長の確認より後で案を直したら、店長の回答と担当者承認をやり直す（上長の承認もやり直す）
   if (contentChanged && (batch.stage === 'store' || batch.stage === 'senior')) {
     next.ops_approved = false
     // 店長の確認の段階なら、店長にも答え直してもらう（上長の段階では回答を残し、やりとりに記録する）
-    if (batch.stage === 'store') { next.store_answer = null; next.store_message = null; next.store_answered_by = null; next.store_answered_at = null }
+    if (batch.stage === 'store' && !followsLeft) { next.store_answer = null; next.store_message = null; next.store_answered_by = null; next.store_answered_at = null; next.store_left_date = null }
   }
 
   const { error } = await db.from('roster_review_items').update(next).eq('id', itemId)
   if (error) return { error: '保存できませんでした。時間をおいてもう一度お試しください' }
   if (contentChanged && batch.stage !== 'draft') {
-    await log(batch.id, itemId, me, batch.stage, item.store_answer && batch.stage === 'store' ? '変更案を直しました（店長の回答はやり直しです）' : item.store_answer ? '変更案を直しました（店長の回答は、直す前の案へのものです）' : '変更案を直しました')
+    await log(batch.id, itemId, me, batch.stage, followsLeft ? '店長の「退職済み」に合わせて、変更案を直しました' : item.store_answer && batch.stage === 'store' ? '変更案を直しました（店長の回答はやり直しです）' : item.store_answer ? '変更案を直しました（店長の回答は、直す前の案へのものです）' : '変更案を直しました')
     if (batch.stage === 'senior') await db.from('roster_review_signoffs').update({ approved: false, updated_at: new Date().toISOString() }).eq('batch_id', batch.id)
     await writeAuditLog({ action: 'roster_review_edit', actorId: me.id, targetId: item.employee_id ?? undefined, details: { batch: batch.id, item: itemId, stage: batch.stage, patch: next } }).catch(() => {})
   }
@@ -130,11 +133,18 @@ export async function updateItem(itemId: string, patch: ItemPatch): Promise<Resu
   return {}
 }
 
-/** 店長の回答（問題ない／問題ある＋メッセージ）。原島さんが店長から聞いた内容を代わりに入れることもできる */
-export async function answerItem(itemId: string, answer: 'ok' | 'ng', message: string): Promise<Result> {
+/** 店長の回答（問題ない／問題ある＋メッセージ／退職済み＋退職年月日）。原島さんが店長から聞いた内容を代わりに入れることもできる */
+export async function answerItem(itemId: string, answer: 'ok' | 'ng' | 'left', message: string, leftDate?: string): Promise<Result> {
   const me = await getRealEmployee()
   if (!me) return { error: '権限がありません' }
-  if (answer !== 'ok' && answer !== 'ng') return { error: '「問題ない」か「問題ある」を選んでください' }
+  if (answer !== 'ok' && answer !== 'ng' && answer !== 'left') return { error: '「問題ない」「問題ある」「退職済み」のどれかを選んでください' }
+  if (answer === 'left') {
+    const d = leftDate ?? ''
+    const valid = /^\d{4}-\d{2}-\d{2}$/.test(d) && !Number.isNaN(Date.parse(`${d}T00:00:00Z`)) && new Date(`${d}T00:00:00Z`).toISOString().slice(0, 10) === d
+    if (!valid) return { error: '退職年月日を入れてください' }
+    if (d > todayJst()) return { error: '退職年月日は、今日かそれより前の日を入れてください（これから退職される方は「問題ある」に書いてください）' }
+    if (d < '1990-01-01') return { error: '退職年月日を確かめてください' }
+  }
   if (badNote(message)) return { error: `メッセージは ${NOTE_MAX} 文字までで、使えない文字は入れないでください` }
   if (answer === 'ng' && !message.trim()) return { error: '「問題ある」のときは、どこが違うかをメッセージに書いてください' }
   const ctx = await loadItem(itemId)
@@ -145,11 +155,12 @@ export async function answerItem(itemId: string, answer: 'ok' | 'ng', message: s
   const db = createAdminClient()
   const { error } = await db.from('roster_review_items').update({
     store_answer: answer, store_message: cleanNote(message), store_answered_by: me.id, store_answered_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-    // 「問題ある」に変わったら、担当者承認をやり直す
-    ...(answer === 'ng' ? { ops_approved: false } : {}),
+    store_left_date: answer === 'left' ? leftDate : null,
+    // 「問題ある」「退職済み」に変わったら、担当者承認をやり直す
+    ...(answer !== 'ok' ? { ops_approved: false } : {}),
   }).eq('id', itemId).eq('batch_id', batch.id)
   if (error) return { error: '送れませんでした。時間をおいてもう一度お試しください' }
-  await writeAuditLog({ action: 'roster_review_answer', actorId: me.id, targetId: item.employee_id ?? undefined, details: { batch: batch.id, item: itemId, answer, before: item.store_answer } }).catch(() => {})
+  await writeAuditLog({ action: 'roster_review_answer', actorId: me.id, targetId: item.employee_id ?? undefined, details: { batch: batch.id, item: itemId, answer, leftDate: answer === 'left' ? leftDate : undefined, before: item.store_answer } }).catch(() => {})
   done()
   return {}
 }
@@ -457,9 +468,11 @@ async function applyOne(it: RosterReviewItemRow, roleMap: Map<string, RoleSettin
     if (emp.left_at && emp.left_at <= todayJst()) return 'すでに止まっています'
     // 運用管理者・開発者を止めると、管理する人が締め出されることがあるので、ここでは止めない
     if (emp.system_permission === 'ops_admin' || emp.system_permission === 'developer') return '×運用管理者・開発者の方は、ここでは止めません（プロフィールで権限を外してから止めてください）'
-    const { error } = await db.from('employees').update({ left_at: todayJst() }).eq('id', emp.id)
+    // 店長が「退職済み」と答えた行は、その退職年月日で止める
+    const leftAt = it.stop_reason === 'left' && it.store_answer === 'left' && it.store_left_date ? it.store_left_date : todayJst()
+    const { error } = await db.from('employees').update({ left_at: leftAt }).eq('id', emp.id)
     if (error) return '×止められませんでした'
-    await writeAuditLog({ action: 'roster_review_apply', actorId: me.id, targetId: emp.id, details: { item: it.id, action: 'stop', reason: it.stop_reason, from: { left_at: emp.left_at } } }).catch(() => {})
+    await writeAuditLog({ action: 'roster_review_apply', actorId: me.id, targetId: emp.id, details: { item: it.id, action: 'stop', reason: it.stop_reason, from: { left_at: emp.left_at }, to: { left_at: leftAt } } }).catch(() => {})
     const { count } = await db.from('team_managers').select('team_id', { count: 'exact', head: true }).eq('employee_id', emp.id)
     return (count ?? 0) > 0 ? '止めました（リーダーの登録が残っています。所属一覧で外してください）' : '止めました'
   }

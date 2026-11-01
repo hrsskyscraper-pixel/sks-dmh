@@ -48,7 +48,7 @@ export async function RosterReviewNotice() {
         // 店長に回る行（店舗の行で、その店舗にリーダーがいる）のうち、自分の店舗でまだ答えていないもの
         const led = new Set((storeRows ?? []).map(t => t.id).filter(id => myTeamIds.includes(id)))
         const left = rows.filter(r => goesToStore(r, led) && !r.store_answer).length
-        if (left) tasks.push({ id: b.id, text: `あなたの店舗の方の変更案が ${left} 件あります。「問題ない」か「問題ある」を選んでください` })
+        if (left) tasks.push({ id: b.id, text: `あなたの店舗の方の変更案が ${left} 件あります。「問題ない」「問題ある」「退職済み」のどれかを選んでください` })
       }
     }
   }

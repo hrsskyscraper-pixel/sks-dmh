@@ -1687,7 +1687,9 @@ export type RosterReviewItemRow = {
   dev_note: string | null
   ops_preview_note: string | null
   skip_store: boolean
-  store_answer: 'ok' | 'ng' | null
+  store_answer: 'ok' | 'ng' | 'left' | null
+  /** 店長が「退職済み」と答えたときの退職年月日（migration 20261101000300） */
+  store_left_date: string | null
   store_message: string | null
   store_answered_by: string | null
   store_answered_at: string | null

@@ -60,6 +60,7 @@ export function RosterReview({ data }: { data: ReviewData }) {
   const storeItems = items.filter(toStore)
   const answered = storeItems.filter(it => it.store_answer).length
   const ngCount = storeItems.filter(it => it.store_answer === 'ng').length
+  const leftCount = storeItems.filter(it => it.store_answer === 'left').length
   const approved = applicable.filter(it => it.ops_approved).length
   const undecided = items.filter(it => it.action === 'undecided').length
   const mySign = data.signoffs.find(s => s.employee_id === me.id)
@@ -79,7 +80,7 @@ export function RosterReview({ data }: { data: ReviewData }) {
         return true
       case 'store': return toStore(it)
       case 'direct': return isApplicable(it.action) && !toStore(it)
-      case 'ng': return it.store_answer === 'ng'
+      case 'ng': return it.store_answer === 'ng' || it.store_answer === 'left'
       case 'unapproved': return isApplicable(it.action) && !it.ops_approved
       default: return true
     }
@@ -143,7 +144,7 @@ export function RosterReview({ data }: { data: ReviewData }) {
           ))}
         </ol>
         <p className="text-xs text-gray-600">
-          全 {items.length} 行（反映する行 {applicable.length}）・店長に回す {storeItems.length}（回答 {answered}{ngCount ? `・問題ある ${ngCount}` : ''}）・担当者承認 {approved}/{applicable.length}
+          全 {items.length} 行（反映する行 {applicable.length}）・店長に回す {storeItems.length}（回答 {answered}{ngCount ? `・問題ある ${ngCount}` : ''}{leftCount ? `・退職済み ${leftCount}` : ''}）・担当者承認 {approved}/{applicable.length}
           {stage === 'draft' && undecided ? `・まだ決めていない ${undecided}` : ''}
         </p>
         {batch.overview && <p className="text-sm text-gray-700 whitespace-pre-wrap rounded-lg bg-gray-50 p-2"><span className="text-[11px] text-gray-500 block">須貝からの概要</span>{batch.overview}</p>}
@@ -187,7 +188,7 @@ export function RosterReview({ data }: { data: ReviewData }) {
           </div>
           <p className="text-[11px] text-gray-500">見本です。{cur.team.name}の店長には、次のように見えます（ボタンは押せません）。店長には、須貝・原島さんのメモ・人事の確認事項・社員番号は見えません。</p>
           {cur.undecided > 0 && <p className="text-[11px] text-red-600">この店舗には「まだ決めていない」行が {cur.undecided} 件あります。決めると、ここに出ます。</p>}
-          <div className="rounded-lg border border-orange-200 bg-orange-50 p-3"><p className="text-sm font-semibold text-orange-800">あなたの店舗の方の変更案です。1行ずつ「問題ない」か「問題ある」を選んでください（メッセージも書けます）</p></div>
+          <div className="rounded-lg border border-orange-200 bg-orange-50 p-3"><p className="text-sm font-semibold text-orange-800">あなたの店舗の方の変更案です。1行ずつ「問題ない」「問題ある」「退職済み」のどれかを選んでください（メッセージも書けます）</p></div>
           {cur.rows.length === 0
             ? <p className="text-sm text-gray-500 text-center py-6">店長に回る行はまだありません。</p>
             : <ul className="space-y-2">{cur.rows.map(it => <ReviewItem key={it.id} it={it} ctx={previewCtx} />)}</ul>}
@@ -199,7 +200,7 @@ export function RosterReview({ data }: { data: ReviewData }) {
       ) : (
         <>
       <div className="flex flex-wrap items-center gap-2">
-        {([['all', 'すべて'], ['todo', '対応が要る行'], ['store', '店長に回す行'], ['direct', '原島さんへ直接'], ['ng', '問題ある'], ['unapproved', '承認まだ']] as [Filter, string][]).map(([k, l]) => (
+        {([['all', 'すべて'], ['todo', '対応が要る行'], ['store', '店長に回す行'], ['direct', '原島さんへ直接'], ['ng', '問題ある・退職済み'], ['unapproved', '承認まだ']] as [Filter, string][]).map(([k, l]) => (
           <button key={k} type="button" onClick={() => setFilter(k)} className={`rounded-full border px-3 py-1 text-xs ${filter === k ? 'border-orange-500 bg-orange-50 text-orange-800' : 'border-gray-300 text-gray-600'}`}>{l}</button>
         ))}
         <Input value={q} onChange={e => setQ(e.target.value)} placeholder="氏名で探す" className="h-8 w-32 text-sm" />
@@ -324,7 +325,7 @@ function StagePanel({ data, pending, run, ask, seniorsOk, mySign, counts }: {
     )
   }
   if (stage === 'store' && !me.ops) {
-    return <div className={box}><p className="text-sm font-semibold text-orange-800">あなたの店舗の方の変更案です。1行ずつ「問題ない」か「問題ある」を選んでください（メッセージも書けます）</p></div>
+    return <div className={box}><p className="text-sm font-semibold text-orange-800">あなたの店舗の方の変更案です。1行ずつ「問題ない」「問題ある」「退職済み」のどれかを選んでください（メッセージも書けます）</p></div>
   }
   if (stage === 'senior') {
     return (

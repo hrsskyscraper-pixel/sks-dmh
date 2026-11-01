@@ -12,6 +12,9 @@ import type { RosterReviewAction, RosterReviewItemRow, RosterReviewStage } from 
 import type { ReviewData } from './roster-review'
 
 const fmtDate = (iso: string | null | undefined) => iso ? new Date(iso).toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: 'numeric', day: 'numeric' }) : 'なし'
+const ANSWER_LABEL = { ok: '問題ない', ng: '問題ある', left: '退職済み' } as const
+const MSG_PLACEHOLDER = 'メッセージ（「問題ない」「退職済み」は任意。「問題ある」のときは、どこが違うかを書いてください）'
+const ANSWER_HINT = '「問題ない」は、メッセージなしで押せます。「問題ある」は、どこが違うかをメッセージに書くと押せるようになります。「退職済み」は、押したあとに退職年月日を入れて送ります。'
 const fmt = (iso: string) => new Date(iso).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 
 export type ItemCtx = {
@@ -36,6 +39,9 @@ export function ReviewItem({ it, ctx }: { it: RosterReviewItemRow; ctx: ItemCtx 
   const [msg, setMsg] = useState(it.store_message ?? '')
   const [note, setNote] = useState(it.ops_note ?? '')
   const [comment, setComment] = useState('')
+  const [leftOpen, setLeftOpen] = useState(false)
+  const [leftDate, setLeftDate] = useState(it.store_left_date ?? '')
+  const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' })
 
   const person = it.employee_id ? data.people[it.employee_id] : null
   const teamName = (id: string) => data.teams.find(t => t.id === id)?.name ?? '（不明）'
@@ -49,16 +55,18 @@ export function ReviewItem({ it, ctx }: { it: RosterReviewItemRow; ctx: ItemCtx 
   const toStore = ctx.toStore(it)
   const answeredBy = it.store_answered_by ? data.people[it.store_answered_by]?.name : null
   const showStore = preview || (stage !== 'draft' && stage !== 'ops_preview' && toStore)
+  const followsLeft = it.action === 'skip' || (it.action === 'stop' && it.stop_reason === 'left')
   const showApprove = !preview && data.me.ops && (stage === 'store' || stage === 'senior') && isApplicable(it.action)
 
-  const run = (fn: () => Promise<{ error?: string }>, ok?: string) => startTransition(async () => {
+  const run = (fn: () => Promise<{ error?: string }>, ok?: string, after?: () => void) => startTransition(async () => {
     const res = await fn()
     if (res.error) { toast.error(res.error); return }
     if (ok) toast.success(ok)
+    after?.()
   })
 
   return (
-    <li className={`rounded-xl border bg-white p-3 space-y-2 ${it.store_answer === 'ng' ? 'border-red-300' : 'border-gray-200'}`}>
+    <li className={`rounded-xl border bg-white p-3 space-y-2 ${it.store_answer === 'ng' ? 'border-red-300' : it.store_answer === 'left' ? 'border-slate-400' : 'border-gray-200'}`}>
       <div className="flex flex-wrap items-start gap-2">
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-gray-800">{name}</p>
@@ -115,32 +123,54 @@ export function ReviewItem({ it, ctx }: { it: RosterReviewItemRow; ctx: ItemCtx 
 
       {showStore && (
         <div className="rounded-lg border border-gray-200 p-2 space-y-1.5">
-          <p className="text-xs font-semibold text-gray-700">店長の確認: このように変更しますが、問題ありませんか？</p>
+          <p className="text-xs font-semibold text-gray-700">店長への確認：このようにしますが、問題ありませんか？</p>
+          <p className="text-[11px] text-gray-600">（すでに退職された方の場合、退職済みボタンを押してください。）</p>
           {it.store_answer && (
-            <p className={`text-sm ${it.store_answer === 'ok' ? 'text-emerald-700' : 'text-red-700'}`}>
-              {it.store_answer === 'ok' ? '問題ない' : '問題ある'}{it.store_message ? `：${it.store_message}` : ''}
+            <p className={`text-sm ${it.store_answer === 'ok' ? 'text-emerald-700' : it.store_answer === 'left' ? 'text-slate-700' : 'text-red-700'}`}>
+              {ANSWER_LABEL[it.store_answer]}{it.store_answer === 'left' && it.store_left_date ? `（退職年月日 ${fmtDate(`${it.store_left_date}T00:00:00+09:00`)}）` : ''}{it.store_message ? `：${it.store_message}` : ''}
               <span className="ml-1 text-[11px] text-gray-500">（{answeredBy ?? ''} {it.store_answered_at ? fmt(it.store_answered_at) : ''}）</span>
             </p>
           )}
+          {!preview && data.me.ops && it.store_answer === 'left' && !followsLeft && (stage === 'store' || stage === 'senior') && canEdit && (
+            <div className="flex flex-wrap items-center gap-2 rounded-md bg-slate-50 px-2 py-1.5">
+              <p className="text-[11px] text-slate-700 flex-1 min-w-[12rem]">店長から「退職済み」の回答です。案を合わせてから、担当者として承認してください。</p>
+              <Button size="sm" variant="outline" disabled={isPending}
+                onClick={() => run(() => updateItem(it.id, it.employee_id ? { action: 'stop', stop_reason: 'left' } : { action: 'skip' }), '案を直しました')}>
+                {it.employee_id ? '「アカウントを止める（退職）」にする' : '「MB は使わない」にする'}
+              </Button>
+            </div>
+          )}
           {preview && (
             <>
-              <Textarea placeholder="メッセージ（「問題ない」は任意。「問題ある」のときは、どこが違うかを書いてください）" className="text-sm min-h-[56px]" disabled />
-              <div className="flex gap-2">
+              <Textarea placeholder={MSG_PLACEHOLDER} className="text-sm min-h-[56px]" disabled />
+              <div className="flex flex-wrap gap-2">
                 <Button size="sm" className="bg-emerald-600" disabled>問題ない</Button>
                 <Button size="sm" variant="outline" className="border-red-300 text-red-700" disabled>問題ある</Button>
+                <Button size="sm" variant="outline" className="border-slate-400 text-slate-700" disabled>退職済み</Button>
               </div>
-              <p className="text-[11px] text-gray-500">「問題ない」は、メッセージなしで押せます。「問題ある」は、どこが違うかをメッセージに書くと押せるようになります。</p>
+              <p className="text-[11px] text-gray-500">{ANSWER_HINT}</p>
             </>
           )}
           {!preview && !it.store_answer && stage !== 'store' && <p className="text-xs text-gray-500">回答はありません</p>}
           {!preview && stage === 'store' && ctx.canAnswer(it) && (
             <>
-              <Textarea value={msg} onChange={e => setMsg(e.target.value)} placeholder="メッセージ（「問題ない」は任意。「問題ある」のときは、どこが違うかを書いてください）" className="text-sm min-h-[56px]" disabled={isPending} />
-              <div className="flex gap-2">
-                <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" disabled={isPending} onClick={() => run(() => answerItem(it.id, 'ok', msg), '送りました')}>問題ない</Button>
-                <Button size="sm" variant="outline" className="border-red-300 text-red-700" disabled={isPending || !msg.trim()} onClick={() => run(() => answerItem(it.id, 'ng', msg), '送りました')}>問題ある</Button>
+              <Textarea value={msg} onChange={e => setMsg(e.target.value)} placeholder={MSG_PLACEHOLDER} className="text-sm min-h-[56px]" disabled={isPending} />
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" disabled={isPending} onClick={() => { setLeftOpen(false); run(() => answerItem(it.id, 'ok', msg), '送りました') }}>問題ない</Button>
+                <Button size="sm" variant="outline" className="border-red-300 text-red-700" disabled={isPending || !msg.trim()} onClick={() => { setLeftOpen(false); run(() => answerItem(it.id, 'ng', msg), '送りました') }}>問題ある</Button>
+                <Button size="sm" variant="outline" className={`border-slate-400 text-slate-700 ${leftOpen ? 'bg-slate-100' : ''}`} disabled={isPending} onClick={() => setLeftOpen(v => !v)}>退職済み</Button>
               </div>
-              <p className="text-[11px] text-gray-500">「問題ない」は、メッセージなしで押せます。「問題ある」は、どこが違うかをメッセージに書くと押せるようになります。</p>
+              {leftOpen && (
+                <div className="flex flex-wrap items-end gap-2 rounded-md bg-slate-50 px-2 py-2">
+                  <label className="text-[11px] text-slate-700">退職年月日
+                    <input type="date" value={leftDate} max={today} onChange={e => setLeftDate(e.target.value)} className="ml-1 rounded border border-gray-300 px-1 py-0.5 text-sm" disabled={isPending} />
+                  </label>
+                  <Button size="sm" className="bg-slate-600 hover:bg-slate-700" disabled={isPending || !leftDate}
+                    onClick={() => run(() => answerItem(it.id, 'left', msg, leftDate), '送りました', () => setLeftOpen(false))}>退職済みとして送る</Button>
+                  <button type="button" className="text-[11px] text-gray-500 underline" onClick={() => setLeftOpen(false)}>やめる</button>
+                </div>
+              )}
+              <p className="text-[11px] text-gray-500">{ANSWER_HINT}</p>
               {data.me.ops && !data.me.ledTeamIds.includes(it.confirm_team_id ?? '') && <p className="text-[11px] text-gray-500">店長から聞いた内容を、代わりに入れることもできます（入れた人として記録されます）。</p>}
             </>
           )}
