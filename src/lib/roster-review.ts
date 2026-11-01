@@ -117,3 +117,15 @@ export function describeChange(
 
 /** 文字の長さの上限（コメント・メモ） */
 export const NOTE_MAX = 1000
+
+/** 氏名の比べ方（空白・全角半角の違いを無視する）。重複アカウントを見つけるのに使う */
+export const normName = (s: string | null | undefined) => (s ?? '').normalize('NFKC').replace(/\s/g, '')
+
+export type AccountUsage = { id: string; certified: number; applied: number; last_login_at: string | null; created_at: string }
+
+/** 重複アカウントのうち、活かす方の原案（認定の多い方 → 申請の多い方 → 最近使った方 → 先に作った方） */
+export function pickKeep<T extends AccountUsage>(accounts: T[]): T {
+  return [...accounts].sort((a, b) =>
+    b.certified - a.certified || b.applied - a.applied ||
+    (b.last_login_at ?? '').localeCompare(a.last_login_at ?? '') || a.created_at.localeCompare(b.created_at))[0]
+}

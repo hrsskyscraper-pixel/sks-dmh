@@ -8,7 +8,7 @@ import { writeAuditLog } from '@/lib/audit'
 import { hasControlChars } from '@/lib/account-issue'
 import { todayJst } from '@/lib/left'
 import { deriveLegacyRole, standardPermissionOf, widerPermission } from '@/lib/legacy-role'
-import { goesToStore, isApplicable, NOTE_MAX, STAGE_LABEL } from '@/lib/roster-review'
+import { goesToStore, isApplicable, normName, NOTE_MAX, pickKeep, STAGE_LABEL } from '@/lib/roster-review'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { issueAccounts } from '@/app/(dashboard)/admin/account-issue/actions'
 import type { RosterReviewAction, RosterReviewItemRow, RosterReviewStage, SystemPermission } from '@/types/database'
@@ -88,6 +88,8 @@ export async function updateItem(itemId: string, patch: ItemPatch): Promise<Resu
   const { batch, item } = ctx
   if (!canEditAt(me, batch.stage, opsFor(me, batch), item)) return { error: `いまの段階（${STAGE_LABEL[batch.stage]}）では直せません` }
   if (patch.dev_note !== undefined && !isDeveloper(me)) return { error: '須貝のメモは須貝だけが書けます' }
+  if (patch.action && patch.action !== 'change' && (item.dup_stop_ids ?? []).length) return { error: '重複アカウントをまとめた行です。「まとめるのをやめる」を押してから、変えてください' }
+  if (item.merged_into && patch.action && patch.action !== item.action) return { error: 'ほかの行にまとめた行です。まとめ先の行で「まとめるのをやめる」を押してから、変えてください' }
   if (patch.action === 'undecided' && batch.stage !== 'draft') return { error: '「まだ決めていない」は下書きのときだけ選べます' }
   if (badNote(patch.dev_note) || badNote(patch.ops_preview_note)) return { error: `メモは ${NOTE_MAX} 文字までで、使えない文字は入れないでください` }
   if ((patch.target_role_ids ?? []).length > 10) return { error: '役職が多すぎます' }
@@ -513,9 +515,151 @@ async function applyOne(it: RosterReviewItemRow, roleMap: Map<string, RoleSettin
       if ((count ?? 0) > 0) notes.push('前の店舗のリーダーの登録が残っています。所属一覧で直してください')
     }
   }
+  // 重複アカウントとしてまとめた、ほかのアカウントを止める
+  if (it.dup_stop_ids?.length) {
+    const { data: dups } = await db.from('employees').select('id, left_at, system_permission').in('id', it.dup_stop_ids)
+    let stopped = 0
+    for (const d of dups ?? []) {
+      if (d.left_at && d.left_at <= todayJst()) continue
+      if (d.system_permission === 'ops_admin' || d.system_permission === 'developer') { notes.push('運用管理者・開発者の重複アカウントは止めていません'); continue }
+      const { error } = await db.from('employees').update({ left_at: todayJst() }).eq('id', d.id)
+      if (error) return '×重複アカウントを止められませんでした（もう一度「まとめて反映」を押してください）'
+      await writeAuditLog({ action: 'roster_review_apply', actorId: me.id, targetId: d.id, details: { item: it.id, action: 'stop', reason: 'duplicate', keep: emp.id, from: { left_at: d.left_at } } }).catch(() => {})
+      stopped++
+    }
+    if (stopped) notes.push(`重複アカウントを ${stopped} つ止めました`)
+  }
   await writeAuditLog({
     action: 'roster_review_apply', actorId: me.id, targetId: emp.id,
     details: { item: it.id, action: 'change', from: { employment_type: emp.employment_type, business_role_ids: emp.business_role_ids, system_permission: emp.system_permission }, to: patch, team: it.target_team_id },
   }).catch(() => {})
   return notes.length ? `直しました（${notes.join('・')}）` : '直しました'
+}
+
+/** 段階に合わせて、店長の回答・担当者承認・上長の承認をやり直す（案の中身を変えたとき） */
+async function resetAfterChange(batch: { id: string; stage: RosterReviewStage }, itemIds: string[]) {
+  if (batch.stage !== 'store' && batch.stage !== 'senior') return
+  const db = createAdminClient()
+  const reset: Record<string, unknown> = { ops_approved: false, updated_at: new Date().toISOString() }
+  if (batch.stage === 'store') Object.assign(reset, { store_answer: null, store_message: null, store_answered_by: null, store_answered_at: null, store_left_date: null })
+  await db.from('roster_review_items').update(reset).in('id', itemIds)
+  if (batch.stage === 'senior') await db.from('roster_review_signoffs').update({ approved: false, updated_at: new Date().toISOString() }).eq('batch_id', batch.id)
+}
+
+/**
+ * 重複アカウントを1件の確認にまとめる: keepId を活かし、stopIds を「重複アカウント」として止める。
+ * 止めるアカウントが別の行にあれば、その行はこの行にまとめる（その行は店長に回さない）。
+ * 活かすアカウントが別の行にあれば、その行の方をまとめ先にする。
+ */
+export async function mergeDuplicates(itemId: string, keepId: string, stopIds: string[]): Promise<Result & { primary?: string }> {
+  const me = await getRealEmployee()
+  if (!me) return { error: '権限がありません' }
+  const ctx = await loadItem(itemId)
+  if (!ctx) return { error: 'この行が見つかりません' }
+  const { batch } = ctx
+  if (!canEditAt(me, batch.stage, opsFor(me, batch))) return { error: `いまの段階（${STAGE_LABEL[batch.stage]}）では直せません` }
+  const stops = [...new Set(stopIds)].filter(id => id !== keepId)
+  if (!keepId || stops.length === 0 || stops.length > 5) return { error: '活かすアカウントと、止めるアカウントを選んでください' }
+
+  const db = createAdminClient()
+  const { data: emps } = await db.from('employees').select('id, name, system_permission').in('id', [keepId, ...stops])
+  if ((emps ?? []).length !== stops.length + 1) return { error: 'アカウントが見つかりません。画面を読み込み直してください' }
+  if (new Set((emps ?? []).map(e => normName(e.name))).size !== 1) return { error: '同じ名前のアカウントだけをまとめられます' }
+  if ((emps ?? []).some(e => stops.includes(e.id) && (e.system_permission === 'ops_admin' || e.system_permission === 'developer'))) return { error: '運用管理者・開発者のアカウントは、ここでは止めません' }
+
+  const rows = await fetchAllRows<Pick<RosterReviewItemRow, 'id' | 'employee_id' | 'merged_into' | 'action' | 'dup_stop_ids'>>((from, to) =>
+    db.from('roster_review_items').select('id, employee_id, merged_into, action, dup_stop_ids').eq('batch_id', batch.id).order('id').range(from, to))
+  // まとめ先: 活かすアカウントの行があればその行、なければこの行
+  const primary = rows.find(r => r.employee_id === keepId) ?? rows.find(r => r.id === itemId)!
+  const wasMerged = (r: { merged_into: string | null }) => r.merged_into === itemId || r.merged_into === primary.id
+  const others = rows.filter(r => r.id !== primary.id && ((r.employee_id && stops.includes(r.employee_id)) || r.id === itemId || (wasMerged(r) && !r.employee_id)))
+  // ほかの行で、すでに別のまとめに入っているアカウントは選べない
+  if (rows.some(r => r.id !== primary.id && r.id !== itemId && r.dup_stop_ids?.some(id => id === keepId || stops.includes(id)))) return { error: 'このアカウントは、別の行のまとめに入っています。そちらの「まとめるのをやめる」を先に押してください' }
+
+  const now = new Date().toISOString()
+  const { error } = await db.from('roster_review_items').update({
+    employee_id: keepId, dup_stop_ids: stops, merged_into: null,
+    action: 'change', stop_reason: null, updated_at: now,
+  }).eq('id', primary.id)
+  if (error) return { error: '保存できませんでした。時間をおいてもう一度お試しください' }
+  if (others.length) {
+    await db.from('roster_review_items').update({ merged_into: primary.id, action: 'none', dup_stop_ids: [], skip_store: true, ops_approved: false, updated_at: now }).in('id', others.map(o => o.id))
+  }
+  // 前にこの行にまとめていて、今回は外れた行を戻す
+  const released = rows.filter(r => wasMerged(r) && r.id !== primary.id && !others.some(o => o.id === r.id)).map(r => r.id)
+  if (released.length) await db.from('roster_review_items').update({ merged_into: null, action: batch.stage === 'draft' ? 'undecided' : 'none', skip_store: false, updated_at: now }).in('id', released)
+  await resetAfterChange(batch, [primary.id])
+  if (batch.stage !== 'draft') await log(batch.id, primary.id, me, batch.stage, `重複アカウントを1件にまとめました（活かす1・止める${stops.length}）`)
+  await writeAuditLog({ action: 'roster_review_merge', actorId: me.id, targetId: keepId, details: { batch: batch.id, item: primary.id, stop: stops, merged: others.map(o => o.id) } }).catch(() => {})
+  done()
+  return { primary: primary.id }
+}
+
+/** 重複アカウントのまとめをやめる（まとめた行は、それぞれの行に戻す） */
+export async function unmergeDuplicates(itemId: string): Promise<Result> {
+  const me = await getRealEmployee()
+  if (!me) return { error: '権限がありません' }
+  const ctx = await loadItem(itemId)
+  if (!ctx) return { error: 'この行が見つかりません' }
+  const { batch, item } = ctx
+  if (!canEditAt(me, batch.stage, opsFor(me, batch))) return { error: `いまの段階（${STAGE_LABEL[batch.stage]}）では直せません` }
+  const db = createAdminClient()
+  const now = new Date().toISOString()
+  const back: RosterReviewAction = batch.stage === 'draft' ? 'undecided' : 'none'
+  await db.from('roster_review_items').update({ dup_stop_ids: [], action: back, updated_at: now }).eq('id', itemId)
+  await db.from('roster_review_items').update({ merged_into: null, action: back, skip_store: false, updated_at: now }).eq('batch_id', batch.id).eq('merged_into', itemId)
+  await resetAfterChange(batch, [itemId])
+  if (batch.stage !== 'draft') await log(batch.id, itemId, me, batch.stage, '重複アカウントのまとめをやめました')
+  await writeAuditLog({ action: 'roster_review_unmerge', actorId: me.id, targetId: item.employee_id ?? undefined, details: { batch: batch.id, item: itemId } }).catch(() => {})
+  done()
+  return {}
+}
+
+/**
+ * 下書きで、同じ店舗の重複アカウントを1件にまとめた原案を作る（須貝）。
+ * 同じ名前のアカウントが2つ以上あり、所属の店舗がすべて同じで、関わる行がまだ決まっていないものだけ。
+ * 活かす方は、認定の多い方 → 申請の多い方 → 最近使った方 → 先に作った方。
+ */
+export async function proposeDuplicateMerges(batchId: string): Promise<Result & { count?: number }> {
+  const me = await getRealEmployee()
+  if (!me || !isDeveloper(me)) return { error: '権限がありません' }
+  const batch = await loadBatch(batchId)
+  if (!batch || batch.stage !== 'draft') return { error: '下書きのときだけ使えます' }
+  const db = createAdminClient()
+  const [emps, rows, mem, ach] = await Promise.all([
+    fetchAllRows<{ id: string; name: string; created_at: string; last_login_at?: string | null; left_at?: string | null; system_permission: string }>((from, to) =>
+      db.from('employees').select('id, name, created_at, last_login_at, left_at, system_permission').order('id').range(from, to)),
+    fetchAllRows<Pick<RosterReviewItemRow, 'id' | 'employee_id' | 'action' | 'roster' | 'merged_into' | 'dup_stop_ids'>>((from, to) =>
+      db.from('roster_review_items').select('id, employee_id, action, roster, merged_into, dup_stop_ids').eq('batch_id', batchId).order('id').range(from, to)),
+    fetchAllRows<{ team_id: string; employee_id: string; teams: unknown }>((from, to) =>
+      db.from('team_members').select('team_id, employee_id, teams!inner(type)').eq('teams.type', 'store').order('team_id').order('employee_id').range(from, to)),
+    fetchAllRows<{ employee_id: string; status: string; id: string }>((from, to) => db.from('achievements').select('id, employee_id, status').order('id').range(from, to)),
+  ])
+  const live = emps.filter(e => !(e.left_at && e.left_at <= todayJst()))
+  const groups = new Map<string, typeof live>()
+  for (const e of live) { const k = normName(e.name); if (k) groups.set(k, [...(groups.get(k) ?? []), e]) }
+  const storesOf = (id: string) => mem.filter(m => m.employee_id === id).map(m => m.team_id).sort().join(',')
+  let count = 0
+  for (const [k, accounts] of groups) {
+    if (accounts.length < 2) continue
+    if (accounts.some(a => a.system_permission === 'ops_admin' || a.system_permission === 'developer')) continue
+    const st = storesOf(accounts[0].id)
+    if (!st || accounts.some(a => storesOf(a.id) !== st)) continue
+    const ids = accounts.map(a => a.id)
+    const related = rows.filter(r => (r.employee_id && ids.includes(r.employee_id)) || (!r.employee_id && normName(r.roster.name || `${r.roster.last_name ?? ''}${r.roster.first_name ?? ''}`) === k))
+    if (!related.length || related.some(r => r.action !== 'undecided' || r.merged_into || r.dup_stop_ids?.length)) continue
+    const keep = pickKeep(accounts.map(a => ({
+      ...a, last_login_at: a.last_login_at ?? null, certified: ach.filter(x => x.employee_id === a.id && x.status === 'certified').length, applied: ach.filter(x => x.employee_id === a.id).length,
+    })))
+    const start = related.find(r => r.employee_id === keep.id) ?? related.find(r => r.employee_id) ?? related[0]
+    // 名前だけでつながる行（アカウント未接続）が別にあれば、それもまとめる
+    const res = await mergeDuplicates(start.id, keep.id, ids.filter(id => id !== keep.id))
+    if (res.error) continue
+    const extra = related.filter(r => r.id !== res.primary && !r.employee_id).map(r => r.id)
+    if (extra.length) await db.from('roster_review_items').update({ merged_into: res.primary, action: 'none', skip_store: true, updated_at: new Date().toISOString() }).in('id', extra)
+    count++
+  }
+  await writeAuditLog({ action: 'roster_review_propose_merge', actorId: me.id, details: { batch: batchId, count } }).catch(() => {})
+  done()
+  return { count }
 }

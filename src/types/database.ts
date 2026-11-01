@@ -1690,6 +1690,10 @@ export type RosterReviewItemRow = {
   store_answer: 'ok' | 'ng' | 'left' | null
   /** 店長が「退職済み」と答えたときの退職年月日（migration 20261101000300） */
   store_left_date: string | null
+  /** 重複アカウントとして一緒に止める MB アカウント（migration 20261101000400） */
+  dup_stop_ids: string[]
+  /** ほかの行にまとめた行の、まとめ先 */
+  merged_into: string | null
   store_message: string | null
   store_answered_by: string | null
   store_answered_at: string | null

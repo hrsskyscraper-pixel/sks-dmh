@@ -6,7 +6,7 @@ import { ChevronDown, ChevronRight, MessageSquare } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
-import { addComment, answerItem, approveItem, updateItem, type ItemPatch } from '@/app/(dashboard)/roster-review/actions'
+import { addComment, answerItem, approveItem, mergeDuplicates, unmergeDuplicates, updateItem, type ItemPatch } from '@/app/(dashboard)/roster-review/actions'
 import { ACTION_LABEL, describeChange, isApplicable, STOP_REASON_LABEL } from '@/lib/roster-review'
 import type { RosterReviewAction, RosterReviewItemRow, RosterReviewStage } from '@/types/database'
 import type { ReviewData } from './roster-review'
@@ -47,10 +47,21 @@ export function ReviewItem({ it, ctx }: { it: RosterReviewItemRow; ctx: ItemCtx 
   const teamName = (id: string) => data.teams.find(t => t.id === id)?.name ?? '（不明）'
   const roleName = (id: string) => data.roles.find(r => r.id === id)?.name ?? '（不明）'
   const current = person ? { employment_type: person.employment_type, team_names: person.team_names, role_names: person.role_ids.map(roleName), role_ids: person.role_ids, permission: person.permission } : null
-  const lines = describeChange(it, current, { team: teamName, role: roleName, std: id => data.roles.find(r => r.id === id)?.std ?? null })
+  const brief = (p: ReviewData['people'][string]) => [p.team_names.join('・') || '店舗なし', `登録 ${fmtDate(p.created_at)}`, `認定 ${p.certified ?? 0} 件`].join('・')
+  const stopIds = it.dup_stop_ids ?? []
+  const mergedTo = it.merged_into ? data.items.find(x => x.id === it.merged_into) : null
+  const lines = it.merged_into
+    ? [`この行のアカウントは、${mergedTo ? (mergedTo.roster.name || [mergedTo.roster.last_name, mergedTo.roster.first_name].filter(Boolean).join(' ')) : 'ほか'} の行で「重複アカウント」として止めます（この行は店長に回しません）`]
+    : [
+      ...(stopIds.length && person ? [`このアカウント（${brief(person)}）を使い続けます`] : []),
+      ...stopIds.map(id => data.people[id] ? `同じ名前のもう1つのアカウント（${brief(data.people[id])}）を止めます（重複アカウント）` : '同じ名前のもう1つのアカウントを止めます（重複アカウント）'),
+      ...describeChange(it, current, { team: teamName, role: roleName, std: id => data.roles.find(r => r.id === id)?.std ?? null })
+        .filter(l => !(stopIds.length && l.startsWith('（いまの MB と同じです'))),
+    ]
   const name = it.roster.name || [it.roster.last_name, it.roster.first_name].filter(Boolean).join(' ') || person?.name || '（氏名なし）'
   const thread = data.comments.filter(c => c.item_id === it.id)
   const dupes = (data.dupes[it.id] ?? []).filter(id => data.people[id])
+  const accounts = [...(it.employee_id && person ? [{ id: it.employee_id, p: person, mine: true }] : []), ...dupes.map(id => ({ id, p: data.people[id], mine: false }))].filter(x => x.p)
   const usage = (p: ReviewData['people'][string]) => `スキルの申請 ${p.applied ?? 0} 件・認定 ${p.certified ?? 0} 件・登録 ${fmtDate(p.created_at)}・最終ログイン ${fmtDate(p.last_login_at)}`
   const toStore = ctx.toStore(it)
   const answeredBy = it.store_answered_by ? data.people[it.store_answered_by]?.name : null
@@ -82,6 +93,7 @@ export function ReviewItem({ it, ctx }: { it: RosterReviewItemRow; ctx: ItemCtx 
         </div>
         <Badge variant="secondary" className="text-[11px]">{ACTION_LABEL[it.action]}</Badge>
         {!preview && !toStore && isApplicable(it.action) && stage !== 'draft' && <Badge variant="outline" className="text-[11px]">原島さんへ直接</Badge>}
+        {it.merged_into && <Badge variant="outline" className="text-[11px] border-amber-400 text-amber-800">ほかの行にまとめました</Badge>}
         {!preview && it.ops_approved && <Badge className="text-[11px] bg-emerald-600">担当者承認済み</Badge>}
       </div>
 
@@ -89,20 +101,28 @@ export function ReviewItem({ it, ctx }: { it: RosterReviewItemRow; ctx: ItemCtx 
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-2">
           <p className="text-[11px] font-semibold text-amber-800">同じ名前の MB アカウントが {dupes.length + (person ? 1 : 0)} つあります。並べて見比べられます</p>
           <div className="mt-1 grid gap-2 grid-cols-1 sm:grid-cols-2">
-            {[...(it.employee_id && person ? [{ id: it.employee_id, p: person, mine: true }] : []), ...dupes.map(id => ({ id, p: data.people[id], mine: false }))].filter(x => x.p).map(({ id, p, mine }) => (
+            {accounts.map(({ id, p, mine }) => (
               <div key={id} className={`rounded-md border bg-white p-2 text-[11px] text-gray-600 ${mine ? 'border-orange-400' : 'border-gray-200'}`}>
-                <p className="text-xs font-semibold text-gray-800">{p.name}{mine ? <span className="ml-1 text-orange-700">（この行のアカウント）</span> : ''}{p.left ? <span className="ml-1 text-gray-500">（止まっています）</span> : ''}</p>
+                <p className="text-xs font-semibold text-gray-800">{p.name}
+                  {stopIds.length ? (mine ? <span className="ml-1 text-emerald-700">（活かす）</span> : stopIds.includes(id) ? <span className="ml-1 text-red-700">（止める）</span> : '') : mine ? <span className="ml-1 text-orange-700">（この行のアカウント）</span> : ''}
+                  {p.left ? <span className="ml-1 text-gray-500">（止まっています）</span> : ''}</p>
                 <p>{[p.employment_type, p.team_names.join('・'), p.role_ids.map(roleName).join('・')].filter(Boolean).join('・') || '—'}</p>
                 <p>スキルの申請 {p.applied ?? 0} 件・認定 {p.certified ?? 0} 件</p>
                 <p>登録 {fmtDate(p.created_at)}・最終ログイン {fmtDate(p.last_login_at)}</p>
+                {canEdit && !it.merged_into && !p.left && !(stopIds.length && mine) && (
+                  <Button size="sm" variant="outline" className="mt-1 h-7 text-[11px]" disabled={isPending}
+                    onClick={() => run(() => mergeDuplicates(it.id, id, accounts.filter(a => a.id !== id && !a.p?.left).map(a => a.id)), '1件にまとめました')}>これを活かして、ほかを止める</Button>
+                )}
               </div>
             ))}
           </div>
+          {stopIds.length > 0 && <p className="mt-1 text-[11px] text-amber-800">止めるアカウントのスキルの申請・認定は、活かすアカウントには移りません。</p>}
+          {canEdit && stopIds.length > 0 && <button type="button" className="mt-1 text-[11px] text-gray-600 underline" disabled={isPending} onClick={() => run(() => unmergeDuplicates(it.id), 'まとめるのをやめました')}>まとめるのをやめる</button>}
         </div>
       )}
 
       <div className="rounded-lg bg-orange-50 border border-orange-100 px-3 py-2">
-        <p className="text-[11px] text-orange-700 font-semibold">このように変更します</p>
+        <p className="text-[11px] text-orange-700 font-semibold">変更案：このように変更します</p>
         <ul className="text-sm text-gray-800 list-disc pl-5">{lines.map(l => <li key={l}>{l}</li>)}</ul>
       </div>
 
@@ -123,7 +143,7 @@ export function ReviewItem({ it, ctx }: { it: RosterReviewItemRow; ctx: ItemCtx 
 
       {showStore && (
         <div className="rounded-lg border border-gray-200 p-2 space-y-1.5">
-          <p className="text-xs font-semibold text-gray-700">店長への確認：このようにしますが、問題ありませんか？</p>
+          <p className="text-xs font-semibold text-gray-700">店長への確認：変更案のとおりで、問題ありませんか？</p>
           <p className="text-[11px] text-gray-600">（すでに退職された方の場合、退職済みボタンを押してください。）</p>
           {it.store_answer && (
             <p className={`text-sm ${it.store_answer === 'ok' ? 'text-emerald-700' : it.store_answer === 'left' ? 'text-slate-700' : 'text-red-700'}`}>

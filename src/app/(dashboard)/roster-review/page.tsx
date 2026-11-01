@@ -5,7 +5,7 @@ import { getRealEmployee } from '@/lib/supabase/auth-cache'
 import { TopBar } from '@/components/layout/nav'
 import { canAdminister, isDeveloper } from '@/lib/permissions'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
-import { goesToStore, STAGE_ORDER } from '@/lib/roster-review'
+import { goesToStore, normName, STAGE_ORDER } from '@/lib/roster-review'
 import { hasLeft } from '@/lib/left'
 import { RosterReview, type ReviewData } from '@/components/roster-review/roster-review'
 import type { RosterReviewBatchRow, RosterReviewItemRow, SystemPermission } from '@/types/database'
@@ -16,8 +16,6 @@ import type { RosterReviewBatchRow, RosterReviewItemRow, SystemPermission } from
  * - 上長（確認ごとに選んだ方）: すべての行（上長の確認の段階から）
  * - 店長（店舗のリーダー）: 自分の店舗に回ってきた行だけ（店長の確認の段階から）
  */
-const normName = (s: string) => s.normalize('NFKC').replace(/\s/g, '')
-
 export default async function RosterReviewPage({ searchParams }: { searchParams: Promise<{ batch?: string }> }) {
   const { batch: batchParam } = await searchParams
   const me = await getRealEmployee()
@@ -85,6 +83,7 @@ export default async function RosterReviewPage({ searchParams }: { searchParams:
     const others = [...new Set([...keys].flatMap(k => byName.get(k) ?? []))].filter(id => id !== it.employee_id)
     if (others.length) { dupes[it.id] = others; others.forEach(id => empIds.add(id)) }
   }
+  for (const it of shown) for (const id of it.dup_stop_ids ?? []) empIds.add(id)
 
   const ids = [...empIds]
   const emps: { id: string; name: string; employment_type: string | null; business_role_ids: string[] | null; left_at?: string | null; system_permission: SystemPermission; created_at: string; last_login_at?: string | null }[] = []

@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
-import { addComment, applyChunk, approveAllWithoutStore, moveStage, signoff, updateBatch, type ApplyIssued } from '@/app/(dashboard)/roster-review/actions'
+import { addComment, applyChunk, approveAllWithoutStore, moveStage, proposeDuplicateMerges, signoff, updateBatch, type ApplyIssued } from '@/app/(dashboard)/roster-review/actions'
 import { goesToStore, isApplicable, STAGE_LABEL, STAGE_ORDER } from '@/lib/roster-review'
 import { claimUrl } from '@/lib/account-issue'
 import type { RosterReviewBatchRow, RosterReviewItemRow, RosterReviewStage, SystemPermission } from '@/types/database'
@@ -295,6 +295,11 @@ function StagePanel({ data, pending, run, ask, seniorsOk, mySign, counts }: {
             onClick={() => ask('ops_preview', '原島さんに確認を依頼します', '概要と変更案を原島さんに回します。原島さんのホームに「確認のお願い」が出ます。社内の連絡手段でも一声かけてください。', '原島さんに確認を依頼する')}>原島さんに確認を依頼する</Button>
         </div>
         {counts.undecided > 0 && <p className="text-[11px] text-red-600">「まだ決めていない」行が {counts.undecided} 件あります。</p>}
+        <div className="border-t border-orange-200 pt-2 space-y-1">
+          <p className="text-[11px] text-gray-700">同じ店舗に、同じ名前のアカウントが2つ以上ある方は、1件の確認にまとめた原案にできます（認定の多い方 → 申請の多い方 → 最近使った方 → 先に作った方を活かし、ほかを止めます）。まだ決めていない行だけが対象です。あとから行ごとに、活かす方を選び直せます。</p>
+          <Button size="sm" variant="outline" disabled={pending}
+            onClick={() => run(async () => { const r = await proposeDuplicateMerges(batch.id); if (!r.error) toast.success(r.count ? `${r.count} 組を1件にまとめました` : 'まとめられる組はありませんでした'); return r })}>同じ店舗の重複アカウントを、1件にまとめた原案にする</Button>
+        </div>
       </div>
     )
   }
