@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { addComment, applyChunk, approveAllWithoutStore, moveStage, proposeDuplicateMerges, signoff, updateBatch, type ApplyIssued } from '@/app/(dashboard)/roster-review/actions'
-import { goesToStore, isApplicable, STAGE_LABEL, STAGE_ORDER } from '@/lib/roster-review'
+import { goesToStore, isApplicable, needsAttention, QUIET_NOTE, shownToStore, STAGE_LABEL, STAGE_ORDER } from '@/lib/roster-review'
 import { claimUrl } from '@/lib/account-issue'
 import type { RosterReviewBatchRow, RosterReviewItemRow, RosterReviewStage, SystemPermission } from '@/types/database'
 import { ReviewItem, type ItemCtx } from './roster-review-item'
@@ -38,7 +38,7 @@ export function RosterReview({ data }: { data: ReviewData }) {
   const { me, batch, items } = data
   const stage = batch.stage
   const [isPending, startTransition] = useTransition()
-  const [filter, setFilter] = useState<Filter>(me.ops || me.senior ? 'all' : 'todo')
+  const [filter, setFilter] = useState<Filter>('all')
   const [q, setQ] = useState('')
   const [teamFilter, setTeamFilter] = useState('')
   // 店長の画面の見本（店舗ごとに ◁ ▷ で移る）
@@ -52,9 +52,12 @@ export function RosterReview({ data }: { data: ReviewData }) {
 
   const led = useMemo(() => new Set(data.ledTeamIds), [data.ledTeamIds])
   const toStore = (it: RosterReviewItemRow) => goesToStore(it, led)
+  const seenByStore = (it: RosterReviewItemRow) => shownToStore(it, led)
+  // 店長として見ている（全体を見る役ではない）
+  const asStore = !me.ops && !me.dev && !me.senior
   const editable = (me.dev && stage === 'draft') || (me.ops && ['ops_preview', 'store', 'senior'].includes(stage))
   const canAnswer = (it: RosterReviewItemRow) => me.ops || (!!it.confirm_team_id && me.ledTeamIds.includes(it.confirm_team_id))
-  const ctx: ItemCtx = { data, stage, canEdit: editable, canAnswer, toStore }
+  const ctx: ItemCtx = { data, stage, canEdit: editable, canAnswer, toStore, seenByStore }
 
   const applicable = items.filter(it => isApplicable(it.action))
   const storeItems = items.filter(toStore)
@@ -119,11 +122,11 @@ export function RosterReview({ data }: { data: ReviewData }) {
   // 店長に回る行がある店舗（店長には、自分の店舗の行だけが出る）
   const storeGroups = data.teams
     .filter(t => t.type === 'store')
-    .map(t => ({ team: t, rows: items.filter(it => it.confirm_team_id === t.id && toStore(it)), undecided: items.filter(it => it.confirm_team_id === t.id && it.action === 'undecided').length }))
+    .map(t => ({ team: t, rows: items.filter(it => it.confirm_team_id === t.id && seenByStore(it)), undecided: items.filter(it => it.confirm_team_id === t.id && it.action === 'undecided').length }))
     .filter(g => g.rows.length > 0 || g.undecided > 0)
   const cur = storeGroups[Math.min(storeIdx, Math.max(storeGroups.length - 1, 0))]
   const move = (d: number) => { setStoreIdx(i => (i + d + storeGroups.length) % storeGroups.length); window.scrollTo({ top: 0, behavior: 'smooth' }) }
-  const previewCtx: ItemCtx = { data: { ...data, me: { ...me, dev: false, ops: false, senior: false } }, stage: 'store', canEdit: false, canAnswer: () => false, toStore, preview: true }
+  const previewCtx: ItemCtx = { data: { ...data, me: { ...me, dev: false, ops: false, senior: false } }, stage: 'store', canEdit: false, canAnswer: () => false, toStore, seenByStore, preview: true }
 
   const teamsInItems = data.teams.filter(t => items.some(it => it.confirm_team_id === t.id || it.target_team_id === t.id))
   const directCount = items.filter(it => isApplicable(it.action) && !toStore(it) && !it.ops_approved).length
@@ -191,7 +194,7 @@ export function RosterReview({ data }: { data: ReviewData }) {
           <div className="rounded-lg border border-orange-200 bg-orange-50 p-3"><p className="text-sm font-semibold text-orange-800">あなたの店舗の方の変更案です。1行ずつ「問題ない」「問題ある」「退職済み」のどれかを選んでください（メッセージも書けます）</p></div>
           {cur.rows.length === 0
             ? <p className="text-sm text-gray-500 text-center py-6">店長に回る行はまだありません。</p>
-            : <ul className="space-y-2">{cur.rows.map(it => <ReviewItem key={it.id} it={it} ctx={previewCtx} />)}</ul>}
+            : <SplitList rows={cur.rows} ctx={previewCtx} forStore />}
           <div className="flex justify-between">
             <Button size="sm" variant="outline" onClick={() => move(-1)}>◁ 前の店舗</Button>
             <Button size="sm" variant="outline" onClick={() => move(1)}>次の店舗 ▷</Button>
@@ -215,7 +218,7 @@ export function RosterReview({ data }: { data: ReviewData }) {
 
       {shown.length === 0
         ? <p className="text-sm text-gray-500 text-center py-6">{filter === 'todo' ? 'いま対応が要る行はありません。' : '当てはまる行はありません。'}</p>
-        : <ul className="space-y-2">{shown.map(it => <ReviewItem key={it.id} it={it} ctx={ctx} />)}</ul>}
+        : <SplitList rows={shown} ctx={ctx} forStore={asStore} />}
         </>
       )}
 
@@ -238,6 +241,29 @@ export function RosterReview({ data }: { data: ReviewData }) {
         {confirm?.to !== 'done' && <Textarea value={stageMsg} onChange={e => setStageMsg(e.target.value)} placeholder="ひとこと（任意。やりとりに残ります）" className="mt-2 text-sm min-h-[56px]" />}
         {applying && <p className="mt-2 text-sm text-gray-600">反映しています…（{issued.length} 件発行）</p>}
       </ConfirmDialog>
+    </div>
+  )
+}
+
+/** 確認が必要な方を上に、問題なさそうな方を下に（案内を付けて）並べる */
+function SplitList({ rows, ctx, forStore }: { rows: RosterReviewItemRow[]; ctx: ItemCtx; forStore: boolean }) {
+  const top = rows.filter(it => needsAttention(it, forStore))
+  const quiet = rows.filter(it => !needsAttention(it, forStore))
+  return (
+    <div className="space-y-3">
+      {top.length > 0 && (
+        <section className="space-y-2">
+          <h3 className="text-sm font-bold text-gray-800">確認をお願いしたい方（{top.length}）</h3>
+          <ul className="space-y-2">{top.map(it => <ReviewItem key={it.id} it={it} ctx={ctx} />)}</ul>
+        </section>
+      )}
+      {quiet.length > 0 && (
+        <section className="space-y-2">
+          <h3 className="text-sm font-bold text-gray-800">問題なさそうな方（{quiet.length}）</h3>
+          <p className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900">{QUIET_NOTE}</p>
+          <ul className="space-y-2">{quiet.map(it => <ReviewItem key={it.id} it={it} ctx={ctx} />)}</ul>
+        </section>
+      )}
     </div>
   )
 }

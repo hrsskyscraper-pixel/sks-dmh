@@ -50,6 +50,23 @@ export function goesToStore(item: Pick<RosterReviewItemRow, 'skip_store' | 'conf
   return !!item.confirm_team_id && storeTeamIdsWithLeader.has(item.confirm_team_id)
 }
 
+/**
+ * 店長の画面に出す行。変更案のある行（答えが要る）に加えて、「変えない」行も出す
+ * （特に問い合わせは無いが、退職された方・変更の要る方がいれば知らせてもらう。答えは任意）
+ */
+export function shownToStore(item: Pick<RosterReviewItemRow, 'skip_store' | 'confirm_team_id' | 'action' | 'merged_into'>, storeTeamIdsWithLeader: Set<string>): boolean {
+  if (goesToStore(item, storeTeamIdsWithLeader)) return true
+  return item.action === 'none' && !item.merged_into && !item.skip_store && !!item.confirm_team_id && storeTeamIdsWithLeader.has(item.confirm_team_id)
+}
+
+/** 確認が必要な方（上に並べる）か。それ以外は「問題なさそうな方」として下に並べる */
+export function needsAttention(item: Pick<RosterReviewItemRow, 'action' | 'needs_check'>, forStore: boolean): boolean {
+  return isApplicable(item.action) || item.action === 'undecided' || (!forStore && item.needs_check)
+}
+
+/** 下に並べる方への案内 */
+export const QUIET_NOTE = '下記の方々は、特に問合せ事項は有りませんが、ご確認いただき、すでに退職された方や、変更の必要がある方がいらっしゃったら、記載をお願いします。'
+
 /** 反映の対象になる行（変えない・MB は使わない は、何もしない） */
 export const isApplicable = (action: RosterReviewAction) => action === 'change' || action === 'stop' || action === 'issue'
 

@@ -24,6 +24,8 @@ export type ItemCtx = {
   /** 店長として答えられる（その店舗のリーダー）か、代わりに入れられる（原島さん） */
   canAnswer: (it: RosterReviewItemRow) => boolean
   toStore: (it: RosterReviewItemRow) => boolean
+  /** 店長の画面に出る行（「変えない」行を含む。答えは任意） */
+  seenByStore?: (it: RosterReviewItemRow) => boolean
   /** 店長の画面の見本（須貝・原島さん・上長が、店長にどう見えるかを確かめる。操作はできない） */
   preview?: boolean
 }
@@ -65,9 +67,10 @@ export function ReviewItem({ it, ctx }: { it: RosterReviewItemRow; ctx: ItemCtx 
   const usage = (p: ReviewData['people'][string]) => `スキルの申請 ${p.applied ?? 0} 件・認定 ${p.certified ?? 0} 件・登録 ${fmtDate(p.created_at)}・最終ログイン ${fmtDate(p.last_login_at, '記録なし')}`
   const toStore = ctx.toStore(it)
   const answeredBy = it.store_answered_by ? data.people[it.store_answered_by]?.name : null
-  const showStore = preview || (stage !== 'draft' && stage !== 'ops_preview' && toStore)
+  const optionalAnswer = !toStore && !!ctx.seenByStore?.(it)
+  const showStore = preview || (stage !== 'draft' && stage !== 'ops_preview' && (toStore || optionalAnswer))
   const followsLeft = it.action === 'skip' || (it.action === 'stop' && it.stop_reason === 'left')
-  const showApprove = !preview && data.me.ops && (stage === 'store' || stage === 'senior') && isApplicable(it.action)
+  const showApprove = !preview && data.me.ops && (stage === 'store' || stage === 'senior') && (isApplicable(it.action) || (it.action === 'none' && (it.store_answer === 'ng' || it.store_answer === 'left')))
 
   const run = (fn: () => Promise<{ error?: string }>, ok?: string, after?: () => void) => startTransition(async () => {
     const res = await fn()
@@ -143,7 +146,9 @@ export function ReviewItem({ it, ctx }: { it: RosterReviewItemRow; ctx: ItemCtx 
 
       {showStore && (
         <div className="rounded-lg border border-gray-200 p-2 space-y-1.5">
-          <p className="text-xs font-semibold text-gray-700">店長への確認：変更案のとおりで、問題ありませんか？</p>
+          {it.action === 'none'
+            ? <p className="text-xs font-semibold text-gray-700">店長への確認：いまのままの予定です。すでに退職された方や、変更の必要がある方でしたら、お知らせください（答えは任意です）。</p>
+            : <p className="text-xs font-semibold text-gray-700">店長への確認：変更案のとおりで、問題ありませんか？</p>}
           <p className="text-[11px] text-gray-600">（すでに退職された方の場合、退職済みボタンを押してください。）</p>
           {it.store_answer && (
             <p className={`text-sm ${it.store_answer === 'ok' ? 'text-emerald-700' : it.store_answer === 'left' ? 'text-slate-700' : 'text-red-700'}`}>

@@ -1694,6 +1694,8 @@ export type RosterReviewItemRow = {
   dup_stop_ids: string[]
   /** ほかの行にまとめた行の、まとめ先 */
   merged_into: string | null
+  /** 確認が必要な方か（false＝違いが見つからなかった方。migration 20261101000500） */
+  needs_check: boolean
   store_message: string | null
   store_answered_by: string | null
   store_answered_at: string | null

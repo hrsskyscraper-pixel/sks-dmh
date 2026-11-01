@@ -5,7 +5,7 @@ import { getRealEmployee } from '@/lib/supabase/auth-cache'
 import { TopBar } from '@/components/layout/nav'
 import { canAdminister, isDeveloper } from '@/lib/permissions'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
-import { goesToStore, normName, STAGE_ORDER } from '@/lib/roster-review'
+import { normName, shownToStore, STAGE_ORDER } from '@/lib/roster-review'
 import { hasLeft } from '@/lib/left'
 import { RosterReview, type ReviewData } from '@/components/roster-review/roster-review'
 import type { RosterReviewBatchRow, RosterReviewItemRow, SystemPermission } from '@/types/database'
@@ -62,7 +62,7 @@ export default async function RosterReviewPage({ searchParams }: { searchParams:
   // 上長は、上長の確認の段階から全行を見る（それまでは、店長として自分の店舗の行だけ）
   const isSenior = batch.senior_ids.includes(me.id) && atLeast(batch, 'senior')
   const seesAll = ops || isSenior
-  const shown = seesAll ? items : items.filter(it => it.confirm_team_id && myTeamIds.has(it.confirm_team_id) && goesToStore(it, ledTeams))
+  const shown = seesAll ? items : items.filter(it => it.confirm_team_id && myTeamIds.has(it.confirm_team_id) && shownToStore(it, ledTeams))
   const shownIds = new Set(shown.map(it => it.id))
   const comments = (commentsRes.data ?? []).reverse().filter(c => seesAll || (c.item_id && shownIds.has(c.item_id)))
 

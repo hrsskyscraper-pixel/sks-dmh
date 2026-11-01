@@ -346,6 +346,9 @@ export async function moveStage(batchId: string, to: RosterReviewStage, message?
       const led = await storesWithLeader()
       const noAnswer = rows.filter(r => goesToStore(r, led) && !r.store_answer).length
       if (noAnswer) return { error: `店長の回答がまだの行が ${noAnswer} 件あります（店長から聞いた内容を、代わりに入れることもできます）` }
+      // 「変えない」行に「問題ある」「退職済み」が届いたら、原島さんが案を直すか、このままでよいと承認する
+      const flagged = rows.filter(r => r.action === 'none' && (r.store_answer === 'ng' || r.store_answer === 'left') && !r.ops_approved).length
+      if (flagged) return { error: `「変えない」行に、店長から「問題ある」「退職済み」が届いた行が ${flagged} 件あります。案を直すか、このままでよいなら担当者として承認してください` }
       break
     }
     case 'senior>dev_check': {
@@ -579,11 +582,11 @@ export async function mergeDuplicates(itemId: string, keepId: string, stopIds: s
   const now = new Date().toISOString()
   const { error } = await db.from('roster_review_items').update({
     employee_id: keepId, dup_stop_ids: stops, merged_into: null,
-    action: 'change', stop_reason: null, updated_at: now,
+    action: 'change', stop_reason: null, needs_check: true, updated_at: now,
   }).eq('id', primary.id)
   if (error) return { error: '保存できませんでした。時間をおいてもう一度お試しください' }
   if (others.length) {
-    await db.from('roster_review_items').update({ merged_into: primary.id, action: 'none', dup_stop_ids: [], skip_store: true, ops_approved: false, updated_at: now }).in('id', others.map(o => o.id))
+    await db.from('roster_review_items').update({ merged_into: primary.id, action: 'none', stop_reason: null, dup_stop_ids: [], skip_store: true, ops_approved: false, updated_at: now }).in('id', others.map(o => o.id))
   }
   // 前にこの行にまとめていて、今回は外れた行を戻す
   const released = rows.filter(r => wasMerged(r) && r.id !== primary.id && !others.some(o => o.id === r.id)).map(r => r.id)
@@ -661,7 +664,7 @@ export async function proposeDuplicateMerges(batchId: string): Promise<Result & 
     const res = await mergeDuplicates(start.id, keep.id, ids.filter(id => id !== keep.id))
     if (res.error) continue
     const extra = related.filter(r => r.id !== res.primary && !r.employee_id).map(r => r.id)
-    if (extra.length) await db.from('roster_review_items').update({ merged_into: res.primary, action: 'none', skip_store: true, updated_at: new Date().toISOString() }).in('id', extra)
+    if (extra.length) await db.from('roster_review_items').update({ merged_into: res.primary, action: 'none', stop_reason: null, skip_store: true, updated_at: new Date().toISOString() }).in('id', extra)
     count++
   }
   await writeAuditLog({ action: 'roster_review_propose_merge', actorId: me.id, details: { batch: batchId, count } }).catch(() => {})
