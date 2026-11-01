@@ -124,21 +124,23 @@ export function ReviewItem({ it, ctx }: { it: RosterReviewItemRow; ctx: ItemCtx 
           )}
           {preview && (
             <>
-              <Textarea placeholder="メッセージ（任意。「問題ある」のときは、どこが違うかを書いていただけると助かります）" className="text-sm min-h-[56px]" disabled />
+              <Textarea placeholder="メッセージ（「問題ない」は任意。「問題ある」のときは、どこが違うかを書いてください）" className="text-sm min-h-[56px]" disabled />
               <div className="flex gap-2">
                 <Button size="sm" className="bg-emerald-600" disabled>問題ない</Button>
                 <Button size="sm" variant="outline" className="border-red-300 text-red-700" disabled>問題ある</Button>
               </div>
+              <p className="text-[11px] text-gray-500">「問題ない」は、メッセージなしで押せます。「問題ある」は、どこが違うかをメッセージに書くと押せるようになります。</p>
             </>
           )}
           {!preview && !it.store_answer && stage !== 'store' && <p className="text-xs text-gray-500">回答はありません</p>}
           {!preview && stage === 'store' && ctx.canAnswer(it) && (
             <>
-              <Textarea value={msg} onChange={e => setMsg(e.target.value)} placeholder="メッセージ（任意。「問題ある」のときは、どこが違うかを書いていただけると助かります）" className="text-sm min-h-[56px]" disabled={isPending} />
+              <Textarea value={msg} onChange={e => setMsg(e.target.value)} placeholder="メッセージ（「問題ない」は任意。「問題ある」のときは、どこが違うかを書いてください）" className="text-sm min-h-[56px]" disabled={isPending} />
               <div className="flex gap-2">
                 <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" disabled={isPending} onClick={() => run(() => answerItem(it.id, 'ok', msg), '送りました')}>問題ない</Button>
-                <Button size="sm" variant="outline" className="border-red-300 text-red-700" disabled={isPending} onClick={() => run(() => answerItem(it.id, 'ng', msg), '送りました')}>問題ある</Button>
+                <Button size="sm" variant="outline" className="border-red-300 text-red-700" disabled={isPending || !msg.trim()} onClick={() => run(() => answerItem(it.id, 'ng', msg), '送りました')}>問題ある</Button>
               </div>
+              <p className="text-[11px] text-gray-500">「問題ない」は、メッセージなしで押せます。「問題ある」は、どこが違うかをメッセージに書くと押せるようになります。</p>
               {data.me.ops && !data.me.ledTeamIds.includes(it.confirm_team_id ?? '') && <p className="text-[11px] text-gray-500">店長から聞いた内容を、代わりに入れることもできます（入れた人として記録されます）。</p>}
             </>
           )}

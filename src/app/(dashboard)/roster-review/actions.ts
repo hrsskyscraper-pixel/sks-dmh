@@ -136,6 +136,7 @@ export async function answerItem(itemId: string, answer: 'ok' | 'ng', message: s
   if (!me) return { error: '権限がありません' }
   if (answer !== 'ok' && answer !== 'ng') return { error: '「問題ない」か「問題ある」を選んでください' }
   if (badNote(message)) return { error: `メッセージは ${NOTE_MAX} 文字までで、使えない文字は入れないでください` }
+  if (answer === 'ng' && !message.trim()) return { error: '「問題ある」のときは、どこが違うかをメッセージに書いてください' }
   const ctx = await loadItem(itemId)
   if (!ctx) return { error: 'この行が見つかりません' }
   const { item, batch } = ctx
