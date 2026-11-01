@@ -11,7 +11,7 @@ import { ACTION_LABEL, describeChange, isApplicable, STOP_REASON_LABEL } from '@
 import type { RosterReviewAction, RosterReviewItemRow, RosterReviewStage } from '@/types/database'
 import type { ReviewData } from './roster-review'
 
-const fmtDate = (iso: string | null | undefined) => iso ? new Date(iso).toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: 'numeric', day: 'numeric' }) : 'なし'
+const fmtDate = (iso: string | null | undefined, none = 'なし') => iso ? new Date(iso).toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: 'numeric', day: 'numeric' }) : none
 const ANSWER_LABEL = { ok: '問題ない', ng: '問題ある', left: '退職済み' } as const
 const MSG_PLACEHOLDER = 'メッセージ（「問題ない」「退職済み」は任意。「問題ある」のときは、どこが違うかを書いてください）'
 const ANSWER_HINT = '「問題ない」は、メッセージなしで押せます。「問題ある」は、どこが違うかをメッセージに書くと押せるようになります。「退職済み」は、押したあとに退職年月日を入れて送ります。'
@@ -62,7 +62,7 @@ export function ReviewItem({ it, ctx }: { it: RosterReviewItemRow; ctx: ItemCtx 
   const thread = data.comments.filter(c => c.item_id === it.id)
   const dupes = (data.dupes[it.id] ?? []).filter(id => data.people[id])
   const accounts = [...(it.employee_id && person ? [{ id: it.employee_id, p: person, mine: true }] : []), ...dupes.map(id => ({ id, p: data.people[id], mine: false }))].filter(x => x.p)
-  const usage = (p: ReviewData['people'][string]) => `スキルの申請 ${p.applied ?? 0} 件・認定 ${p.certified ?? 0} 件・登録 ${fmtDate(p.created_at)}・最終ログイン ${fmtDate(p.last_login_at)}`
+  const usage = (p: ReviewData['people'][string]) => `スキルの申請 ${p.applied ?? 0} 件・認定 ${p.certified ?? 0} 件・登録 ${fmtDate(p.created_at)}・最終ログイン ${fmtDate(p.last_login_at, '記録なし')}`
   const toStore = ctx.toStore(it)
   const answeredBy = it.store_answered_by ? data.people[it.store_answered_by]?.name : null
   const showStore = preview || (stage !== 'draft' && stage !== 'ops_preview' && toStore)
@@ -108,7 +108,7 @@ export function ReviewItem({ it, ctx }: { it: RosterReviewItemRow; ctx: ItemCtx 
                   {p.left ? <span className="ml-1 text-gray-500">（止まっています）</span> : ''}</p>
                 <p>{[p.employment_type, p.team_names.join('・'), p.role_ids.map(roleName).join('・')].filter(Boolean).join('・') || '—'}</p>
                 <p>スキルの申請 {p.applied ?? 0} 件・認定 {p.certified ?? 0} 件</p>
-                <p>登録 {fmtDate(p.created_at)}・最終ログイン {fmtDate(p.last_login_at)}</p>
+                <p>登録 {fmtDate(p.created_at)}・最終ログイン {fmtDate(p.last_login_at, '記録なし')}</p>
                 {canEdit && !it.merged_into && !p.left && !(stopIds.length && mine) && (
                   <Button size="sm" variant="outline" className="mt-1 h-7 text-[11px]" disabled={isPending}
                     onClick={() => run(() => mergeDuplicates(it.id, id, accounts.filter(a => a.id !== id && !a.p?.left).map(a => a.id)), '1件にまとめました')}>これを活かして、ほかを止める</Button>
@@ -122,7 +122,7 @@ export function ReviewItem({ it, ctx }: { it: RosterReviewItemRow; ctx: ItemCtx 
       )}
 
       <div className="rounded-lg bg-orange-50 border border-orange-100 px-3 py-2">
-        <p className="text-[11px] text-orange-700 font-semibold">変更案：このように変更します</p>
+        <p className="text-[11px] text-orange-700 font-semibold">変更案：このように変更を予定しています</p>
         <ul className="text-sm text-gray-800 list-disc pl-5">{lines.map(l => <li key={l}>{l}</li>)}</ul>
       </div>
 

@@ -296,7 +296,7 @@ function StagePanel({ data, pending, run, ask, seniorsOk, mySign, counts }: {
         </div>
         {counts.undecided > 0 && <p className="text-[11px] text-red-600">「まだ決めていない」行が {counts.undecided} 件あります。</p>}
         <div className="border-t border-orange-200 pt-2 space-y-1">
-          <p className="text-[11px] text-gray-700">同じ店舗に、同じ名前のアカウントが2つ以上ある方は、1件の確認にまとめた原案にできます（認定の多い方 → 申請の多い方 → 最近使った方 → 先に作った方を活かし、ほかを止めます）。まだ決めていない行だけが対象です。あとから行ごとに、活かす方を選び直せます。</p>
+          <p className="text-[11px] text-gray-700">同じ店舗に、同じ名前のアカウントが2つ以上ある方は、1件の確認にまとめた原案にできます（認定の多い方 → 申請の多い方 → 最近使った方 → 先に作った方を活かし、ほかを止めます）。v4 で「重複で止める」とした方は活かしません。退職・共有で止める行がある方は、まとめません。あとから行ごとに、活かす方を選び直せます。</p>
           <Button size="sm" variant="outline" disabled={pending}
             onClick={() => run(async () => { const r = await proposeDuplicateMerges(batch.id); if (!r.error) toast.success(r.count ? `${r.count} 組を1件にまとめました` : 'まとめられる組はありませんでした'); return r })}>同じ店舗の重複アカウントを、1件にまとめた原案にする</Button>
         </div>

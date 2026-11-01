@@ -617,8 +617,8 @@ export async function unmergeDuplicates(itemId: string): Promise<Result> {
 
 /**
  * 下書きで、同じ店舗の重複アカウントを1件にまとめた原案を作る（須貝）。
- * 同じ名前のアカウントが2つ以上あり、所属の店舗がすべて同じで、関わる行がまだ決まっていないものだけ。
- * 活かす方は、認定の多い方 → 申請の多い方 → 最近使った方 → 先に作った方。
+ * 同じ名前のアカウントが2つ以上あり、所属の店舗がすべて同じもの。
+ * 活かす方は、認定の多い方 → 申請の多い方 → 最近使った方 → 先に作った方（v4 で「重複で止める」とした方は活かさない）。
  */
 export async function proposeDuplicateMerges(batchId: string): Promise<Result & { count?: number }> {
   const me = await getRealEmployee()
@@ -629,8 +629,8 @@ export async function proposeDuplicateMerges(batchId: string): Promise<Result & 
   const [emps, rows, mem, ach] = await Promise.all([
     fetchAllRows<{ id: string; name: string; created_at: string; last_login_at?: string | null; left_at?: string | null; system_permission: string }>((from, to) =>
       db.from('employees').select('id, name, created_at, last_login_at, left_at, system_permission').order('id').range(from, to)),
-    fetchAllRows<Pick<RosterReviewItemRow, 'id' | 'employee_id' | 'action' | 'roster' | 'merged_into' | 'dup_stop_ids'>>((from, to) =>
-      db.from('roster_review_items').select('id, employee_id, action, roster, merged_into, dup_stop_ids').eq('batch_id', batchId).order('id').range(from, to)),
+    fetchAllRows<Pick<RosterReviewItemRow, 'id' | 'employee_id' | 'action' | 'stop_reason' | 'roster' | 'merged_into' | 'dup_stop_ids'>>((from, to) =>
+      db.from('roster_review_items').select('id, employee_id, action, stop_reason, roster, merged_into, dup_stop_ids').eq('batch_id', batchId).order('id').range(from, to)),
     fetchAllRows<{ team_id: string; employee_id: string; teams: unknown }>((from, to) =>
       db.from('team_members').select('team_id, employee_id, teams!inner(type)').eq('teams.type', 'store').order('team_id').order('employee_id').range(from, to)),
     fetchAllRows<{ employee_id: string; status: string; id: string }>((from, to) => db.from('achievements').select('id, employee_id, status').order('id').range(from, to)),
@@ -647,8 +647,13 @@ export async function proposeDuplicateMerges(batchId: string): Promise<Result & 
     if (!st || accounts.some(a => storesOf(a.id) !== st)) continue
     const ids = accounts.map(a => a.id)
     const related = rows.filter(r => (r.employee_id && ids.includes(r.employee_id)) || (!r.employee_id && normName(r.roster.name || `${r.roster.last_name ?? ''}${r.roster.first_name ?? ''}`) === k))
-    if (!related.length || related.some(r => r.action !== 'undecided' || r.merged_into || r.dup_stop_ids?.length)) continue
-    const keep = pickKeep(accounts.map(a => ({
+    if (!related.length || related.some(r => r.merged_into || r.dup_stop_ids?.length)) continue
+    // v4 で別の決め方（退職・共有で止める、発行する など）をした行があれば、まとめない
+    if (related.some(r => !(r.action === 'undecided' || r.action === 'none' || r.action === 'change' || (r.action === 'stop' && r.stop_reason === 'duplicate')))) continue
+    // v4 で「重複で止める」と決めた方は活かさない
+    const stopped = new Set(related.filter(r => r.action === 'stop' && r.employee_id).map(r => r.employee_id!))
+    const keepPool = accounts.filter(a => !stopped.has(a.id)).length ? accounts.filter(a => !stopped.has(a.id)) : accounts
+    const keep = pickKeep(keepPool.map(a => ({
       ...a, last_login_at: a.last_login_at ?? null, certified: ach.filter(x => x.employee_id === a.id && x.status === 'certified').length, applied: ach.filter(x => x.employee_id === a.id).length,
     })))
     const start = related.find(r => r.employee_id === keep.id) ?? related.find(r => r.employee_id) ?? related[0]

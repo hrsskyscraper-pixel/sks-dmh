@@ -86,13 +86,13 @@ export default async function RosterReviewPage({ searchParams }: { searchParams:
   for (const it of shown) for (const id of it.dup_stop_ids ?? []) empIds.add(id)
 
   const ids = [...empIds]
-  const emps: { id: string; name: string; employment_type: string | null; business_role_ids: string[] | null; left_at?: string | null; system_permission: SystemPermission; created_at: string; last_login_at?: string | null }[] = []
+  const emps: { id: string; name: string; employment_type: string | null; business_role_ids: string[] | null; left_at?: string | null; system_permission: SystemPermission; created_at: string; last_login_at?: string | null; auth_user_id: string | null }[] = []
   const mem: { team_id: string; employee_id: string }[] = []
   const ach: { employee_id: string; status: string }[] = []
   for (let i = 0; i < ids.length; i += 100) {
     const chunk = ids.slice(i, i + 100)
     const [e, m, a] = await Promise.all([
-      db.from('employees').select('id, name, employment_type, business_role_ids, left_at, system_permission, created_at, last_login_at').in('id', chunk),
+      db.from('employees').select('id, name, employment_type, business_role_ids, left_at, system_permission, created_at, last_login_at, auth_user_id').in('id', chunk),
       db.from('team_members').select('team_id, employee_id').in('employee_id', chunk),
       // これまでのスキルの申請・認定の数
       fetchAllRows<{ employee_id: string; status: string }>((from, to) => db.from('achievements').select('employee_id, status').in('employee_id', chunk).order('id').range(from, to)),
@@ -100,6 +100,20 @@ export default async function RosterReviewPage({ searchParams }: { searchParams:
     emps.push(...(e.data ?? []))
     mem.push(...(m.data ?? []))
     ach.push(...a)
+  }
+  // 最終ログイン: MB の利用の記録（2026-10-23 から）と、ログインの記録（認証）の新しい方
+  const signIn = new Map<string, string>()
+  if (emps.some(e => e.auth_user_id)) {
+    for (let page = 1; page <= 20; page++) {
+      const { data: au, error: auErr } = await db.auth.admin.listUsers({ page, perPage: 1000 })
+      if (auErr || !au) break
+      for (const u of au.users) if (u.last_sign_in_at) signIn.set(u.id, u.last_sign_in_at)
+      if (au.users.length < 1000) break
+    }
+  }
+  const lastSeen = (e: { last_login_at?: string | null; auth_user_id: string | null }) => {
+    const a = e.last_login_at ?? null, b = e.auth_user_id ? signIn.get(e.auth_user_id) ?? null : null
+    return a && b ? (a > b ? a : b) : a ?? b
   }
   const teamName = new Map(teams.map(t => [t.id, t.name]))
   const people: ReviewData['people'] = {}
@@ -112,7 +126,7 @@ export default async function RosterReviewPage({ searchParams }: { searchParams:
       left: hasLeft(e.left_at),
       permission: e.system_permission,
       created_at: e.created_at,
-      last_login_at: e.last_login_at ?? null,
+      last_login_at: lastSeen(e),
       applied: ach.filter(a => a.employee_id === e.id).length,
       certified: ach.filter(a => a.employee_id === e.id && a.status === 'certified').length,
     }
