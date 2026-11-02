@@ -20,7 +20,7 @@ export function groupKey(it: RosterReviewItemRow, ctx: ItemCtx): string | null {
   // 重複アカウントを見比べる行・まとめた行は、1人ずつのカードのまま
   if (it.merged_into || (it.dup_stop_ids ?? []).length) return null
   if ((ctx.data.dupes[it.id] ?? []).some(id => ctx.data.people[id])) return null
-  if (it.action === 'undecided') return null
+  if (it.action === 'undecided' || it.action === 'ask') return null
   // 店舗の無い行（原島さんへ直接）は、1人ずつのまま
   if (!it.confirm_team_id) return null
   return [it.confirm_team_id ?? '', String(it.skip_store), it.action, it.stop_reason ?? '', ...changeLines(it, ctx.data)].join('\u0001')

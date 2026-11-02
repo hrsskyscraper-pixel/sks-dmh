@@ -154,7 +154,9 @@ export function ReviewItem({ it, ctx }: { it: RosterReviewItemRow; ctx: ItemCtx 
 
       {showStore && (
         <div className="rounded-lg border border-gray-200 p-2 space-y-1.5">
-          {it.action === 'none'
+          {it.action === 'ask'
+            ? <p className="text-xs font-semibold text-gray-700">店長への確認：この方は、いまの MB のままでよいですか？ 違うときは「問題ある」を押して、どこをどう直すかを書いてください。</p>
+            : it.action === 'none'
             ? <p className="text-xs font-semibold text-gray-700">店長への確認：いまのままの予定です。すでに退職された方や、変更の必要がある方でしたら、お知らせください（答えは任意です）。</p>
             : <p className="text-xs font-semibold text-gray-700">店長への確認：変更案のとおりで、問題ありませんか？</p>}
           <p className="text-[11px] text-gray-600">（すでに退職された方の場合、退職済みボタンを押してください。）</p>
@@ -171,6 +173,14 @@ export function ReviewItem({ it, ctx }: { it: RosterReviewItemRow; ctx: ItemCtx 
                 onClick={() => run(() => updateItem(it.id, it.employee_id ? { action: 'stop', stop_reason: 'left' } : { action: 'skip' }), '案を直しました')}>
                 {it.employee_id ? '「アカウントを止める（退職）」にする' : '「MB は使わない」にする'}
               </Button>
+            </div>
+          )}
+          {!preview && data.me.ops && it.action === 'ask' && (stage === 'store') && canEdit && (
+            <div className="flex flex-wrap items-center gap-2 rounded-md bg-amber-50 px-2 py-1.5">
+              <p className="text-[11px] text-amber-800 flex-1 min-w-[12rem]">「店長に確認する」行です。店長の答えを見て、「案を直す」で案を決めてから、担当者として承認してください。{it.store_answer === 'ok' ? '「問題ない」なので、いまのまま（変えない）にできます。' : ''}</p>
+              {it.store_answer === 'ok' && (
+                <Button size="sm" variant="outline" disabled={isPending} onClick={() => run(() => updateItem(it.id, { action: 'none', store_question: null }), '「変えない」にしました')}>「変えない」にする</Button>
+              )}
             </div>
           )}
           {preview && (
@@ -257,7 +267,8 @@ export function ItemEditor({ it, data, stage, pending, onSave }: { it: RosterRev
   const [skipStore, setSkipStore] = useState(it.skip_store)
   const [devNote, setDevNote] = useState(it.dev_note ?? '')
   const [previewNote, setPreviewNote] = useState(it.ops_preview_note ?? '')
-  const actions: RosterReviewAction[] = stage === 'draft' ? ['undecided', 'change', 'issue', 'stop', 'skip', 'none'] : ['change', 'issue', 'stop', 'skip', 'none']
+  const [question, setQuestion] = useState(it.store_question ?? '')
+  const actions: RosterReviewAction[] = stage === 'draft' ? ['undecided', 'ask', 'change', 'issue', 'stop', 'skip', 'none'] : ['ops_preview', 'store'].includes(stage) ? ['ask', 'change', 'issue', 'stop', 'skip', 'none'] : ['change', 'issue', 'stop', 'skip', 'none']
   const sel = 'rounded border border-gray-300 px-1 py-0.5 text-sm'
 
   const save = () => onSave({
@@ -267,6 +278,7 @@ export function ItemEditor({ it, data, stage, pending, onSave }: { it: RosterRev
     target_role_ids: setRolesOn ? roles : null,
     stop_reason: (reason || null) as 'left' | 'shared' | 'duplicate' | 'other' | null,
     stop_note: reason === 'other' ? stopNote : null,
+    store_question: action === 'ask' ? question : null,
     fix_name: action === 'change' && fixName,
     confirm_team_id: confirmTeam || null,
     skip_store: skipStore,
@@ -319,6 +331,12 @@ export function ItemEditor({ it, data, stage, pending, onSave }: { it: RosterRev
       )}
       {action === 'stop' && reason === 'other' && (
         <Textarea value={stopNote} onChange={e => setStopNote(e.target.value)} placeholder="止める理由（店長にも見えます。例: 休職中のため、本人からの申し出 など）" className="text-sm min-h-[40px]" />
+      )}
+      {action === 'ask' && (
+        <div className="space-y-1">
+          <p className="text-[11px] text-gray-600">いまの MB のままにして、店長に「このままでよいか、違うときはどこを直すか」を聞きます。答えを見てから、原島さんが案を決めます（このままでは反映できません）。下で「確認してもらう店舗」を選んでください。</p>
+          <Textarea value={question} onChange={e => setQuestion(e.target.value)} placeholder="店長への質問（任意。店長に見えます。例: 区分が社員リストと違います。いまはどちらですか）" className="text-sm min-h-[40px]" />
+        </div>
       )}
       {action === 'change' && it.roster.last_name && (
         <label className="flex items-center gap-1 text-[11px] text-gray-600"><input type="checkbox" checked={fixName} onChange={e => setFixName(e.target.checked)} />氏名を社員リストの氏名（{rosterFullName(it.roster)}）に直す</label>

@@ -79,6 +79,7 @@ export type ItemPatch = {
   skip_store?: boolean
   dev_note?: string | null
   ops_preview_note?: string | null
+  store_question?: string | null
 }
 
 /** 変更案を直す */
@@ -93,8 +94,14 @@ export async function updateItem(itemId: string, patch: ItemPatch): Promise<Resu
   if (patch.action && patch.action !== 'change' && (item.dup_stop_ids ?? []).length) return { error: '重複アカウントをまとめた行です。「まとめるのをやめる」を押してから、変えてください' }
   if (item.merged_into && patch.action && patch.action !== item.action) return { error: 'ほかの行にまとめた行です。まとめ先の行で「まとめるのをやめる」を押してから、変えてください' }
   if (patch.action === 'undecided' && batch.stage !== 'draft') return { error: '「まだ決めていない」は下書きのときだけ選べます' }
+  if (patch.action === 'ask' && !['draft', 'ops_preview', 'store'].includes(batch.stage)) return { error: '「店長に確認する」は、店長の確認の段階までに選んでください' }
+  if ((patch.action ?? item.action) === 'ask') {
+    const team = patch.confirm_team_id !== undefined ? patch.confirm_team_id : item.confirm_team_id
+    const skip = patch.skip_store !== undefined ? patch.skip_store : item.skip_store
+    if (!team || skip || !(await storesWithLeader()).has(team)) return { error: '「店長に確認する」には、店長（リーダー）のいる「確認してもらう店舗」を選び、「店長には回さない」を外してください' }
+  }
   if (patch.stop_reason !== undefined && patch.stop_reason !== null && !['left', 'shared', 'duplicate', 'other'].includes(patch.stop_reason)) return { error: '止める理由を選び直してください' }
-  if (badNote(patch.dev_note) || badNote(patch.ops_preview_note) || badNote(patch.stop_note)) return { error: `メモは ${NOTE_MAX} 文字までで、使えない文字は入れないでください` }
+  if (badNote(patch.dev_note) || badNote(patch.ops_preview_note) || badNote(patch.stop_note) || badNote(patch.store_question)) return { error: `メモは ${NOTE_MAX} 文字までで、使えない文字は入れないでください` }
   if ((patch.target_role_ids ?? []).length > 10) return { error: '役職が多すぎます' }
 
   const db = createAdminClient()
@@ -115,12 +122,19 @@ export async function updateItem(itemId: string, patch: ItemPatch): Promise<Resu
   if (patch.dev_note !== undefined) next.dev_note = cleanNote(patch.dev_note)
   if (patch.ops_preview_note !== undefined) next.ops_preview_note = cleanNote(patch.ops_preview_note)
   if (patch.stop_note !== undefined) next.stop_note = cleanNote(patch.stop_note)
+  if (patch.store_question !== undefined) next.store_question = cleanNote(patch.store_question)
   // 実際に変わった項目だけで判定する（画面は保存のたびに全部の項目を送る）
   const same = (a: unknown, b: unknown) => JSON.stringify(Array.isArray(a) ? [...a].sort() : a ?? null) === JSON.stringify(Array.isArray(b) ? [...b].sort() : b ?? null)
-  const contentChanged = (['action', 'target_employment_type', 'target_team_id', 'target_role_ids', 'stop_reason', 'stop_note', 'fix_name'] as const).some(k => patch[k] !== undefined && !same(patch[k], item[k]))
+  // メモの欄は、保存するときと同じ形（前後の空白を除き、空は null）にしてから比べる
+  const norm = (k: string, v: unknown) => (k === 'stop_note' || k === 'store_question') ? cleanNote(v as string | null) : v
+  const contentChanged = (['action', 'target_employment_type', 'target_team_id', 'target_role_ids', 'stop_reason', 'stop_note', 'fix_name', 'store_question'] as const).some(k => patch[k] !== undefined && !same(norm(k, patch[k]), item[k]))
   // 店長の「退職済み」に合わせて案を直した（退職で止める／MB は使わない）ときは、店長の回答を残す
-  const followsLeft = item.store_answer === 'left' && (
-    (next.action ?? item.action) === 'skip' || ((next.action ?? item.action) === 'stop' && (next.stop_reason ?? item.stop_reason) === 'left'))
+  const followsLeft = (item.store_answer === 'left' && (
+    (next.action ?? item.action) === 'skip' || ((next.action ?? item.action) === 'stop' && (next.stop_reason ?? item.stop_reason) === 'left')))
+    // 「店長に確認する」行に店長が答えたあと、その答えに合わせて案を決めたときも、答えを残す
+    // 残すのは、答えと決めた案が合うときだけ（問題ない→変えない、問題ある→店長の書いたとおりに直す）。合わないときは答え直し
+    || (item.action === 'ask' && (next.action ?? item.action) !== 'ask' && (
+      (item.store_answer === 'ok' && (next.action ?? item.action) === 'none') || item.store_answer === 'ng'))
   // 店長の確認より後で案を直したら、店長の回答と担当者承認をやり直す（上長の承認もやり直す）
   if (contentChanged && (batch.stage === 'store' || batch.stage === 'senior')) {
     next.ops_approved = false
@@ -131,9 +145,9 @@ export async function updateItem(itemId: string, patch: ItemPatch): Promise<Resu
   const { error } = await db.from('roster_review_items').update(next).eq('id', itemId)
   if (error) return { error: '保存できませんでした。時間をおいてもう一度お試しください' }
   if (contentChanged && batch.stage !== 'draft') {
-    await log(batch.id, itemId, me, batch.stage, followsLeft ? '店長の「退職済み」に合わせて、変更案を直しました' : item.store_answer && batch.stage === 'store' ? '変更案を直しました（店長の回答はやり直しです）' : item.store_answer ? '変更案を直しました（店長の回答は、直す前の案へのものです）' : '変更案を直しました')
+    await log(batch.id, itemId, me, batch.stage, followsLeft ? (item.action === 'ask' ? '店長の答えに合わせて、変更案を決めました' : '店長の「退職済み」に合わせて、変更案を直しました') : item.store_answer && batch.stage === 'store' ? '変更案を直しました（店長の回答はやり直しです）' : item.store_answer ? '変更案を直しました（店長の回答は、直す前の案へのものです）' : '変更案を直しました')
     if (batch.stage === 'senior') await db.from('roster_review_signoffs').update({ approved: false, updated_at: new Date().toISOString() }).eq('batch_id', batch.id)
-    await writeAuditLog({ action: 'roster_review_edit', actorId: me.id, targetId: item.employee_id ?? undefined, details: { batch: batch.id, item: itemId, stage: batch.stage, patch: { ...next, dev_note: next.dev_note !== undefined ? '(メモを更新)' : undefined, ops_preview_note: next.ops_preview_note !== undefined ? '(メモを更新)' : undefined } } }).catch(() => {})
+    await writeAuditLog({ action: 'roster_review_edit', actorId: me.id, targetId: item.employee_id ?? undefined, details: { batch: batch.id, item: itemId, stage: batch.stage, patch: { ...next, dev_note: next.dev_note !== undefined ? '(メモを更新)' : undefined, ops_preview_note: next.ops_preview_note !== undefined ? '(メモを更新)' : undefined, store_question: next.store_question !== undefined ? '(質問を更新)' : undefined, stop_note: next.stop_note !== undefined ? '(理由を更新)' : undefined } } }).catch(() => {})
   }
   done()
   return {}
@@ -183,7 +197,7 @@ export async function approveItem(itemId: string, approved: boolean, note: strin
   if (!ctx) return { error: 'この行が見つかりません' }
   if (!opsFor(me, ctx.batch)) return { error: '権限がありません（上長の方は、担当者承認はしません）' }
   if (ctx.batch.stage !== 'store' && ctx.batch.stage !== 'senior') return { error: 'いまは担当者承認の段階ではありません' }
-  if (approved && ctx.item.action === 'undecided') return { error: '変更案を決めてから承認してください' }
+  if (approved && (ctx.item.action === 'undecided' || ctx.item.action === 'ask')) return { error: '変更案を決めてから承認してください（「店長に確認する」行は、店長の答えを見て「案を直す」で決めます）' }
   const db = createAdminClient()
   const { error } = await db.from('roster_review_items').update({
     ops_approved: approved, ops_note: cleanNote(note), ops_by: me.id, ops_at: new Date().toISOString(), updated_at: new Date().toISOString(),
@@ -290,6 +304,9 @@ async function batchItems(batchId: string) {
   return fetchAllRows<Pick<RosterReviewItemRow, 'id' | 'action' | 'ops_approved' | 'skip_store' | 'confirm_team_id' | 'store_answer' | 'employee_id' | 'target_team_id' | 'target_employment_type' | 'stop_reason' | 'stop_note' | 'roster'>>((from, to) =>
     db.from('roster_review_items').select('id, action, ops_approved, skip_store, confirm_team_id, store_answer, employee_id, target_team_id, target_employment_type, stop_reason, stop_note, roster').eq('batch_id', batchId).order('id').range(from, to))
 }
+
+/** 「店長に確認する」のまま、案が決まっていない行の数 */
+const askCount = (rows: { action: RosterReviewAction }[]) => rows.filter(r => r.action === 'ask').length
 
 /** 反映できない形の行の数（段階を進める前に止める） */
 function invalidCount(rows: Awaited<ReturnType<typeof batchItems>>): number {
@@ -430,6 +447,7 @@ export async function moveStage(batchId: string, to: RosterReviewStage, message?
       if (!ops) return { error: '権限がありません' }
       if (unapproved) return { error: `担当者承認がまだの行が ${unapproved} 件あります` }
       if (invalidCount(rows)) return { error: `反映できない形の行が ${invalidCount(rows)} 件あります` }
+      if (askCount(rows)) return { error: `「店長に確認する」行が ${askCount(rows)} 件残っています。店長の答えを見て、「案を直す」で案を決めてください` }
       const led = await storesWithLeader()
       const noAnswer = rows.filter(r => goesToStore(r, led) && !r.store_answer).length
       if (noAnswer) return { error: `店長の回答がまだの行が ${noAnswer} 件あります（店長から聞いた内容を、代わりに入れることもできます）` }
@@ -445,12 +463,14 @@ export async function moveStage(batchId: string, to: RosterReviewStage, message?
       const ok = new Set((signs ?? []).filter(s => s.approved).map(s => s.employee_id))
       const waiting = batch.senior_ids.filter(id => !ok.has(id)).length
       if (waiting) return { error: `上長の承認がまだの方が ${waiting} 名います` }
+      if (askCount(rows)) return { error: `「店長に確認する」行が ${askCount(rows)} 件残っています` }
       if (invalidCount(rows)) return { error: `反映できない形の行が ${invalidCount(rows)} 件あります` }
       break
     }
     case 'dev_check>senior':
     case 'dev_check>apply':
       if (!dev) return { error: '須貝の確認は須貝だけが進められます' }
+      if (askCount(rows)) return { error: `「店長に確認する」行が ${askCount(rows)} 件残っています` }
       if (invalidCount(rows)) return { error: `反映できない形の行が ${invalidCount(rows)} 件あります` }
       break
     default:

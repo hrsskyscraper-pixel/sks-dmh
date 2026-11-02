@@ -30,6 +30,7 @@ export const ACTION_LABEL: Record<RosterReviewAction, string> = {
   stop: 'アカウントを止める',
   issue: 'アカウントを発行する',
   skip: 'MB は使わない',
+  ask: '店長に確認する',
 }
 
 export type StopReason = 'left' | 'shared' | 'duplicate' | 'other'
@@ -65,7 +66,7 @@ export function nextStage(stage: RosterReviewStage): RosterReviewStage | null {
 
 /** 店長に回す行か（店長を飛ばす行・決めていない行・変えない行は回さない） */
 export function goesToStore(item: Pick<RosterReviewItemRow, 'skip_store' | 'confirm_team_id' | 'action'>, storeTeamIdsWithLeader: Set<string>): boolean {
-  if (item.skip_store || !isApplicable(item.action)) return false
+  if (item.skip_store || !(isApplicable(item.action) || item.action === 'ask')) return false
   return !!item.confirm_team_id && storeTeamIdsWithLeader.has(item.confirm_team_id)
 }
 
@@ -80,7 +81,7 @@ export function shownToStore(item: Pick<RosterReviewItemRow, 'skip_store' | 'con
 
 /** 確認が必要な方（上に並べる）か。それ以外は「問題なさそうな方」として下に並べる */
 export function needsAttention(item: Pick<RosterReviewItemRow, 'action' | 'needs_check'>, forStore: boolean): boolean {
-  return isApplicable(item.action) || item.action === 'undecided' || (!forStore && item.needs_check)
+  return isApplicable(item.action) || item.action === 'undecided' || item.action === 'ask' || (!forStore && item.needs_check)
 }
 
 /** 下に並べる方への案内 */
@@ -103,7 +104,7 @@ export type CurrentState = {
  * 今の MB の状態と、変更後を比べて、違うところだけを並べる。
  */
 export function describeChange(
-  item: Pick<RosterReviewItemRow, 'action' | 'target_employment_type' | 'target_team_id' | 'target_role_ids' | 'stop_reason' | 'stop_note' | 'fix_name' | 'roster'>,
+  item: Pick<RosterReviewItemRow, 'action' | 'target_employment_type' | 'target_team_id' | 'target_role_ids' | 'stop_reason' | 'stop_note' | 'fix_name' | 'roster'> & { store_question?: string | null },
   current: CurrentState | null,
   names: { team: (id: string) => string; role: (id: string) => string; std?: (id: string) => SystemPermission | null },
 ): string[] {
@@ -151,6 +152,11 @@ export function describeChange(
       return ['MB のアカウントは作りません']
     case 'none':
       return ['変えません']
+    case 'ask':
+      return [
+        'この方の扱いを、店長に確かめます。いまの MB のままでよいか、違うときはどこを直すかを教えてください',
+        ...(item.store_question ? [`質問: ${item.store_question}`] : []),
+      ]
     default:
       return ['まだ決めていません']
   }

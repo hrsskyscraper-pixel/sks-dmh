@@ -69,6 +69,7 @@ export function RosterReview({ data }: { data: ReviewData }) {
   const leftCount = storeItems.filter(it => it.store_answer === 'left').length
   const approved = applicable.filter(it => it.ops_approved).length
   const undecided = items.filter(it => it.action === 'undecided').length
+  const askLeft = items.filter(it => it.action === 'ask').length
   const mySign = data.signoffs.find(s => s.employee_id === me.id)
   const seniorsOk = batch.senior_ids.every(id => data.signoffs.some(s => s.employee_id === id && s.approved))
 
@@ -82,13 +83,13 @@ export function RosterReview({ data }: { data: ReviewData }) {
       case 'todo':
         if (stage === 'draft') return it.action === 'undecided'
         if (stage === 'store' && !me.ops) return toStore(it) && !it.store_answer
-        if (stage === 'store' || stage === 'senior') return isApplicable(it.action) && !it.ops_approved
+        if (stage === 'store' || stage === 'senior') return (isApplicable(it.action) && !it.ops_approved) || it.action === 'ask'
         return true
       case 'undecided': return it.action === 'undecided'
       case 'store': return toStore(it)
       case 'direct': return isApplicable(it.action) && !toStore(it)
       case 'ng': return it.store_answer === 'ng' || it.store_answer === 'left'
-      case 'unapproved': return isApplicable(it.action) && !it.ops_approved
+      case 'unapproved': return (isApplicable(it.action) && !it.ops_approved) || it.action === 'ask'
       default: return true
     }
   })
@@ -154,11 +155,12 @@ export function RosterReview({ data }: { data: ReviewData }) {
         <p className="text-xs text-gray-600">
           全 {items.length} 行（反映する行 {applicable.length}）・店長に回す {storeItems.length}（回答 {answered}{ngCount ? `・問題ある ${ngCount}` : ''}{leftCount ? `・退職済み ${leftCount}` : ''}）・担当者承認 {approved}/{applicable.length}
           {stage === 'draft' && undecided ? `・まだ決めていない ${undecided}` : ''}
+          {askLeft ? `・店長に確認する ${askLeft}` : ''}
         </p>
         {batch.overview && <p className="text-sm text-gray-700 whitespace-pre-wrap rounded-lg bg-gray-50 p-2"><span className="text-[11px] text-gray-500 block">須貝からの概要</span>{batch.overview}</p>}
 
         <StagePanel data={data} pending={isPending} run={run} ask={ask} seniorsOk={seniorsOk} mySign={mySign}
-          counts={{ undecided, unapproved: applicable.length - approved, storeLeft: storeItems.length - answered, directCount }} />
+          counts={{ undecided, unapproved: applicable.length - approved + askLeft, storeLeft: storeItems.length - answered, directCount }} />
       </div>
 
       {(stage === 'apply' || stage === 'done') && (issued.length > 0 || applyErrors.length > 0) && (

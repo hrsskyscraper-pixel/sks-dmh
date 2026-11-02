@@ -40,7 +40,7 @@ export async function RosterReviewNotice() {
       const rows = await fetchAllRows<{ id: string; action: RosterReviewAction; skip_store: boolean; confirm_team_id: string | null; store_answer: string | null; ops_approved: boolean }>((from, to) =>
         db.from('roster_review_items').select('id, action, skip_store, confirm_team_id, store_answer, ops_approved').eq('batch_id', b.id).order('id').range(from, to))
       if (ops && !dev && !b.senior_ids.includes(me.id)) {
-        const left = rows.filter(r => isApplicable(r.action) && !r.ops_approved).length
+        const left = rows.filter(r => (isApplicable(r.action) && !r.ops_approved) || r.action === 'ask').length
         if (left) tasks.push({ id: b.id, text: `担当者承認がまだの行が ${left} 件あります` })
       } else if (myTeamIds.length) {
         const ids = [...new Set(rows.map(r => r.confirm_team_id).filter((x): x is string => !!x))]

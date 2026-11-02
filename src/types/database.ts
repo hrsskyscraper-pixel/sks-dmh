@@ -1639,7 +1639,7 @@ export type MilestoneMap = Record<string, { start: number; end: number }>
 
 // 在職者の確認（2026-11-01）
 export type RosterReviewStage = 'draft' | 'ops_preview' | 'store' | 'senior' | 'dev_check' | 'apply' | 'done'
-export type RosterReviewAction = 'undecided' | 'none' | 'change' | 'stop' | 'issue' | 'skip'
+export type RosterReviewAction = 'undecided' | 'none' | 'change' | 'stop' | 'issue' | 'skip' | 'ask'
 export type RosterReviewBatchRow = {
   id: string
   title: string
@@ -1685,6 +1685,7 @@ export type RosterReviewItemRow = {
   stop_reason: 'left' | 'shared' | 'duplicate' | 'other' | null
   /** 止める理由が「その他」のときの理由（migration 20261102000100） */
   stop_note: string | null
+  store_question: string | null
   /** 反映のとき、MB の氏名を社員リストの氏名に直す */
   fix_name: boolean
   confirm_team_id: string | null
