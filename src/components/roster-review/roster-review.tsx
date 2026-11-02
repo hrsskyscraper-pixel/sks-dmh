@@ -23,6 +23,8 @@ export type ReviewData = {
   teams: { id: string; name: string; type: 'store' | 'department' }[]
   /** 店長（リーダー）が登録されている店舗 */
   ledTeamIds: string[]
+  /** 店舗ごとの確認の相手（店長）。全体を見る役にだけ入る */
+  storeLeaders: Record<string, { name: string; roles: string[]; ops: boolean; left: boolean }[]>
   roles: { id: string; name: string; fullName: string | null; std: SystemPermission | null }[]
   people: Record<string, { name: string; employment_type: string | null; role_ids: string[]; team_names: string[]; left: boolean; permission: SystemPermission; created_at?: string; last_login_at?: string | null; applied?: number; certified?: number }>
   /** 行ごとの、同じ名前のほかの MB アカウント */
@@ -184,13 +186,39 @@ export function RosterReview({ data }: { data: ReviewData }) {
 
       {storeView && cur ? (
         <div className="space-y-3">
+          <details className="rounded-xl border border-gray-200 bg-white p-3">
+            <summary className="cursor-pointer text-sm font-semibold text-gray-800">確認の相手（店長）の一覧（{storeGroups.length} 店舗）</summary>
+            <p className="mt-1 text-[11px] text-gray-500">店舗ごとに、確認に答えられる方（その店舗のリーダーに登録されている方。どなたでも答えられます）です。この方々の判断でよいかを確かめてください。違うときは、店舗のリーダーの登録を直すと、ここも変わります。</p>
+            <table className="mt-2 w-full text-xs">
+              <thead><tr className="text-left text-gray-500"><th className="py-1 pr-2 font-normal">店舗</th><th className="py-1 pr-2 font-normal">確認の相手</th><th className="py-1 font-normal text-right">人数</th></tr></thead>
+              <tbody>
+                {storeGroups.map((g, i) => {
+                  const ls = data.storeLeaders[g.team.id] ?? []
+                  return (
+                    <tr key={g.team.id} className="border-t border-gray-100">
+                      <td className="py-1 pr-2"><button type="button" className="text-left text-orange-700 underline" onClick={() => setStoreIdx(i)}>{g.team.name}</button></td>
+                      <td className="py-1 pr-2">{ls.length ? ls.map(l => `${l.name}（${[l.roles.join('・') || '役職なし', l.ops ? '運用管理者' : ''].filter(Boolean).join('・')}）${l.left ? '（止まっています）' : ''}`).join('、') : <span className="text-red-600">登録なし</span>}</td>
+                      <td className="py-1 text-right">{g.rows.length}</td>
+                    </tr>
+                  )
+                })}
+                <tr className="border-t border-gray-300 font-semibold"><td className="py-1 pr-2">合計</td><td className="py-1 pr-2"></td><td className="py-1 text-right">{storeGroups.reduce((n, g) => n + g.rows.length, 0)}</td></tr>
+              </tbody>
+            </table>
+          </details>
           <div className="sticky z-10 flex items-center gap-2 rounded-xl border border-gray-200 bg-white p-2 shadow-sm" style={{ top: 'calc(var(--banner-h, 0px) + 3.75rem)' }}>
             <Button size="sm" variant="outline" className="h-9 w-9 p-0 text-base" onClick={() => move(-1)} aria-label="前の店舗">◁</Button>
             <select className="h-9 flex-1 min-w-0 rounded border border-gray-300 px-1 text-sm" value={storeGroups.indexOf(cur)} onChange={e => { setStoreIdx(Number(e.target.value)); window.scrollTo({ top: 0 }) }}>
-              {storeGroups.map((g, i) => <option key={g.team.id} value={i}>{g.team.name}（{g.rows.length}）</option>)}
+              {storeGroups.map((g, i) => <option key={g.team.id} value={i}>{g.team.name}（{g.rows.length}）{(data.storeLeaders[g.team.id] ?? []).length ? ` 店長: ${(data.storeLeaders[g.team.id] ?? []).map(l => l.name).join('・')}` : ' 店長の登録なし'}</option>)}
             </select>
             <span className="text-xs text-gray-500 whitespace-nowrap">{storeGroups.indexOf(cur) + 1}/{storeGroups.length}</span>
             <Button size="sm" variant="outline" className="h-9 w-9 p-0 text-base" onClick={() => move(1)} aria-label="次の店舗">▷</Button>
+          </div>
+          <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm">
+            <span className="text-[11px] text-gray-500 mr-1">確認の相手（{cur.team.name}のリーダーに登録されている方。どなたでも答えられます）:</span>
+            {(data.storeLeaders[cur.team.id] ?? []).length
+              ? (data.storeLeaders[cur.team.id] ?? []).map((l, i) => <span key={i} className="mr-2 font-semibold text-gray-800">{l.name}<span className="text-[11px] font-normal text-gray-500">（{[l.roles.join('・') || '役職なし', l.ops ? '運用管理者' : ''].filter(Boolean).join('・')}）</span>{l.left ? <span className="text-[11px] font-normal text-red-600">（止まっています）</span> : ''}</span>)
+              : <span className="text-red-600">店長（リーダー）の登録がありません</span>}
           </div>
           <p className="text-[11px] text-gray-500">見本です。{cur.team.name}の店長には、次のように見えます（ボタンは押せません）。店長には、須貝・原島さんのメモ・人事の確認事項・社員番号は見えません。</p>
           {cur.undecided > 0 && <p className="text-[11px] text-red-600">この店舗には「まだ決めていない」行が {cur.undecided} 件あります。決めると、ここに出ます。</p>}

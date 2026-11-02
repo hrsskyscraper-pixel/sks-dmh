@@ -51,7 +51,7 @@ export default async function RosterReviewPage({ searchParams }: { searchParams:
     fetchAllRows<RosterReviewItemRow>((from, to) => db.from('roster_review_items').select('*').eq('batch_id', batch.id).order('seq').order('id').range(from, to)),
     db.from('teams').select('id, name, type, is_test').in('type', ['store', 'department']).order('name'),
     db.from('business_roles').select('id, name, full_name, sort_order, standard_permission').order('sort_order'),
-    fetchAllRows<{ team_id: string; employee_id: string }>((from, to) => db.from('team_managers').select('team_id, employee_id').order('team_id').order('employee_id').range(from, to)),
+    fetchAllRows<{ team_id: string; employee_id: string; role: 'primary' | 'secondary'; sort_order: number }>((from, to) => db.from('team_managers').select('team_id, employee_id, role, sort_order').order('team_id').order('employee_id').range(from, to)),
     db.from('roster_review_comments').select('id, item_id, author_id, stage, body, created_at').eq('batch_id', batch.id).order('created_at', { ascending: false }).limit(1000),
     db.from('roster_review_signoffs').select('employee_id, approved, comment, updated_at').eq('batch_id', batch.id),
     ops ? db.from('employees').select('id, name, left_at').eq('status', 'approved').in('system_permission', ['ops_admin', 'developer']).order('name') : Promise.resolve({ data: [] as { id: string; name: string; left_at: string | null }[] }),
@@ -131,6 +131,23 @@ export default async function RosterReviewPage({ searchParams }: { searchParams:
     return a && b ? (a > b ? a : b) : a ?? b
   }
   const teamName = new Map(teams.map(t => [t.id, t.name]))
+  // 店舗ごとの確認の相手（店長＝その店舗のリーダー）。全体を見る役（須貝・原島さん・上長）にだけ渡す
+  const storeLeaders: ReviewData['storeLeaders'] = {}
+  const roleNameById = new Map((rolesRes.data ?? []).map(r => [r.id, r.name as string]))
+  if (seesAll) {
+    const leaderRows = managersRes.filter(m => storeIds.has(m.team_id)).sort((a, b) => (a.role === b.role ? a.sort_order - b.sort_order : a.role === 'primary' ? -1 : 1))
+    const leaderIds = [...new Set(leaderRows.map(m => m.employee_id))]
+    const leaderInfo = new Map<string, { name: string; left: boolean; roles: string[]; ops: boolean }>()
+    for (let i = 0; i < leaderIds.length; i += 100) {
+      const { data: le } = await db.from('employees').select('id, name, left_at, business_role_ids, system_permission').in('id', leaderIds.slice(i, i + 100))
+      for (const e of le ?? []) leaderInfo.set(e.id, { name: e.name, left: hasLeft(e.left_at), roles: (e.business_role_ids ?? []).map((id: string) => roleNameById.get(id) ?? '').filter(Boolean), ops: e.system_permission === 'ops_admin' || e.system_permission === 'developer' })
+    }
+    for (const m of leaderRows) {
+      const info = leaderInfo.get(m.employee_id)
+      if (!info) continue
+      ;(storeLeaders[m.team_id] ??= []).push({ name: info.name, roles: info.roles, ops: info.ops, left: info.left })
+    }
+  }
   const people: ReviewData['people'] = {}
   for (const e of emps) {
     people[e.id] = {
@@ -164,6 +181,7 @@ export default async function RosterReviewPage({ searchParams }: { searchParams:
     roles: (rolesRes.data ?? []).map(r => ({ id: r.id, name: r.name, fullName: r.full_name, std: r.standard_permission ?? null })),
     people,
     dupes,
+    storeLeaders,
     comments,
     signoffs: signoffsRes.data ?? [],
     seniorCandidates: (seniorCandRes.data ?? []).filter(e => !hasLeft(e.left_at) && e.id !== me.id).map(e => ({ id: e.id, name: e.name })),
