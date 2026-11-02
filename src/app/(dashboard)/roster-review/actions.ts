@@ -701,8 +701,8 @@ export async function mergeDuplicates(itemId: string, keepId: string, stopIds: s
   if (groupKey !== rosterKey && groupKey !== normName(curEmp?.name)) return { error: 'この行の方と同じ名前のアカウントだけをまとめられます' }
   if ((emps ?? []).some(e => stops.includes(e.id) && (e.system_permission === 'ops_admin' || e.system_permission === 'developer'))) return { error: '運用管理者・開発者のアカウントは、ここでは止めません' }
 
-  const rows = await fetchAllRows<Pick<RosterReviewItemRow, 'id' | 'employee_id' | 'merged_into' | 'action' | 'dup_stop_ids'>>((from, to) =>
-    db.from('roster_review_items').select('id, employee_id, merged_into, action, dup_stop_ids').eq('batch_id', batch.id).order('id').range(from, to))
+  const rows = await fetchAllRows<Pick<RosterReviewItemRow, 'id' | 'employee_id' | 'merged_into' | 'action' | 'dup_stop_ids' | 'confirm_team_id'>>((from, to) =>
+    db.from('roster_review_items').select('id, employee_id, merged_into, action, dup_stop_ids, confirm_team_id').eq('batch_id', batch.id).order('id').range(from, to))
   // まとめ先: 活かすアカウントの行があればその行、なければこの行
   const primary = rows.find(r => r.employee_id === keepId) ?? rows.find(r => r.id === itemId)!
   const wasMerged = (r: { merged_into: string | null }) => r.merged_into === itemId || r.merged_into === primary.id
@@ -712,9 +712,12 @@ export async function mergeDuplicates(itemId: string, keepId: string, stopIds: s
   if (rows.some(r => r.id !== primary.id && r.id !== itemId && r.employee_id && stops.includes(r.employee_id) && (r.dup_stop_ids ?? []).length)) return { error: '止めるアカウントの行で、ほかのアカウントをまとめています。そちらの「まとめるのをやめる」を先に押してください' }
   if (rows.some(r => r.id !== primary.id && r.id !== itemId && r.dup_stop_ids?.some(id => id === keepId || stops.includes(id)))) return { error: 'このアカウントは、別の行のまとめに入っています。そちらの「まとめるのをやめる」を先に押してください' }
 
+  // 活かす側の行に「確認してもらう店舗」が無い（MB にだけあった行など）ときは、まとめる行の店舗を引き継いで店長に回す
+  const inherit = primary.confirm_team_id ? [] : [...new Set(others.map(o => o.confirm_team_id).filter((t): t is string => !!t))]
   const now = new Date().toISOString()
   const { error } = await db.from('roster_review_items').update({
     employee_id: keepId, dup_stop_ids: stops, merged_into: null,
+    ...(inherit.length === 1 ? { confirm_team_id: inherit[0], skip_store: false } : {}),
     // まとめた行だった行を活かす側にしたら、店長に回す（まとめたときに付けた「店長に回さない」を外す）
     ...(primary.merged_into ? { skip_store: false } : {}),
     action: 'change', stop_reason: null, needs_check: true, updated_at: now,
