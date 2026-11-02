@@ -8,7 +8,7 @@ import { writeAuditLog } from '@/lib/audit'
 import { hasControlChars } from '@/lib/account-issue'
 import { todayJst } from '@/lib/left'
 import { deriveLegacyRole, standardPermissionOf, widerPermission } from '@/lib/legacy-role'
-import { goesToStore, isApplicable, normName, NOTE_MAX, pickKeep, shownToStore, STAGE_LABEL } from '@/lib/roster-review'
+import { goesToStore, isApplicable, needsHrCheck, normName, NOTE_MAX, onRoster, pickKeep, shownToStore, STAGE_LABEL } from '@/lib/roster-review'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { issueAccounts } from '@/app/(dashboard)/admin/account-issue/actions'
 import type { RosterReviewAction, RosterReviewItemRow, RosterReviewStage, SystemPermission } from '@/types/database'
@@ -138,6 +138,7 @@ export async function updateItem(itemId: string, patch: ItemPatch): Promise<Resu
   // 店長の確認より後で案を直したら、店長の回答と担当者承認をやり直す（上長の承認もやり直す）
   if (contentChanged && (batch.stage === 'store' || batch.stage === 'senior')) {
     next.ops_approved = false
+    next.hr_checked = false
     // 店長の確認の段階なら、店長にも答え直してもらう（上長の段階では回答を残し、やりとりに記録する）
     if (batch.stage === 'store' && !followsLeft) { next.store_answer = null; next.store_message = null; next.store_answered_by = null; next.store_answered_at = null; next.store_left_date = null }
   }
@@ -181,6 +182,8 @@ export async function answerItem(itemId: string, answer: 'ok' | 'ng' | 'left', m
     store_left_date: answer === 'left' ? leftDate : null,
     // 「問題ある」「退職済み」に変わったら、担当者承認をやり直す
     ...(answer !== 'ok' ? { ops_approved: false } : {}),
+    // 答えが変わったら、人事への確認もやり直す
+    ...(answer !== item.store_answer ? { hr_checked: false } : {}),
   }).eq('id', itemId).eq('batch_id', batch.id)
   if (error) return { error: '送れませんでした。時間をおいてもう一度お試しください' }
   await writeAuditLog({ action: 'roster_review_answer', actorId: me.id, targetId: item.employee_id ?? undefined, details: { batch: batch.id, item: itemId, answer, leftDate: answer === 'left' ? leftDate : undefined, before: item.store_answer } }).catch(() => {})
@@ -198,6 +201,7 @@ export async function approveItem(itemId: string, approved: boolean, note: strin
   if (!opsFor(me, ctx.batch)) return { error: '権限がありません（上長の方は、担当者承認はしません）' }
   if (ctx.batch.stage !== 'store' && ctx.batch.stage !== 'senior') return { error: 'いまは担当者承認の段階ではありません' }
   if (approved && (ctx.item.action === 'undecided' || ctx.item.action === 'ask')) return { error: '変更案を決めてから承認してください（「店長に確認する」行は、店長の答えを見て「案を直す」で決めます）' }
+  if (approved && await hrPending(ctx.item)) return { error: HR_PENDING_MSG }
   const db = createAdminClient()
   const { error } = await db.from('roster_review_items').update({
     ops_approved: approved, ops_note: cleanNote(note), ops_by: me.id, ops_at: new Date().toISOString(), updated_at: new Date().toISOString(),
@@ -242,7 +246,7 @@ export async function answerItemsOk(seen: { id: string; updated_at: string }[]):
   let failed = false
   for (const it of targets) {
     const { data: u, error } = await db.from('roster_review_items').update({
-      store_answer: 'ok', store_message: null, store_answered_by: me.id, store_answered_at: now, updated_at: now, store_left_date: null,
+      store_answer: 'ok', store_message: null, store_answered_by: me.id, store_answered_at: now, updated_at: now, store_left_date: null, hr_checked: false,
     }).eq('id', it.id).eq('batch_id', batch.id).eq('updated_at', it.updated_at).is('store_answer', null).select('id')
     if (error) { failed = true; break }
     updated.push(...(u ?? []).map(r => r.id))
@@ -261,7 +265,7 @@ export async function approveItems(seen: { id: string; updated_at: string }[]): 
   const ids = [...seenAt.keys()]
   if (!ids.length || ids.length > 300) return { error: '承認する方を選んでください' }
   const db = createAdminClient()
-  const { data: rows } = await db.from('roster_review_items').select('id, batch_id, action, ops_approved, store_answer, updated_at').in('id', ids)
+  const { data: rows } = await db.from('roster_review_items').select('id, batch_id, action, ops_approved, store_answer, updated_at, roster, hr_checked, merged_into').in('id', ids)
   const items = rows ?? []
   const batchIds = new Set(items.map(it => it.batch_id))
   if (items.length !== ids.length || batchIds.size !== 1) return { error: '見つからない行があります。画面を開き直してください' }
@@ -270,8 +274,12 @@ export async function approveItems(seen: { id: string; updated_at: string }[]): 
   if (!opsFor(me, batch)) return { error: '権限がありません（上長の方は、担当者承認はしません）' }
   if (batch.stage !== 'store' && batch.stage !== 'senior') return { error: 'いまは担当者承認の段階ではありません' }
   if (items.some(it => it.updated_at !== seenAt.get(it.id))) return { error: '画面を開いたあとに変わった方がいます。画面を開き直してから承認してください' }
+  const { data: mergedRows } = await db.from('roster_review_items').select('id, roster, merged_into, hr_checked, store_answer, action').in('merged_into', ids)
+  const pend = hrPendingIds([...items, ...(mergedRows ?? [])] as unknown as Pick<RosterReviewItemRow, 'id' | 'roster' | 'merged_into' | 'hr_checked' | 'store_answer' | 'action'>[])
   // まとめて承認するのは、反映する行で、店長から「問題ある」「退職済み」の答えが無い行だけ（答えのある方は1人ずつ確かめて承認）
   const targets = items.filter(it => isApplicable(it.action) && !it.ops_approved && it.store_answer !== 'ng' && it.store_answer !== 'left')
+    // 人事への確認が要る行（社員リストに無い方）は、1人ずつ確かめて承認
+    .filter(it => !pend.has(it.id))
   if (!targets.length) return { count: 0 }
   const now = new Date().toISOString()
   const updated: string[] = []
@@ -301,8 +309,50 @@ async function storesWithLeader(): Promise<Set<string>> {
 
 async function batchItems(batchId: string) {
   const db = createAdminClient()
-  return fetchAllRows<Pick<RosterReviewItemRow, 'id' | 'action' | 'ops_approved' | 'skip_store' | 'confirm_team_id' | 'store_answer' | 'employee_id' | 'target_team_id' | 'target_employment_type' | 'stop_reason' | 'stop_note' | 'roster'>>((from, to) =>
-    db.from('roster_review_items').select('id, action, ops_approved, skip_store, confirm_team_id, store_answer, employee_id, target_team_id, target_employment_type, stop_reason, stop_note, roster').eq('batch_id', batchId).order('id').range(from, to))
+  return fetchAllRows<Pick<RosterReviewItemRow, 'id' | 'action' | 'ops_approved' | 'skip_store' | 'confirm_team_id' | 'store_answer' | 'employee_id' | 'target_team_id' | 'target_employment_type' | 'stop_reason' | 'stop_note' | 'roster' | 'merged_into' | 'hr_checked'>>((from, to) =>
+    db.from('roster_review_items').select('id, action, ops_approved, skip_store, confirm_team_id, store_answer, employee_id, target_team_id, target_employment_type, stop_reason, stop_note, roster, merged_into, hr_checked').eq('batch_id', batchId).order('id').range(from, to))
+}
+
+const HR_PENDING_MSG = '社員リストに無い方ですが、店長は在籍していると答えています。人事に確かめて「人事に確認した」を押してから、承認してください'
+
+/** 人事への確認がまだの行の数（社員リストに無い方を、店長が在籍と答えた行） */
+function hrPendingIds(rows: Pick<RosterReviewItemRow, 'id' | 'roster' | 'merged_into' | 'hr_checked' | 'store_answer' | 'action'>[]): Set<string> {
+  const mergedOn = new Set(rows.filter(r => r.merged_into && onRoster(r.roster)).map(r => r.merged_into!))
+  return new Set(rows.filter(r => !r.hr_checked && needsHrCheck(r, mergedOn.has(r.id))).map(r => r.id))
+}
+const hrPendingCount = (rows: Awaited<ReturnType<typeof batchItems>>) => hrPendingIds(rows).size
+
+/** 1行について、人事への確認がまだか */
+async function hrPending(item: RosterReviewItemRow): Promise<boolean> {
+  if (item.hr_checked || onRoster(item.roster) || item.merged_into) return false
+  const db = createAdminClient()
+  const { data: merged } = await db.from('roster_review_items').select('roster').eq('merged_into', item.id)
+  return needsHrCheck(item, (merged ?? []).some(m => onRoster(m.roster as RosterReviewItemRow['roster'])))
+}
+
+/** 人事への確認（原島さん）。確かめた内容をメモに残す。外すこともできる */
+export async function hrCheckItem(itemId: string, checked: boolean, note: string, seenAt?: string): Promise<Result> {
+  const me = await getRealEmployee()
+  if (!me) return { error: '権限がありません' }
+  if (badNote(note)) return { error: `メモは ${NOTE_MAX} 文字までで、使えない文字は入れないでください` }
+  if (checked && !note.trim()) return { error: '人事に確かめた内容を書いてください（例: 人事に確認し、在籍。社員リストに追加予定）' }
+  const ctx = await loadItem(itemId)
+  if (!ctx) return { error: 'この行が見つかりません' }
+  if (!opsFor(me, ctx.batch)) return { error: '権限がありません' }
+  if (ctx.batch.stage !== 'store' && ctx.batch.stage !== 'senior') return { error: 'いまは担当者承認の段階ではありません' }
+  if (checked && !(await hrPending({ ...ctx.item, hr_checked: false }))) return { error: 'この方は、人事への確認が要る行ではありません' }
+  if (seenAt && seenAt !== ctx.item.updated_at) return { error: '画面を開いたあとに変わっています。画面を開き直してください' }
+  const now = new Date().toISOString()
+  const db = createAdminClient()
+  const { error } = await db.from('roster_review_items').update({
+    hr_checked: checked, hr_note: cleanNote(note), hr_by: me.id, hr_at: now, updated_at: now, ...(checked ? {} : { ops_approved: false }),
+  }).eq('id', itemId).eq('batch_id', ctx.batch.id)
+  if (error) return { error: '保存できませんでした' }
+  // やりとり（店長にも見える）には残さない。上長の段階で外したら、上長の承認はやり直し
+  if (!checked && ctx.batch.stage === 'senior') await db.from('roster_review_signoffs').update({ approved: false, updated_at: now }).eq('batch_id', ctx.batch.id)
+  await writeAuditLog({ action: 'roster_review_hr_check', actorId: me.id, targetId: ctx.item.employee_id ?? undefined, details: { batch: ctx.batch.id, item: itemId, checked } }).catch(() => {})
+  done()
+  return {}
 }
 
 /** 「店長に確認する」のまま、案が決まっていない行の数 */
@@ -324,7 +374,9 @@ export async function approveAllWithoutStore(batchId: string): Promise<Result> {
   if (!batch || !opsFor(me, batch)) return { error: '権限がありません' }
   if ((batch.stage !== 'store' && batch.stage !== 'senior')) return { error: 'いまは担当者承認の段階ではありません' }
   const led = await storesWithLeader()
-  const ids = (await batchItems(batchId)).filter(r => isApplicable(r.action) && !r.ops_approved && !goesToStore(r, led)).map(r => r.id)
+  const all = await batchItems(batchId)
+  const pend = hrPendingIds(all)
+  const ids = all.filter(r => isApplicable(r.action) && !r.ops_approved && !goesToStore(r, led) && !pend.has(r.id)).map(r => r.id)
   if (ids.length === 0) return {}
   const db = createAdminClient()
   for (let i = 0; i < ids.length; i += 200) {
@@ -448,6 +500,7 @@ export async function moveStage(batchId: string, to: RosterReviewStage, message?
       if (unapproved) return { error: `担当者承認がまだの行が ${unapproved} 件あります` }
       if (invalidCount(rows)) return { error: `反映できない形の行が ${invalidCount(rows)} 件あります` }
       if (askCount(rows)) return { error: `「店長に確認する」行が ${askCount(rows)} 件残っています。店長の答えを見て、「案を直す」で案を決めてください` }
+      if (hrPendingCount(rows)) return { error: `人事への確認がまだの行が ${hrPendingCount(rows)} 件あります（社員リストに無い方を、店長が在籍と答えた行）` }
       const led = await storesWithLeader()
       const noAnswer = rows.filter(r => goesToStore(r, led) && !r.store_answer).length
       if (noAnswer) return { error: `店長の回答がまだの行が ${noAnswer} 件あります（店長から聞いた内容を、代わりに入れることもできます）` }
@@ -464,6 +517,7 @@ export async function moveStage(batchId: string, to: RosterReviewStage, message?
       const waiting = batch.senior_ids.filter(id => !ok.has(id)).length
       if (waiting) return { error: `上長の承認がまだの方が ${waiting} 名います` }
       if (askCount(rows)) return { error: `「店長に確認する」行が ${askCount(rows)} 件残っています` }
+      if (hrPendingCount(rows)) return { error: `人事への確認がまだの行が ${hrPendingCount(rows)} 件あります` }
       if (invalidCount(rows)) return { error: `反映できない形の行が ${invalidCount(rows)} 件あります` }
       break
     }
@@ -669,7 +723,7 @@ async function applyOne(it: RosterReviewItemRow, roleMap: Map<string, RoleSettin
 async function resetAfterChange(batch: { id: string; stage: RosterReviewStage }, itemIds: string[]) {
   if (batch.stage !== 'store' && batch.stage !== 'senior') return
   const db = createAdminClient()
-  const reset: Record<string, unknown> = { ops_approved: false, updated_at: new Date().toISOString() }
+  const reset: Record<string, unknown> = { ops_approved: false, hr_checked: false, updated_at: new Date().toISOString() }
   if (batch.stage === 'store') Object.assign(reset, { store_answer: null, store_message: null, store_answered_by: null, store_answered_at: null, store_left_date: null })
   await db.from('roster_review_items').update(reset).in('id', itemIds)
   if (batch.stage === 'senior') await db.from('roster_review_signoffs').update({ approved: false, updated_at: new Date().toISOString() }).eq('batch_id', batch.id)

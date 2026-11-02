@@ -162,6 +162,23 @@ export function describeChange(
   }
 }
 
+/** 社員リストに載っている方の行か（MB にだけアカウントがある方の行は、社員番号も氏名も無い） */
+export const onRoster = (r: { employee_number?: string; last_name?: string }) => !!(r.employee_number || r.last_name)
+
+/**
+ * 人事への確認が要る行（2026-11-03）。社員リストに無い（会社が認識していない）方なのに、
+ * 店長が「在籍している」と答えた行。原島さんが人事に確かめるまで、担当者承認・上長の確認へ進めない。
+ * - 止める案に「問題ある」（まだ働いている、など）／残す案（変えない・直す・店長に確認する）に「問題ない」・「問題ある」
+ * - 「退職済み」や、止める案に「問題ない」は、会社の認識と同じなので要らない
+ * mergedOnRoster: この行に、社員リストに載っている行をまとめている（同じ方として社員リストにいる）
+ */
+export function needsHrCheck(it: Pick<RosterReviewItemRow, 'roster' | 'store_answer' | 'action'> & { merged_into?: string | null }, mergedOnRoster: boolean): boolean {
+  // ほかの行にまとめた行（止める重複アカウント）は要らない
+  if (it.merged_into || onRoster(it.roster) || mergedOnRoster || !it.store_answer || it.store_answer === 'left') return false
+  if (it.store_answer === 'ng') return true
+  return it.action === 'none' || it.action === 'change' || it.action === 'ask'
+}
+
 /** 文字の長さの上限（コメント・メモ） */
 export const NOTE_MAX = 1000
 

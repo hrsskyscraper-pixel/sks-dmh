@@ -165,7 +165,7 @@ export default async function RosterReviewPage({ searchParams }: { searchParams:
   }
   // 店長には、須貝・原島さんのメモと人事の確認事項・社員番号を見せない（見せるのは、氏名・いまの MB・変更案）
   const itemsOut = shown.map(it => (seesAll ? it : {
-    ...it, dev_note: null, ops_preview_note: null, ops_note: null,
+    ...it, dev_note: null, ops_preview_note: null, ops_note: null, hr_note: null, hr_by: null, hr_at: null, hr_checked: false,
     roster: { ...it.roster, check: undefined, answer: undefined, answer_note: undefined, employee_number: undefined, mb_name: undefined, mb_team: undefined },
   }))
 

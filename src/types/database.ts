@@ -1686,6 +1686,10 @@ export type RosterReviewItemRow = {
   /** 止める理由が「その他」のときの理由（migration 20261102000100） */
   stop_note: string | null
   store_question: string | null
+  hr_checked: boolean
+  hr_note: string | null
+  hr_by: string | null
+  hr_at: string | null
   /** 反映のとき、MB の氏名を社員リストの氏名に直す */
   fix_name: boolean
   confirm_team_id: string | null

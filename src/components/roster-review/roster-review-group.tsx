@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { addComment, answerItem, answerItemsOk, approveItem, approveItems, updateItem } from '@/app/(dashboard)/roster-review/actions'
 import { ACTION_LABEL, isApplicable } from '@/lib/roster-review'
 import type { RosterReviewItemRow } from '@/types/database'
-import { ANSWER_LABEL, changeLines, fmt, fmtDate, ItemEditor, type ItemCtx } from './roster-review-item'
+import { ANSWER_LABEL, changeLines, fmt, fmtDate, HrCheck, hrPendingFor, ItemEditor, notOnRoster, type ItemCtx } from './roster-review-item'
 
 /**
  * 同じ店舗で、変更案がまったく同じ方を、1枚のカードにまとめる（2026-11-03）。
@@ -44,7 +44,7 @@ export function ReviewGroup({ rows, ctx }: { rows: RosterReviewItemRow[]; ctx: I
   const canAnswerAll = !preview && stage === 'store' && rows.every(ctx.canAnswer)
   const unanswered = rows.filter(it => !it.store_answer)
   const canApprove = !preview && data.me.ops && (stage === 'store' || stage === 'senior') && isApplicable(first.action)
-  const unapproved = rows.filter(it => !it.ops_approved && it.store_answer !== 'ng' && it.store_answer !== 'left')
+  const unapproved = rows.filter(it => !it.ops_approved && it.store_answer !== 'ng' && it.store_answer !== 'left' && !hrPendingFor(it, data))
 
   const run = (fn: () => Promise<{ error?: string; count?: number }>, ok: (n?: number) => string) => startTransition(async () => {
     const res = await fn()
@@ -140,6 +140,7 @@ function GroupPerson({ it, ctx, showStore }: { it: RosterReviewItemRow; ctx: Ite
           </p>
           {person && <p className="text-[11px] text-gray-500">スキルの申請 {person.applied ?? 0} 件・認定 {person.certified ?? 0} 件・登録 {fmtDate(person.created_at)}・最終ログイン {fmtDate(person.last_login_at, '記録なし')}</p>}
         </div>
+        {!preview && (data.me.ops || data.me.dev || data.me.senior) && notOnRoster(it, data) && <Badge variant="outline" className="text-[11px] border-violet-400 text-violet-800">社員リストに無い方</Badge>}
         {!preview && it.ops_approved && <Badge className="text-[11px] bg-emerald-600">担当者承認済み</Badge>}
         {(canAnswer || preview) && (
           <div className="flex flex-wrap gap-1">
@@ -186,6 +187,7 @@ function GroupPerson({ it, ctx, showStore }: { it: RosterReviewItemRow; ctx: Ite
         </div>
       )}
 
+      <HrCheck it={it} ctx={ctx} />
       {!preview && data.me.ops && it.store_answer === 'left' && !followsLeft && (stage === 'store' || stage === 'senior') && canEdit && (
         <div className="flex flex-wrap items-center gap-2 rounded-md bg-slate-100 px-2 py-1.5">
           <p className="text-[11px] text-slate-700 flex-1 min-w-[12rem]">店長から「退職済み」の回答です。案を合わせてから、担当者として承認してください。この方は、直すとこのカードから外れて1人のカードになります。</p>

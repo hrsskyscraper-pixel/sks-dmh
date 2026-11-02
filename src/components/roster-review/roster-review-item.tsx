@@ -6,8 +6,8 @@ import { ChevronDown, ChevronRight, MessageSquare } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
-import { addComment, answerItem, approveItem, mergeDuplicates, unmergeDuplicates, updateItem, type ItemPatch } from '@/app/(dashboard)/roster-review/actions'
-import { ACTION_LABEL, describeChange, isApplicable, rosterFullName, STOP_REASON_CHOICES, STOP_REASON_LABEL } from '@/lib/roster-review'
+import { addComment, answerItem, approveItem, hrCheckItem, mergeDuplicates, unmergeDuplicates, updateItem, type ItemPatch } from '@/app/(dashboard)/roster-review/actions'
+import { ACTION_LABEL, describeChange, isApplicable, needsHrCheck, onRoster, rosterFullName, STOP_REASON_CHOICES, STOP_REASON_LABEL } from '@/lib/roster-review'
 import type { RosterReviewAction, RosterReviewItemRow, RosterReviewStage } from '@/types/database'
 import type { ReviewData } from './roster-review'
 
@@ -47,6 +47,49 @@ export function changeLines(it: RosterReviewItemRow, data: ReviewData): string[]
       ...describeChange(it, current, { team: teamName, role: roleName, std: id => data.roles.find(r => r.id === id)?.std ?? null })
         .filter(l => !(stopIds.length && l.startsWith('（いまの MB と同じです'))),
     ]
+}
+
+/** 社員リストに無い方か（この行にまとめた行が社員リストに載っていれば、社員リストにいる） */
+export function notOnRoster(it: RosterReviewItemRow, data: ReviewData): boolean {
+  return !onRoster(it.roster) && !data.items.some(x => x.merged_into === it.id && onRoster(x.roster))
+}
+
+/** 人事への確認がまだの行（社員リストに無い方を、店長が在籍と答えた） */
+export const hrPendingFor = (it: RosterReviewItemRow, data: ReviewData) => !it.merged_into && !it.hr_checked && notOnRoster(it, data) && needsHrCheck(it, false)
+
+/**
+ * 人事への確認（原島さん）。社員リストに無い方を、店長が在籍と答えた行に出す。
+ * 須貝・原島さん・上長にだけ見せる（店長には出さない）
+ */
+export function HrCheck({ it, ctx }: { it: RosterReviewItemRow; ctx: ItemCtx }) {
+  const { data, stage } = ctx
+  const [isPending, startTransition] = useTransition()
+  const [note, setNote] = useState(it.hr_note ?? '')
+  if (ctx.preview || !(data.me.ops || data.me.dev || data.me.senior)) return null
+  if (it.merged_into || !notOnRoster(it, data) || !needsHrCheck(it, false)) return null
+  const can = data.me.ops && (stage === 'store' || stage === 'senior')
+  const by = it.hr_by ? data.people[it.hr_by]?.name : null
+  const run = (fn: () => Promise<{ error?: string }>, ok: string) => startTransition(async () => {
+    const res = await fn()
+    if (res.error) { toast.error(res.error); return }
+    toast.success(ok)
+  })
+  return (
+    <div className={`rounded-md border px-2 py-1.5 space-y-1 ${it.hr_checked ? 'border-emerald-200 bg-emerald-50' : 'border-violet-300 bg-violet-50'}`}>
+      <p className="text-[11px] font-semibold text-violet-900">人事への確認：社員リストに無い方ですが、店長は在籍していると答えています。原島さんが人事に確かめてから、承認してください。</p>
+      {it.hr_checked
+        ? <p className="text-xs text-emerald-800">人事に確認済み{it.hr_note ? `：${it.hr_note}` : ''}<span className="ml-1 text-[11px] text-gray-500">（{by ?? ''} {it.hr_at ? fmt(it.hr_at) : ''}）</span></p>
+        : <p className="text-xs text-violet-800">まだ人事に確認していません</p>}
+      {can && (
+        <div className="flex flex-wrap items-end gap-2">
+          <Textarea value={note} onChange={e => setNote(e.target.value)} placeholder="人事に確かめた内容（例: 在籍。社員リストに追加予定／退職済みだった）" className="text-sm min-h-[40px] flex-1 min-w-[12rem]" disabled={isPending} />
+          {it.hr_checked
+            ? <Button size="sm" variant="outline" disabled={isPending} onClick={() => run(() => hrCheckItem(it.id, false, note, it.updated_at), '人事への確認を外しました')}>確認を外す</Button>
+            : <Button size="sm" className="bg-violet-600 hover:bg-violet-700" disabled={isPending || !note.trim()} onClick={() => run(() => hrCheckItem(it.id, true, note, it.updated_at), '人事に確認したと記録しました')}>人事に確認した</Button>}
+        </div>
+      )}
+    </div>
+  )
 }
 
 export function ReviewItem({ it, ctx }: { it: RosterReviewItemRow; ctx: ItemCtx }) {
@@ -105,6 +148,7 @@ export function ReviewItem({ it, ctx }: { it: RosterReviewItemRow; ctx: ItemCtx 
         <Badge variant="secondary" className="text-[11px]">{ACTION_LABEL[it.action]}</Badge>
         {!preview && !toStore && isApplicable(it.action) && stage !== 'draft' && <Badge variant="outline" className="text-[11px]">原島さんへ直接</Badge>}
         {it.merged_into && <Badge variant="outline" className="text-[11px] border-amber-400 text-amber-800">ほかの行にまとめました</Badge>}
+        {!preview && !it.merged_into && (data.me.ops || data.me.dev || data.me.senior) && notOnRoster(it, data) && <Badge variant="outline" className="text-[11px] border-violet-400 text-violet-800">社員リストに無い方</Badge>}
         {!preview && it.ops_approved && <Badge className="text-[11px] bg-emerald-600">担当者承認済み</Badge>}
       </div>
 
@@ -219,6 +263,8 @@ export function ReviewItem({ it, ctx }: { it: RosterReviewItemRow; ctx: ItemCtx 
           )}
         </div>
       )}
+
+      <HrCheck it={it} ctx={ctx} />
 
       {showApprove && (
         <div className="flex flex-wrap items-end gap-2">
