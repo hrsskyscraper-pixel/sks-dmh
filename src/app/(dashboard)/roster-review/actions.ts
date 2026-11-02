@@ -194,6 +194,86 @@ export async function approveItem(itemId: string, approved: boolean, note: strin
   return {}
 }
 
+/**
+ * まとめたカード（同じ店舗・同じ変更案の方）で、まだ答えていない方をすべて「問題ない」で送る。
+ * すでに答えた方（問題ある・退職済みを含む）は変えない。
+ */
+export async function answerItemsOk(seen: { id: string; updated_at: string }[]): Promise<Result & { count?: number }> {
+  const me = await getRealEmployee()
+  if (!me) return { error: '権限がありません' }
+  const seenAt = new Map(seen.map(x => [x.id, x.updated_at]))
+  const ids = [...seenAt.keys()]
+  if (!ids.length || ids.length > 300) return { error: '送る方を選んでください' }
+  const db = createAdminClient()
+  const { data: rows } = await db.from('roster_review_items').select('*').in('id', ids)
+  const items = (rows ?? []) as RosterReviewItemRow[]
+  if (items.length !== ids.length) return { error: '見つからない行があります。画面を開き直してください' }
+  const batchIds = new Set(items.map(it => it.batch_id))
+  if (batchIds.size !== 1) return { error: '別の確認の行が混ざっています' }
+  const batch = await loadBatch([...batchIds][0])
+  if (!batch) return { error: '確認が見つかりません' }
+  if (batch.stage !== 'store') return { error: 'いまは店長の確認の段階ではありません' }
+  if (!opsFor(me, batch)) {
+    const led = await storesWithLeader()
+    const teams = [...new Set(items.map(it => it.confirm_team_id))]
+    for (const t of teams) if (!(await leadsTeam(me, t))) return { error: 'この店舗の確認はできません' }
+    if (items.some(it => !shownToStore(it, led))) return { error: 'この店舗の確認はできません' }
+  }
+  // 画面を開いたあとに案が直された行は送らない（新しい案を見てから答えてもらう）
+  if (items.some(it => it.updated_at !== seenAt.get(it.id))) return { error: '画面を開いたあとに変わった方がいます。画面を開き直して、変更案を確かめてから送ってください' }
+  const targets = items.filter(it => !it.store_answer)
+  if (!targets.length) return { count: 0 }
+  const now = new Date().toISOString()
+  const updated: string[] = []
+  let failed = false
+  for (const it of targets) {
+    const { data: u, error } = await db.from('roster_review_items').update({
+      store_answer: 'ok', store_message: null, store_answered_by: me.id, store_answered_at: now, updated_at: now, store_left_date: null,
+    }).eq('id', it.id).eq('batch_id', batch.id).eq('updated_at', it.updated_at).is('store_answer', null).select('id')
+    if (error) { failed = true; break }
+    updated.push(...(u ?? []).map(r => r.id))
+  }
+  if (updated.length) await writeAuditLog({ action: 'roster_review_answer', actorId: me.id, details: { batch: batch.id, items: updated, answer: 'ok', bulk: true } }).catch(() => {})
+  done()
+  if (failed) return { error: `途中で止まりました（${updated.length} 名は済んでいます）。画面を開き直して、もう一度お試しください`, count: updated.length }
+  return { count: updated.length }
+}
+
+/** まとめたカードで、担当者承認をまとめて行う（原島さん）。決めていない行・承認済みの行は飛ばす */
+export async function approveItems(seen: { id: string; updated_at: string }[]): Promise<Result & { count?: number }> {
+  const me = await getRealEmployee()
+  if (!me) return { error: '権限がありません' }
+  const seenAt = new Map(seen.map(x => [x.id, x.updated_at]))
+  const ids = [...seenAt.keys()]
+  if (!ids.length || ids.length > 300) return { error: '承認する方を選んでください' }
+  const db = createAdminClient()
+  const { data: rows } = await db.from('roster_review_items').select('id, batch_id, action, ops_approved, store_answer, updated_at').in('id', ids)
+  const items = rows ?? []
+  const batchIds = new Set(items.map(it => it.batch_id))
+  if (items.length !== ids.length || batchIds.size !== 1) return { error: '見つからない行があります。画面を開き直してください' }
+  const batch = await loadBatch([...batchIds][0])
+  if (!batch) return { error: '確認が見つかりません' }
+  if (!opsFor(me, batch)) return { error: '権限がありません（上長の方は、担当者承認はしません）' }
+  if (batch.stage !== 'store' && batch.stage !== 'senior') return { error: 'いまは担当者承認の段階ではありません' }
+  if (items.some(it => it.updated_at !== seenAt.get(it.id))) return { error: '画面を開いたあとに変わった方がいます。画面を開き直してから承認してください' }
+  // まとめて承認するのは、反映する行で、店長から「問題ある」「退職済み」の答えが無い行だけ（答えのある方は1人ずつ確かめて承認）
+  const targets = items.filter(it => isApplicable(it.action) && !it.ops_approved && it.store_answer !== 'ng' && it.store_answer !== 'left')
+  if (!targets.length) return { count: 0 }
+  const now = new Date().toISOString()
+  const updated: string[] = []
+  let failed = false
+  for (const it of targets) {
+    const { data: u, error } = await db.from('roster_review_items').update({ ops_approved: true, ops_by: me.id, ops_at: now, updated_at: now })
+      .eq('id', it.id).eq('batch_id', batch.id).eq('updated_at', it.updated_at).select('id')
+    if (error) { failed = true; break }
+    updated.push(...(u ?? []).map(r => r.id))
+  }
+  if (updated.length) await writeAuditLog({ action: 'roster_review_approve', actorId: me.id, details: { batch: batch.id, items: updated, approved: true, bulk: true } }).catch(() => {})
+  done()
+  if (failed) return { error: `途中で止まりました（${updated.length} 名は済んでいます）。画面を開き直して、もう一度お試しください`, count: updated.length }
+  return { count: updated.length }
+}
+
 /** 店長がいる店舗（店長に回せる店舗） */
 async function storesWithLeader(): Promise<Set<string>> {
   const db = createAdminClient()

@@ -11,11 +11,11 @@ import { ACTION_LABEL, describeChange, isApplicable, rosterFullName, STOP_REASON
 import type { RosterReviewAction, RosterReviewItemRow, RosterReviewStage } from '@/types/database'
 import type { ReviewData } from './roster-review'
 
-const fmtDate = (iso: string | null | undefined, none = 'なし') => iso ? new Date(iso).toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: 'numeric', day: 'numeric' }) : none
-const ANSWER_LABEL = { ok: '問題ない', ng: '問題ある', left: '退職済み' } as const
-const MSG_PLACEHOLDER = 'メッセージ（「問題ない」「退職済み」は任意。「問題ある」のときは、どこが違うかを書いてください）'
+export const fmtDate = (iso: string | null | undefined, none = 'なし') => iso ? new Date(iso).toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: 'numeric', day: 'numeric' }) : none
+export const ANSWER_LABEL = { ok: '問題ない', ng: '問題ある', left: '退職済み' } as const
+export const MSG_PLACEHOLDER = 'メッセージ（「問題ない」「退職済み」は任意。「問題ある」のときは、どこが違うかを書いてください）'
 const ANSWER_HINT = '「問題ない」は、メッセージなしで押せます。「問題ある」は、どこが違うかをメッセージに書くと押せるようになります。「退職済み」は、押したあとに退職年月日を入れて送ります。'
-const fmt = (iso: string) => new Date(iso).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+export const fmt = (iso: string) => new Date(iso).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 
 export type ItemCtx = {
   data: ReviewData
@@ -28,6 +28,25 @@ export type ItemCtx = {
   seenByStore?: (it: RosterReviewItemRow) => boolean
   /** 店長の画面の見本（須貝・原島さん・上長が、店長にどう見えるかを確かめる。操作はできない） */
   preview?: boolean
+}
+
+/** 「変更案」に並べる文（店長・上長に見せる）。まとめたカードと1人のカードで同じものを使う */
+export function changeLines(it: RosterReviewItemRow, data: ReviewData): string[] {
+  const person = it.employee_id ? data.people[it.employee_id] : null
+  const teamName = (id: string) => data.teams.find(t => t.id === id)?.name ?? '（不明）'
+  const roleName = (id: string) => data.roles.find(r => r.id === id)?.name ?? '（不明）'
+  const current = person ? { name: person.name, employment_type: person.employment_type, team_names: person.team_names, role_names: person.role_ids.map(roleName), role_ids: person.role_ids, permission: person.permission } : null
+  const brief = (p: ReviewData['people'][string]) => [p.team_names.join('・') || '店舗なし', `登録 ${fmtDate(p.created_at)}`, `認定 ${p.certified ?? 0} 件`].join('・')
+  const stopIds = it.dup_stop_ids ?? []
+  const mergedTo = it.merged_into ? data.items.find(x => x.id === it.merged_into) : null
+  return it.merged_into
+    ? [`この行のアカウントは、${mergedTo ? (mergedTo.roster.name || [mergedTo.roster.last_name, mergedTo.roster.first_name].filter(Boolean).join(' ')) : 'ほか'} の行で「重複アカウント」として止めます（この行は店長に回しません）`]
+    : [
+      ...(stopIds.length && person ? [`このアカウント（${brief(person)}）を使い続けます`] : []),
+      ...stopIds.map(id => data.people[id] ? `同じ名前のもう1つのアカウント（${brief(data.people[id])}）を止めます（重複アカウント）` : '同じ名前のもう1つのアカウントを止めます（重複アカウント）'),
+      ...describeChange(it, current, { team: teamName, role: roleName, std: id => data.roles.find(r => r.id === id)?.std ?? null })
+        .filter(l => !(stopIds.length && l.startsWith('（いまの MB と同じです'))),
+    ]
 }
 
 export function ReviewItem({ it, ctx }: { it: RosterReviewItemRow; ctx: ItemCtx }) {
@@ -46,20 +65,9 @@ export function ReviewItem({ it, ctx }: { it: RosterReviewItemRow; ctx: ItemCtx 
   const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' })
 
   const person = it.employee_id ? data.people[it.employee_id] : null
-  const teamName = (id: string) => data.teams.find(t => t.id === id)?.name ?? '（不明）'
   const roleName = (id: string) => data.roles.find(r => r.id === id)?.name ?? '（不明）'
-  const current = person ? { name: person.name, employment_type: person.employment_type, team_names: person.team_names, role_names: person.role_ids.map(roleName), role_ids: person.role_ids, permission: person.permission } : null
-  const brief = (p: ReviewData['people'][string]) => [p.team_names.join('・') || '店舗なし', `登録 ${fmtDate(p.created_at)}`, `認定 ${p.certified ?? 0} 件`].join('・')
   const stopIds = it.dup_stop_ids ?? []
-  const mergedTo = it.merged_into ? data.items.find(x => x.id === it.merged_into) : null
-  const lines = it.merged_into
-    ? [`この行のアカウントは、${mergedTo ? (mergedTo.roster.name || [mergedTo.roster.last_name, mergedTo.roster.first_name].filter(Boolean).join(' ')) : 'ほか'} の行で「重複アカウント」として止めます（この行は店長に回しません）`]
-    : [
-      ...(stopIds.length && person ? [`このアカウント（${brief(person)}）を使い続けます`] : []),
-      ...stopIds.map(id => data.people[id] ? `同じ名前のもう1つのアカウント（${brief(data.people[id])}）を止めます（重複アカウント）` : '同じ名前のもう1つのアカウントを止めます（重複アカウント）'),
-      ...describeChange(it, current, { team: teamName, role: roleName, std: id => data.roles.find(r => r.id === id)?.std ?? null })
-        .filter(l => !(stopIds.length && l.startsWith('（いまの MB と同じです'))),
-    ]
+  const lines = changeLines(it, data)
   const name = it.roster.name || [it.roster.last_name, it.roster.first_name].filter(Boolean).join(' ') || person?.name || '（氏名なし）'
   const thread = data.comments.filter(c => c.item_id === it.id)
   const dupes = (data.dupes[it.id] ?? []).filter(id => data.people[id])
@@ -236,7 +244,7 @@ export function ReviewItem({ it, ctx }: { it: RosterReviewItemRow; ctx: ItemCtx 
   )
 }
 
-function ItemEditor({ it, data, stage, pending, onSave }: { it: RosterReviewItemRow; data: ReviewData; stage: RosterReviewStage; pending: boolean; onSave: (p: ItemPatch) => void }) {
+export function ItemEditor({ it, data, stage, pending, onSave }: { it: RosterReviewItemRow; data: ReviewData; stage: RosterReviewStage; pending: boolean; onSave: (p: ItemPatch) => void }) {
   const [action, setAction] = useState<RosterReviewAction>(it.action)
   const [type, setType] = useState(it.target_employment_type ?? '')
   const [team, setTeam] = useState(it.target_team_id ?? '')

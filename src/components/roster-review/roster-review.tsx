@@ -13,6 +13,7 @@ import { goesToStore, isApplicable, needsAttention, QUIET_NOTE, shownToStore, ST
 import { claimUrl } from '@/lib/account-issue'
 import type { RosterReviewBatchRow, RosterReviewItemRow, RosterReviewStage, SystemPermission } from '@/types/database'
 import { ReviewItem, type ItemCtx } from './roster-review-item'
+import { groupKey, ReviewGroup } from './roster-review-group'
 
 export type ReviewData = {
   me: { id: string; dev: boolean; ops: boolean; senior: boolean; ledTeamIds: string[] }
@@ -193,7 +194,7 @@ export function RosterReview({ data }: { data: ReviewData }) {
           </div>
           <p className="text-[11px] text-gray-500">見本です。{cur.team.name}の店長には、次のように見えます（ボタンは押せません）。店長には、須貝・原島さんのメモ・人事の確認事項・社員番号は見えません。</p>
           {cur.undecided > 0 && <p className="text-[11px] text-red-600">この店舗には「まだ決めていない」行が {cur.undecided} 件あります。決めると、ここに出ます。</p>}
-          <div className="rounded-lg border border-orange-200 bg-orange-50 p-3"><p className="text-sm font-semibold text-orange-800">あなたの店舗の方の変更案です。1行ずつ「問題ない」「問題ある」「退職済み」のどれかを選んでください（メッセージも書けます）</p></div>
+          <div className="rounded-lg border border-orange-200 bg-orange-50 p-3"><p className="text-sm font-semibold text-orange-800">あなたの店舗の方の変更案です。変更案が同じ方は1枚のカードにまとめています。問題ある方・退職された方だけ、その方の欄で「問題ある」「退職済み」を押し、ほかの方は「まとめて問題ない」で送ってください</p></div>
           {cur.rows.length === 0
             ? <p className="text-sm text-gray-500 text-center py-6">店長に回る行はまだありません。</p>
             : <SplitList rows={cur.rows} ctx={previewCtx} forStore />}
@@ -256,17 +257,38 @@ function SplitList({ rows, ctx, forStore }: { rows: RosterReviewItemRow[]; ctx: 
       {top.length > 0 && (
         <section className="space-y-2">
           <h3 className="text-sm font-bold text-gray-800">確認をお願いしたい方（{top.length}）</h3>
-          <ul className="space-y-2">{top.map(it => <ReviewItem key={it.id} it={it} ctx={ctx} />)}</ul>
+          <Cards rows={top} ctx={ctx} />
         </section>
       )}
       {quiet.length > 0 && (
         <section className="space-y-2">
           <h3 className="text-sm font-bold text-gray-800">問題なさそうな方（{quiet.length}）</h3>
           <p className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900">{QUIET_NOTE}</p>
-          <ul className="space-y-2">{quiet.map(it => <ReviewItem key={it.id} it={it} ctx={ctx} />)}</ul>
+          <Cards rows={quiet} ctx={ctx} />
         </section>
       )}
     </div>
+  )
+}
+
+/** 同じ店舗で変更案がまったく同じ方は1枚のカードにまとめる（2名以上のとき）。並びは、最初の方が出る位置 */
+function Cards({ rows, ctx }: { rows: RosterReviewItemRow[]; ctx: ItemCtx }) {
+  const groups = new Map<string, RosterReviewItemRow[]>()
+  const order: (string | RosterReviewItemRow)[] = []
+  for (const it of rows) {
+    const k = groupKey(it, ctx)
+    if (k === null) { order.push(it); continue }
+    if (!groups.has(k)) { groups.set(k, []); order.push(k) }
+    groups.get(k)!.push(it)
+  }
+  return (
+    <ul className="space-y-2">
+      {order.map(o => {
+        if (typeof o !== 'string') return <ReviewItem key={o.id} it={o} ctx={ctx} />
+        const g = groups.get(o)!
+        return g.length === 1 ? <ReviewItem key={g[0].id} it={g[0]} ctx={ctx} /> : <ReviewGroup key={o} rows={g} ctx={ctx} />
+      })}
+    </ul>
   )
 }
 
@@ -358,7 +380,7 @@ function StagePanel({ data, pending, run, ask, seniorsOk, mySign, counts }: {
     )
   }
   if (stage === 'store' && !me.ops) {
-    return <div className={box}><p className="text-sm font-semibold text-orange-800">あなたの店舗の方の変更案です。1行ずつ「問題ない」「問題ある」「退職済み」のどれかを選んでください（メッセージも書けます）</p></div>
+    return <div className={box}><p className="text-sm font-semibold text-orange-800">あなたの店舗の方の変更案です。変更案が同じ方は1枚のカードにまとめています。問題ある方・退職された方だけ、その方の欄で「問題ある」「退職済み」を押し、ほかの方は「まとめて問題ない」で送ってください</p></div>
   }
   if (stage === 'senior') {
     return (
